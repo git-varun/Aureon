@@ -49,13 +49,13 @@ jobs:
           git config --global user.name "Investment-OS-Bot"
           git config --global user.email "bot@investmentos.local"
           
-          # Safe creation: Prevents git from crashing on the very first run
+          # Safe creation
           touch app.log
           mkdir -p data && touch data/market_memory.db
           
-          # Stage the files
-          git add data/market_memory.db app.log
+          # FORCE ADD (-f) bypasses your .gitignore file safely
+          git add -f data/market_memory.db app.log
           
-          # Commit and Push (will skip gracefully if nothing changed today)
+          # Commit and Push
           git commit -m "🤖 Auto-Update AI Memory & Logs" || echo "No changes to commit"
           git push
