@@ -1,0 +1,203 @@
+2026-03-19 19:46:30 | INFO | ✅ Groww Source: Authenticated
+2026-03-19 19:46:31 | ERROR | ⚠️ Binance Init Error: APIError(code=0): Service unavailable from a restricted location according to 'b. Eligibility' in https://www.binance.com/en/terms. Please contact customer service if you believe you received this message in error.
+2026-03-19 19:46:31 | INFO | ☁️ Investment OS: Starting Cloud Cron Job
+2026-03-19 19:46:31 | INFO | 📡 Stage 1/3: Syncing raw assets from all broker plugins...
+2026-03-19 19:46:31 | INFO | ✅ Found 18 assets across 3 sources.
+2026-03-19 19:46:31 | INFO | 🧮 Stage 2/3: Fetching Live Prices (Multithreaded)...
+2026-03-19 19:46:33 | INFO | 🧠 Stage 3/3: Bundling Macro, News, and Requesting AI Strategy...
+2026-03-19 19:46:34 | ERROR | Portfolio Math Error: "['HDFCBANK.NS'] not in index"
+2026-03-19 19:46:37 | INFO | 📤 SENDING TO GEMINI:
+GLOBAL MACRO INDICATORS:
+Real-time Macro Data Unavailable.
+
+MACRO PORTFOLIO RISK:
+- Asset Allocation: {'STOCK': 100.0}
+- Portfolio Beta: 1.0
+
+
+[HDFCBANK.NS] Price: 798.2000122070312 | RSI: None
+Today's News: HDFC Bank share price plunges 9% after part-time chairman Atanu Chakraborty's sudden resignation; market - The Times of India | Stock Market Crash News Today Highlights: Nifty Ends Below 23,100, Sensex Slides 2,500 Points Amid Crude Oil Price Surge, HDFC Bank Selloff - NDTV Profit
+
+[ULTRACEMCO.NS] Price: 10814.0 | RSI: None
+Today's News: Stocks to Watch Today: Lupin, Angel One, Zydus Life, Shaily Engineering, KSB, Sanofi India, KP Energy,... - Moneycontrol.com | Lupin rallies 12% thus far in CY26, outperforms market; here's why - Business Standard | UltraTech Cement Limited's (NSE:ULTRACEMCO) Stock Been Rising: Are Strong Financials Guiding The Market? - simplywall.st
+
+[BEL.NS] Price: 430.79998779296875 | RSI: None
+Today's News: NIFTY50 above 23,750, SENSEX jumps over 600 pts in noon deals; BEL, PFC, Urban Company among buzzing stocks - Upstox | Defence stocks surge on Middle East tensions! HAL, BEL, Paras Defence rise up to 13% even as stock market - The Times of India | HAL, BEL, BDL, Zen Technologies to GRSE: Is defence the new IT for the Indian stock market? - Mint
+
+[TATAGOLD.NS] Price: 14.449999809265137 | RSI: None
+Today's News: Vodafone Idea, IDBI Bank, YES Bank— These are among the top most traded stocks on the NSE today - Mint | Best Gold Stocks in India 2025 - Groww | Why gold and silver ETF prices fell sharply, investors' losses and the road ahead - The Economic Times
+
+[TATSILV.NS] Price: 22.229999542236328 | RSI: None
+Today's News: Gold, silver ETFs fall on Diwali as global prices ease after record rally; check key details - Upstox | TATSILV Stock Fund Price and Chart — NSE:TATSILV - TradingView | Buying silver? CFP sounds alarm over ETF moves investors shouldn’t ignore - Business Today
+
+[GAIL.NS] Price: 144.27000427246094 | RSI: None
+Today's News: Petronet LNG, GAIL Share Price Falls Up to 5%: LNG Supply Fears Shake Stock Market Today - Samco | GAIL (India) Ltd Falls to 52-Week Low of Rs.143.95 Amid Market Downturn - Markets Mojo | Petronet LNG and GAIL shares drop up to 4% after Iranian missile strike on Qatar’s Ras Laffan LNG hub. Supply concerns and market impact decoded. - NiftyTrader
+
+[SUNPHARMA.NS] Price: 1744.4000244140625 | RSI: None
+Today's News: Sun Pharmaceutical Industries Ltd (SUNPHARMA) - MSN | stock in news pfc reliance tatamotors sunpharma - Zee Business | Stocks to Watch for March 17: Reliance Industries, Sun Pharma, Tata Motors CV, RVNL and more - CNBC TV18
+
+[TITAN.NS] Price: 4037.89990234375 | RSI: None
+Today's News: Stocks to buy for the short term: From Titan to GMR Airports— Amol Athawale of Kotak Securities suggests 3 shares - Mint | Stock Market News for Mar 18, 2026 - Stock Titan | Titan Share Price Hits Record High | Stock Market Today Update - Samco
+
+[PFC.NS] Price: 411.8500061035156 | RSI: None
+Today's News: PFC shares climb 4% as board approves fourth interim dividend, borrowing plan for FY27 - Upstox | Power Finance Corporation stock soars 4%; Motilal Oswal sees more upside - Business Standard | Stocks to buy: Sagar Doshi suggests Premier Energies, PFC, Tata Power shares to buy - Mint
+
+[MARUTI.NS] Price: 12599.0 | RSI: None
+Today's News: Maruti Suzuki Share Latest News ✅ Maruti Suzuki Share Analysis 🔥 Share News Today / Share Target / [5f7246] - fathomjournal.org | Crude climbs past US$ 103 Again | Maruti Suzuki India Receives Income Tax Notice | Top Buzzing Stocks Today - Equitymaster | Maruti Suzuki shares in focus after receiving income tax notice worth Rs 5,786 crore - The Economic Times
+
+[HAL.NS] Price: 3802.5 | RSI: None
+Today's News: Defence stocks surge on Middle East tensions! HAL, BEL, Paras Defence rise up to 13% even as stock market - The Times of India | HAL Share Latest News Today 🚨 SPLIT ANNOUNCEMENT 🚨 POLYCAB Share Latest News • HDFC BANK Share News [1e1f5a] - fathomjournal.org | HAL Share Price Falls 8% Today: Why The Defence PSU Stock Slipped | Stock Market Today - Samco
+
+[RELIANCE.NS] Price: 1384.800048828125 | RSI: None
+Today's News: RIL shares fall over 2% post Q1 results; analysts say it missed estimates despite impressive numbers - Upstox | $200 crude oil scenario: How Reliance Industries, ONGC & OMCs stack up - The Economic Times | Stocks to watch: IRFC, SBI Life, Reliance Industries among 10 shares in focus today; full list here - Mint
+
+[SBICARD.NS] Price: 694.25 | RSI: None
+Today's News: Should you bet on SBI Cards and Payment post its Q2? Analysts weigh - Business Standard | SBI Cards shares in focus after firm declares Rs 2.5 interim dividend for FY26, announces record date - The Economic Times | Stocks To Watch, January 29: Paytm, Swiggy, ITC, Vedanta, SBI Life, SBI Card, L&T, GE Vernova, M&M Finance, IndiGo, Heritage Foods - Upstox
+
+[DLF.NS] Price: 542.25 | RSI: None
+Today's News: DLF Ltd. Stock Falls to 52-Week Low of Rs.529.3 Amid Market Downturn - Markets Mojo | Stock market crash: Dixon Tech, RVNL, Swiggy, DLF among 586 stocks that hit 52-week low as NIFTY50 closed below 24,500 - Upstox | DLF Ltd.: Rs. 64.62 Crores NSE Block Trade for 1,141,811 Shares at Rs. 565.95 - scanx.trade
+
+[BHARTIARTL.NS] Price: 1827.0 | RSI: None
+Today's News: BHARTIARTL.NS Stock Today: March 17 – PSU Picks Steal Focus After Motilal Call - Meyka | Bharti Airtel shares decline 4% after announcing 'landmark investment' in NBFC, Airtel Money; key points to consider - Upstox | Is Bharti Airtel Limited's (NSE:BHARTIARTL) Recent Stock Performance Tethered To Its Strong Fundamentals? - simplywall.st
+
+2026-03-19 19:46:37 | INFO | 🚀 PAYLOAD SENT TO GEMINI:
+
+            Role: You are a Multi-Strategy Portfolio Manager. Your objective is to perform a 3-tier analysis (Macro, Fundamental, and Technical) on the provided portfolio, looking for inter-asset correlations and global catalysts.
+    
+            Phase 1: Macro & Global Synthesis
+            - Global Events: Analyze how current global events (Geopolitics, Fed/RBI Interest Rate changes, Brent Crude prices, US Bond Yields) impact Indian Equities and Crypto.
+            - Sentiment Scouring: Determine if the current "Market Vibe" is Risk-On or Risk-Off.
+            - Announcement Impact: Review the provided corporate announcements for systemic risk.
+    
+            Phase 2: The Correlation Matrix (Cross-Check)
+            - Sector Contagion: If one stock in a sector is failing due to macro news, apply that risk weight to all other correlated assets.
+            - Equity-Crypto Inverse: Note if FIIs are moving from Emerging Markets into "Safe Haven" assets.
+            - Dependency Check: Identify correlations (e.g., Rising Crude = Negative for Paints/Aviation, Positive for Energy).
+    
+            Phase 3: Triple-Technical Analysis
+            For every asset, justify your "Action" using these three pillars:
+            - Technical: Use provided RSI and EMA data. Identify Overbought (>70) or Oversold (<30) conditions.
+            - Fundamental: Evaluate the "Why" behind the price move using the news.
+            - Market Structure: Analyze if the move is "Technical Selling" or "Structural Decay".
+    
+            DATA BUNDLE:
+            GLOBAL MACRO INDICATORS:
+Real-time Macro Data Unavailable.
+
+MACRO PORTFOLIO RISK:
+- Asset Allocation: {'STOCK': 100.0}
+- Portfolio Beta: 1.0
+
+
+[HDFCBANK.NS] Price: 798.2000122070312 | RSI: None
+Today's News: HDFC Bank share price plunges 9% after part-time chairman Atanu Chakraborty's sudden resignation; market - The Times of India | Stock Market Crash News Today Highlights: Nifty Ends Below 23,100, Sensex Slides 2,500 Points Amid Crude Oil Price Surge, HDFC Bank Selloff - NDTV Profit
+
+[ULTRACEMCO.NS] Price: 10814.0 | RSI: None
+Today's News: Stocks to Watch Today: Lupin, Angel One, Zydus Life, Shaily Engineering, KSB, Sanofi India, KP Energy,... - Moneycontrol.com | Lupin rallies 12% thus far in CY26, outperforms market; here's why - Business Standard | UltraTech Cement Limited's (NSE:ULTRACEMCO) Stock Been Rising: Are Strong Financials Guiding The Market? - simplywall.st
+
+[BEL.NS] Price: 430.79998779296875 | RSI: None
+Today's News: NIFTY50 above 23,750, SENSEX jumps over 600 pts in noon deals; BEL, PFC, Urban Company among buzzing stocks - Upstox | Defence stocks surge on Middle East tensions! HAL, BEL, Paras Defence rise up to 13% even as stock market - The Times of India | HAL, BEL, BDL, Zen Technologies to GRSE: Is defence the new IT for the Indian stock market? - Mint
+
+[TATAGOLD.NS] Price: 14.449999809265137 | RSI: None
+Today's News: Vodafone Idea, IDBI Bank, YES Bank— These are among the top most traded stocks on the NSE today - Mint | Best Gold Stocks in India 2025 - Groww | Why gold and silver ETF prices fell sharply, investors' losses and the road ahead - The Economic Times
+
+[TATSILV.NS] Price: 22.229999542236328 | RSI: None
+Today's News: Gold, silver ETFs fall on Diwali as global prices ease after record rally; check key details - Upstox | TATSILV Stock Fund Price and Chart — NSE:TATSILV - TradingView | Buying silver? CFP sounds alarm over ETF moves investors shouldn’t ignore - Business Today
+
+[GAIL.NS] Price: 144.27000427246094 | RSI: None
+Today's News: Petronet LNG, GAIL Share Price Falls Up to 5%: LNG Supply Fears Shake Stock Market Today - Samco | GAIL (India) Ltd Falls to 52-Week Low of Rs.143.95 Amid Market Downturn - Markets Mojo | Petronet LNG and GAIL shares drop up to 4% after Iranian missile strike on Qatar’s Ras Laffan LNG hub. Supply concerns and market impact decoded. - NiftyTrader
+
+[SUNPHARMA.NS] Price: 1744.4000244140625 | RSI: None
+Today's News: Sun Pharmaceutical Industries Ltd (SUNPHARMA) - MSN | stock in news pfc reliance tatamotors sunpharma - Zee Business | Stocks to Watch for March 17: Reliance Industries, Sun Pharma, Tata Motors CV, RVNL and more - CNBC TV18
+
+[TITAN.NS] Price: 4037.89990234375 | RSI: None
+Today's News: Stocks to buy for the short term: From Titan to GMR Airports— Amol Athawale of Kotak Securities suggests 3 shares - Mint | Stock Market News for Mar 18, 2026 - Stock Titan | Titan Share Price Hits Record High | Stock Market Today Update - Samco
+
+[PFC.NS] Price: 411.8500061035156 | RSI: None
+Today's News: PFC shares climb 4% as board approves fourth interim dividend, borrowing plan for FY27 - Upstox | Power Finance Corporation stock soars 4%; Motilal Oswal sees more upside - Business Standard | Stocks to buy: Sagar Doshi suggests Premier Energies, PFC, Tata Power shares to buy - Mint
+
+[MARUTI.NS] Price: 12599.0 | RSI: None
+Today's News: Maruti Suzuki Share Latest News ✅ Maruti Suzuki Share Analysis 🔥 Share News Today / Share Target / [5f7246] - fathomjournal.org | Crude climbs past US$ 103 Again | Maruti Suzuki India Receives Income Tax Notice | Top Buzzing Stocks Today - Equitymaster | Maruti Suzuki shares in focus after receiving income tax notice worth Rs 5,786 crore - The Economic Times
+
+[HAL.NS] Price: 3802.5 | RSI: None
+Today's News: Defence stocks surge on Middle East tensions! HAL, BEL, Paras Defence rise up to 13% even as stock market - The Times of India | HAL Share Latest News Today 🚨 SPLIT ANNOUNCEMENT 🚨 POLYCAB Share Latest News • HDFC BANK Share News [1e1f5a] - fathomjournal.org | HAL Share Price Falls 8% Today: Why The Defence PSU Stock Slipped | Stock Market Today - Samco
+
+[RELIANCE.NS] Price: 1384.800048828125 | RSI: None
+Today's News: RIL shares fall over 2% post Q1 results; analysts say it missed estimates despite impressive numbers - Upstox | $200 crude oil scenario: How Reliance Industries, ONGC & OMCs stack up - The Economic Times | Stocks to watch: IRFC, SBI Life, Reliance Industries among 10 shares in focus today; full list here - Mint
+
+[SBICARD.NS] Price: 694.25 | RSI: None
+Today's News: Should you bet on SBI Cards and Payment post its Q2? Analysts weigh - Business Standard | SBI Cards shares in focus after firm declares Rs 2.5 interim dividend for FY26, announces record date - The Economic Times | Stocks To Watch, January 29: Paytm, Swiggy, ITC, Vedanta, SBI Life, SBI Card, L&T, GE Vernova, M&M Finance, IndiGo, Heritage Foods - Upstox
+
+[DLF.NS] Price: 542.25 | RSI: None
+Today's News: DLF Ltd. Stock Falls to 52-Week Low of Rs.529.3 Amid Market Downturn - Markets Mojo | Stock market crash: Dixon Tech, RVNL, Swiggy, DLF among 586 stocks that hit 52-week low as NIFTY50 closed below 24,500 - Upstox | DLF Ltd.: Rs. 64.62 Crores NSE Block Trade for 1,141,811 Shares at Rs. 565.95 - scanx.trade
+
+[BHARTIARTL.NS] Price: 1827.0 | RSI: None
+Today's News: BHARTIARTL.NS Stock Today: March 17 – PSU Picks Steal Focus After Motilal Call - Meyka | Bharti Airtel shares decline 4% after announcing 'landmark investment' in NBFC, Airtel Money; key points to consider - Upstox | Is Bharti Airtel Limited's (NSE:BHARTIARTL) Recent Stock Performance Tethered To Its Strong Fundamentals? - simplywall.st
+
+    
+            Output Requirements:
+            Return ONLY a raw JSON payload with this strict schema:
+            {
+                "market_vibe": "A 2-sentence 'Executive Summary' of the Global Market Pulse.",
+                "macro_analysis": "Deep analysis of sector contagion, correlations, and macro impacts.",
+                "global_score": 0.5,
+                "confidence_score": 0.85,
+                "directives":[
+                    {
+                        "symbol": "TICKER",
+                        "action": "BUY | SELL | HOLD | AVG DOWN | TAKE PARTIAL PROFIT | UPDATE TSL",
+                        "reasoning": "A deep-dive explanation linking Global News + Sector Correlation + Technical Math.",
+                        "the_why": "A robust, high-conviction paragraph explaining the specific catalyst and market structure."
+                    }
+                ]
+            }
+            Constraint: If technical data is missing, acknowledge the "Data Gap". Use professional terminology (Alpha, Beta, Mean Reversion, Liquidity Drain). Utilize the provided ATR-based TSL for math context.
+            
+2026-03-19 19:46:37 | INFO | AFC is enabled with max remote calls: 10.
+2026-03-19 19:46:42 | INFO | HTTP Request: POST https://generativelanguage.googleapis.com/v1beta/models/gemini-3.1-flash-lite-preview:generateContent "HTTP/1.1 200 OK"
+2026-03-19 19:46:42 | INFO | 📥 RAW JSON RECEIVED FROM GEMINI:
+{
+  "market_vibe": "The market is currently in a pronounced 'Risk-Off' state, driven by geopolitical instability in the Middle East causing a surge in Brent Crude and systemic shocks from banking leadership volatility. Liquidity is contracting as investors rotate toward defensive, event-driven opportunities while pricing in substantial downside risk from supply chain disruptions.",
+  "macro_analysis": "We observe a classic 'Risk-Off' contagion: rising energy costs (Brent Crude) are creating a liquidity drain for high-beta sectors (Auto, Real Estate, Banking), while simultaneously inflating the risk premium for energy-import-dependent firms. The inverse correlation between Gold/Silver and traditional equities has weakened, suggesting a broader market deleveraging. Structural decay is evident in the financial and real estate sectors, contrasting with an idiosyncratic 'War-Premium' rally in the Defence space. Systemic risk is currently elevated due to supply chain fears following regional escalations.",
+  "global_score": 0.25,
+  "confidence_score": 0.75,
+  "directives": [
+    {
+      "symbol": "HDFCBANK.NS",
+      "action": "SELL",
+      "reasoning": "High-impact governance shock (Chairman resignation) coupled with broader banking sector volatility indicates potential structural decay.",
+      "the_why": "The sudden departure of key leadership triggers a loss of institutional confidence; expect continued capital flight as investors de-risk from financial institutions currently facing Nifty-wide selling pressure."
+    },
+    {
+      "symbol": "BEL.NS",
+      "action": "HOLD",
+      "reasoning": "Data Gap: RSI/EMA unavailable. However, the asset is benefiting from a strong geopolitical catalyst (Middle East tensions).",
+      "the_why": "Defence sector assets are currently acting as an Alpha-generator amid global unrest. Maintain exposure but keep a tight trailing stop-loss as the sector is prone to 'news-driven' volatility spikes."
+    },
+    {
+      "symbol": "GAIL.NS",
+      "action": "AVG DOWN",
+      "reasoning": "The 52-week low is a result of temporary supply chain shocks (Ras Laffan hub impact) rather than fundamental impairment.",
+      "the_why": "Mean reversion potential is high once the initial panic regarding LNG supply subsides; the underlying utility demand remains robust, making current lows a valuation play."
+    },
+    {
+      "symbol": "MARUTI.NS",
+      "action": "SELL",
+      "reasoning": "Compound risk: Rising crude oil prices (input cost squeeze) + major regulatory/tax liabilities (Rs 5,786 Cr notice).",
+      "the_why": "The stock faces a margin contraction headwind while navigating significant legal-financial scrutiny; the technical structure is compromised by negative momentum."
+    },
+    {
+      "symbol": "DLF.NS",
+      "action": "SELL",
+      "reasoning": "Data Gap: RSI/EMA unavailable. The stock has hit a 52-week low amid high volume block deals, indicating institutional distribution.",
+      "the_why": "Real estate is highly sensitive to liquidity drains; the current price action signals structural decay, with investors exiting positions in response to tightening credit conditions."
+    },
+    {
+      "symbol": "HAL.NS",
+      "action": "TAKE PARTIAL PROFIT",
+      "reasoning": "The asset has seen a substantial run-up due to sector tailwinds but faces overhead pressure post-split news noise and broad market correction.",
+      "the_why": "Locking in gains is prudent when volatility exceeds historical norms. The 'Defence Alpha' is currently over-extended; scaling back allows for capital protection during market-wide dips."
+    }
+  ]
+}
+2026-03-19 19:46:42 | INFO | ✅ Daily Cloud Report Sent to Telegram.
