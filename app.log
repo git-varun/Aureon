@@ -466,3 +466,218 @@ Today's News: Bharti Airtel, Aurobindo Pharma are top stock picks for today; her
 2026-03-26 05:12:36 | INFO | ✅ Found 0 assets across 3 sources.
 2026-03-26 05:12:36 | INFO | 🧮 Stage 2/3: Fetching Live Prices (Multithreaded)...
 2026-03-26 05:12:36 | INFO | 🧠 Stage 3/3: Bundling Macro, News, and Requesting AI Strategy...
+2026-03-26 08:47:46 | INFO | ✅ Groww Source: Authenticated
+2026-03-26 08:47:46 | ERROR | ⚠️ Binance Init Error: APIError(code=0): Service unavailable from a restricted location according to 'b. Eligibility' in https://www.binance.com/en/terms. Please contact customer service if you believe you received this message in error.
+2026-03-26 08:47:51 | INFO | ☁️ Investment OS: Starting Cloud Cron Job
+2026-03-26 08:47:51 | INFO | 📡 Stage 1/3: Syncing raw assets from all broker plugins...
+2026-03-26 08:47:52 | INFO | ✅ Found 18 assets across 3 sources.
+2026-03-26 08:47:52 | INFO | 🧮 Stage 2/3: Fetching Live Prices (Multithreaded)...
+2026-03-26 08:47:53 | INFO | 🧠 Stage 3/3: Bundling Macro, News, and Requesting AI Strategy...
+2026-03-26 08:47:54 | ERROR | Portfolio Math Error: "['HDFCBANK.NS', 'HAL.NS'] not in index"
+2026-03-26 08:47:55 | INFO | 📤 SENDING TO GEMINI:
+GLOBAL MACRO INDICATORS:
+Real-time Macro Data Unavailable.
+
+MACRO PORTFOLIO RISK:
+- Asset Allocation: {'STOCK': 100.0}
+- Portfolio Beta: 1.0
+
+
+[HDFCBANK.NS] Price: 782.2999877929688 | RSI: None
+Today's News: HDFC Bank stock selloff halts after 4 days, rises 3%. What's happening? - The Economic Times | HDFC Bank falls over 15% in March: Key factors why the banking giant is crucial for the stock market and mutual funds - Upstox | Stocks to watch: Coal India, IRFC, HDFC Bank among 10 shares in focus today - Mint
+Historical Context: [+4.2% Impact] HDFC Bank share price tumbles over 3%: Why is the stock falling? - India Today | HDFC Bank shares dip 7% in two days. Should you buy after the RBI's nod to the lender's transition arrangement - Mint | HDFC Bank share price today: Stock down over 10% in four sessions; check details - The Times of India
+
+[ULTRACEMCO.NS] Price: 11204.0 | RSI: None
+Today's News: Stocks to Watch Today: Lupin, Angel One, Zydus Life, Shaily Engineering, KSB, Sanofi India, KP Energy,... - Moneycontrol.com | Lupin rallies 12% thus far in CY26, outperforms market; here's why - Business Standard | Stocks to Watch on February 17: JSW Infra, Cochin Shipyard, Lupin and more - CNBC TV18
+Historical Context: [+7.9% Impact] Stocks to Watch Today: Lupin, Angel One, Zydus Life, Shaily Engineering, KSB, Sanofi India, KP Energy,... - Moneycontrol.com | Lupin rallies 12% thus far in CY26, outperforms market; here's why - Business Standard | Stocks to watch today: Lenskart, HAL, Lupin, Swiggy, Biocon, Nykaa, among 10 shares in focus on Monday, 10 November - Mint
+
+[BEL.NS] Price: 413.45001220703125 | RSI: None
+Today's News: 5 Defence stocks get Nuvama ‘Buy’ rating; key pick has 62% upside potential - The Financial Express | Defence stocks surge on Middle East tensions! HAL, BEL, Paras Defence rise up to 13% even as stock market - The Times of India | Stocks to buy or sell: Dharmesh Shah of ICICI Sec suggests buying BEL shares on February 16 - Mint
+
+[TATAGOLD.NS] Price: 13.970000267028809 | RSI: None
+Today's News: Vodafone Idea, NOCIL, JP Power, YES Bank— These are among the most traded stocks on NSE today - Mint | Vodafone Idea, Sammaan Capital, Reliance Power— These are among the most traded stocks on NSE today - Mint | Why gold and silver ETF prices fell sharply, investors' losses and the road ahead - The Economic Times
+Historical Context: [+7.7% Impact] Vodafone Idea, JP Power, HDFC Bank— These are among the top most traded stocks on the NSE today - Mint | Best Gold Stocks in India 2025 - Groww | Investing in gold ETFs: Sudden slide after 27% surge, how should investors proceed? - The Times of India
+
+[TATSILV.NS] Price: 22.399999618530273 | RSI: None
+Today's News: TATSILV Stock Fund Price and Chart — NSE:TATSILV - TradingView | Gold, silver ETFs fall on Diwali as global prices ease after record rally; check key details - Upstox | Buying silver? CFP sounds alarm over ETF moves investors shouldn’t ignore - Business Today
+Historical Context: [+14.9% Impact] TATSILV Share Price Today - Tata Silver Exchange Traded Fund Stock Analysis - Equitypandit | TATSILV Stock Fund Price and Chart — NSE:TATSILV - TradingView | Gold, silver ETFs fall on Diwali as global prices ease after record rally; check key details - Upstox
+
+[HAL.NS] Price: 3669.39990234375 | RSI: None
+Today's News: HAL shares fall 2% despite Rs 2,901 crore Defence Ministry order - The Economic Times | Defence stocks surge on Middle East tensions! HAL, BEL, Paras Defence rise up to 13% even as stock market - The Times of India | HAL Share Price Falls Over 11% In Two Sessions | Stock Market Today - Samco
+
+[GAIL.NS] Price: 139.1999969482422 | RSI: None
+Today's News: Vedanta, to REC, Coal India: 5 best dividend stocks to buy amid US-Iran war-led stock market volatility - Mint | GAIL (India) Ltd Hits Intraday Low Amid Price Pressure on 23 Mar 2026 - Markets Mojo | Opportunity Amid Market Crash: GAIL To L&T — Stocks That May Rally Up To 46% - NDTV Profit
+
+[SUNPHARMA.NS] Price: 1795.4000244140625 | RSI: None
+Today's News: Sun Pharma, Dr Reddy's, Glenmark, Zydus: Pharma stocks in focus after semaglutide patent expires; what investors need to know - Upstox | Sun Pharma up 5% in 1 week, nears 52-week high; what's driving this stock? - Business Standard | Pharma Stocks: Cipla, Lupin, Sun Pharma — Where is upside and who faces downside in GLP-1 boom? - Zee Business
+
+[TITAN.NS] Price: 4039.300048828125 | RSI: None
+Today's News: Top gainers and losers, March 25: Shriram Finance soars 6%, Titan rises 4%, TechM down 2%; check list - Upstox | Stock market rally: Sensex surges 1,172 pts, Nifty reclaims 22,850; Asian Paints, Titan lead gainers - Business Today | Titan among top NIFTY50 gainers as stock surge over 5% on gold prices rebound - Upstox
+Historical Context: [+3.3% Impact] Titan Share Price Hits Fresh 52-Week High as Stock Market Today Cheers New Brand Launch - Samco | Trending Stock Market News — Most-Read Today, March 23 - Stock Titan | Titan Company shares hit record high on Q3 business updates; check what analysts said - Upstox
+
+[PFC.NS] Price: 403.45001220703125 | RSI: None
+Today's News: Stocks in focus today: HDFC Bank, South Indian Bank, PFC, Castrol India, Vedanta, MM Forgings, RITES,... - Moneycontrol.com | Upcoming dividend, bonus, stock split this week: Vedanta, Castrol India, PFC, Angel One among others in focus - Upstox | Dividend rush this week: Vedanta, PFC among 13 stocks with key corporate actions lined up - The Financial Express
+
+[MARUTI.NS] Price: 12711.0 | RSI: None
+Today's News: Rs 1.32 lakh crore shock! Maruti Suzuki shares tumble 25% YTD, worst among peers! Overdone or more pain? - The Economic Times | Maruti share price slips after hitting a record high; opportunity to buy or time to book profit? - Mint | Crude climbs past US$ 103 Again | Maruti Suzuki India Receives Income Tax Notice | Top Buzzing Stocks Today - Equitymaster
+
+[RELIANCE.NS] Price: 1413.0999755859375 | RSI: None
+Today's News: Reliance Industries' share price surges 7% on Tuesday, February 3: What you need to know - Upstox | Vodafone Idea, Sammaan Capital, Reliance Power— These are among the most traded stocks on NSE today - Mint | Reliance Share Price Rises In February Amid Market Recovery | Stock Market Today - Samco
+
+[SBICARD.NS] Price: 700.2000122070312 | RSI: None
+Today's News: Stocks to Watch today, Mar 25: OMCs, RIL, SBI Card, NTPC Green, TVS Motor - Business Standard | Upcoming dividends, stock splits, bonuses this week: SBI Cards, IRFC, Indian Oil Corp, Sun TV among others in focus - Upstox | SBI Cards Allots 9,225 Equity Shares to Employees Under ESOP Schemes - scanx.trade
+Historical Context: [+6.4% Impact] Should you bet on SBI Cards and Payment post its Q2? Analysts weigh - Business Standard | SBI Cards shares in focus after firm declares Rs 2.5 interim dividend for FY26, announces record date - The Economic Times | Q3 Results impact: SBI Card, SBI Life shares fall 3%; Gland Pharma surges 9% to two-month high - Moneycontrol.com
+
+[DLF.NS] Price: 534.3499755859375 | RSI: None
+Today's News: Bulk, block deals: DLF, Jindal Poly Films, Inox Green Energy, Reliance Indl Infra, others record large deals on March 20; details - Upstox | Nifty Realty soars 4% on easing oil prices; Phoenix Mills, DLF gain upto 5% - Business Standard | SignatureGlobal India To DLF Fall As Nifty Realty Drops 3% | Stock Market Today - Samco
+
+[BHARTIARTL.NS] Price: 1834.9000244140625 | RSI: None
+Today's News: Stocks To Watch, Feb 24: Waaree Energies, Bharti Airtel, IDFC First Bank, IT stocks, Lupin, Patel Engineering, Chalet Hotels, BPCL - Upstox | Stocks to buy for long term: From Bharti Airtel to BEL— Motilal Oswal's expert bullish on these 5 shares; do you own? - Mint | Is Bharti Airtel Limited's (NSE:BHARTIARTL) Recent Stock Performance Tethered To Its Strong Fundamentals? - simplywall.st
+
+2026-03-26 08:47:55 | INFO | 🚀 PAYLOAD SENT TO GEMINI:
+
+            Role: You are a Multi-Strategy Portfolio Manager. Your objective is to perform a 3-tier analysis (Macro, Fundamental, and Technical) on the provided portfolio, looking for inter-asset correlations and global catalysts.
+    
+            Phase 1: Macro & Global Synthesis
+            - Global Events: Analyze how current global events (Geopolitics, Fed/RBI Interest Rate changes, Brent Crude prices, US Bond Yields) impact Indian Equities and Crypto.
+            - Sentiment Scouring: Determine if the current "Market Vibe" is Risk-On or Risk-Off.
+            - Announcement Impact: Review the provided corporate announcements for systemic risk.
+    
+            Phase 2: The Correlation Matrix (Cross-Check)
+            - Sector Contagion: If one stock in a sector is failing due to macro news, apply that risk weight to all other correlated assets.
+            - Equity-Crypto Inverse: Note if FIIs are moving from Emerging Markets into "Safe Haven" assets.
+            - Dependency Check: Identify correlations (e.g., Rising Crude = Negative for Paints/Aviation, Positive for Energy).
+    
+            Phase 3: Triple-Technical Analysis
+            For every asset, justify your "Action" using these three pillars:
+            - Technical: Use provided RSI and EMA data. Identify Overbought (>70) or Oversold (<30) conditions.
+            - Fundamental: Evaluate the "Why" behind the price move using the news.
+            - Market Structure: Analyze if the move is "Technical Selling" or "Structural Decay".
+    
+            DATA BUNDLE:
+            GLOBAL MACRO INDICATORS:
+Real-time Macro Data Unavailable.
+
+MACRO PORTFOLIO RISK:
+- Asset Allocation: {'STOCK': 100.0}
+- Portfolio Beta: 1.0
+
+
+[HDFCBANK.NS] Price: 782.2999877929688 | RSI: None
+Today's News: HDFC Bank stock selloff halts after 4 days, rises 3%. What's happening? - The Economic Times | HDFC Bank falls over 15% in March: Key factors why the banking giant is crucial for the stock market and mutual funds - Upstox | Stocks to watch: Coal India, IRFC, HDFC Bank among 10 shares in focus today - Mint
+Historical Context: [+4.2% Impact] HDFC Bank share price tumbles over 3%: Why is the stock falling? - India Today | HDFC Bank shares dip 7% in two days. Should you buy after the RBI's nod to the lender's transition arrangement - Mint | HDFC Bank share price today: Stock down over 10% in four sessions; check details - The Times of India
+
+[ULTRACEMCO.NS] Price: 11204.0 | RSI: None
+Today's News: Stocks to Watch Today: Lupin, Angel One, Zydus Life, Shaily Engineering, KSB, Sanofi India, KP Energy,... - Moneycontrol.com | Lupin rallies 12% thus far in CY26, outperforms market; here's why - Business Standard | Stocks to Watch on February 17: JSW Infra, Cochin Shipyard, Lupin and more - CNBC TV18
+Historical Context: [+7.9% Impact] Stocks to Watch Today: Lupin, Angel One, Zydus Life, Shaily Engineering, KSB, Sanofi India, KP Energy,... - Moneycontrol.com | Lupin rallies 12% thus far in CY26, outperforms market; here's why - Business Standard | Stocks to watch today: Lenskart, HAL, Lupin, Swiggy, Biocon, Nykaa, among 10 shares in focus on Monday, 10 November - Mint
+
+[BEL.NS] Price: 413.45001220703125 | RSI: None
+Today's News: 5 Defence stocks get Nuvama ‘Buy’ rating; key pick has 62% upside potential - The Financial Express | Defence stocks surge on Middle East tensions! HAL, BEL, Paras Defence rise up to 13% even as stock market - The Times of India | Stocks to buy or sell: Dharmesh Shah of ICICI Sec suggests buying BEL shares on February 16 - Mint
+
+[TATAGOLD.NS] Price: 13.970000267028809 | RSI: None
+Today's News: Vodafone Idea, NOCIL, JP Power, YES Bank— These are among the most traded stocks on NSE today - Mint | Vodafone Idea, Sammaan Capital, Reliance Power— These are among the most traded stocks on NSE today - Mint | Why gold and silver ETF prices fell sharply, investors' losses and the road ahead - The Economic Times
+Historical Context: [+7.7% Impact] Vodafone Idea, JP Power, HDFC Bank— These are among the top most traded stocks on the NSE today - Mint | Best Gold Stocks in India 2025 - Groww | Investing in gold ETFs: Sudden slide after 27% surge, how should investors proceed? - The Times of India
+
+[TATSILV.NS] Price: 22.399999618530273 | RSI: None
+Today's News: TATSILV Stock Fund Price and Chart — NSE:TATSILV - TradingView | Gold, silver ETFs fall on Diwali as global prices ease after record rally; check key details - Upstox | Buying silver? CFP sounds alarm over ETF moves investors shouldn’t ignore - Business Today
+Historical Context: [+14.9% Impact] TATSILV Share Price Today - Tata Silver Exchange Traded Fund Stock Analysis - Equitypandit | TATSILV Stock Fund Price and Chart — NSE:TATSILV - TradingView | Gold, silver ETFs fall on Diwali as global prices ease after record rally; check key details - Upstox
+
+[HAL.NS] Price: 3669.39990234375 | RSI: None
+Today's News: HAL shares fall 2% despite Rs 2,901 crore Defence Ministry order - The Economic Times | Defence stocks surge on Middle East tensions! HAL, BEL, Paras Defence rise up to 13% even as stock market - The Times of India | HAL Share Price Falls Over 11% In Two Sessions | Stock Market Today - Samco
+
+[GAIL.NS] Price: 139.1999969482422 | RSI: None
+Today's News: Vedanta, to REC, Coal India: 5 best dividend stocks to buy amid US-Iran war-led stock market volatility - Mint | GAIL (India) Ltd Hits Intraday Low Amid Price Pressure on 23 Mar 2026 - Markets Mojo | Opportunity Amid Market Crash: GAIL To L&T — Stocks That May Rally Up To 46% - NDTV Profit
+
+[SUNPHARMA.NS] Price: 1795.4000244140625 | RSI: None
+Today's News: Sun Pharma, Dr Reddy's, Glenmark, Zydus: Pharma stocks in focus after semaglutide patent expires; what investors need to know - Upstox | Sun Pharma up 5% in 1 week, nears 52-week high; what's driving this stock? - Business Standard | Pharma Stocks: Cipla, Lupin, Sun Pharma — Where is upside and who faces downside in GLP-1 boom? - Zee Business
+
+[TITAN.NS] Price: 4039.300048828125 | RSI: None
+Today's News: Top gainers and losers, March 25: Shriram Finance soars 6%, Titan rises 4%, TechM down 2%; check list - Upstox | Stock market rally: Sensex surges 1,172 pts, Nifty reclaims 22,850; Asian Paints, Titan lead gainers - Business Today | Titan among top NIFTY50 gainers as stock surge over 5% on gold prices rebound - Upstox
+Historical Context: [+3.3% Impact] Titan Share Price Hits Fresh 52-Week High as Stock Market Today Cheers New Brand Launch - Samco | Trending Stock Market News — Most-Read Today, March 23 - Stock Titan | Titan Company shares hit record high on Q3 business updates; check what analysts said - Upstox
+
+[PFC.NS] Price: 403.45001220703125 | RSI: None
+Today's News: Stocks in focus today: HDFC Bank, South Indian Bank, PFC, Castrol India, Vedanta, MM Forgings, RITES,... - Moneycontrol.com | Upcoming dividend, bonus, stock split this week: Vedanta, Castrol India, PFC, Angel One among others in focus - Upstox | Dividend rush this week: Vedanta, PFC among 13 stocks with key corporate actions lined up - The Financial Express
+
+[MARUTI.NS] Price: 12711.0 | RSI: None
+Today's News: Rs 1.32 lakh crore shock! Maruti Suzuki shares tumble 25% YTD, worst among peers! Overdone or more pain? - The Economic Times | Maruti share price slips after hitting a record high; opportunity to buy or time to book profit? - Mint | Crude climbs past US$ 103 Again | Maruti Suzuki India Receives Income Tax Notice | Top Buzzing Stocks Today - Equitymaster
+
+[RELIANCE.NS] Price: 1413.0999755859375 | RSI: None
+Today's News: Reliance Industries' share price surges 7% on Tuesday, February 3: What you need to know - Upstox | Vodafone Idea, Sammaan Capital, Reliance Power— These are among the most traded stocks on NSE today - Mint | Reliance Share Price Rises In February Amid Market Recovery | Stock Market Today - Samco
+
+[SBICARD.NS] Price: 700.2000122070312 | RSI: None
+Today's News: Stocks to Watch today, Mar 25: OMCs, RIL, SBI Card, NTPC Green, TVS Motor - Business Standard | Upcoming dividends, stock splits, bonuses this week: SBI Cards, IRFC, Indian Oil Corp, Sun TV among others in focus - Upstox | SBI Cards Allots 9,225 Equity Shares to Employees Under ESOP Schemes - scanx.trade
+Historical Context: [+6.4% Impact] Should you bet on SBI Cards and Payment post its Q2? Analysts weigh - Business Standard | SBI Cards shares in focus after firm declares Rs 2.5 interim dividend for FY26, announces record date - The Economic Times | Q3 Results impact: SBI Card, SBI Life shares fall 3%; Gland Pharma surges 9% to two-month high - Moneycontrol.com
+
+[DLF.NS] Price: 534.3499755859375 | RSI: None
+Today's News: Bulk, block deals: DLF, Jindal Poly Films, Inox Green Energy, Reliance Indl Infra, others record large deals on March 20; details - Upstox | Nifty Realty soars 4% on easing oil prices; Phoenix Mills, DLF gain upto 5% - Business Standard | SignatureGlobal India To DLF Fall As Nifty Realty Drops 3% | Stock Market Today - Samco
+
+[BHARTIARTL.NS] Price: 1834.9000244140625 | RSI: None
+Today's News: Stocks To Watch, Feb 24: Waaree Energies, Bharti Airtel, IDFC First Bank, IT stocks, Lupin, Patel Engineering, Chalet Hotels, BPCL - Upstox | Stocks to buy for long term: From Bharti Airtel to BEL— Motilal Oswal's expert bullish on these 5 shares; do you own? - Mint | Is Bharti Airtel Limited's (NSE:BHARTIARTL) Recent Stock Performance Tethered To Its Strong Fundamentals? - simplywall.st
+
+    
+            Output Requirements:
+            Return ONLY a raw JSON payload with this strict schema:
+            {
+                "market_vibe": "A 2-sentence 'Executive Summary' of the Global Market Pulse.",
+                "macro_analysis": "Deep analysis of sector contagion, correlations, and macro impacts.",
+                "global_score": 0.5,
+                "confidence_score": 0.85,
+                "directives":[
+                    {
+                        "symbol": "TICKER",
+                        "action": "BUY | SELL | HOLD | AVG DOWN | TAKE PARTIAL PROFIT | UPDATE TSL",
+                        "reasoning": "A deep-dive explanation linking Global News + Sector Correlation + Technical Math.",
+                        "the_why": "A robust, high-conviction paragraph explaining the specific catalyst and market structure."
+                    }
+                ]
+            }
+            Constraint: If technical data is missing, acknowledge the "Data Gap". Use professional terminology (Alpha, Beta, Mean Reversion, Liquidity Drain). Utilize the provided ATR-based TSL for math context.
+            
+2026-03-26 08:47:55 | INFO | AFC is enabled with max remote calls: 10.
+2026-03-26 08:48:03 | INFO | HTTP Request: POST https://generativelanguage.googleapis.com/v1beta/models/gemini-3.1-flash-lite-preview:generateContent "HTTP/1.1 200 OK"
+2026-03-26 08:48:03 | INFO | 📥 RAW JSON RECEIVED FROM GEMINI:
+{
+  "market_vibe": "The market is currently experiencing a bifurcated 'Risk-Off' sentiment characterized by geopolitical volatility in the Middle East and sector-specific deleveraging in interest-rate sensitive stocks. While defensive sectors like Defense and Pharma show resilience, cyclical segments like Automotive and Finance are facing systemic liquidity headwinds.",
+  "macro_analysis": "We are observing a clear sector contagion where banking giants like HDFC and financial intermediaries are under pressure due to RBI-linked regulatory constraints and broader liquidity tightening. Crude oil price volatility is creating a negative correlation with the Automotive sector (Maruti), while Defense (BEL, HAL) remains the primary hedge against geopolitical uncertainty. High-beta stocks are currently susceptible to FII outflows seeking 'Safe Haven' yield instruments, resulting in structural decay in retail-heavy names.",
+  "global_score": 0.45,
+  "confidence_score": 0.8,
+  "directives": [
+    {
+      "symbol": "HDFCBANK.NS",
+      "action": "HOLD",
+      "reasoning": "Data Gap: Technicals missing. Market structure shows signs of stabilization after 15% March drawdown; institutional buying emerging.",
+      "the_why": "The bank is undergoing a painful transition arrangement. We anticipate a base-building phase rather than a V-shaped recovery; retain until 800-level consolidation is confirmed."
+    },
+    {
+      "symbol": "BEL.NS",
+      "action": "BUY",
+      "reasoning": "Technical: Strong momentum supported by geopolitical risk premiums. Structural: Order book remains robust.",
+      "the_why": "Defense stocks are currently the primary 'Alpha' capture in the Indian market. With ongoing Middle East tensions, capital is rotating from cyclical consumer goods into security-linked infrastructure."
+    },
+    {
+      "symbol": "MARUTI.NS",
+      "action": "SELL",
+      "reasoning": "Fundamental: YTD performance indicates 25% decay; hit by negative catalysts including income tax notices and high energy input costs.",
+      "the_why": "The stock is experiencing institutional structural decay. Rising crude prices directly compress margins, and technical selling is currently outpacing the mean-reversion opportunity."
+    },
+    {
+      "symbol": "SUNPHARMA.NS",
+      "action": "BUY",
+      "reasoning": "Fundamental: Patent expirations and GLP-1 sector boom provide strong tailwinds. Technical: Asset is near 52-week highs.",
+      "the_why": "Pharma acts as an non-correlated defensive play against broader market volatility. The expiration of semaglutide patents serves as a specific growth catalyst for market share expansion."
+    },
+    {
+      "symbol": "TITAN.NS",
+      "action": "TAKE PARTIAL PROFIT",
+      "reasoning": "Market Structure: RSI likely in overbought territory given the recent 5% surge. Fundamental: Price is highly sensitive to gold price spot volatility.",
+      "the_why": "With gold prices showing signs of easing after a record rally, the margin of safety in Titan is narrowing. Booking partial profits prevents giving back gains during a commodity price correction."
+    },
+    {
+      "symbol": "TATSILV.NS",
+      "action": "AVG DOWN",
+      "reasoning": "Data Gap: Technicals missing. The asset has suffered from global ETF outflows following the Diwali peak.",
+      "the_why": "Silver remains a vital hedge against currency debasement. Current price weakness is a temporary reaction to ETF liquidity drains rather than a collapse in the fundamental value of the metal."
+    }
+  ]
+}
+2026-03-26 08:48:05 | INFO | ✅ Daily Cloud Report Sent to Telegram.
