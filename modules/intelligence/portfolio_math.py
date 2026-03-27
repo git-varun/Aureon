@@ -81,6 +81,7 @@ class PortfolioAnalytics:
                         break
 
             health_report["high_correlation_warning"] = high_corr_pair
+            health_report["correlation_matrix"] = corr_matrix.fillna(0).to_dict()
 
         except Exception as e:
             self.logger.error(f"Portfolio Math Error: {e}")

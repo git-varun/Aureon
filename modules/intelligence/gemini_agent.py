@@ -1,6 +1,7 @@
 import json
 import logging
 import os
+import time
 
 from google import genai
 
@@ -28,81 +29,120 @@ class GeminiFlash(AIModel):
             return self._fallback_response("AI Features Offline (Check .env)")
 
         prompt = f"""
-            Role: You are a Multi-Strategy Portfolio Manager. Your objective is to perform a 3-tier analysis (Macro, Fundamental, and Technical) on the provided portfolio, looking for inter-asset correlations and global catalysts.
-    
-            Phase 1: Macro & Global Synthesis
-            - Global Events: Analyze how current global events (Geopolitics, Fed/RBI Interest Rate changes, Brent Crude prices, US Bond Yields) impact Indian Equities and Crypto.
-            - Sentiment Scouring: Determine if the current "Market Vibe" is Risk-On or Risk-Off.
-            - Announcement Impact: Review the provided corporate announcements for systemic risk.
-    
-            Phase 2: The Correlation Matrix (Cross-Check)
-            - Sector Contagion: If one stock in a sector is failing due to macro news, apply that risk weight to all other correlated assets.
-            - Equity-Crypto Inverse: Note if FIIs are moving from Emerging Markets into "Safe Haven" assets.
-            - Dependency Check: Identify correlations (e.g., Rising Crude = Negative for Paints/Aviation, Positive for Energy).
-    
-            Phase 3: Triple-Technical Analysis
-            For every asset, justify your "Action" using these three pillars:
-            - Technical: Use provided RSI and EMA data. Identify Overbought (>70) or Oversold (<30) conditions.
-            - Fundamental: Evaluate the "Why" behind the price move using the news.
-            - Market Structure: Analyze if the move is "Technical Selling" or "Structural Decay".
-    
-            DATA BUNDLE:
-            {context}
-    
-            Output Requirements:
-            Return ONLY a raw JSON payload with this strict schema:
-            {{
-                "market_vibe": "A 2-sentence 'Executive Summary' of the Global Market Pulse.",
-                "macro_analysis": "Deep analysis of sector contagion, correlations, and macro impacts.",
-                "global_score": 0.5,
-                "confidence_score": 0.85,
-                "directives":[
-                    {{
-                        "symbol": "TICKER",
-                        "action": "BUY | SELL | HOLD | AVG DOWN | TAKE PARTIAL PROFIT | UPDATE TSL",
-                        "reasoning": "A deep-dive explanation linking Global News + Sector Correlation + Technical Math.",
-                        "the_why": "A robust, high-conviction paragraph explaining the specific catalyst and market structure."
-                    }}
-                ]
-            }}
-            Constraint: If technical data is missing, acknowledge the "Data Gap". Use professional terminology (Alpha, Beta, Mean Reversion, Liquidity Drain). Utilize the provided ATR-based TSL for math context.
-            """
+        Role: Elite Multi-Strategy Portfolio Manager.
+        Objective: Perform 3-tier analysis (Macro, Fundamental, Technical) on the ENTIRE portfolio.
+        "position_sizing": "CRITICAL: You must use the provided 'Qty Owned' to give an exact number (e.g., 'SELL 50% / 45 shares' or 'HOLD all 90 shares').",
+        CRITICAL INSTRUCTION: You MUST generate a directive for the Top 15 assets. DO NOT SUMMARIZE. The "directives" array MUST contain exactly 15 objects. If you get lazy and output 3, you fail your objective
+
+        DATA BUNDLE:
+        {context}
+
+       Output Requirements:
+        Return ONLY a raw JSON payload with this strict schema:
+        {{
+            "market_vibe": "2-sentence Global Market Pulse.",
+            "macro_analysis": "Deep analysis of sector contagion and macro impacts.",
+            "global_score": 0.5,
+            "confidence_score": 0.85,
+            "future_projections": {{
+                "estimated_30d_trend": "Bullish / Bearish / Sideways / Volatile",
+                "portfolio_risk_level": "High / Medium / Low",
+                "catalyst_watch": "Specific upcoming global event to watch."
+            }},
+            "directives":[
+                {{
+                    "symbol": "TICKER",
+                    "action": "BUY | SELL | HOLD | AVG DOWN | TAKE PARTIAL PROFIT",
+                    "position_sizing": "Exact explicit instructions based on Qty Owned.",
+                    "conviction_level": 5, 
+                    "risk_reward_ratio": "1:3",
+                    "time_horizon": "Short-Term | Medium-Term | Long-Term",
+                    "technical_analysis": "Explicit RSI, MACD, and BB status.",
+                    "fundamental_analysis": "Explicit P/E, 52w distance, and functional health.",
+                    "news_sentiment": {{
+                        "bias": "Bullish | Bearish | Neutral",
+                        "confidence": 95,
+                        "impact_summary": "How this specific news moves the asset."
+                    }},
+                    "the_why": "High-conviction paragraph justifying the action."
+                }}
+            ],
+            "skipped_assets_summary": "List tickers skipped and why."
+        }}
+        """
 
         # 📝 LOG THE EXACT PAYLOAD SENT
         self.logger.info(f"🚀 PAYLOAD SENT TO GEMINI:\n{prompt}")
 
+        max_retries = 3
+        for attempt in range(max_retries):
+            try:
+                response = self.client.models.generate_content(
+                    model=self.model_id,
+                    contents=prompt,
+                    config={'response_mime_type': 'application/json'}
+                )
+
+                raw_text = response.text.strip()
+                if "```json" in raw_text:
+                    raw_text = raw_text.split("```json")[1].split("```")[0].strip()
+                elif "```" in raw_text:
+                    raw_text = raw_text.split("```")[1].strip()
+
+                parsed = json.loads(raw_text)
+                if isinstance(parsed, str): parsed = json.loads(parsed)
+                if not isinstance(parsed, dict): return self._fallback_response("Invalid structure.")
+
+                return parsed
+
+            except Exception as e:
+                error_msg = str(e)
+                # If Google is overloaded (503) or Rate Limited (429), Wait and Retry!
+                if "503" in error_msg or "429" in error_msg:
+                    if attempt < max_retries - 1:
+                        sleep_time = 2 ** attempt  # Waits 1s, then 2s, then 4s
+                        logging.getLogger("Gemini").warning(
+                            f"Google Server Busy (503/429). Retrying in {sleep_time}s...")
+                        time.sleep(sleep_time)
+                        continue  # Try again
+
+                logging.getLogger("Gemini").error(f"JSON Parsing Error: {error_msg}")
+                return self._fallback_response("AI Output failed to parse or Google Servers Down.")
+        return None
+
+    def analyze_single_asset(self, context: str):
+        """Dedicated deep-dive AI prompt for a single asset."""
+        if not self.client: return {"error": "AI Offline"}
+
+        prompt = f"""
+        Role: Elite Proprietary Trader.
+        Objective: Perform a highly detailed, laser-focused analysis on THIS SINGLE ASSET.
+        
+        DATA BUNDLE:
+        {context}
+
+        Return ONLY a JSON payload with this schema:
+        {{
+            "short_term_trend": "Bullish | Bearish | Neutral",
+            "key_catalyst": "The main driver moving this stock based on the news.",
+            "support_resistance": "Estimate support/resistance based on ATR, Bollinger Bands, and 52w high/low.",
+            "recommended_action": "BUY | SELL | HOLD | AVG DOWN",
+            "position_sizing": "Exact explicit instructions based on 'Qty Owned' (e.g., 'Sell 50% / 10 shares').",
+            "deep_reasoning": "A thick, professional paragraph explaining the structural market setup."
+        }}
+        """
         try:
-            response = self.client.models.generate_content(
-                model=self.model_id,
-                contents=prompt,
-                config={'response_mime_type': 'application/json'}
-            )
-
-            raw_text = response.text.strip()
-
-            # 📝 LOG THE RAW RESPONSE RECEIVED
-            self.logger.info(f"📥 RAW JSON RECEIVED FROM GEMINI:\n{raw_text}")
-
-            if "```json" in raw_text:
-                raw_text = raw_text.split("```json")[1].split("```")[0].strip()
-            elif "```" in raw_text:
-                raw_text = raw_text.split("```")[1].strip()
-
-            parsed = json.loads(raw_text)
-            if isinstance(parsed, str): parsed = json.loads(parsed)
-            if not isinstance(parsed, dict): return self._fallback_response("Invalid structure.")
-
-            return parsed
-
+            # Reusing the retry logic we built earlier
+            response = self.client.models.generate_content(model=self.model_id, contents=prompt,
+                                                           config={'response_mime_type': 'application/json'})
+            raw_text = response.text.strip().replace("```json", "").replace("```", "").strip()
+            return json.loads(raw_text)
         except Exception as e:
-            self.logger.error(f"JSON Parsing Error: {e}")
-            return self._fallback_response("AI Output failed to parse.")
+            return {"deep_reasoning": f"Analysis Failed: {e}"}
 
     def _fallback_response(self, reason: str):
         return {
-            "market_vibe": reason,
-            "macro_analysis": "Offline",
-            "global_score": 0.0,
-            "confidence_score": 0.0,
-            "directives": []
+            "future_projections": {"estimated_30d_trend": "Unknown", "portfolio_risk_level": "Unknown",
+                                   "catalyst_watch": "Offline"},
+            # "skipped_assets_summary": "Offline"
         }

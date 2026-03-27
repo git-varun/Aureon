@@ -681,3 +681,322 @@ Today's News: Stocks To Watch, Feb 24: Waaree Energies, Bharti Airtel, IDFC Firs
   ]
 }
 2026-03-26 08:48:05 | INFO | ✅ Daily Cloud Report Sent to Telegram.
+2026-03-26 18:37:57 | INFO | ✅ Groww Plugin: Authenticated Successfully
+2026-03-26 18:37:57 | INFO | 🛰️  Investment OS: Starting Headless Mode
+2026-03-26 18:37:57 | INFO | 📡 Stage 1/3: Syncing raw assets from all broker plugins...
+2026-03-26 18:37:57 | INFO | ✅ Found 38 assets across 2 sources.
+2026-03-26 18:37:57 | INFO | 🧮 Stage 2/3: Fetching Math & Fundamentals (Multithreaded)...
+2026-03-26 18:38:07 | INFO | 🧠 Stage 3/3: Bundling Macro, Alt Data, News, and Requesting AI Strategy...
+2026-03-26 18:38:13 | INFO | ⏳ Waiting for Gemini API Response (Processing Full Portfolio)...
+2026-03-26 18:38:13 | INFO | 🚀 PAYLOAD SENT TO GEMINI:
+
+            Role: Elite Multi-Strategy Portfolio Manager.
+            Objective: Perform 3-tier analysis (Macro, Fundamental, Technical) on the ENTIRE portfolio.
+    
+            DATA BUNDLE:
+            GLOBAL MACRO INDICATORS:
+Brent Crude: $102.04 | US 10Y Yield: 4.37% | India VIX: nan
+
+ALTERNATIVE DATA (SENTIMENT & LIQUIDITY):
+- Crypto Fear & Greed: 10/100
+- US Dollar Index (DXY): 99.86 (RISING (Liquidity Drain from India))
+
+MACRO PORTFOLIO RISK:
+- Asset Allocation: {'STOCK': 68.49, 'CRYPTO': 31.51}
+- Portfolio Beta: 0.31
+
+INDIVIDUAL ASSET DATA:
+
+[ETH-USD] Price: 2079.08 | Math Signal: HOLD
+Technicals -> RSI: 40.92 | MACD: -0.31 | TSL: 2077.58
+Fundamentals -> P/E: None | 52w High: 0
+News -> Ethereum (ETH USD) bottom is in? Tom Lee says it’s set to rise — here are his 3 key reasons - The Economic Times | Crypto Market News Today, January 19: Why is Crypto Down Today? BTC USD Falls to $92,000 Level, ETH Under $3,200 - Yahoo Finance | Crypto Forecast: BTC/USD, ETH/USD Crash into Make-or-Break Support - FOREX.com
+Historical Context: [-6.1% Impact] Crypto Forecast: BTC/USD, ETH/USD Crash into Make-or-Break Support - FOREX.com | Crypto market crashes today: Why BTC, ETH and XRP prices are falling as market capitalisation drops 3%, an - The Economic Times | Crypto Market News Today, January 19: Why is Crypto Down Today? BTC USD Falls to $92,000 Level, ETH Under $3,200 - Yahoo Finance
+
+[HDFCBANK.NS] Price: 782.2999877929688 | Math Signal: HOLD
+Technicals -> RSI: 44.25 | MACD: -454.73 | TSL: 69.55
+Fundamentals -> P/E: 17.45 | 52w High: 0
+News -> HDFC Bank share price jumps 3%, snaps 4-day losing run. What's behind the rise? - Mint | HDFC Bank falls over 15% in March: Key factors why the banking giant is crucial for the stock market and mutual funds - Upstox | HDFC Bank stock selloff halts after 4 days, rises 3%. What's happening? - The Economic Times
+
+[ULTRACEMCO.NS] Price: 11204.0 | Math Signal: ACCUMULATE (MACD Bull Cross)
+Technicals -> RSI: 39.75 | MACD: -4.15 | TSL: 11197.5
+Fundamentals -> P/E: 43.1 | 52w High: 0
+News -> Stocks to Watch Today: Lupin, Angel One, Zydus Life, Shaily Engineering, KSB, Sanofi India, KP Energy,... - Moneycontrol.com | Lupin rallies 12% thus far in CY26, outperforms market; here's why - Business Standard | Stocks to Watch on February 17: JSW Infra, Cochin Shipyard, Lupin and more - CNBC TV18
+
+[BEL.NS] Price: 413.45001220703125 | Math Signal: HOLD
+Technicals -> RSI: 43.1 | MACD: -23.6 | TSL: 363.34
+Fundamentals -> P/E: 50.79 | 52w High: 0
+News -> 5 Defence stocks get Nuvama ‘Buy’ rating; key pick has 62% upside potential - The Financial Express | Defence stocks surge on Middle East tensions! HAL, BEL, Paras Defence rise up to 13% even as stock market - The Times of India | Stocks to buy or sell: Dharmesh Shah of ICICI Sec suggests buying BEL shares on February 16 - Mint
+
+[BTC-USD] Price: 69508.71 | Math Signal: HOLD
+Technicals -> RSI: 40.92 | MACD: -0.31 | TSL: 69507.21
+Fundamentals -> P/E: None | 52w High: 0
+News -> Bitcoin price prediction: Analyst explains why BTC USD price could hit $500,000 - here's what crypto trade - The Economic Times | Bitcoin: What's Really Happening Despite The Bear Market (Cryptocurrency:BTC-USD) - Seeking Alpha | Why did Bitcoin (BTC USD) price today crash below $70,000 amid oil price rally and global tensions? Crypto - The Economic Times
+Historical Context: [-4.5% Impact] Bitcoin Price Forecast: BTC/USD 26% Surge Rejected – Breakdown Risk Builds - FOREX.com | Iran war shock: The asset beating gold and stocks might surprise you - The Economic Times | BTCUSD Today: March 18 — Should You Sell Bitcoin on Iran War Risk? - Meyka
+
+[TATAGOLD.NS] Price: 13.970000267028809 | Math Signal: HOLD
+Technicals -> RSI: 40.92 | MACD: -0.31 | TSL: 12.47
+Fundamentals -> P/E: None | 52w High: 0
+News -> Vodafone Idea, NOCIL, JP Power, YES Bank— These are among the most traded stocks on NSE today - Mint | Vodafone Idea, Sammaan Capital, Reliance Power— These are among the most traded stocks on NSE today - Mint | Why gold and silver ETF prices fell sharply, investors' losses and the road ahead - The Economic Times
+
+[TATSILV.NS] Price: 22.399999618530273 | Math Signal: HOLD
+Technicals -> RSI: 40.92 | MACD: -0.31 | TSL: 20.9
+Fundamentals -> P/E: None | 52w High: 0
+News -> TATSILV Stock Fund Price and Chart — NSE:TATSILV - TradingView | Gold, silver ETFs fall on Diwali as global prices ease after record rally; check key details - Upstox | Buying silver? CFP sounds alarm over ETF moves investors shouldn’t ignore - Business Today
+
+[HAL.NS] Price: 3669.39990234375 | Math Signal: ACCUMULATE (MACD Bull Cross)
+Technicals -> RSI: 39.75 | MACD: -4.15 | TSL: 3662.9
+Fundamentals -> P/E: 27.55 | 52w High: 0
+News -> HAL shares fall 2% despite Rs 2,901 crore Defence Ministry order - The Economic Times | Defence stocks surge on Middle East tensions! HAL, BEL, Paras Defence rise up to 13% even as stock market - The Times of India | HAL Share Price Falls Over 11% In Two Sessions | Stock Market Today - Samco
+
+[GAIL.NS] Price: 139.1999969482422 | Math Signal: HOLD
+Technicals -> RSI: 43.1 | MACD: -23.6 | TSL: 89.09
+Fundamentals -> P/E: 10.66 | 52w High: 0
+News -> Suzlon Energy shares gain over 3% as firm bags sixth order from GAIL; here is what investors should know - Upstox | GAIL (India) Ltd Hits Intraday Low Amid Price Pressure on 23 Mar 2026 - Markets Mojo | Suzlon Energy share price rises over 3% after securing 100 MW wind energy project from GAIL - Mint
+
+[SUNPHARMA.NS] Price: 1795.4000244140625 | Math Signal: HOLD
+Technicals -> RSI: 32.04 | MACD: -115.1 | TSL: 1564.73
+Fundamentals -> P/E: 39.53 | 52w High: 0
+News -> Sun Pharma, Dr Reddy's, Glenmark, Zydus: Pharma stocks in focus after semaglutide patent expires; what investors need to know - Upstox | Sun Pharma up 5% in 1 week, nears 52-week high; what's driving this stock? - Business Standard | Pharma Stocks: Cipla, Lupin, Sun Pharma — Where is upside and who faces downside in GLP-1 boom? - Zee Business
+
+[TITAN.NS] Price: 4039.300048828125 | Math Signal: ACCUMULATE (MACD Bull Cross)
+Technicals -> RSI: 39.75 | MACD: -4.15 | TSL: 4032.8
+Fundamentals -> P/E: 75.19 | 52w High: 0
+News -> Top gainers and losers, March 25: Shriram Finance soars 6%, Titan rises 4%, TechM down 2%; check list - Upstox | Stock market rally: Sensex surges 1,172 pts, Nifty reclaims 22,850; Asian Paints, Titan lead gainers - Business Today | Titan among top NIFTY50 gainers as stock surge over 5% on gold prices rebound - Upstox
+
+[PFC.NS] Price: 403.45001220703125 | Math Signal: HOLD
+Technicals -> RSI: 43.1 | MACD: -23.6 | TSL: 353.34
+Fundamentals -> P/E: 5.28 | 52w High: 0
+News -> Stocks in focus today: HDFC Bank, South Indian Bank, PFC, Castrol India, Vedanta, MM Forgings, RITES,... - Moneycontrol.com | Upcoming dividend, bonus, stock split this week: Vedanta, Castrol India, PFC, Angel One among others in focus - Upstox | Dividend rush this week: Vedanta, PFC among 13 stocks with key corporate actions lined up - The Financial Express
+
+[MARUTI.NS] Price: 12711.0 | Math Signal: HOLD
+Technicals -> RSI: 44.21 | MACD: -3.44 | TSL: 12670.6
+Fundamentals -> P/E: 26.74 | 52w High: 0
+News -> Rs 1.32 lakh crore shock! Maruti Suzuki shares tumble 25% YTD, worst among peers! Overdone or more pain? - The Economic Times | Maruti share price slips after hitting a record high; opportunity to buy or time to book profit? - Mint | Crude climbs past US$ 103 Again | Maruti Suzuki India Receives Income Tax Notice | Top Buzzing Stocks Today - Equitymaster
+
+[RELIANCE.NS] Price: 1413.0999755859375 | Math Signal: HOLD
+Technicals -> RSI: 43.1 | MACD: -23.6 | TSL: 1362.99
+Fundamentals -> P/E: 22.99 | 52w High: 0
+News -> Reliance Industries' share price surges 7% on Tuesday, February 3: What you need to know - Upstox | Vodafone Idea, Sammaan Capital, Reliance Power— These are among the most traded stocks on NSE today - Mint | Reliance Share Price Rises In February Amid Market Recovery | Stock Market Today - Samco
+
+[MATIC-USD] Price: 0.3794 | Math Signal: HOLD
+Technicals -> RSI: 26.23 | MACD: -0.0 | TSL: 0.38
+Fundamentals -> P/E: None | 52w High: 0
+News -> Coinbase Delists Major Cryptocurrency: Details - TradingView | Polygon to US Dollar Price Today | MATIC/USD Price Chart - Capital.com | Polygon Steadies As Inflows Return But Resistance Remains Heavy (undefined:MATIC-USD) - Seeking Alpha
+
+[SBICARD.NS] Price: 700.2000122070312 | Math Signal: ACCUMULATE (MACD Bull Cross)
+Technicals -> RSI: 39.75 | MACD: -4.15 | TSL: 693.7
+Fundamentals -> P/E: 31.84 | 52w High: 0
+News -> Stocks to Watch today, Mar 25: OMCs, RIL, SBI Card, NTPC Green, TVS Motor - Business Standard | Upcoming dividends, stock splits, bonuses this week: SBI Cards, IRFC, Indian Oil Corp, Sun TV among others in focus - Upstox | SBI Cards Allots 9,225 Equity Shares to Employees Under ESOP Schemes - scanx.trade
+
+[DLF.NS] Price: 534.3499755859375 | Math Signal: ACCUMULATE (MACD Bull Cross)
+Technicals -> RSI: 39.75 | MACD: -4.15 | TSL: 527.85
+Fundamentals -> P/E: 29.85 | 52w High: 0
+News -> Nifty Realty soars 4% on easing oil prices; Phoenix Mills, DLF gain upto 5% - Business Standard | SignatureGlobal India To DLF Fall As Nifty Realty Drops 3% | Stock Market Today - Samco | Stock market crash: Dixon Tech, RVNL, Swiggy, DLF among 586 stocks that hit 52-week low as NIFTY50 closed below 24,500 - Upstox
+
+[LINK-USD] Price: 8.98 | Math Signal: HOLD
+Technicals -> RSI: 40.92 | MACD: -0.31 | TSL: 7.48
+Fundamentals -> P/E: None | 52w High: 0
+News -> Chainlink expands data streams to cover multitrillion-dollar U.S. stock market - Yahoo Finance Singapore | ChainLink to US Dollar Price Today | LINK/USD Price Chart - Capital.com | ChainLink: Now Is The Time To Accumulate (Cryptocurrency:LINK-USD) - Seeking Alpha
+Historical Context: [-5.9% Impact] Chainlink expands data streams to cover multitrillion-dollar U.S. stock market - Yahoo Finance Singapore | ChainLink to US Dollar Price Today | LINK/USD Price Chart - Capital.com | ChainLink: Now Is The Time To Accumulate (Cryptocurrency:LINK-USD) - Seeking Alpha
+
+[BHARTIARTL.NS] Price: 1834.9000244140625 | Math Signal: ACCUMULATE (MACD Bull Cross)
+Technicals -> RSI: 39.75 | MACD: -4.15 | TSL: 1828.4
+Fundamentals -> P/E: 36.23 | 52w High: 0
+News -> Stocks To Watch, Feb 24: Waaree Energies, Bharti Airtel, IDFC First Bank, IT stocks, Lupin, Patel Engineering, Chalet Hotels, BPCL - Upstox | Is Bharti Airtel Limited's (NSE:BHARTIARTL) Recent Stock Performance Tethered To Its Strong Fundamentals? - simplywall.st | Stock market today: Trade guide for Nifty 50, gold price to silver rates — Eight stocks to buy or sell on 1 January 2025 - Mint
+
+[SOL-USD] Price: 87.76 | Math Signal: HOLD
+Technicals -> RSI: None | MACD: None | TSL: None
+Fundamentals -> P/E: None | 52w High: 0
+News -> Solana Accelerate APAC Begins: Latest Solana News and SOL USD Price Prediction This Week - Yahoo Finance | Solana Price Charts | SOL /USD Live Price,Charts, Market Cap & News - Bitget | Solana Price Prediction: How Much Is SOL Now? Can It Rise to $1,000 in the Future? - TradingKey
+Historical Context: [-4.3% Impact] Solana USD Price (SOL-USD) Today: SOL Slips Near $123 as Traders Watch $120–$122 Support — Forecast and Key News for Dec. 17, 2025 - TechStock² | Solana Price Charts | SOL /USD Live Price,Charts, Market Cap & News - Bitget | Analysts Call Solana Price Reversal: SOL USD Shoots High For $160 - Yahoo Finance
+
+[LT.NS] Price: 3649.300048828125 | Math Signal: HOLD
+Technicals -> RSI: 44.25 | MACD: -454.73 | TSL: 2936.55
+Fundamentals -> P/E: 28.57 | 52w High: 0
+News -> BHEL Launches Government Stake Sale | L&T Secures Major Dubai Road Project | Top Buzzing Stocks Today - Equitymaster | vedanta hdfc bank lt hudco stocks in news today - Zee Business | L&T shares recover a little after tumbling 7% amid Middle East tensions; check what Macquarie said - Upstox
+
+[USDT-USD] Price: 0.9996402263641357 | Math Signal: HOLD
+Technicals -> RSI: 39.72 | MACD: -0.0 | TSL: 1.0
+Fundamentals -> P/E: None | 52w High: 0
+News -> River price today, RIVER to USD live price, marketcap and chart - CoinMarketCap | South Korea to block firms from using USDT, USD Coin - dlnews.com | USD₮ Q4 2025 Market Report - Tether.io
+
+[IRFC.NS] Price: 95.23999786376953 | Math Signal: ACCUMULATE (MACD Bull Cross)
+Technicals -> RSI: 39.75 | MACD: -4.15 | TSL: 88.74
+Fundamentals -> P/E: 17.77 | 52w High: 0
+News -> IRFC shares gain 4% post signing ₹12,842 crore refinancing pact with Hindustan Urvarak and Rasayan Ltd; what you need to know - Upstox | IRFC Share Price Fall 2.29% In Early Trade as OFS Overhang Persists - HDFC Sky | IRFC shares decline 4% as government plans to divest 4% via OFS. Check floor price, other details - The Economic Times
+
+[BNB-USD] Price: 630.39 | Math Signal: HOLD
+Technicals -> RSI: 40.92 | MACD: -0.31 | TSL: 628.89
+Fundamentals -> P/E: None | 52w High: 0
+News -> BNB USD Rebounds 0.98% Daily as $728 Monthly Target Approaches - Meyka | BNB price manages to stay above $600 support as downside risks build - TradingView | BNB drops nearly 3% to as bitcoin whipsaw and tech selloff hit crypto market - CoinDesk
+Historical Context: [-3.7% Impact] Grayscale CoinDesk Crypto 5 ETF adds Bitstamp as BNB trading platform - Investing.com | Latest Crypto Market News Today, October 3: BTC USD Still The Hottest Pair, But XRP, SOL, ETH Catching Up While BNB Blasts ATH - Yahoo Finance | BNB News: ‘L1 Wealth Effect’ Drives BNB Ecosystem Despite Pullback From $1.3K High - CoinDesk
+
+[AAVE-USD] Price: 106.64 | Math Signal: HOLD
+Technicals -> RSI: 44.21 | MACD: -3.44 | TSL: 66.24
+Fundamentals -> P/E: None | 52w High: 0
+News -> Bitcoin crawls to $88K as Aave faces governance drama: Finance Redefined - TradingView | Aave Whale's $37.6M Selloff Triggers 10% Price Drop Amid Governance Dispute - Yahoo Finance | Aave Price Rebounds As Bullish Structure Strengthens On Buyback Optimism - Seeking Alpha
+Historical Context: [-6.9% Impact] Market Brief: Venus Exploited, Aave Exposed, DeFi's Liquidity Problem Is Showing - Seeking Alpha | Crypto Trader Loses Nearly $50M in Aave Trade, Protocol Offers $600K Fee Refund - Yahoo Finance | AAVE Price Analysis: 24% Surge Clears $250 as Volume and Support Build - CoinDesk
+
+[UNI-USD] Price: 3.543 | Math Signal: HOLD
+Technicals -> RSI: 44.21 | MACD: -3.44 | TSL: -36.86
+Fundamentals -> P/E: None | 52w High: 0
+News -> Uniswap / BeBetter - TradingView | Uniswap Price Prediction 2026, 2027, 2028-2032 - Cryptopolitan | Uniswap Price Prediction 2025–2030 | Future Forecast - Capital.com
+
+[SKY-USD] Price: 0.07183 | Math Signal: HOLD
+Technicals -> RSI: None | MACD: None | TSL: None
+Fundamentals -> P/E: None | 52w High: 0
+News -> Aarti Industries USD 150 Million Agrochemical Supply Contract; Shares Rise 5.28% - HDFC Sky | Sky News Australia. . Microsoft's shares plummeted overnight with a staggering $400 billion wiped off its value marking one of the largest single-day losses in corporate history. - facebook.com | Bitcoin's slide deepens, dragging broader crypto market lower (BTC-USD:Cryptocurrency) - Seeking Alpha
+Historical Context: [-69.1% Impact] Adani Enterprises Share Price Rise 2.08% After USD 100 Billion AI Infrastructure Investment Announcement - HDFC Sky | AI bubble fears take hold of stock markets and bitcoin - Yahoo Finance UK | Sky News Australia. . Microsoft's shares plummeted overnight with a staggering $400 billion wiped off its value marking one of the largest single-day losses in corporate history. - facebook.com
+
+[ATOM-USD] Price: 1.715 | Math Signal: HOLD
+Technicals -> RSI: 44.21 | MACD: -3.44 | TSL: -38.69
+Fundamentals -> P/E: None | 52w High: 0
+News -> Why did some altcoins on Binance crash to zero? - TradingView | Cosmos price prediction 2026, 2027, 2028-2032 - Cryptopolitan | Cosmos' ATOM Surges 10% in High-Volume Breakout Rally - CoinDesk
+Historical Context: [-6.4% Impact] Why did some altcoins on Binance crash to zero? - TradingView | 3 Altcoins Breaking the Bearish Trend: Why ATOM, ZEC, and ASI Surge - Yahoo Finance | Cosmos to US Dollar Price Today | ATOM/USD Price Chart - Capital.com
+
+[RENDER-USD] Price: 1.779 | Math Signal: HOLD
+Technicals -> RSI: 26.23 | MACD: -0.0 | TSL: 1.78
+Fundamentals -> P/E: None | 52w High: 0
+News -> RENDER/USD: Convert Render Token (RENDER) to US Dollars (USD) - Revolut | Render price today, RENDER to USD live price, marketcap and chart - CoinMarketCap | Render Price Today | RENDER to USD Live Price, Market Cap & Chart - Binance
+Historical Context: [-7.0% Impact] Render (RNDR) Price Action Shows Bullish Momentum: Key Resistance and Support Levels - TradingView | Understanding the USD/JPY Currency Pair: Key Insights and Trading Tips - Investopedia | Key facts: Render sees $59M surge in open interest; GPU shortages to 2026 - TradingView
+
+[CRV-USD] Price: 0.2214 | Math Signal: HOLD
+Technicals -> RSI: 40.92 | MACD: -0.31 | TSL: -1.27
+Fundamentals -> P/E: None | 52w High: 0
+News -> Curve Finance Pitches Yield Basis, a $60M Plan to Turn CRV Tokens Into Income Assets - CoinDesk | Curve DAO (CRV) Daily Market Analysis 03 March 2026 - MEXC | Curve Finance Strengthens Its Position as a Leading Ethereum DEX With 44% Fee Share - TradingView
+Historical Context: [-9.6% Impact] CRV price slides towards range lows as LlamaLend pool exploit weighs on sentiment - Bitget | Governance Turmoil Hits DeFi—But Why Is CRV Price Rising and AAVE Price Plunging? - TradingView | Curve Finance Pitches Yield Basis, a $60M Plan to Turn CRV Into an Income Asset - CoinDesk
+
+[SUI-USD] Price: 0.9288 | Math Signal: HOLD
+Technicals -> RSI: 44.21 | MACD: -3.44 | TSL: -39.47
+Fundamentals -> P/E: None | 52w High: 0
+News -> SUI surges 8% on rising whale interest, TVL inflows - TradingView | SUI Price Rebounds Above $1 as HashKey Enables Trading Support - Bitget | What is SUI crypto, and how do you trade it? - Capital.com
+
+[ROSE-USD] Price: 0.01115 | Math Signal: HOLD
+Technicals -> RSI: 44.21 | MACD: -3.44 | TSL: -40.39
+Fundamentals -> P/E: None | 52w High: 0
+News -> Treasuries Sink as Oil Jump Stokes Inflation Fears: Markets Wrap - Yahoo Finance | Dow tops 50,000 for the first time as stocks stage a huge rally after the week's chaotic sell-off - Yahoo Finance | Trump says the recent market sell-off was 'peanuts' and sees stocks doubling from here - Yahoo Finance
+Historical Context: [-8.0% Impact] US stocks recover, gold rises and oil surges as war with Iran spreads - CNN | Treasuries Sink as Oil Jump Stokes Inflation Fears: Markets Wrap - Yahoo Finance | Stock Market Today: Tech Stocks Rose For a Second Day, Nasdaq and Dow Gains - Eurasia Business News
+
+[KWIL.NS] Price: 24.239999771118164 | Math Signal: ACCUMULATE (MACD Bull Cross)
+Technicals -> RSI: 39.75 | MACD: -4.15 | TSL: 17.74
+Fundamentals -> P/E: None | 52w High: 0
+News -> Kwality Wall’s shares list at 26% discount on NSE after demerger from HUL; all you need to know - Upstox | Kwality Wall's to start trading on BSE, NSE from February 16 - Moneycontrol.com | Kwality Wall’s (India) lists on BSE and NSE after ice cream business demerger from HUL - Exchange4Media
+
+[SXT-USD] Price: 0.0164 | Math Signal: HOLD
+Technicals -> RSI: None | MACD: None | TSL: None
+Fundamentals -> P/E: None | 52w High: 0
+News -> Space and Time Price Prediction 2026-2031: Will SXT reach $0.033 in Feb 2026? - CoinDCX | Promotion A: Enjoy 5% Bonus APR in SXT with ETH Flexible Products - Binance | Space and Time price today, SXT to USD live price, marketcap and chart - CoinMarketCap
+Historical Context: [-7.7% Impact] Promotion A: Enjoy 5% Bonus APR in SXT with ETH Flexible Products - Binance | Space and Time price today, SXT to USD live price, marketcap and chart - CoinMarketCap | Space and Time Price: SXT Live Price Chart, Market Cap & News Today - CoinGecko
+
+[SONIC-USD] Price: 8.4359e-05 | Math Signal: HOLD
+Technicals -> RSI: None | MACD: None | TSL: None
+Fundamentals -> P/E: None | 52w High: 0
+News -> Sonic Automotive Inc stock faces sector headwinds amid stable Q4 revenue and CEO transition signals - AD HOC NEWS | Sonic SVM Price, SONIC to USD, Research, News & Fundraising - Messari | Sonic price prediction 2026, 2027, 2028-2032 - Cryptopolitan
+
+[USDT-USD] Price: 0.9996402263641357 | Math Signal: HOLD
+Technicals -> RSI: 39.72 | MACD: -0.0 | TSL: 1.0
+Fundamentals -> P/E: None | 52w High: 0
+News -> River price today, RIVER to USD live price, marketcap and chart - CoinMarketCap | South Korea to block firms from using USDT, USD Coin - dlnews.com | USD₮ Q4 2025 Market Report - Tether.io
+
+[A2Z-USD] Price: 0.00027 | Math Signal: HOLD
+Technicals -> RSI: 26.23 | MACD: -0.0 | TSL: -0.0
+Fundamentals -> P/E: None | 52w High: 0
+News -> A2Z Price to US Dollar | Convert A2Z to USD - Binance | Arena-Z price today, A2Z to USD live price, marketcap and chart - CoinMarketCap | A2Z Announces $20 Million Share Repurchase Program - Yahoo Finance
+Historical Context: [+9.9% Impact] Arena-Z price today, A2Z to USD live price, marketcap and chart - CoinMarketCap | Arena-Z Price Today | A2Z to USD Live Price, Market Cap & Chart - Binance | A2Z Cust2Mate receives Nasdaq notification for delayed annual meeting By Investing.com - Investing.com Nigeria
+
+[SXT-USD] Price: 0.0164 | Math Signal: HOLD
+Technicals -> RSI: None | MACD: None | TSL: None
+Fundamentals -> P/E: None | 52w High: 0
+News -> Space and Time Price Prediction 2026-2031: Will SXT reach $0.033 in Feb 2026? - CoinDCX | Promotion A: Enjoy 5% Bonus APR in SXT with ETH Flexible Products - Binance | Space and Time price today, SXT to USD live price, marketcap and chart - CoinMarketCap
+Historical Context: [-7.7% Impact] Promotion A: Enjoy 5% Bonus APR in SXT with ETH Flexible Products - Binance | Space and Time price today, SXT to USD live price, marketcap and chart - CoinMarketCap | Space and Time Price: SXT Live Price Chart, Market Cap & News Today - CoinGecko
+
+    
+            Output Requirements:
+            Return ONLY a raw JSON payload with this strict schema:
+            {
+                "market_vibe": "2-sentence Global Market Pulse.",
+                "macro_analysis": "Deep analysis of sector contagion and macro impacts.",
+                "global_score": 0.5,
+                "confidence_score": 0.85,
+                "future_projections": {
+                    "estimated_30d_trend": "Bullish / Bearish / Sideways / Highly Volatile",
+                    "portfolio_risk_level": "High / Medium / Low",
+                    "catalyst_watch": "What specific upcoming global or sector event to watch for."
+                },
+                "directives":[
+                    {
+                        "symbol": "TICKER",
+                        "action": "BUY | SELL | HOLD | AVG DOWN | TAKE PARTIAL PROFIT",
+                        "technical_analysis": "Explicitly state the RSI, MACD, and Bollinger Band status.",
+                        "fundamental_analysis": "Explicitly state the P/E ratio, 52-week distance, and News impact.",
+                        "the_why": "High-conviction paragraph combining both to justify the action."
+                    }
+                ],
+                "skipped_assets_summary": "Briefly list the tickers that were skipped and why (e.g., 'Neutral technicals and no news for ZOMATO, IRFC, etc.')."
+            }
+            
+2026-03-26 18:38:13 | INFO | AFC is enabled with max remote calls: 10.
+2026-03-26 18:38:41 | INFO | HTTP Request: POST https://generativelanguage.googleapis.com/v1beta/models/gemini-3.1-flash-lite-preview:generateContent "HTTP/1.1 503 Service Unavailable"
+2026-03-26 18:38:41 | ERROR | JSON Parsing Error: 503 UNAVAILABLE. {'error': {'code': 503, 'message': 'This model is currently experiencing high demand. Spikes in demand are usually temporary. Please try again later.', 'status': 'UNAVAILABLE'}}
+2026-03-26 18:38:41 | INFO | ✅ Institutional AI Strategy Received.
+2026-03-26 18:38:41 | INFO | 
+[2026-03-26 18:37:57] 🔄 SYNC CYCLE START
+-----------------------------------------------------------------
+📦 INGESTION & VALUATION AUDIT:
+-----------------------------------------------------------------
+NAME             | TICKER         | QTY      | PRICE (INR) | STATUS
+-----------------------------------------------------------------
+RELIANCE         | RELIANCE.NS    | 8.000    | 1,413.10    | ✅ LIVE
+LT               | LT.NS          | 2.000    | 3,649.30    | ✅ LIVE
+SBICARD          | SBICARD.NS     | 15.000   | 700.20      | ✅ LIVE
+HDFCBANK         | HDFCBANK.NS    | 58.000   | 782.30      | ✅ LIVE
+SUNPHARMA        | SUNPHARMA.NS   | 10.000   | 1,795.40    | ✅ LIVE
+IRFC             | IRFC.NS        | 60.000   | 95.24       | ✅ LIVE
+HAL              | HAL.NS         | 6.000    | 3,669.40    | ✅ LIVE
+GAIL             | GAIL.NS        | 130.000  | 139.20      | ✅ LIVE
+PFC              | PFC.NS         | 38.000   | 403.45      | ✅ LIVE
+BEL              | BEL.NS         | 95.000   | 413.45      | ✅ LIVE
+DLF              | DLF.NS         | 18.000   | 534.35      | ✅ LIVE
+TITAN            | TITAN.NS       | 4.000    | 4,039.30    | ✅ LIVE
+KWIL             | KWIL.NS        | 4.000    | 24.24       | ✅ LIVE
+BHARTIARTL       | BHARTIARTL.NS  | 4.000    | 1,834.90    | ✅ LIVE
+ULTRACEMCO       | ULTRACEMCO.NS  | 4.000    | 11,204.00   | ✅ LIVE
+MARUTI           | MARUTI.NS      | 1.000    | 12,711.00   | ✅ LIVE
+TATAGOLD         | TATAGOLD.NS    | 1935.000 | 13.97       | ✅ LIVE
+TATSILV          | TATSILV.NS     | 1065.000 | 22.40       | ✅ LIVE
+BNB              | BNB-USD        | 0.090    | 630.39      | ✅ LIVE
+USDT             | USDT-USD       | 0.007    | 1.00        | ✅ LIVE
+LINK             | LINK-USD       | 11.142   | 8.98        | ✅ LIVE
+BTC              | BTC-USD        | 0.005    | 69,508.71   | ✅ LIVE
+USDT             | USDT-USD       | 72.004   | 1.00        | ✅ LIVE
+ETH              | ETH-USD        | 0.327    | 2,079.08    | ✅ LIVE
+ATOM             | ATOM-USD       | 9.793    | 1.72        | ✅ LIVE
+CRV              | CRV-USD        | 56.025   | 0.22        | ✅ LIVE
+UNI              | UNI-USD        | 9.941    | 3.54        | ✅ LIVE
+AAVE             | AAVE-USD       | 0.335    | 106.64      | ✅ LIVE
+ROSE             | ROSE-USD       | 337.846  | 0.01        | ✅ LIVE
+SUI              | SUI-USD        | 6.415    | 0.93        | ✅ LIVE
+RENDER           | RENDER-USD     | 7.070    | 1.78        | ✅ LIVE
+SOL              | SOL-USD        | 0.886    | 87.76       | ✅ LIVE
+MATIC            | MATIC-USD      | 302.622  | 0.38        | ✅ LIVE
+SONIC            | SONIC-USD      | 201.905  | 0.00        | ✅ LIVE
+SXT              | SXT-USD        | 0.013    | 0.02        | ✅ LIVE
+SXT              | SXT-USD        | 15.622   | 0.02        | ✅ LIVE
+A2Z              | A2Z-USD        | 13.085   | 0.00        | ✅ LIVE
+SKY              | SKY-USD        | 405.362  | 0.07        | ✅ LIVE
+-----------------------------------------------------------------
+📈 METRICS:
+   - Total Assets: 38 (18 Stocks, 20 Crypto)
+   - Priced: 38 | Failed: 0
+   - USD/INR FX: ₹94.11
+
+🧠 INTELLIGENCE PIPELINE:
+   - AI Response: { "vibe": "Offline", "conf": 0.0, "global_score": 0.0 }
+   - Weighted Impact Score: 0.0
+
+📡 ACTION LOGS:
+   - Telegram: SKIPPED (Score too low)
+   - Heartbeat: Total Portfolio Value ₹488,395.40
+-----------------------------------------------------------------
+2026-03-26 21:08:55 | INFO | 👋 Investment OS shutting down safely.

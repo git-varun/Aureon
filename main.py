@@ -59,10 +59,16 @@ def run_headless(engine):
 
             # 4. Telegram Hook (Upgraded for Max Info)
             telegram_status = "SKIPPED (Score too low)"
-            if isinstance(briefing, dict) and abs(briefing.get('global_score', 0)):
+            if isinstance(briefing, dict) and abs(briefing.get('global_score', 0)) > 0.4:
+
+                proj = briefing.get('future_projections', {})
 
                 alert_msg = f"🏛️ *MULTI-STRATEGY BRIEFING* 🏛️\n\n"
-                alert_msg += f"📊 *Global Vibe:*\n{briefing.get('market_vibe', 'N/A')}\n\n"
+                alert_msg += f"🔮 *30-DAY PROJECTIONS:*\n"
+                alert_msg += f"• *Trend:* {proj.get('estimated_30d_trend', 'Unknown')}\n"
+                alert_msg += f"• *Risk Level:* {proj.get('portfolio_risk_level', 'Unknown')}\n"
+                alert_msg += f"• *Catalyst Watch:* {proj.get('catalyst_watch', 'N/A')}\n\n"
+
                 alert_msg += f"🌍 *Macro Synthesis:*\n{briefing.get('macro_analysis', 'N/A')}\n\n"
                 alert_msg += f"📋 *STRATEGIC DIRECTIVES:*\n\n"
 
@@ -70,25 +76,21 @@ def run_headless(engine):
                     if isinstance(d, dict):
                         sym = d.get('symbol', 'UNK')
                         act = d.get('action', 'HOLD')
-                        rsn = d.get('reasoning', 'No reasoning provided.')
+                        tech = d.get('technical_analysis', 'N/A')
+                        fund = d.get('fundamental_analysis', 'N/A')
                         the_why = d.get('the_why', '')
 
                         asset_data = next((a for a in assets if a['symbol'] == sym), None)
+                        price = f"₹{asset_data.get('live_price', 0):,.2f}" if asset_data else "N/A"
 
-                        if asset_data:
-                            price = f"₹{asset_data.get('live_price', 0):,.2f}"
-                            tsl = f"₹{asset_data.get('tsl', 0):,.2f}" if asset_data.get('tsl') else "N/A"
-                            rsi = asset_data.get('rsi', 'N/A')
+                        alert_msg += f"🔹 *{sym}* (Live: {price})\n"
+                        alert_msg += f"🚨 *Action:* {act}\n"
+                        alert_msg += f"📈 *Technical:* {tech}\n"
+                        alert_msg += f"🏢 *Fundamental:* {fund}\n"
+                        alert_msg += f"🧠 *The Why:* {the_why}\n\n"
 
-                            alert_msg += f"🔹 *{sym}* (Live: {price})\n"
-                            alert_msg += f"🚨 *Action:* {act}\n"
-                            alert_msg += f"🧮 *Math:* RSI {rsi} | Volatility TSL {tsl}\n"
-                            alert_msg += f"🧠 *Reasoning:* {rsn}\n"
-                            if the_why:
-                                alert_msg += f"📰 *The Why:* {the_why}\n"
-                            alert_msg += f"\n"
-                        else:
-                            alert_msg += f"🔹 *{sym}* -> {act}\n📰 *Why:* {rsn}\n\n"
+                # Show skipped assets so the user knows the AI didn't just ignore them
+                alert_msg += f"⏭️ *MONITORED (No Action):*\n_{briefing.get('skipped_assets_summary', 'N/A')}_\n"
 
                 engine.bot.send_telegram(alert_msg)
                 telegram_status = "SENT (Status 200)"

@@ -1,3 +1,6 @@
+import yfinance as yf
+import pandas as pd
+import logging
 import logging
 
 import pandas as pd
@@ -5,66 +8,64 @@ import yfinance as yf
 
 
 class QuantEngine:
-    """Calculates Technical Indicators (RSI, ATR, SMA) for precise Entry/Exits."""
-
     def __init__(self):
-        self.logger = logging.getLogger(__name__)
+        self.logger = logging.getLogger("Quant")
         self._cache = {}
 
     def analyze_asset(self, symbol: str, current_price: float) -> dict:
-        # 1. Return cached data if already calculated this session
-        if symbol in self._cache:
-            return self._cache[symbol]
+        if symbol in self._cache: return self._cache[symbol]
 
-        # Default metrics if math fails or asset is manual (e.g., FD)
-        metrics = {"rsi": None, "atr": None, "sma_50": None, "tsl": None, "math_signal": "HOLD"}
-
-        if symbol == "GOLD" or symbol.startswith("FD-"):
-            return metrics
+        metrics = {"rsi": None, "atr": None, "macd": None, "macd_signal": None, "bb_upper": None, "bb_lower": None,
+                   "tsl": None, "math_signal": "HOLD"}
+        if symbol == "GOLD" or symbol.startswith("FD-"): return metrics
 
         try:
-            # 2. Fetch 6 months of daily OHLCV data
             df = yf.download(symbol, period="6mo", interval="1d", progress=False)
-            if df.empty or len(df) < 50:
-                return metrics
+            if df.empty or len(df) < 50: return metrics
 
-            # Fix multi-index columns for yfinance 2026 update
+            # Handle yfinance multi-index update for 2026
             if isinstance(df.columns, pd.MultiIndex):
                 df.columns = df.columns.get_level_values(0)
 
-            # 3. Calculate Indicators using pandas-ta
+            # Calculate Advanced Indicators
             df.ta.rsi(length=14, append=True)
             df.ta.atr(length=14, append=True)
-            df.ta.sma(length=50, append=True)
+            df.ta.macd(fast=12, slow=26, signal=9, append=True)
+            df.ta.bbands(length=20, std=2, append=True)
 
             latest = df.iloc[-1]
             rsi = float(latest.get('RSI_14', 50))
             atr = float(latest.get('ATRr_14', 0))
-            sma_50 = float(latest.get('SMA_50', current_price))
 
-            # 4. Mathematically Perfect Trailing Stop Loss (Price - 2x Volatility)
+            # MACD Logic (Bullish if MACD line is above Signal line)
+            macd_line = float(latest.get('MACD_12_26_9', 0))
+            macd_sig = float(latest.get('MACDs_12_26_9', 0))
+
+            # Bollinger Bands
+            bb_up = float(latest.get('BBU_20_2.0', current_price * 1.05))
+            bb_low = float(latest.get('BBL_20_2.0', current_price * 0.95))
+
             tsl = current_price - (2 * atr) if atr else (current_price * 0.95)
 
-            # 5. Generate Raw Math Signals (To be combined with News later)
+            # Triple-Math Signal Generation
             signal = "HOLD"
-            if rsi < 30 and current_price < sma_50:
-                signal = "AVG DOWN"  # Oversold and cheap
-            elif rsi > 70:
-                signal = "TAKE PROFIT"  # Overbought, lock in gains
+            if rsi < 30 and current_price <= bb_low:
+                signal = "STRONG BUY (Oversold + BB Bounce)"
+            elif rsi > 70 and current_price >= bb_up:
+                signal = "TAKE PROFIT (Overbought + BB Resistance)"
+            elif macd_line > macd_sig and rsi < 60:
+                signal = "ACCUMULATE (MACD Bull Cross)"
             elif current_price < tsl:
                 signal = "SELL (TSL HIT)"
 
-            metrics = {
-                "rsi": round(rsi, 2),
-                "atr": round(atr, 2),
-                "sma_50": round(sma_50, 2),
-                "tsl": round(tsl, 2),
+            metrics.update({
+                "rsi": round(rsi, 2), "atr": round(atr, 2), "tsl": round(tsl, 2),
+                "macd": round(macd_line, 2), "macd_signal": round(macd_sig, 2),
+                "bb_upper": round(bb_up, 2), "bb_lower": round(bb_low, 2),
                 "math_signal": signal
-            }
+            })
 
             self._cache[symbol] = metrics
             return metrics
-
         except Exception as e:
-            self.logger.debug(f"Quant calculation failed for {symbol}: {e}")
             return metrics

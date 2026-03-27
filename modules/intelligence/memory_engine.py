@@ -3,7 +3,6 @@ import logging
 import os
 import sqlite3
 
-import pandas as pd
 import yfinance as yf
 
 
@@ -80,6 +79,8 @@ class MemoryEngine:
 
     def consolidate_memories(self):
         """Runs once a day. Checks news from 3+ days ago and calculates the actual price impact."""
+        import pandas as pd  # Ensure pandas is imported for type checking
+
         target_date = (datetime.date.today() - datetime.timedelta(days=3)).isoformat()
 
         with sqlite3.connect(self.db_path) as conn:
@@ -90,20 +91,28 @@ class MemoryEngine:
 
             for row in unresolved:
                 mem_id, symbol, start_price, date_logged = row
+
+                # 1. Skip manual/offline assets that Yahoo Finance doesn't track
+                if symbol == "GOLD" or symbol.startswith("FD-"):
+                    conn.execute("UPDATE market_memory SET resolved=1 WHERE id=?", (mem_id,))
+                    continue
+
                 try:
-                    end_date = (
-                            datetime.datetime.strptime(date_logged, "%Y-%m-%d") + datetime.timedelta(days=3)
-                    ).strftime("%Y-%m-%d")
+                    # 2. Add a 4-day buffer to gracefully skip weekends/holidays
+                    start_dt = datetime.datetime.strptime(date_logged, "%Y-%m-%d") + datetime.timedelta(days=3)
+                    end_dt = start_dt + datetime.timedelta(days=4)
 
-                    # yfinance end date is exclusive, so add 1 day
-                    yf_end = (
-                            datetime.datetime.strptime(end_date, "%Y-%m-%d") + datetime.timedelta(days=1)
-                    ).strftime("%Y-%m-%d")
-
-                    df = yf.download(symbol, start=end_date, end=yf_end, progress=False)
+                    df = yf.download(
+                        symbol,
+                        start=start_dt.strftime("%Y-%m-%d"),
+                        end=end_dt.strftime("%Y-%m-%d"),
+                        progress=False,
+                        show_errors=False  # Silences the "possibly delisted" terminal spam
+                    )
 
                     if not df.empty:
-                        if isinstance(df.columns, pd.MultiIndex):
+                        # Handle yfinance multi-index update
+                        if hasattr(df.columns, 'levels') or isinstance(df.columns, pd.MultiIndex):
                             close_price = float(df['Close'].iloc[0].iloc[0])
                         else:
                             close_price = float(df['Close'].iloc[0])

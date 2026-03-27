@@ -9,3 +9,7 @@ feedparser
 beautifulsoup4
 rich
 requests
+streamlit
+plotly
+python-dotenv
+protobuf
