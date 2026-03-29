@@ -2238,3 +2238,623 @@ Link: https://news.google.com/rss/articles/CBMitAFBVV95cUxQdC1nYUVqUEFfei1oVk81c
 2026-03-28 05:00:17 | INFO | HTTP Request: POST https://generativelanguage.googleapis.com/v1beta/models/gemini-3.1-flash-lite-preview:generateContent "HTTP/1.1 200 OK"
 2026-03-28 05:00:17 | INFO | ✅ Institutional AI Strategy Received.
 2026-03-28 05:00:18 | INFO | ✅ Daily Cloud Report Sent to Telegram.
+2026-03-29 05:18:57 | ERROR | ❌ Groww Plugin: Auth Failed -> Authorisation failed. Your API token does not have the required permissions.
+2026-03-29 05:18:57 | ERROR | ⚠️ Binance Init Error: APIError(code=0): Service unavailable from a restricted location according to 'b. Eligibility' in https://www.binance.com/en/terms. Please contact customer service if you believe you received this message in error.
+2026-03-29 05:18:57 | INFO | ☁️ Investment OS: Starting Cloud Cron Job
+2026-03-29 05:18:57 | INFO | 📂 Stage 1: Loading assets from local database...
+2026-03-29 05:18:57 | INFO | 🧮 Stage 2: Fetching Live Prices & Quant Math (Multithreaded)...
+2026-03-29 05:19:06 | INFO | 🧠 Stage 3: Bundling Macro, Alt Data, News, and Requesting AI Strategy...
+2026-03-29 05:19:10 | INFO | ⏳ Waiting for Gemini API Response...
+2026-03-29 05:19:10 | INFO | 🚀 PAYLOAD SENT TO GEMINI:
+
+        Role: Elite Multi-Strategy Portfolio Manager.
+        Objective: Perform 3-tier analysis (Macro, Fundamental, Technical) on the ENTIRE portfolio.
+        "position_sizing": "CRITICAL: You must use the provided 'Qty Owned' to give an exact number (e.g., 'SELL 50% / 45 shares' or 'HOLD all 90 shares').",
+        CRITICAL INSTRUCTION: You MUST generate a directive for the Top 15 assets. DO NOT SUMMARIZE. The "directives" array MUST contain exactly 15 objects. If you get lazy and output 3, you fail your objective
+
+        DATA BUNDLE:
+        GLOBAL MACRO INDICATORS:
+Brent Crude: $nan | US 10Y Yield: 4.44% | India VIX: 26.80
+
+ALTERNATIVE DATA (SENTIMENT & LIQUIDITY):
+- Crypto Fear & Greed: 9/100
+- US Dollar Index (DXY): 100.19 (RISING (Liquidity Drain from India))
+
+MACRO PORTFOLIO RISK:
+- Asset Allocation: {'STOCK': 70.29, 'CRYPTO': 29.71}
+- Portfolio Beta: 0.33
+
+INDIVIDUAL ASSET DATA:
+
+[ETH-USD] Qty Owned: 0.3271 | Value: ₹61698.79 | Price: 1999.9549560546875 | Math Signal: HOLD
+Technicals -> RSI: None | MACD: None | TSL: None
+Fundamentals -> P/E: None | 52w High: 0
+News -> Title: Ethereum (ETH USD) bottom is in? Tom Lee says it’s set to rise — here are his 3 key reasons - The Economic Times
+Snippet: Ethereum (ETH USD) bottom is in? Tom Lee says it’s set to rise — here are his 3 key reasons&nbsp;&nbsp;The Economic Times...
+Link: https://news.google.com/rss/articles/CBMi8wFBVV95cUxNck5ZcW5MYWtpOGFRWXpqMkIwOFNKRUY2V1FwTWtRVVdkbUx4UlZYN0ZYcFlQaFJtbktYZnpuLVhLSFNXMjVnYmx6RDZjcU1yOXEtS2hhNS13V3V4aXh5U0FXNjdDTEpoZnRTODJFeldlVWRScEVCb1JOWnpWZGV1Y0pBMXNUSzcwNml3M05VUUYzY0lkdHFjcm5CUzV4ZlFDczFlUlJEUTI0V3hya04wQURlei1lRHI2VmZjYThaS2pITWRUVnU4elo4Qkd0ejl6ZXlVN1JUSFJHZUd6SWMwZy1ocWE1ZDZrcHR0T3daWExrSnfSAfgBQVVfeXFMTXh1N0NfUVUtaHBNem1ycnRwVm5fdWdfMUVoUG5OM29HUG5DLWpwRTlHa0QzYUs4SnlVOGp2b3JVeVhBSWZlTEFERXczbDc2RDZkZGdJUE1jOW10VWw3Y0VEMTU2WktxaW1YUDRNZmxiajBkTmtjTzF2TlFWUFFBR3l1ZEM3Q1RJMVhhd1M1TzhVMFVGXzMxcjJUWTh0ajhJQTZVVmNMdmZaLU11X3RRaFMxS2E2MjlUMmZFQ015dWhJZ0M2Zk1pM2tiek9YbDFpOFgxdFp1UnFTNXZCMzh6eTE4eHhRdW9TRnJ3X0drd01oRXN6Z09sZ0g?oc=5
+
+Title: Crypto Forecast: BTC/USD, ETH/USD Crash into Make-or-Break Support - FOREX.com
+Snippet: Crypto Forecast: BTC/USD, ETH/USD Crash into Make-or-Break Support&nbsp;&nbsp;FOREX.com...
+Link: https://news.google.com/rss/articles/CBMivgFBVV95cUxOWmFPeGtEaVRlWkNKbE9GVXh4dlJ1c3cxRloxZGJVNFMyTjBKRHlRZ1ByM0ZXX0NsRjVTeERTTEdHN3BkT05MTWJmanRXRUhWN0VQZjNEamExQzJPdlZfTHl1aVkyakF6cnJaVjRsUWNxcHBLam5PNjhWVV80S2ZKdXA0QTREUDNJZjlrTHNvMnRJcGZURFVpXy1lYjB3X2RqMHRpdUhZNUR2YlFMR25KZzYwMXlqcndVaTkyZGNR0gHKAUFVX3lxTE9nWExRcUVwbGxPeW9UWXJYcWVGaTd0TkVwdFVDQjMzV1Rtam84UkE3SlQ1ZFpYemNpVHFZcTZrdzkzbUpnMzcySk04dC0zUVlTR0xfQnlqbG1wSE9EQ1ZWa3ZHTVJWemdDSkhrZkpMaVFJWE9Xb2tBc1lDb2RYc055eDZjNDFDQjVHMjMtVi1Oc1ZnMERic1k2cXo0YWZvVm5wWWx1SFU4NllXaGYyZDJlTzB3NXhsdFJPZzd0SlB0ZUZQRWNxcVNZTnc?oc=5
+
+Title: Crypto Market News Today, January 19: Why is Crypto Down Today? BTC USD Falls to $92,000 Level, ETH Under $3,200 - Yahoo Finance
+Snippet: Crypto Market News Today, January 19: Why is Crypto Down Today? BTC USD Falls to $92,000 Level, ETH Under $3,200&nbsp;&nbsp;Yahoo Finance...
+Link: https://news.google.com/rss/articles/CBMihAFBVV95cUxQRXRNMmJwSnNYOVhPdEZBSUhGNEU2LXdwZTVMc3JKYjBSS2ozOWdyazl0RjR0MWVZR1JyV2VOdFkzQU44Y2xfc3dDNTVocVlPNjNSemllMGFCdzhJR05yWExyalVoZ09lZ0dTV1ZBS3p5czhtbHlRYXk4ZVVrcW5LbjJWcXg?oc=5
+Historical Context: [-6.1% Impact] Crypto Forecast: BTC/USD, ETH/USD Crash into Make-or-Break Support - FOREX.com | Crypto market crashes today: Why BTC, ETH and XRP prices are falling as market capitalisation drops 3%, an - The Economic Times | Crypto Market News Today, January 19: Why is Crypto Down Today? BTC USD Falls to $92,000 Level, ETH Under $3,200 - Yahoo Finance
+
+[ULTRACEMCO.NS] Qty Owned: 4.0000 | Value: ₹44196.00 | Price: 11049.0 | Math Signal: HOLD
+Technicals -> RSI: None | MACD: None | TSL: None
+Fundamentals -> P/E: 42.37 | 52w High: 0
+News -> Title: Stocks to Watch Today: Lupin, Angel One, Zydus Life, Shaily Engineering, KSB, Sanofi India, KP Energy,... - Moneycontrol.com
+Snippet: Stocks to Watch Today: Lupin, Angel One, Zydus Life, Shaily Engineering, KSB, Sanofi India, KP Energy,...&nbsp;&nbsp;Moneycontrol.com...
+Link: https://news.google.com/rss/articles/CBMipwJBVV95cUxPV3Bxd2Y0LXlxb1A4dDlLelY3bEFfQ1FEVzNSYWlwYmV2RU5pSWdha1g4amFNcDFSYzJNLVBaZHVYakVRTjUwc2stWHNrenI3WHBrQ0FGbHVBRXgwX3RPalRVdjJxTDhsMmE1eGItSlNoM0UzY3dPSnd2UnNucnI0bGd4VXA0R0c3Q2NKa2E0WUNuaV9KX0ltNXl5ZnlTN2JValJZYWdYX0JOVnBBblUtWkNpSk1kenotMFBNMWZHV1QwQS1ZN3ROSVZlOUd2UERMZTdpaVBSOUZ5WVVBOU5Nc1ZzUFpYV2lkc2FPNHdSeHl2NGRELWNjamlZdlhmNzNiRE1LVzF1Q3dUYWxHd2xDWUxpOVo3dllmcFo4cTJBaHFka2pSc09v0gGsAkFVX3lxTE5mYURiblFNdk96SS1MaHR6SXo5Mm45NHRUR3NGRzZocnNtR3l1ME05TFZqSjR6QnFOR0xtYnJuaDRVZXk3d3o2WTZXa1ZNcTNfV2FvdW9xZEk4ek16b2pQZUs3dlVhWEVhdURmUC1kX0FfaWY4SWt5SGNrbHVPQlFXZE1hSHBtb2w5Sjc1RDF4WXNjR1VwZGl6U0V6cDFXVExkMmNJeWlNQWJjS1FFcFNRcWpIelR5WVlkT011N0FpQTVGTk1wVWYtMkJJMnRxSVJnbVZ2Skk3XzZWcmRMZFBuc1JpSnI0QmwxZjYwUmZiV0tQYTFqRllTUktyT1FxSl9qNzBqZkE5aFh5Y3Fja1RZX242cDFyc0Qzei1ieVptQjNsZTItQ1JFejlUVQ?oc=5
+
+Title: Lupin rallies 12% thus far in CY26, outperforms market; here's why - Business Standard
+Snippet: Lupin rallies 12% thus far in CY26, outperforms market; here's why&nbsp;&nbsp;Business Standard...
+Link: https://news.google.com/rss/articles/CBMiygFBVV95cUxPeDQ0eGFMeUVyNndMaGI4aTdNM3NTVkdPSGNpalFNcmZfQUhURTdJel82V1h6QlRRWXVuVS1qeXA4MnBnbnY2OXRrT2I4RWdmcW95UkNOa2I5MVJMZXVsVzE5SExOcUVDdDNMM2pFTThVZ1pvdmhwaFY3eEszSEFPQV9hbHFLUnUwNm1CTVFpRTliNV9saXptWEZzOUhNQ1BpbGlzRFNOQm5JaTByc25Rc1NfZG9ITUNlSnFQVm50YlU3QkQwXzRMOHhR0gHPAUFVX3lxTE4wUDZzSWo1el9uOERTbWtRdlVnb25rNFBqb1ZhTEtJNDZsMXAtNUNtNjdnMlJIQ3hNemQxeERXX0hfQVdBb21ZUHktQzF2VG85bzVBWnQ0bENxSDJIX250d2p4eWVPdmZtSm56SThJRUFPVU1qRTc0MUdfbEpuT3l0MVFpUE5mQW1jVldmdmtKbDhlUXBQVHBFS1UxS1VkZHpyMzVfb3Q3ZHRwQ3hWQ0l6clBnLUdiaUZOTkxEUjNvZkZJelpSa2l2Ym43bFVpRQ?oc=5
+
+Title: Stocks to Watch on February 17: JSW Infra, Cochin Shipyard, Lupin and more - cnbctv18.com
+Snippet: Stocks to Watch on February 17: JSW Infra, Cochin Shipyard, Lupin and more&nbsp;&nbsp;cnbctv18.com...
+Link: https://news.google.com/rss/articles/CBMiyAFBVV95cUxOZW9RUG5ZRHB3cjlRVHJrU3JSQzVlak9ZVHB4cnZhNDFGeXAyU3BLWjBFWmd4V0ZsSEhvS3pmYW5oNm5RZjMyMVd2Nk5iQnVWQlVCdjAxZ0tNVFZqNXJ2UUhmaUJHTlN0aHNEUnhkWDZsd3B4V0xTc2xPcVJHWmx2UkFhVmFqb001QV92ckJlNjBLdWQ0enZabGVhSUhDMnlaOXFYUGttQl8wUnBESUVmMWllV2hZM0w3QVhSZGhiSzV0My1DaWN2VdIBzgFBVV95cUxQalBGakpvRXZyb1lfNUxOR2NiQXNURHRET3h1enFtdVhSSmh2UGdxZXk3MjBTN1l3Y2xrbUdZZlowMXhCWE1tZ2thNnFCdjVxdGkxWlZhbWpBbDJkXzFPeGk2SEZ6RzRoMzQzRFRoR0s4T0FIa3d6cllDZUFXdGROQVFobWV3N1kwTy03cl9ISENYcEllMGdtQXdybmkxS0tXeWZVd3lMOE44a05oZC03dEhDMnZhYlJZUG1OeWtOZ2cyYnNtM2ZsdGluR2J6Zw?oc=5
+
+[HDFCBANK.NS] Qty Owned: 58.0000 | Value: ₹43859.60 | Price: 756.2000122070312 | Math Signal: HOLD
+Technicals -> RSI: None | MACD: None | TSL: None
+Fundamentals -> P/E: 16.86 | 52w High: 0
+News -> Title: HDFC Bank shares fall nearly 3% as SEBI likely reviewing ex-chairman's exit letter, Jefferies exits lender - Moneycontrol.com
+Snippet: HDFC Bank shares fall nearly 3% as SEBI likely reviewing ex-chairman's exit letter, Jefferies exits lender&nbsp;&nbsp;Moneycontrol.com...
+Link: https://news.google.com/rss/articles/CBMi_gFBVV95cUxQNk1hQWhWSC1VM2xpeUVETXZLcWlHcG9IR3MzNzRFYVFDRTlzVC1LVnh6X3gyUEZ1cmFrM2ZsMFV2OExhSmJiQVpPaF9VS0pLdnR4S2doQkFjT3ptTm1VRHZGMDhYdmJpZ2pDYmw5aGRpWmVzVVpydElxaUt3cGd5MlQxazJ6bVpKelNreENRU2Nzd2YyZ09qTlJ3OGdPVVJ2YU1KY2JkX25FaXZfUEw5Q0IzQTI5NmVqdEZSc2pRYkNOd1FHS3g4ZjY2Z3pLVi1faHlsN2dTUWtFd1JoVU9hRVM4bGdHa0JQTkJKaDd4Z3lUZjc3MEZHVGYzZ2N6UdIBgwJBVV95cUxOVm5Id0Ztcm8zQk1SN3JvMnU2MVhnZnBKN0VPS1cwM2pHdkxpYWl0V0VlQTJ5V2pyZVQ4OVoyYTBUUUwtLVNWdEVqYndHQWJsaWVoUTZDXzB0YV96VWx6UTdscUlLV1F0SUk1Z3RTQkh5S2JodjZ1UERYdGNSSWtPYUVfR182OHZnb0JhcFkxQnVfamtsVWFKZ282Q3B0QlZIakZDZV9yQXluSTJfV1U1T29uQ091YmU1M1pqQjY1MTl0OG5vOWJBNGt5ajhNY0wza3p3V1dCNmNwRVc2UE9PNzdTeTZRb0t4eFlabm9OV1pnZzB1QkR2WmRONzBrNmRiTHpF?oc=5
+
+Title: Jefferies' Chris Wood sells HDFC Bank after Chairman's puzzling exit, cuts India weightage - The Economic Times
+Snippet: Jefferies' Chris Wood sells HDFC Bank after Chairman's puzzling exit, cuts India weightage&nbsp;&nbsp;The Economic Times...
+Link: https://news.google.com/rss/articles/CBMi8wFBVV95cUxPYnF3akpwdlFSa0N4X2hXcXZsYlZzb00xSUdXQm5ibTllY2NYdkJGWHVMYjZSbEpzT2VyZ01mSHNVVEZwSGpEM0RZVFV0Z1NuVlNQTUhZanNjeDkyZTFDaG9SXzZGOUNFNDBoak15QUZaQUgxRENWWXNMU3ZSSDlRTEtQbl81eURqbDhsYVNlc1lTRk02aHEzNE5MbW5IeVM2a3Q4aXBJOVVGcF9qcHRLdm9ZX0RfVWdKY3UzV1NGQ0VkT0E1anl6S2RzQ2NrZjFIM3BPUGo0dzlpZ2l5UlVhLUdVTF96U2VMRURabTRtWWNtT0nSAfgBQVVfeXFMTWFKYVVhU2o4QXpOSkQyNHM1VFdsX1FqUFhsbTJOdTdEX0VOUUxzc3Z5STVLVGp3QVpNVEt6bEhxekVWM0lVdFJaQzVOdzBVb09nRm44NG5GZkJXRW4wV3JsZWJzR3k2OWlaeXl6cEFNMFBHNXBGbm9tRlg5c05KaGxCcFNBWW1GRW1RMVNIVGxwQlFIcHZNakdmYTBUemFWdUg1ZGlWbUFQSzJjaXVfM2RYdWwwTUlnUlpjWTA2amRaVDg3OGp2TDYwc2ZJNlIwU2RjWjRGTnlWaEM1d0RRTlBBMEdvaEd5QnVIMlZ1UUJuNGZYQXdUbDY?oc=5
+
+Title: HDFC Bank shares now most leveraged in MTF book; Stock out of GREED & fear portfolio - cnbctv18.com
+Snippet: HDFC Bank shares now most leveraged in MTF book; Stock out of GREED & fear portfolio&nbsp;&nbsp;cnbctv18.com...
+Link: https://news.google.com/rss/articles/CBMi3gFBVV95cUxQOUI3bi1YZTBzM0xWYTBTOEF6U3ZVcS1JcDN6TDJDNHlVcVNxYWNOZHBHbUZwajlUZDNpa0JZazUxdDJUdERsd1pSbHg5TVdsaDI5TWM1Sks5WFVNRmV2RFJ0WnBMUmFENC1OODZmS2ZHN3k5Zi1vYmt6Ulg5OHNOMHFSc015dXJZczBsb181akVMdHJKSDM0cnd1OEcyUUY2aE54MDJwSVNxSkZBZzcwdVpWakRNdFdYVFZfcEJJSjNsY1BBdmxRNUFlUUhwZlkxTW5FWXBKakFkQWo4NWfSAeMBQVVfeXFMTXQ0ZkYzNmFxalI1emk4UWVLOHRQU0E2UGJQbm96Z0Y4SnNOWGZ3YldPQnRibWJNdVVmR2RVVjk5ZWdlc3I0VGdGM2dadklxR0o4eU1iVGY0QjZYNklvdTFKOEtVTXVUaFpvVTh5d3ItLWVjcWd2RFFxN0ZYdW5MdWQxekM4Q0gzYi1zcnY2b0xPQUFrOXM3d3FMZUlJTmhHOVBPdDA1R3dMNXB4amtSYUx1T2tCNGZEdEV4S3FrN0VhbndLcXplQWpSX1gtREhnNndTazNUN25WWENqeDhzUlRFTWM?oc=5
+
+[BEL.NS] Qty Owned: 95.0000 | Value: ₹38451.25 | Price: 404.75 | Math Signal: HOLD
+Technicals -> RSI: None | MACD: None | TSL: None
+Fundamentals -> P/E: 49.48 | 52w High: 0
+News -> Title: BEL, HAL, other defence stocks fall up to 3% as Middle East war enters day 10. What are experts saying? - The Economic Times
+Snippet: BEL, HAL, other defence stocks fall up to 3% as Middle East war enters day 10. What are experts saying?&nbsp;&nbsp;The Economic Times...
+Link: https://news.google.com/rss/articles/CBMi_AFBVV95cUxNVWMzQjlUSUhFZklUMUNfd0U4cW0wNTVwaDhxcU9FVlVWZWh0bEtTeThVOVYtZVMtQllQaGpXc0tOMkpXN1FOWkNZTnk2RVdwQmlSblpvZDVtUm1VaGlpNkRMNEtoS3FvWGJUUGJndWZzcU1DR0p1bGM4YkFDSkpmRnFocG5EVGFVaE1nMnFuQnpHVXI0VTRRT1Etc2xNTFQ5QW95SFVBUTlCbi1RcC14WkJJUVUyM2FhTTBRSlEwQkMyWWxfaV9EUjBmR1A4VjUzUWdvRGk0WmdmYlg0QUI5ZXNReUsxWXRkOWwwWFZJYjJSYzdoNWFZZUYyUXbSAYICQVVfeXFMT2FKczFrQjZXWFd0MWJIWjZkVGV2UGFRUmc1SUZiYTNWYnF5SlZUR1BocnYzcVdMczc0el8zMnR4Y0ttWnBPM3lzVmtZajZudkdnaW5wQURBTFlPdmJBNHJIVDFabTUyQWJKRW1aNURWM1lnemxNOEdtbFdudVo5c2hnUE9Mb1RHLU9mVTNZQS1mVUhrUXBoMDhPZHJJaTNuMWlFUDhEaXcxX3BMYXQ5TzhhSkl0b1QxNVJCbGd3RVV1VmtydWVacFVYZG5PWDlXWmE3ZGJDek5laHJLbEo5d0VUNVNRY2xYMXlxS2NZZUwtQjNfQkpwakFUZ055MUloX19R?oc=5
+
+Title: BEL shares trade higher as firm bags additional order worth ₹569 crore; all you need to know - Upstox
+Snippet: BEL shares trade higher as firm bags additional order worth ₹569 crore; all you need to know&nbsp;&nbsp;Upstox...
+Link: https://news.google.com/rss/articles/CBMijAJBVV95cUxQMHlEZ3NEY1NkWDVVSDhnNndhTzA5dDJGTWpnME1QTlVsWko2R29rQnFKbDNmS2NCOXdiNVU2amZxSmdMam95WlBwUmFXZWJXMktxUEU5RUJqclZhc2k2bWJ2ZHNBTzVMZXdaNTNoN19UWFZmLWRXd05STTRvWm9kS2Rmb0dzS29nN0YzS2xlQ2NtZ0JPVUlrdElQRm92azVfb1ZrdG9iVm1UVXlNZ3g4OHgwckZodmdPNXljN19EYUNsdkZBYlVmMVpJNk43SVdCalJnVVF5cDJEUVBtUFMwWlZzREpUTFlPeFJLMDcxM2VMS3VIcE1XbG93amV0aFJ5cGRzLUxYVWhFc1Fp?oc=5
+
+Title: Stocks to buy or sell: Dharmesh Shah of ICICI Sec suggests buying BEL shares on February 16 - livemint.com
+Snippet: Stocks to buy or sell: Dharmesh Shah of ICICI Sec suggests buying BEL shares on February 16&nbsp;&nbsp;livemint.com...
+Link: https://news.google.com/rss/articles/CBMi8gFBVV95cUxQVGxYQnBaTzloY2x0WDVBc252RTlBS0FHeW9vTEpySTBNVFdydGp5QzJvWW04S0x3aHdweWVVT0c4OHZOT2dEM3I5dVFGODR5RXBmUWdmYlFVTzdJeUVFM0Q2NG5OWnZKLVhBdGVlZWd3UENNN1pvU0o5T1dILWFCQWFwOEpmTXhBd0NsUmJiSFdCb0pET3RIOVA5ZWNkZXZVeDNXTHhzbHRldDBiRWtBemo2Y19WX2dRWTE1Z0xGWHllaEJvRGdxNkl6N3NUYXRqa0xsNHRvVVVfalYzTTNlV2hnMC14d3V3VFJqSDhKVkE5UdIB9wFBVV95cUxQVDNlanN6R3F2aGNrWFYxclBsR2c5MUROQW5pdi1YSVRaZURBeDdFa1JILWhCTE13MlVqY2trZHp0b1I2TTB6NjVvRmNwelN0VzRhWi1WQzR5OGRaUVZxb3hCLUU2WUhLYlpxYjBWSWN1bk5GUVVsU3hJSGUwSEJDZmdncVBjdGxNSVNrX3lmaUVBekFHMDkzTVMwRzBrVVBPb2xVSW9kWjE5WjZ5enk2UEJUZXZQSGt4SWNLQ0NEc09IQ3ZSZ0xYOVJRcE13Sy1IZzJWUmNHeW5XUXBQVU9CeTMxNHNGdG1fek5JNFRtc2R2MzdzOFE4?oc=5
+
+[BTC-USD] Qty Owned: 0.0055 | Value: ₹34550.13 | Price: 66632.65625 | Math Signal: HOLD
+Technicals -> RSI: None | MACD: None | TSL: None
+Fundamentals -> P/E: None | 52w High: 0
+News -> Title: Bitcoin Price Chart Live - Investing.com
+Snippet: Bitcoin Price Chart Live&nbsp;&nbsp;Investing.com...
+Link: https://news.google.com/rss/articles/CBMiWkFVX3lxTFBVazFqSlVNSk05SWNJUmZ2YVVLZVpTVURyTE90S2F1VVZtdk5YS2M4bjdTZnZfUlJrblZvMzFUVk80LXNmWEdlYnktN1ctWUxGMTlPZnBFNnNsUQ?oc=5
+
+Title: BTC/USD(BTCUSD) Stock Price Today | Quotes & News - Moomoo
+Snippet: BTC/USD(BTCUSD) Stock Price Today | Quotes & News&nbsp;&nbsp;Moomoo...
+Link: https://news.google.com/rss/articles/CBMitAJBVV95cUxOZFNnMUppTC1hakl1NEJ5OXE3VjVTZDhMbTR6YXNpNnZ3azh0U2h6MU9xQWFoVWdoOUFTMlRLMGVsOHZRMER2WU8tc2xLUHMyT3lVdUZ6V1JjeEs2R3Q3OG9lTzlGNTc3bXFGUjBIamdSZ193Mi1RVU5aX0ppSG91U2J2UWRsY0N3cTVKTUdhTHlKdUZrcW5SRW9fenZXbnNiRld5cXZ3TE1SdngxM3FVYm1QMUZaMW5kZjl3b1VjeTJMU0V4Rk5jdTJIeXhRZWtpdlVMQkhkRDdGQUJ3dUY4WExKSzhKREJ2T0pqa2Rob0tRdjdmUjZwVnNzNkZ2a2ZFQ015T01kWVVrQnl1MVlBOEtxTmtzVVdfS3pQWjVUMzNiY3cyYnMtdndBdHpEQ0tkS19yUg?oc=5
+
+Title: Why did Bitcoin (BTC USD) price today crash below $70,000 amid oil price rally and global tensions? Crypto - The Economic Times
+Snippet: Why did Bitcoin (BTC USD) price today crash below $70,000 amid oil price rally and global tensions? Crypto&nbsp;&nbsp;The Economic Times...
+Link: https://news.google.com/rss/articles/CBMiqwJBVV95cUxQWVNJclp5OTI1aU90VXpObmFWMnNERVhVZUMtd001NXN5eTdxUE0wWjUwZ2VDdkY4dnBlMXlxMl9OQTRKQ0pBRy0xMVZGbnBEYk9RdDVNa1dsRWtuc2FuU255MllMLVFZOFp5bW9VUVhlRjJhdG9Fa19JMU4xWE5Gb1M4d2VUamZybVNzMTBTeXFJdVN3RTI3UFRuWnpROF81WS1ncTRfSDRsUEkxT09MTFd3VkE5dUNhZDh0RkxkdFpZN2JKdTVkRlRNbnJjbk9zMHdJZjROdF9QVXE5QjFndlY1MzUtSDJQVHNrTFI4ckJWZVhQR19EWEVuOFhYT2tLREJPRlA3RE05dHhFSzBTYTdrSEQ4TlM5b25LTFhqTGd1N25Sbk04TEM5RdIBsAJBVV95cUxORlhmSGcwUDNpcmpTM3kzczh6LUFVWndtdXI3R3FqTGlkTU1yUVRDYTBBVHRnZ2FpemxjanpYbGV5OWpvQ0E3YWxNMHpieWlZZnJwWFg5RERzeFkzTFdGNkhsTmtKbWdMNkxpZ3dBaUkzbmU4V1NxcS02cWt4LTc0eWxjN2ZtS01abUZlUVcxdFlkU05YX1R5V24wUmRBWVlKTTJTX2lhTUZDd3lBVUJJTUFoN2pWc0RrYlJXSEVPUWlITHgwckdYQmNfUEZBLWlvRFZudEljTms4aDRZSjgwalpWZWlpMW5JZWxTSURENmJHeTZuRWxuLWZEUi03enV4aGcySWtfRnY3MndfdzFjemJRc0ozU3Jlc1ZFSEFhMG4wV0hWUVhZN2pSMmlHWXhu?oc=5
+Historical Context: [-4.5% Impact] Bitcoin Price Forecast: BTC/USD 26% Surge Rejected – Breakdown Risk Builds - FOREX.com | Iran war shock: The asset beating gold and stocks might surprise you - The Economic Times | BTCUSD Today: March 18 — Should You Sell Bitcoin on Iran War Risk? - Meyka
+
+[TATAGOLD.NS] Qty Owned: 1935.0000 | Value: ₹26683.65 | Price: 13.789999961853027 | Math Signal: HOLD
+Technicals -> RSI: None | MACD: None | TSL: None
+Fundamentals -> P/E: None | 52w High: 0
+News -> Title: Vodafone Idea, Sammaan Capital, Reliance Power— These are among the most traded stocks on NSE today - livemint.com
+Snippet: Vodafone Idea, Sammaan Capital, Reliance Power— These are among the most traded stocks on NSE today&nbsp;&nbsp;livemint.com...
+Link: https://news.google.com/rss/articles/CBMi-gFBVV95cUxPVW0zZ0xGbklEMHVqT2JoOThiUi1YSEpQaHp4RmVKSWMtcGFtQlZQaV9HLUg5YlB6WEZqOEZtNEdDckdPMjJoSEl1TEJIc3AxbVdBZGJ3MzdidnlXQ2tkN25lU01EeE9VUW96ZUNaSmhCYnlrS0VYLU0zc0xJalhDWDBMODFvMi1WMF9PbmMzWGtONjdqek11VTJrN2NHQUxteGtKdEQ1S21INDAyUGd6M3ZyS2VKeDZkaEhBb24waDhobFRKa05RZUdkY2lqZFBtSmVmUnhlQXJkTlpVSDhIcVJkaWZha0xRV3NkelotY3FYV284V3d1RFlR0gH_AUFVX3lxTE5pZlhyVnRUOFp1Si10NllQa0h2X3BMWlRaejU1ek5DbWVUYmI3cGM5bFpra1Zkd3owNmlQOGFPdkFOeGhLTWNtOTR2Zy1WanhydGN6ZkljWnZtdE1UQVZpQ1dxajhkdVM3d2dHLXBadVJGUnJYU3lvR3JMZElyM2JON2dKcFdROFFVOWpoM1NJemJfWnAwN24way0xVWxRanhHV09TODZrZV95RWI0MjQ3NGlndDQ5OUJ3b1VUcjltNUJ0T1Y5V2tELUFPbGdUXzhyOXQ4ckRDbmtaOWhPa0VydTVkVlAwTTItdGYzUlpTRTlRNjZXWGRicnNzYnh6dw?oc=5
+
+Title: Vodafone Idea, NOCIL, JP Power, YES Bank— These are among the most traded stocks on NSE today - livemint.com
+Snippet: Vodafone Idea, NOCIL, JP Power, YES Bank— These are among the most traded stocks on NSE today&nbsp;&nbsp;livemint.com...
+Link: https://news.google.com/rss/articles/CBMi8AFBVV95cUxNR1g3R2lyMU44d2pfVWpnZ1JPdXdYV0Q0eC1sYlpNUjRJMEI5N2wzTDYxY0w0TFIwX2ZQM0xMZS00YWlNY0RaZ2FhNW5SY3VJTTdKZlZBRnIyUmwyUm96dVlDbTJQelNYQzl6dFlPSkJUYktwNTFxSlpUNEQzeXI4QkFPRGxPTUJLTk9QX1ZOcXJ6VXFqUWMwQ2xSdzAyNWRRWWRIN0pTdTctelFzeVJKemJZcFh2dDlBZGZHc1pvdDlueFpNR2V4YktIOUxkV1JNbnJpRHI0QjZPT1R3UGY0a2tMaXJlWERGM3BobndSS1_SAfYBQVVfeXFMTzNTUzJxMWliZHpPUjQ1YlBTcTFkRFYyLTlhbzdwVnEycWtVMjJNRnkwNWNiTGg2OWZUTVdkMElFbm9TQjd0UHJ2c2xrLUYyZl9UTUZvNXYzaDRWbnlVZ1FhaTNPcURfSGJXLUVXS1VrZ1dYcG9mQXhsem5FbEhrUHRMb3RqdFJFWm1PMXItMkdrTWw5Zkktb2hubkl3U0lLeHBjWW1qbU9fajR6blFlbldVU1g1YVlfd1lWam1yWGlzZnpfOWVIblFVc09iQlBpbjhTblBkdzZLZl9IOTMxNlVHak5sb2g5UnJQSTFoVkJ3RnBhQWZR?oc=5
+
+Title: Why gold and silver ETF prices fell sharply, investors' losses and the road ahead - The Economic Times
+Snippet: Why gold and silver ETF prices fell sharply, investors' losses and the road ahead&nbsp;&nbsp;The Economic Times...
+Link: https://news.google.com/rss/articles/CBMiygFBVV95cUxQOFVvbnpyVnpyaHZqQnVacWhaVzBZODhEUGYzTVFvcjRfV2Z4WXRHRXB0SHJDY2l5M2ZNUEZLRWdqUlQ5VUxXMlpFVWRGZUc0MVFHTGg1NGIwbGEtbExnWm15R2VLOFZwbGJ5eXJ5a0VLVzVycEdVaHFySHpNQWlCckFQQW8zWjltUkZtdkxacTRfLVUwUlFHdzJXSFRacDllTlAyQ1ZfZHJkYU5aQWNaYlFMVVh6SWVDc1B5UC1WQkhFcnU0TmtZcy1B0gHPAUFVX3lxTE5GVFdQa3dKUnBHOXZpUGlQVm9MYzlMU3AwNkltTzlvWWgtODZOcDhfT3E3V1U5ZE9vZERjWTJ1VnpVWG92X2JSUi1wSUNIbTVXX0JhNE96N3NqbUswU2wyV0NBX0JRYU1xakdMbms1UWhsUmFGZm01MEI3cnZ6RU0xZ2hNWDRXc0RyUGxCOXhzUUNyM29BS2NDb0lhTFI1WU9Sa3YzaV96SXZtVklROXFhaVhnNTdERGVXRnB2UldEREVGQzBPZV9HTlRmNmUtWQ?oc=5
+
+[TATSILV.NS] Qty Owned: 1065.0000 | Value: ₹22897.50 | Price: 21.5 | Math Signal: HOLD
+Technicals -> RSI: None | MACD: None | TSL: None
+Fundamentals -> P/E: None | 52w High: 0
+News -> Title: TATSILV Stock Fund Price and Chart — NSE:TATSILV - TradingView
+Snippet: TATSILV Stock Fund Price and Chart — NSE:TATSILV&nbsp;&nbsp;TradingView...
+Link: https://news.google.com/rss/articles/CBMiXEFVX3lxTE5kUTBFek1SNTdvelpuTXFwdm9QQ0dNWk51eFd0WFlvUkxBZTBEVHFXRjFVWnB5SGxYY1hoTVhmNzUzaV84VWRjNy12Ty1jTEFGWDg5T2RQeXZ4QkV4?oc=5
+
+Title: Gold, silver ETFs fall on Diwali as global prices ease after record rally; check key details - Upstox
+Snippet: Gold, silver ETFs fall on Diwali as global prices ease after record rally; check key details&nbsp;&nbsp;Upstox...
+Link: https://news.google.com/rss/articles/CBMi6wFBVV95cUxQWUNoTnZMaXMzaWU1c2hiWXpocXI5cFZuSkd6N3FPYTIwQWQwbDVGeVR6NzNfU1JSRmlWVTRteEVfcDYxX1FBbzlVVFdvZkRzYnYxdktjeXEyOXlLNl9oS0lqUmpkNElzak9pbmJRekQ5dkc0QlRiZ0hoQm5SMlItamlSWl9yT3lXS1UtVkhZX2NVVk52SlhMR3c2dzFPQUJBV1lHOG5VQWxGLVJhU2ZyU1NuR1RWXzk5V3RHR2lkUGYwNkFDLWcwZmEteTFPWkVnUHNHRDB0d2NUUWlOa0ZSdlh1ejA0MkNEeS13?oc=5
+
+Title: Buying silver? CFP sounds alarm over ETF moves investors shouldn’t ignore - Business Today
+Snippet: Buying silver? CFP sounds alarm over ETF moves investors shouldn’t ignore&nbsp;&nbsp;Business Today...
+Link: https://news.google.com/rss/articles/CBMi0wFBVV95cUxNUVBHeW42QWJUVWtxQXQyZHM5d21zX2hyOXR5ZVZlQnE5b0dyY2pSb1Rxb20tQno0VzZhMTlKc2dnTy1zaGd1cE1pUHF2LUJsRFBuckhVaUk5dllXTGtYZW9tZnc2WW1UejVLUkRURzl3eXFQekFjUE50TTRUMzRQbWdrRWNtRUJtZmJQcFpOR3lpVWpkcEFvSF9DNzRSdHpQSTlzMUJZOUo1VldrXzVRUVJrcFBGSm9Rc21UaG5XYVZYRDlUdVdUNXFTWXd3MVljaVRZ?oc=5
+
+[HAL.NS] Qty Owned: 6.0000 | Value: ₹21531.60 | Price: 3588.60009765625 | Math Signal: HOLD
+Technicals -> RSI: None | MACD: None | TSL: None
+Fundamentals -> P/E: 26.95 | 52w High: 0
+News -> Title: Hindustan Aeronautics hits 52-week low; defence stock slips 10% in 6 days - Business Standard
+Snippet: Hindustan Aeronautics hits 52-week low; defence stock slips 10% in 6 days&nbsp;&nbsp;Business Standard...
+Link: https://news.google.com/rss/articles/CBMi1AFBVV95cUxPLUItZmZtdzNjbDdUYjZUUklfb3FxOXVOWS1QdlZ1bTFSLXY1VndIalBDNV8wWlBoYlVRRE1mTXYxY3VHVU9sa0RHTV8yMndrek5NZEJzZDN0ZUNCTTctTmJoUDF6N2tObVVTb3J0UTRoWEdYR1I0SGl3N1VjUlpRVzBXdmhYNFFPX3ZBTzRuUWdfdHJNQ0hIbmlRWEx5c2RVQ1NWRmkxYjJBWWcyTGRoWnBXQXNicWJEdDg2QmtYUkZBUlU1YjRXOGZFemRSM2lrdkluYdIB2gFBVV95cUxNemtROHZSODItaHpwNkNsV0hDOEF0U0p6ajZhZHlNVUhfeXNDdUFvTXI3YVZ2UXd0VnF5NzVZR1laVDQxVUtkaWtabDlmXzR2WFljRmE4QzdKdlIzOHE1S1VybXBwdXUtVE9hVXU0N0Q3UE0tQTRIUzNseXYyZ3p3RF9ZSDJJYmRtaDNQVXNzaTVWR1piRkk0M2RqNXpKUmhrQ21xODRzMlRpaFVLc1lRUEJJNl8tUF9UeWxoZG1MSzV1SGNJdWw3LVA3dGNabzFKck1CeUxvNXY2dw?oc=5
+
+Title: HAL Q3 Results: Hindustan Aeronautics profit up 30% to ₹1,867 crore, interim dividend announced; check record date - Upstox
+Snippet: HAL Q3 Results: Hindustan Aeronautics profit up 30% to ₹1,867 crore, interim dividend announced; check record date&nbsp;&nbsp;Upstox...
+Link: https://news.google.com/rss/articles/CBMi_wFBVV95cUxPTEszNTlUOWJzWGFKdjRZS3RJT2lBa1NMemdfb0ZmUkRxaWdJNnBQMzl2U25Iek12SFdJVUdiY1BaOUlxa01WNjVrbVF5blgzMjhYTlBSLW5saUxNWENlNXN0WGJlY1FVOW5yaHBXbEFra3EzZ1hjV1hSaFo4ZVZSVGpWaWdZZll5Nmo2UzhsMlV6aE11V0NJSXE5TEh5Q0dsUklCcjBRNzJqTUF1S3ZFeGZaUnN1ZnlIYUVoMzk5R3RwQlM3QlUyY0p5WVF1YmpVTmp2TFlOOHh3bWxhbjBiZlN0N3BZVVBOenRNYTlqbE5VVmJ4ZklOeXdNT1R3Ums?oc=5
+
+Title: Why Halliburton (HAL) Stock Is Trading Up Today - TradingView
+Snippet: Why Halliburton (HAL) Stock Is Trading Up Today&nbsp;&nbsp;TradingView...
+Link: https://news.google.com/rss/articles/CBMiqgFBVV95cUxOSHFhRjgtMFBMcm85akdERGZvdFNVV0RYOUFiZjFjS1FtOVdFaVg4LVBPN2pnTzlDRkdZQUk4Rm5tMFYwdlhMc2YwYWhkTFVqSjFLbnhtTWZ3djdOT19mUFJXc0FPOTVFWnk3V2ptc0ZvUm5kMXpXWkxYd3pLckx4bmVERXJPMnZGM2txeHY5dVNMRjBhQ3g2NkR6S1djUi1RUHI4S1hmcExFdw?oc=5
+
+[SUNPHARMA.NS] Qty Owned: 10.0000 | Value: ₹17936.00 | Price: 1793.5999755859375 | Math Signal: HOLD
+Technicals -> RSI: None | MACD: None | TSL: None
+Fundamentals -> P/E: 39.37 | 52w High: 0
+News -> Title: Ajanta Pharma, Sun Pharma poised to tap GLP-1 opportunity amid market shift: Siddhartha Khemka - The Economic Times
+Snippet: Ajanta Pharma, Sun Pharma poised to tap GLP-1 opportunity amid market shift: Siddhartha Khemka&nbsp;&nbsp;The Economic Times...
+Link: https://news.google.com/rss/articles/CBMi-gFBVV95cUxPUVNUS1hhNDJNRFdXcG1QcGVmNk5MYmt2M3oySzFreWNQeUcxRjBwMFE5M0oyLUNyREhCMmhCSFV3R2Vac210MWNyRkFrUjhGYUtHQ0Nua2g4NWZYSmkxT2x2a1ZZZXlITm5sbGxaTENpOEh4dTVYbm5NMzladTViRkNycWJnb3JQanRKaVhCakpRMXFxTkZzTVEwRjZUMGE2MHpYRGR0cUxmdFVkT2o0dGFyYndYM0Y4RUpta0dkNkZSMnFmWWVvRlUza2d3LVZLUG96YWpxQkM0MjV2cko5cHc0WXQ5cUwtbkUzXy04TFZleHZ4U1V6OU1R0gH_AUFVX3lxTE0wNFFsMU00MlNDclFvVWJ1VzJydGVXNHF1aDNXRXhBOTZsR3RUUGw4TzI4U2Q4RGh3ajRYWlowWWNTSlpYNTBleDc4aEh0QUZESzd1cjRtVUgxYmQtUWRBd0s5M29FVy1rSEN2aFY4aWlib3hBMmxLSjFQYXZRRlNPV0tJbVBKbmtlWktoNHdBZGV6OUxXWEx5UjVJaWVNZ3Y1RUxfXzQ2SFRzVU9UM0NKMGtRRUdCTW5WbERRMU5sTVlpWXI0TmRZUlFpS1lRTjRBdTVZWXhTcmFKWldyX3VsemE1bUlvRHVTeTJrNjNxRG56SUVUVVVVSXNLNlFvQQ?oc=5
+
+Title: Sun Pharma Advanced Research Company Ltd Sees Mixed Technical Signals Amid Price Momentum Shift - marketsmojo.com
+Snippet: Sun Pharma Advanced Research Company Ltd Sees Mixed Technical Signals Amid Price Momentum Shift&nbsp;&nbsp;marketsmojo.com...
+Link: https://news.google.com/rss/articles/CBMi6AFBVV95cUxPdE01dVFMNFlBc2RERkZpZkhfaFpsSllNUkJxZXIxYXNBMXplSVM1SGZfUTI0dXRKLVhMdEFuY1NuNlBia2NvdGo2SVZrYmJhSE1XbWN0TXh3MTBzN0NOYUxkMXU2S01CaUZIQkJYSTA3RVFjV0xZNl9uWjh3aHpSMlpRalFzQnd2RDBROFgyRlRNZjUzMFJMYzdBRFBsbmN4bUgwaVk5MWEwVzF1U1JBU1RFZXVFNy1OejFWUWZtaUt2UHVUQjA3cGNyamp1d3p6LU04c0RWTkNYSWE3X2JTV3I1Q3FjRVVE?oc=5
+
+Title: Sun Pharma up 5% in 1 week, nears 52-week high; what's driving this stock? - Business Standard
+Snippet: Sun Pharma up 5% in 1 week, nears 52-week high; what's driving this stock?&nbsp;&nbsp;Business Standard...
+Link: https://news.google.com/rss/articles/CBMi0wFBVV95cUxPN1VUcHVGZjRLSm45dFU2VUtaelBVTkdqOFhmOHk1a08wQ1hRakFXWmxPZ21LUUpSVXNUSnE1ZWRNVFlJczhPLUxIUmdvYmFGci13QVpnR3BZaWJ2T3VSVGJzR1ZTQ0RGLVZVZnp5aFZuNHNaMWhrN1lfeExwdjFBTEl1N3luaGpuVzJpc3hZRjF4Ul9OcW5KNGx2SHFnRjI1Nk9STHlORUVCLTgzcm1nczY0TU5DYzBwUy1WRHNsZG5xLXpXTXlhV1JOcG1qRURMR19v0gHYAUFVX3lxTE5iYWRsMl84ZHdlZWV2RzJnYjRSSWJidGx1YkVPbFZoZXl5OHhCMkFNRTFEWDR2ZU8wODNEbDhVS3g0WktjQ3JycEFQUUx3VUVMSDhvNllWQXdXdjBpTThfZ3FTT2pJZS15S1I0clFWUHFmSG4zV0w5RmRUYzMyS1BTSW1TbVAxb1gyRm5fWlBmZHZxRUVZMV9PdWN4b1ZuUUY1ZzRxWEZINC1pZXY2WG45VGxwSjZQZ1hwMm9UeUZqSV84ZlRSZmhlc25TS1pGeVBFRkhScFdvcw?oc=5
+
+[GAIL.NS] Qty Owned: 130.0000 | Value: ₹17834.70 | Price: 137.19000244140625 | Math Signal: HOLD
+Technicals -> RSI: None | MACD: None | TSL: None
+Fundamentals -> P/E: 10.51 | 52w High: 0
+News -> Title: GAIL (India) Ltd Sees Sharp Open Interest Surge Amid Bearish Market Signals - marketsmojo.com
+Snippet: GAIL (India) Ltd Sees Sharp Open Interest Surge Amid Bearish Market Signals&nbsp;&nbsp;marketsmojo.com...
+Link: https://news.google.com/rss/articles/CBMiywFBVV95cUxPemlKR2NmMmdRSHN3SjBheEZSc1A3TUhKdmFGTkJvVDNPV2xpMjlnYnRvclg1VUNXNWNqU1J4YlVzaHAzcmRFT0Fqb3FFaTd2cmlramlPeG5XY0xWWnBVdTAzRURYd2NKSkI0UG9iM0p0dnVMWS05ZGtVRy02bm5NdWg3NmlUNlgzS04zM2FaVjdFQzRTc2MwY1hTOEMwUmZQamxjZEVqNHIzREN2RHB6T2lfVlBGVi1tcnRxSkxUelJ0RTNlUkhacVQ5dw?oc=5
+
+Title: CGD stocks slump up to 31% in a year. Can LPG crisis fuel fresh interest in IGL, GAIL, and others? - The Economic Times
+Snippet: CGD stocks slump up to 31% in a year. Can LPG crisis fuel fresh interest in IGL, GAIL, and others?&nbsp;&nbsp;The Economic Times...
+Link: https://news.google.com/rss/articles/CBMi-wFBVV95cUxQUnJHUTRGRHQwV0d1akk3Mk5ELVVxN0pTMlIwWHRWMkREQUtkUG5xZkFEN25BMU9Id25SczJNV0hLUzY4ZGx0aWJGQnQ1NEMzYXFlSFRYSXRydU5nZlgybXlCS05lejZEaHNlLVJBd3pIemFLVGgtTGtTZlAwcG9IU2dpUXZrcmw4TVVNZHdhR2dhc3pYT0V1Ml9XMmRCaEZxVHFMb2NEcTJTaTVDQXczbTdBdjZuMWM4ZzBUb2NTSzZfYVA1cFotM1ZnZ3pXX0VGb0M4Z2tBekFLVHBSMTBKd211MHZmZzl1UlJCMVFLelNDemJ4VWtOQTRhMNIBgAJBVV95cUxOV0xObTJmSktsS1BDVHZkcFktT1c4NFNNZkI2WVgta3lXbElmdjFOaHpraWlDbDhxbEgteXJpVmJWR2JueDl0d0RKMGFEV3JlLVo3Rm01UkpWR0E4MGJpYjNRZTJYb3h2OHRjOExQMThVNi0zczMzQWF5dWMxaHFZa1FSMDkxYy1RLUZQbFB6dm5obi1PUkVmaGx1WUhtclB2UzBvVGg4a204cVpyRVRwT01DYzlQQ0xkVFhvVVFyYlJpbUxidG1LRnF0Qzd6S3BOck9obnFiVmlGZWpYM091eGtQb1FXWVcwNjVfRE1hQ2dPb0pxYUR3MlpzbDliM0Fq?oc=5
+
+Title: GAIL (India) Limited Announces Completion of Tenure for Four Independent Directors - scanx.trade
+Snippet: GAIL (India) Limited Announces Completion of Tenure for Four Independent Directors&nbsp;&nbsp;scanx.trade...
+Link: https://news.google.com/rss/articles/CBMi0wFBVV95cUxPTS1HR0wxOU9HUDB2RVRtOU5vaVZfMGFBSzVvLXNfQWRGd1VaeUtXQlpsLVVBb2dHOEZIVXpZaFYyQmFLWGlPZUZPd1FZV3Uwb2JKRS0wM29qNzhHOGpUSVhZRlNCWnhseC02ZEpEb2Nudm1FQS0tRG1kSVlsSWpDMWZ1YlptaE15XzBPb3dXSDFnZkpUcUdIc19yVXc5dkRaZWpCMlJnVjdpMzQ1YkJIeFowQkJDMGxQSzhpams1bHZBZlk3MmxXU2lqaHp6R0w2dmtJ?oc=5
+
+[TITAN.NS] Qty Owned: 4.0000 | Value: ₹15926.00 | Price: 3981.5 | Math Signal: HOLD
+Technicals -> RSI: None | MACD: None | TSL: None
+Fundamentals -> P/E: 74.07 | 52w High: 0
+News -> Title: Titan Company Ltd Stock: India's Leading Jewellery and Watches Player for North American Investors - AD HOC NEWS
+Snippet: Titan Company Ltd Stock: India's Leading Jewellery and Watches Player for North American Investors&nbsp;&nbsp;AD HOC NEWS...
+Link: https://news.google.com/rss/articles/CBMixAFBVV95cUxONjBGek1WVjd2VVhLamxrbW95NVJTMUVxT2JPOHRmbml4d2xzTUpMZEFxeWVTOEQ1UFlaRGRWTjdvbUtFLWpQZUNlYmxiWWhILWpRZkpyVFh1SC11MVpLSjdRZE5ubUV4WmVpc0gxQkF3RHNyYkU2aFNCSklvaTJSRU5xRzM3VzdMOXdVZ2ZJdHBJNW0ydFdzMTNtQXlfWDdXZ2JXUDl1NWlhYV9hTDFfQ1pIUVppazNLTm90RktvYzRmUUZo?oc=5
+
+Title: Top gainers and losers, March 25: Shriram Finance soars 6%, Titan rises 4%, TechM down 2%; check list - Upstox
+Snippet: Top gainers and losers, March 25: Shriram Finance soars 6%, Titan rises 4%, TechM down 2%; check list&nbsp;&nbsp;Upstox...
+Link: https://news.google.com/rss/articles/CBMi6AFBVV95cUxObVJXRTV1NlBTckl3ZWpMTDVkaGhTYWgyLU5vcDdzd2ZsdFRtQTlFYlRrd3BNTXVDS0xJa0NGZzJoYkl0Zi1qY0I5SGZVOHVJNl9DYlFGaWRQTTFZXzJlVG9RekR2aVoyektRb0tBbUdBOWxiVjZZdmQyajhHcFprTGc5MFlPNFFkZ1lTbUVyZFJ2bHdkTVNuSDBwTTlaU283dFV4dkI1OHU2aGVqemxJVExmbjN0SVhIRVJFeEs4Z21mWWRSQ21pazlSUDN1ajZQRTNzUlRud0Y1X3hfZnZ1TkMxay1VOE91?oc=5
+
+Title: Titan Company Ltd Hits Intraday Low Amid Price Pressure on 4 March 2026 - marketsmojo.com
+Snippet: Titan Company Ltd Hits Intraday Low Amid Price Pressure on 4 March 2026&nbsp;&nbsp;marketsmojo.com...
+Link: https://news.google.com/rss/articles/CBMiyAFBVV95cUxQekk2X0I3WjZISXRLZi1VWWl0YVRMVEJ5ZDBnNExzYW11bFJSVXY1RVZWTC14QmFQenRtLUFEVURkUUpNX1ptYTQ3UzFYMzJLZWVIclRZTHl4VDZjcmtXeVU4R3F3Q3hDcnFSQ1JmbVVtY1BLdkFZQUQ5VksxOVJoektmMVFVamd5b0lzTkg5SlZxdWMtemx2WF90czVfTEw1X2t6UmJkUVU4Nk1DbWlCRUFKN05nR0FDTnlUVFFNQ3VzWWwtbllpMw?oc=5
+
+[PFC.NS] Qty Owned: 38.0000 | Value: ₹15048.00 | Price: 396.0 | Math Signal: HOLD
+Technicals -> RSI: None | MACD: None | TSL: None
+Fundamentals -> P/E: 5.18 | 52w High: 0
+News -> Title: Power Finance Corporation stock soars 4%; Motilal Oswal sees more upside - Business Standard
+Snippet: Power Finance Corporation stock soars 4%; Motilal Oswal sees more upside&nbsp;&nbsp;Business Standard...
+Link: https://news.google.com/rss/articles/CBMi0wFBVV95cUxPMUFyMHBORWRqRWlYQmV6YkRhYk5LcHcwUElqM3o4eF95NmNab2dGY2UzblRIOGFOUnRiWTFmMFRJUG9KQ21kTXdRbVU3cmJTUGY3ZkxhNWppeHp0M0VfNTlmenpSTTZrQ1lPMmJ1MkR6WC1pUkhNUGRfbEZVQl9jTzZkZk5iZjNsNlhFTVZyUFZxaG9VMGh5VU1OblM3SW1jeXoxLTJadzNWSDQ0S2taSW5mektFQm02Q3I4cWxLNVNvTzBYUWRQZTF5Rk1vRWNPdWRN0gHYAUFVX3lxTE93MFA5WFd4RFZybnczYUNaLVNuTkg3QThjcG1FenJYdHB2cmJYVzU5blZlNm4ydFF4Vm1zb1MtT25Za0c0cG15X0VRcGN0WVdMV2d0WloxWjRMOUY3UUZldWhNN0xSUHFta3ZGSDBsVDRDbDJCVDY5eWJVR2g5VzRVSTVtYTc3VmpGbU1xcS1XaGpkaVIyeWQ0UWg0dFNDS1FiWWRGOFkxcEIxSG81RDBJczhiNzhKZjJJdGVNeVRFNERqRUpoOU1RelFwMnJDdUJCRnFiUW5KeQ?oc=5
+
+Title: Stocks in focus today: HDFC Bank, South Indian Bank, PFC, Castrol India, Vedanta, MM Forgings, RITES,... - Moneycontrol.com
+Snippet: Stocks in focus today: HDFC Bank, South Indian Bank, PFC, Castrol India, Vedanta, MM Forgings, RITES,...&nbsp;&nbsp;Moneycontrol.com...
+Link: https://news.google.com/rss/articles/CBMitwJBVV95cUxONHNPeFYzWDlITTBPVFgteVBTQW1NOXRFdlBGcXRaOVJtRldQYjZIcmZnNnhwRWZtd3VYZ0x4YjBrcm81SEltNmFqWFpjTVQ3R3lybDhKS0dIemdJU1JEUzZVSEpRMHdsNzJ1MXBHb0h4cnVjYUxRelMyTXJkSFB1S1RrV0tOVTMwb1k2dmJLT01DUUZoWGZwU2Iyalk5UDhxcUVIM3VTMk1XTWRaeklTN0xPWlV0Ti1kVEdkbEN1SzNPVHZOTGM5RTgtMUdPeWZqbi1STml2V0VWdklfZGdETHV5MUxFWS00Y2N4VUp4RndTbF9jTnYtUEpNbDY3WWI4eG93clBkMGtUMFFJa2NqWFgxaE12VjQtSUFrT3lNMWlNaTBNdTN1UWFLTnJKeGxNSE9XYm1SWdIBvAJBVV95cUxQR3pNRUlJLTRfaDI0NWNYTUwyUTVHMnpfWVVPeW9pOGxzSnZ5WUhjdDlEYVp2U05zN2xzMkVHLV9MRmF0Q1V1U2dXajZJekEwQlFQS3pOZUUtMlMxSGZYaWNnUjBtUlRZNTJ4WlpQYmZ1MGp5bkNocDlNNXVNRWxJNUZfM3dxYWh3dzV0QjlaMEhvZlhvdEtRUXM5N2JlaEhraDRFSEtwRmNuUndnMWRVUTN0RUZhZW5Yc0c4XzRGM1ZxMDNEeUM0d0d0LUpIektnUzVmSU5MMWt0djRfYnp4Ujg4eUhkck5nRHhEcHRkWjVYN0tHR1N2MmkwSjlzZEZmS2o5NWREbmE0ZnVhaGJmejdEOGxOZFpaYXFJQzhCckxKbnU4Zl9pdUhqVFg0TFNaY3ZLc1BTTVJEQ2lP?oc=5
+
+Title: Upcoming dividend, bonus, stock split this week: Vedanta, Castrol India, PFC, Angel One among others in focus - Upstox
+Snippet: Upcoming dividend, bonus, stock split this week: Vedanta, Castrol India, PFC, Angel One among others in focus&nbsp;&nbsp;Upstox...
+Link: https://news.google.com/rss/articles/CBMi9AFBVV95cUxPdm1jUFFwcXhJQ0lMeVlfcnlFWkdCc1ZxV1lNN3hNUlg2a2IzcnVGTmJ5TVdMc29wQzdQaS11UDVsM1F3Uy1VQy0wbTJLWER2RjJJLWxGdV96TFE3eGVxSGljMmFDNllKamp0Ung0ZXBJWFh6OF9NQS0wY0RzZ3ZYVXdVNDRmaGptb3lFSVhubkFQc3pXdWhualJSNjFjdGJFWmotMkVoNVd4RDVFZ3dzcUJsRmZ0aS1jNnRscU1kREJWd0YxQU1ONkVlZjdnNG1KclRRdy1aOVp3RVBNajYyaUhOR2lUX09OdHpWUEtMQ1JmTjZU?oc=5
+
+[MARUTI.NS] Qty Owned: 1.0000 | Value: ₹12389.00 | Price: 12389.0 | Math Signal: HOLD
+Technicals -> RSI: None | MACD: None | TSL: None
+Fundamentals -> P/E: 26.11 | 52w High: 0
+News -> Title: Maruti share price slips after hitting a record high; opportunity to buy or time to book profit? - livemint.com
+Snippet: Maruti share price slips after hitting a record high; opportunity to buy or time to book profit?&nbsp;&nbsp;livemint.com...
+Link: https://news.google.com/rss/articles/CBMi9wFBVV95cUxOaERtdHVsRUQ2bTQ1VlV2dVhqUUxJaGlRN25jam9fbkFYMkJBTV9BeWxJLUgzRnAzNDhFTGVnUFJsTG9xN1BKajl5VmRFbUtPNmp0WWxsdDlFcWpGSFpSMWlNZTVlZ2c3YTU5cjZvUDRHeHFUaFFQQXYtYkpWSjhQVk1zY0JaZ01wTFZfa04zeGVVWEdMRjZqVlp6T2JuUDVfaG1oVVlySnQ0TnpMUk4xQjRKRGJYbWloMnozN3NSZGg2UmlzSjRzeHQwTkQxeTRxd0U0U1drZ2FiNlZpeEtTN2ROemluSUNGTTFuWGU4TG5kRURQajQw0gH8AUFVX3lxTFBTV2tPejlPWXhXbThsTV9vSFhGQkdwX1c5VVJSS2lWM09lbFhnaU1scTh0Z2FKeWxRV1lzVkVMSTNVaHFTd3ltVFdBM01IVWYtY3pqcFVjLVdKbUJGQlVXREcwOXJMT3czSmVqM1p5UWdma0RHLV9WcUtoc3NwRy1LQ21mNFl6cGNBNTN1ZHBSUC1JdjFVYWpnMUtPNEZBdkl1dk9Bb0o4Qlp0Q2Z2ay1IZXJjZTRQcmdNX0txTm1IazQ3WkstUFdLOWhhYldaOFFRa3lfb2ZTUVZUZVQzaWlSM29vd3ZlTDk3dmk3MDdnbDZ1VV9UVFNoRTN1Ug?oc=5
+
+Title: Maruti Suzuki hits over 4-month low; stock down 18% from January high - Business Standard
+Snippet: Maruti Suzuki hits over 4-month low; stock down 18% from January high&nbsp;&nbsp;Business Standard...
+Link: https://news.google.com/rss/articles/CBMizwFBVV95cUxPM21lN3FYSkFTRlRXRmtvU1Y5TjVJX3VSYWI0OXN5TkhXWmNrbHNKU1dZUHJPR0pPREpGLUJ2QkhtWm5uMkhfejEza0RwMFpzNER0OGhmZWQ1RHdFM0ZPc0c1NUNyUS1NVkpkRUVEQ1ZlNkpCVjkxdEt3bnZobFlvRHlXQVB6TzNENHRTT3hSZEdZQmljUUJEY3JZU3JNTWRQakI0N2dXanV1TE40NTNfSjBxcnVVOEQyZWg5ZXRaNG5Ndk0tclhWb3NCR1BNRTDSAdQBQVVfeXFMUGw3YjlabGdMLUFzY3JqclRVMGczUTVFMmFTWWU3WEt6dWhoTmpta0ptWkdiZVBSQjJaQWNkWjgwdExwaFBKNGZvVU5yTjBoQXdhbk8xYVRJQ3VHTkhYV1FZdjRoWjZVMmRMZ2tlWHZ1RzRrZ2taQXNLRFBIRHpjYVZ2aTdwTGV5Y1h0clNLYV9qS3pSaGZGVGtuNHJrZFV4TlBUMjdCYnNKMjRlTVh5d0lJUUtheERaeVdaLUtWSlc1ZlNrR3QtT2lDcnNzR3VOcnZoNUI?oc=5
+
+Title: Maruti Suzuki shares decline up to 3% on missing Q3 profit estimates, drag auto index up to 2% - Moneycontrol.com
+Snippet: Maruti Suzuki shares decline up to 3% on missing Q3 profit estimates, drag auto index up to 2%&nbsp;&nbsp;Moneycontrol.com...
+Link: https://news.google.com/rss/articles/CBMi7AFBVV95cUxQNURhTTBvaDRYY1dwaHp0T0lXU0ZaLVY4RnFPNi1Wd3pHT2hib29qQWZYdGk3Vl8xSl9uczU0QzY3TWdOZWVSM0V6cmZuTU5ueU9PUmxJTUpGcEpPU3JGQ3RobjJqNE8zNnNHWG45ZXAyNEh5Wmp3R3laaDJQMEpONEFEU2FfeDRWZlcyc1kzbDQ4UGZtbDFQWTNnVjctdHZ6Umh1QU1COF8wNDBkRE9yMTM2aWVGMS1MZWdIX08zOV9lOXlWSzVRbTJHWmFpaTdiR1B2ZnhJbWc1OWN6Mmdlb0MtcTd4Y0JVX1N5OdIB8gFBVV95cUxQR0lsaGZ4ZVVwMm1SMnJjTjhBcHN5WmVfbThMYTd1N2ZreG92a0pJaVZ3aWdRVDR0WXBYcl8yRkNvOEljMUdEZWpjMFhIZ0RtVEM4Qk9sYlFlVFRmcDhKdjBObldRQzdvYmdVTDgwTXBBYmZQUmhDbDZtdERXNUl5SzJ1bEk2TFpBUHlPUFk5dHJicVJKZ3JiR1pxUzhKaUJIbFBmR3BTVzMtOVltUlRZd1NfdnAxWkxWLVU2SXVsOExUdzVJWWJnYVNTQi1tNTQ4Vl82LXNIUFZ1VzVPMmVVdWtCSG5rLXJSdFZKQXo4VmVjdw?oc=5
+
+[RELIANCE.NS] Qty Owned: 8.0000 | Value: ₹10784.80 | Price: 1348.0999755859375 | Math Signal: HOLD
+Technicals -> RSI: None | MACD: None | TSL: None
+Fundamentals -> P/E: 21.93 | 52w High: 0
+News -> Title: Reliance Industries shares slump 4%, m-cap slips by around ₹80,000 crore in a single day; check details - Upstox
+Snippet: Reliance Industries shares slump 4%, m-cap slips by around ₹80,000 crore in a single day; check details&nbsp;&nbsp;Upstox...
+Link: https://news.google.com/rss/articles/CBMi7wFBVV95cUxNV1pzdUZHeGNpNTRXaFhQX1FlOXRsMVkyUEZRODNFVjAxY0pyYmlWcURxQ0ZuRm1XNHVpeUgtUEtSRERTRTdSck8wX3F2SGpodXAtYnNCWUtaelh0Y1dpc1pMNFlzak9iRG5zTzVCNTBENU5hcWZlbEs2c2VaNWoyRjZ5SElHcVFPRjl1b1VrU3ZDR3M3eHNPSTBuR3otVmdFckE5VmxTcUhIQ2ROYVl6TWZNS3pTUzk0cjJIbWFtazVZWUc5NUxndVpuVlFBNE9RUk0xYTVGck05bEl6UjBmd0VkY1l5RXQtaE90MXU3bw?oc=5
+
+Title: Reliance Industries shares drop 5%, wipe off Rs 88,000 cr from market value as govt reimposes windfall tax - The Economic Times
+Snippet: Reliance Industries shares drop 5%, wipe off Rs 88,000 cr from market value as govt reimposes windfall tax&nbsp;&nbsp;The Economic Times...
+Link: https://news.google.com/rss/articles/CBMi7gFBVV95cUxOd2o0alNIUFljVTZNdlJFMl9UVThaSnhaVkhtZEF1MVR2cDRTZXZMSDB4cVEtVlo1UURUZWEtdV9oWGljaHYzM1NMVjdGQk9ld3ljN3ZVdEhrRGVFN3IyRF9mTXd3b2M5cVhKc01wblN4ODEtZkZncXhhdjlGcDhfRUwtR1dIVEJkakxhY1BqM0tZTEtYVmtZN3Z6MkgzX3Ziazd4OFJSUHdJTl9CVGZJcjJpWGpUR3R4YTBBSWk1QVpRLXhJd1hnWndGY3MtTFpkeVRLQnU2eWdtWllkQ0wxR1J4bGNoS3dlbm9UU1dR0gHzAUFVX3lxTFBYMFlRNEhtUGF5QzVWdGktMThZR2swdnFLOV8wVk9LSEhSYTZyaURBa3p1LUpKQmtHTDVzdVpUaWdob1RoNnZlbWF0MXNEN0lkM2M4eTBTY2Rlcm5MNWFHR1REYmRLNFZzS2NDOWxyNUF2ZW1ISWFBQjJCNnlYT1lRdHphRFdHTzktWlR6cHpUamlrTVptYy03TXJUOFZ4ZjFxRG5KLWNtSUZTQzFEZGkwMllMMXdzMHdJR1RTY3l1MDNEazRrWW94em5ob05LMUhma2cydHE4MF9zZUZBZkl1QjhqNWJqSkcxbWxOZld5eDk5bw?oc=5
+
+Title: Stock in focus: Reliance Industries share price to be on radar after it denied reports of buying Iranian crude oil - livemint.com
+Snippet: Stock in focus: Reliance Industries share price to be on radar after it denied reports of buying Iranian crude oil&nbsp;&nbsp;livemint.com...
+Link: https://news.google.com/rss/articles/CBMilgJBVV95cUxNb0stMzFObnl4RGhsWDBMSmprMzdQUmFOejc0dlZxQnFMOUFicGF1X09Ua0g1RlE5UzlCWG8tMFJ1R05QVDJzOVhGWUNuUlVpMkNILVU4YTN4RzktdWR2UlBYbnh1YVlVM3RXX2t2bnNLT3poV2MxdlFFVkxiamx3cEhITGJnckpJbjd0MjJ2TXF1WTZOd2lkem5ybFlzRmpJa0tRQlBkYzNEazZ5N0pWOTdwamY1dGdsRGk0SWwwQmNMbGZZOUctdTMwMEV0QVV6ck9jYS1Sb0VpVk9XQzJ6MVBaY0ZjR0hiajNZdFJadEp0Ynk2MWFwdjFNeFhxemt0aEEyT1BsRkRqbVBpYlJaM19tcWp5QdIBmwJBVV95cUxOR3hqLUpIN2lzTFZnZ1d1aHpBenV1eWZmd3Jlb05fdmFuOFk1X0dFcWg2LWNfT1FrY0NTZ1R5bXFaT3Q2SjEwUVB6c19SaWJXajZ0V3VCY0FCNndtbzBVVHpwMC1wY1FjZ29GaFFvaHZ1Wl9IdEthdVg1S01kNmw4VWNGQWhNbWc2dHVqOVdGMFllemNCNDlZeHpTR21PNWZ0dWN4c1dqc2p5UEVmcHFvN2lOckkxT1ZjU3ZzRGNxa1Mya2pLZ2FOTTFFMDZ6RjBDSUw2Sk05Tk1QR2hMemNNZDQ5Y2lrSDVvUDBDMUJJeGVKV2VsRmVoQTQxRDZ2WXJGX0dMMFlFUWtZcFNaaFl0Y05sU296MUtaZG5r?oc=5
+
+[SBICARD.NS] Qty Owned: 15.0000 | Value: ₹10109.25 | Price: 673.9500122070312 | Math Signal: HOLD
+Technicals -> RSI: None | MACD: None | TSL: None
+Fundamentals -> P/E: 30.68 | 52w High: 0
+News -> Title: Stocks to Watch today, Mar 25: OMCs, RIL, SBI Card, NTPC Green, TVS Motor - Business Standard
+Snippet: Stocks to Watch today, Mar 25: OMCs, RIL, SBI Card, NTPC Green, TVS Motor&nbsp;&nbsp;Business Standard...
+Link: https://news.google.com/rss/articles/CBMiqAJBVV95cUxPc2JmSFNiX29VV0NYeFlUYnJjVGFqblFMZlFud1NCRjNLM2dBOUlkVmVxYTNqQkU2YUs4OVlBRm9iWDlVTDdDclVwbm9ldFZCSzYwdmEyVTAyRXNkS0VSd2lwV05qc18wWWs3STBOeGIzVTI1bkk1azlqQl92OHJIbC1TQ3V1MzRpSkhUVzRldUJMZ1haeUJ0ZTVzQ3NhR3gxLVZoUEZDWjhwN3NaS3NhdV9LdlktbnhjZjZYNGhnMlBPZUQ3M1NvTUVJdV9fQVF5THJuLU9VZ01vUm1tY3hQeUxYLTJ3bEp3bWY1Mk9lRVh6RUNsNjRLX3JGSG5SS2VaNm9UcnkxTlpwUm5tQ3N0bFBKMDFsdS03VE9CbVQ2UXU4aDFIeGpmdtIBqAJBVV95cUxPc2JmSFNiX29VV0NYeFlUYnJjVGFqblFMZlFud1NCRjNLM2dBOUlkVmVxYTNqQkU2YUs4OVlBRm9iWDlVTDdDclVwbm9ldFZCSzYwdmEyVTAyRXNkS0VSd2lwV05qc18wWWs3STBOeGIzVTI1bkk1azlqQl92OHJIbC1TQ3V1MzRpSkhUVzRldUJMZ1haeUJ0ZTVzQ3NhR3gxLVZoUEZDWjhwN3NaS3NhdV9LdlktbnhjZjZYNGhnMlBPZUQ3M1NvTUVJdV9fQVF5THJuLU9VZ01vUm1tY3hQeUxYLTJ3bEp3bWY1Mk9lRVh6RUNsNjRLX3JGSG5SS2VaNm9UcnkxTlpwUm5tQ3N0bFBKMDFsdS03VE9CbVQ2UXU4aDFIeGpmdg?oc=5
+
+Title: Upcoming dividends, stock splits, bonuses this week: SBI Cards, IRFC, Indian Oil Corp, Sun TV among others in focus - Upstox
+Snippet: Upcoming dividends, stock splits, bonuses this week: SBI Cards, IRFC, Indian Oil Corp, Sun TV among others in focus&nbsp;&nbsp;Upstox...
+Link: https://news.google.com/rss/articles/CBMi_AFBVV95cUxPeFN2MFdjV3R6X1l1NmRKVzdGM1hLVTdCa2NiVDU3LXdGbmlzSHp2Uk9IQ0t3alR5aS1zMHluc2RUWHBudEgyUjNMcUlMb3oyR1VDdUYtOXZtd1BKbUh0Q1VDbXNRb1I3dUtuZ3RabldwV0RWamtBRkpRcm42QWhuZldIMk56RExvNjJjdmdCSTFGbzEtRUItamQyZjV5QmdLNDlIYVI3NzQ0YnFJVU9NNW1zMVFoXzhDUUJoa3NJeTJJZ2lqXzVsNzJnRmdxRkU1MDlSSFdqWHNqYnI4SUxfZzV5MTR4NFVlbGp2aFB3M1ZTVzJvNmtEMWZENFY?oc=5
+
+Title: Market Trading Guide: Buy SBI Card, ICICI Lombard and 2 more stocks on Wednesday for up to 11% gains - The Economic Times
+Snippet: Market Trading Guide: Buy SBI Card, ICICI Lombard and 2 more stocks on Wednesday for up to 11% gains&nbsp;&nbsp;The Economic Times...
+Link: https://news.google.com/rss/articles/CBMijgJBVV95cUxPVXlIZE1seVU2dHpRZmVwaU5KcWhDU0pCOWx1OVRtQUFEdW4wNzhtTEVUbWRsSjl4TVdqWXVsSFY2d29CVU15STFxeDBtUy15elh3SktEV25jVGh1VnQwcE8xTkVCTG5YcHhBZ0h0Ql9qdjFMRUprYjJDR01TQVAyY1dLZjExMlhWOEVvYTBHRDYwYnpSZUdQaWJxNUZWWGR2cW0zSlNqZmxFQUt0QlZxMU9qdlJNS1UwVmpLd0Z1djVlSmhZb3F5Ry1hbHp3Vm5USm5hZjFZVlF5TmFKeG1TaDBxY3h2V3I0RFFoQ3FWOWYxTlJCak5LN05hYTFpbWlJc292RkQ5MnlCaFo0OHc?oc=5
+
+[DLF.NS] Qty Owned: 18.0000 | Value: ₹9414.00 | Price: 523.0 | Math Signal: HOLD
+Technicals -> RSI: None | MACD: None | TSL: None
+Fundamentals -> P/E: 29.23 | 52w High: 0
+News -> Title: DLF Ltd Sees Sharp Open Interest Surge Amid Mixed Market Signals - marketsmojo.com
+Snippet: DLF Ltd Sees Sharp Open Interest Surge Amid Mixed Market Signals&nbsp;&nbsp;marketsmojo.com...
+Link: https://news.google.com/rss/articles/CBMivwFBVV95cUxONEMzYjVoNnY5anhzcXNSSGhXZWQ2aUZZem12MHFicEF0WUl3SUUwYTV0Z005bnJuc1FHWEhTZ1RldG5iUENVYnV5MVVZLVpMODY2ZzFDa19Pc1ZjMFJUeDBLZUNhQ21LWTRDcDVjNWc3alRhT0FmdTRYWlJEdGZ4c04tb2t3WHBrUTBQVml4cFdQNWdVcjFBRVlhZW9GMEhtSmppQ0FuZ3pYTUtKa0t0YnhTSTRWM3JiazMwUTlhbw?oc=5
+
+Title: Nifty Realty soars 4% on easing oil prices; Phoenix Mills, DLF gain upto 5% - Business Standard
+Snippet: Nifty Realty soars 4% on easing oil prices; Phoenix Mills, DLF gain upto 5%&nbsp;&nbsp;Business Standard...
+Link: https://news.google.com/rss/articles/CBMizwFBVV95cUxPN2NieVNiQUk3d0gxVVFaZGE3YVA3LXRJNVY5aVMtOU9DM1p5TTB2UlZNeWVDU3lHMDhUcVlyWVVOa0VHTkIxeG5PRnlJZFBOdVhUSmc2MjJpN0dMTVJ6NnJvRFUyUzlUa1NHZEhTbkhMUV8tc2VLOU9nZ21EQ21JRVFiMjIweWdUMWZvUTlPWlRzWGh1QWhCMzJNSXVDVEU2T1hCRUl5SG5YVUpSRmtVVWUzYkNhajMtYWdZWS1kRm9Gc3pvQzh6SGZTdjNCWmvSAdQBQVVfeXFMUE9sRXktcDNiRXRZVGQ5bGpubmhlUWMwdk1taUtYNGxWMEdNbE03ZGVvYkJxOW5SSkpMVklDdmNtUUlxMHMwS2t3U0lWbF95aDY1dEZCUU0xQ0RVWEl1b3dOaTRBVlZuQzgxV3hjUndjdGFQY1Y4RUVVUWFVOWR2VUVzQ1VWZ3FLajFLZm9oZGVJWGJ0ZHRlTDRFWnZkOUcyaTlWTjlXMnZpamVkYlppZ2RGS1JDd0k4X0VtYWJUam5OM1JvcnI0dTBVekFXR3phcnVfZHo?oc=5
+
+Title: Could The Market Be Wrong About DLF Limited (NSE:DLF) Given Its Attractive Financial Prospects? - simplywall.st
+Snippet: Could The Market Be Wrong About DLF Limited (NSE:DLF) Given Its Attractive Financial Prospects?&nbsp;&nbsp;simplywall.st...
+Link: https://news.google.com/rss/articles/CBMi6wFBVV95cUxOcjVTWHZVUnRnOGNvNTlJbGp0M1FyUlhJaHBicVpYZEttZXZ0R0h4ZlptSEdWek1ONmtLTTJXdDY0VFF1cE13QWRfLVFvVE1hNG13VEsxVTVkYWt6ZU1sby12bVFoaTFQZmI1V0pDajEzV2VZcnU3bEhxRGtiV1pxaGVRNExFWEJHeVhzNG1HTXRVUmh3d2FEUmhrS1JILXlGaGg4V3pXYVRtWTJZUks5SVUxMTEtSEpPOWxyd1pMMkVGWkZlVGowa1FtUTltUGx0Q2l4el9WbEVsMlh6MDByVnp2aklpTVdTWFpr0gHwAUFVX3lxTE1aWGlQR1JVaUVlbTlmLU9MQTVOeHQxWjZhdk1QQ01aRkdkSzQzYm13NE1oWTgyaHFJRzNhd24wdmtWYUw5eDBBYVJpamdrd0RxZ2NmdHhGcFFLOTFDZzh4SmJROVEtWlFHMlVjUEh3TGQ5bGRyeDEwZWJha2xjMnQwR3NCc1h1aHIyYlc2ajZiSDJkVUk2Qmt4Mm5RVmJmMW85dGNNaEw4bmtyMFljamhRb2tHRnhydXduZzRPLXljZi00blp6N05pM21Fc2FBbVNSRjNHbEk0cHJLbzBockdQTzMzX0dQS2JudzhTZmI2cA?oc=5
+
+[LINK-USD] Qty Owned: 11.1420 | Value: ₹8938.47 | Price: 8.5064115524292 | Math Signal: HOLD
+Technicals -> RSI: None | MACD: None | TSL: None
+Fundamentals -> P/E: None | 52w High: 0
+News -> Title: Bitcoin drops, crypto-linked stocks follow: What’s behind the sell-off? (BTC-USD:Cryptocurrency) - Seeking Alpha
+Snippet: Bitcoin drops, crypto-linked stocks follow: What’s behind the sell-off? (BTC-USD:Cryptocurrency)&nbsp;&nbsp;Seeking Alpha...
+Link: https://news.google.com/rss/articles/CBMiqwFBVV95cUxPdUpUU3hnalY4REpUNEZ2RXM2TUxrNTFybGV3Ql84MmNUYVBHZ3lHNkNpOFpfY21VRjhGc0xQUkkxOHJlTlV2Uk5qOFowQU5wY1NOdGp0MXpnSEZRT3p2dTNFZWZJSHdpY0VGdGppTXFrOGFsbnQ3U3RRMUxvd0tXVjdOZDdXUVJ2Y0dMWW1fWi1MWXRaNUxabWtBVlVPV3pReEhGQTZSdDMtRUE?oc=5
+
+Title: Chainlink expands data streams to cover multitrillion-dollar U.S. stock market - Yahoo Finance Singapore
+Snippet: Chainlink expands data streams to cover multitrillion-dollar U.S. stock market&nbsp;&nbsp;Yahoo Finance Singapore...
+Link: https://news.google.com/rss/articles/CBMijgFBVV95cUxOTS1TRG5CVEIxRW1aRVRTczd3bFBrTVlwa0YyajhHa3h2N3FmSHc3ZS1sazV2ek1KYjVUckJvT3BVR3luQ3pYc3RrSElnWG5nWm5xTU44ekhVTjlFTG56ZkN3ZXBVSHdkNTcwRklvUDFDdUtHOGZPY3ZIZmxaaU13cjFvOUR1WkJYeFRaZFBR?oc=5
+
+Title: ChainLink to US Dollar Price Today | LINK/USD Price Chart - Capital.com
+Snippet: ChainLink to US Dollar Price Today | LINK/USD Price Chart&nbsp;&nbsp;Capital.com...
+Link: https://news.google.com/rss/articles/CBMidEFVX3lxTE5EbEYyOHNubVpWa0pfajM5U0JXN2tMTzFrM3NrVTlfclJrQUJ6ZEVzUGhaRVZoa3ZveEhReEdkNEVkeXNWRXZsbU5BWm9ZcER4RGd4bWdhMnhNZmxFeW5YdzJTN1BmTnMtRWwyUWdPWWFyYU5T?oc=5
+Historical Context: [-5.9% Impact] Chainlink expands data streams to cover multitrillion-dollar U.S. stock market - Yahoo Finance Singapore | ChainLink to US Dollar Price Today | LINK/USD Price Chart - Capital.com | ChainLink: Now Is The Time To Accumulate (Cryptocurrency:LINK-USD) - Seeking Alpha
+
+[BHARTIARTL.NS] Qty Owned: 4.0000 | Value: ₹7375.60 | Price: 1843.9000244140625 | Math Signal: HOLD
+Technicals -> RSI: None | MACD: None | TSL: None
+Fundamentals -> P/E: 36.5 | 52w High: 0
+News -> Title: Stocks To Watch, Feb 24: Waaree Energies, Bharti Airtel, IDFC First Bank, IT stocks, Lupin, Patel Engineering, Chalet Hotels, BPCL - Upstox
+Snippet: Stocks To Watch, Feb 24: Waaree Energies, Bharti Airtel, IDFC First Bank, IT stocks, Lupin, Patel Engineering, Chalet Hotels, BPCL&nbsp;&nbsp;Upstox...
+Link: https://news.google.com/rss/articles/CBMingJBVV95cUxPazd3ckpJd3pCeTQ5czBqZGpPTDBKeU5VTEtYM3lkM3BieV9ZRnFEVDAyYjk2YkpSRjlXTGlraTdGWFQ0aDlzTjN5Q0tNU1ZpdHRxMnIxcFhmZ1JHWHZqQkpqUnQtVjdCVGF3QkRvYXFzMEFaeHNXMUk0ZmdZMHRicVZUcmVqLXdDYWJQazRIZzZmMHBiUlJvLVh6RGN4VG5yZ0hHX3VPOWRwcEl4RXJ2ekVCN0kwTEk2MnZrSXF5RTRmV2tfTXZFTGhKdHJ2Sjh2QlFJd0R2RXlERmVwaGg1V2U5ZUFwQlJSb3hKV29IZUJRclJPODNzMktVODV2Qk1TakdmZlZLXzNoeEN4R1BrcWJoM3YwOUhxaENSQXhn?oc=5
+
+Title: Is Bharti Airtel Limited's (NSE:BHARTIARTL) Recent Stock Performance Tethered To Its Strong Fundamentals? - simplywall.st
+Snippet: Is Bharti Airtel Limited's (NSE:BHARTIARTL) Recent Stock Performance Tethered To Its Strong Fundamentals?&nbsp;&nbsp;simplywall.st...
+Link: https://news.google.com/rss/articles/CBMi2AFBVV95cUxNclExQjRwWFc5R1I5OFpMeEUxLVNweG9rUXEzcnlrMmhnMFNmOWk2NmRkRVJJclZBMkIzNnR1Tk1EYVhSTzJEbFJhSkhwSUlpem5LZHBXQ1RuSWd1eDNBakw4X3luSzAwT1VNNlB4TlJ6M2kxc2JNYlo0MTNSWlRRbzVlVV9UeFdodmNWYkJHbDRtZmxuY25fWnZhMFkyVHVzSzhmVTluNVlaR2prSjN4a1VMa1Z5X1dxaEZsV0RwZXpySFI5WmYtb0dkVjB6VXNlNVdLcWdJUHXSAd4BQVVfeXFMTjBjNDB5bUpmZVJGOEhuMXFySkRTblNOUUtPeWpwbnFwRVN5N1ZYekk0STNuQndzYnpMbW1MdGhsOXNDXzdNR3ZCUURtMjNPMk5XclNFQzJrZ2RKVkVQMXpuektWTlBLRUxoYVhoUm54WWtOcl8wVVE1VmhodnBqYlotV1lDekRrX211TlZGQmhaWmhfNWE1bDJPRU11b1ZaLUFXTzdFSU9CbmNINXFnVThIU1dkU2tmNV9jQlg5bVZ2RVE0aG1DY2VZc2Z6blBpSWlTTUZ2UEQ3MGw4YmVR?oc=5
+
+Title: Stock market today: Trade guide for Nifty 50, gold price to silver rates — Eight stocks to buy or sell on 1 January 2025 - livemint.com
+Snippet: Stock market today: Trade guide for Nifty 50, gold price to silver rates — Eight stocks to buy or sell on 1 January 2025&nbsp;&nbsp;livemint.com...
+Link: https://news.google.com/rss/articles/CBMilAJBVV95cUxPaHFOUDFveWZYR1NyVldyWUpCeEs2eTRGYkNtZ3VCZmtHVmdpOFFCUXZrMkhyeUt2M2dLRHQ1REJEZjZ3NUlTeXNGUHNzV0lHNDJWZGlCWmlMMVE3ZE9JOE05R2xuakRSNk1Xb1QtdjI1WFQzMmxuRjVQX2ZmMHZ4TGZBRUNJWUE5NTViamlRRGJ5Z1BQMVRkQjdId2FhWVRCM1FoWlBnR21lN2U0NGk1NEpwR29JZGpyYjFnNEQ1WW5JdGtheHZsUFdtVGVxdGVQaFdLT3ZXY1V2OXlFRFRGaDBScGNXVHdGaEJ1dDl4Z01RcldKX2Y1VDFEYUZiNWQyVHlXeWwzaTBQTWlBelJ5bU9zSjbSAZoCQVVfeXFMT2c3RlB3RGRnQkdKdHlyWVVxS0NUaGNUcW03ZElUQlBsclAwYUVSMUhETTNBRzFUMm9MYXJaZ016TlJLZUE0ZkNMX0lFVnFCTlNWVW9DQ1psZmlQU2UzY3dwR0xyMTFmaTZLOUFxUVlGVkVCZG5LUmNYLUh4N0M4MmZtZmgtY1FwMWVwQ3VCeFpsN3ZfSjZkOVZfTEJ1Y0gyb19LWlE5NTFSTjFQRFhYdG8yQjJ4cnZ4Y0FqcXlEQU1CRWV2UHNNa04yWXRRcU9EVUpMemJqQWZVT1ZzaklSQ2kzcHRESzNlN0NSZzVTRlZZTV85M3FoMHl5UnYzVmFhWUJZU3RSZWtEakl1dl8xeUJkYkhEczlGVDdn?oc=5
+
+[LT.NS] Qty Owned: 2.0000 | Value: ₹7128.20 | Price: 3564.10009765625 | Math Signal: HOLD
+Technicals -> RSI: None | MACD: None | TSL: None
+Fundamentals -> P/E: 27.86 | 52w High: 0
+News -> Title: L&T shares crash over 7% as US–Israel strike on Iran raises Mideast exposure risks. Company responds - The Economic Times
+Snippet: L&amp;T shares crash over 7% as US–Israel strike on Iran raises Mideast exposure risks. Company responds&nbsp;&nbsp;The Economic Times...
+Link: https://news.google.com/rss/articles/CBMi-AFBVV95cUxPOHFzNjRIY2xYOFVLcS11NGxRMGh4emFfLUJ2SE4wd1QtRVUtT1JxWVRLU3F5SXN5c1h4dDVGNjJMU3NVUkxsVk1PMlNoNEQxdkJTcUloREhwWUNsWDkzVHpaWTBhbE5qaWdnQ2FFSFN5N0tkN1I4Q18yQUVaR1ltcmJBUjZKRE5DUkcyVFYzTVN1eGY2dmYxYkFMYk9uLVJGM2w3RFE5WVk4STNxRXlhZXhQVGVsWHdtM3hTcDRTajJQOVUtODJ0OVhNSkxHM0ZvUVk1aGlBbktUYk1oajhwRHBlNEJ2ZHpBWWZENFBNeHNHaGVKaGw5WtIB_gFBVV95cUxOSFZGV2FFbmxCNHpvMlRaM3ZBeFFHUFRDTFczSTlQNUNjNzJVT25QbDd2ZmRrNHFXRG9SOHFxclZaZzdnT1NXYms0OVRLSVNOQlhtN2hHNENIaHZob3ItM2xBMGNIQjlfVnlHWlI2elVDRkdpaDRvWFA1UHozMnZlRHp0NnJnQmlscGlRTVNBUlhjZVBUSlkwbUlPN2loUks2TmpTZFY3X3dNSTF6bTNHcU1DMHlxNTFpa21fdWdFaEJTVVo2b19GcFA1MnZoZDVNY2w4aDVDT3A5aGExQ0swR3lpTHhCSHNKTE1sckdLRE1KVm5PN0xHY1JqVGlOZw?oc=5
+
+Title: L&T shares recover a little after tumbling 7% amid Middle East tensions; check what Macquarie said - Upstox
+Snippet: L&amp;T shares recover a little after tumbling 7% amid Middle East tensions; check what Macquarie said&nbsp;&nbsp;Upstox...
+Link: https://news.google.com/rss/articles/CBMiiAJBVV95cUxQTHg4WFdzQjdFazl5Wlpwc2lQWTBDc3lUU2lReDBxQ2QtNzN3ZHJQcVJsbGFNZ3FQQmhrSzJ4T0FQRzVzY3Nsa2lCdFJBQUYzVjU3TC1yaDJRLUVTMDZrWHI5ZnFuZDROV2w2ODBHLWZtRkhzdGd4Y1pPWXpzOW1NSlNoYW8yeE95LXpWUU1LeHFwUTdkMHI5SUh0bDRYSS1hbGllZUlNS0FmN2VvbXNHU05YcXJTREhDYmtRMDNvUW5wVWVVNzJjM1NyQmwtUUZGQmxwZjdwUFF3b0hwdmpWMHRfbEMzSWlOaVZRV1ZPNHlBREw5VDZZZnRnTDZtdjEzZGFITWxzRzM?oc=5
+
+Title: L&T Share Price Hits 52-Week High After ₹5,000–₹10,000 Cr SAIL Order | Stock Market Today - Samco
+Snippet: L&amp;T Share Price Hits 52-Week High After ₹5,000–₹10,000 Cr SAIL Order | Stock Market Today&nbsp;&nbsp;Samco...
+Link: https://news.google.com/rss/articles/CBMi2gFBVV95cUxNMjZrSnZKRTh3c3R2bHZ5X2M4NnRjZlpLelJyaDJhalVBVlc4WllUYnIzNG5LMjZSV2I1dUk0bXdjd2dmdUJCUjcyakI0bWdBTmVNZXczZmpWSHFrU1l5bmw5N3Q1Y0xkNGNiWFd3SWw5UnRHUmxRb01pdFJUNzJ6Vm1KbEp2S3dxQ0RrcDlEUjVudWp5UldtcmJGb0xqbm9wY1FLODd0eURtcS13d1pNZE9zUVFsSUQzaGdzVFJobk02X0J2b0F3Y2FpdXJRbjYxRDMwdGw4b3JNQQ?oc=5
+
+[SOL-USD] Qty Owned: 0.8858 | Value: ₹6892.40 | Price: 82.5037612915039 | Math Signal: HOLD
+Technicals -> RSI: None | MACD: None | TSL: None
+Fundamentals -> P/E: None | 52w High: 0
+News -> Title: Solana Price USD, SOL Price Live Charts, Market Cap & News - Bitget
+Snippet: Solana Price USD, SOL Price Live Charts, Market Cap & News&nbsp;&nbsp;Bitget...
+Link: https://news.google.com/rss/articles/CBMiU0FVX3lxTFBYTGNpMkpjeTk5bEJPWXYxSWFrSnRHaDlVYnFCY1h0cVAyVGVGcGw1Y3JlWjhZb2lXVmJmSGFuLW9lSkwyTUF3XzdUV2tvSV9NVTFn?oc=5
+
+Title: Solana drops below $100 as bearish trend persists: check forecast - TradingView
+Snippet: Solana drops below $100 as bearish trend persists: check forecast&nbsp;&nbsp;TradingView...
+Link: https://news.google.com/rss/articles/CBMivAFBVV95cUxOcGhCYTdlc2hRY001QnlWVWR1WTJlNXhZTFdicmVRanJJVGM4Tm5JcGVFbWN5SHNaQ3FxUkRKLS1PeUFTbmV1Q1Y0eU51ZFpDRGxxaEphbFRpOWNzSzgwNFh4aEJUc1JCMnhkSjVfUFBHb010cFV4RjlyTUFMMm12SS1Pd1F3aVo2bHFjVUpYQ21WU1NFM0hIVTBiYmpGR3I1V1QwX3VTNmRIUm1fb0F4dkp5VVpNQzhfcU9QVg?oc=5
+
+Title: Is SOL USD Dead? The Crypto Market Is Facing Another Sell-Off - Yahoo Finance
+Snippet: Is SOL USD Dead? The Crypto Market Is Facing Another Sell-Off&nbsp;&nbsp;Yahoo Finance...
+Link: https://news.google.com/rss/articles/CBMifEFVX3lxTFBhNXRKQlc0TWY2aHJTMjNabE5rNHF4cC11bk9kRUVBVzQ5RU1JV3dsT193U1p5QWdhN0Q5U2ZtR0VUemt3UHJvcmk2aUdtTmp4dUJ0SW1jOERZc0JzeENfYzB2aTQ0YnBDeldpOVlfY242LUFScHF2Mkx0dEg?oc=5
+Historical Context: [-4.3% Impact] Solana USD Price (SOL-USD) Today: SOL Slips Near $123 as Traders Watch $120–$122 Support — Forecast and Key News for Dec. 17, 2025 - TechStock² | Solana Price Charts | SOL /USD Live Price,Charts, Market Cap & News - Bitget | Analysts Call Solana Price Reversal: SOL USD Shoots High For $160 - Yahoo Finance
+
+[USDT-USD] Qty Owned: 72.0096 | Value: ₹6786.64 | Price: 0.9993305802345276 | Math Signal: HOLD
+Technicals -> RSI: None | MACD: None | TSL: None
+Fundamentals -> P/E: None | 52w High: 0
+News -> Title: USD₮ Q4 2025 Market Report - Tether.io
+Snippet: USD₮ Q4 2025 Market Report&nbsp;&nbsp;Tether.io...
+Link: https://news.google.com/rss/articles/CBMiX0FVX3lxTE0xTkZmQzhxZkVUeFB6QnppM2twREZVSmlPTnJDSTRyTTFjYThaNDBhRFBENTNEVVc3RDBlbzlhUDJDczVOa1VYMGNOZzA1WHE4RlBSeXN1ZFgwVnlZMll3?oc=5
+
+Title: South Korea to block firms from using USDT, USD Coin - dlnews.com
+Snippet: South Korea to block firms from using USDT, USD Coin&nbsp;&nbsp;dlnews.com...
+Link: https://news.google.com/rss/articles/CBMimwFBVV95cUxQdEFaT3dFYjdib1VKb3V2UDl2OFFPVFgxR1dhbWxJUzgzSnRZOGRFZmJGSkZQaEhKRE90Sy1qc2duQW1ObERESWxCUDhNZWJ4MzUwdkNyWHB0N2NpNVV2M0VPTS1ZWXo3MHVzd0JrTFh1LVJWUVI5Zm8tdXZVOVo4UDR1XzJMUU9hWFEyQ1JaWW8xUEh1LUZQbk9EZw?oc=5
+
+Title: Why Chinese Investors Don’t Welcome Dollar Stablecoins Any More - TradingView
+Snippet: Why Chinese Investors Don’t Welcome Dollar Stablecoins Any More&nbsp;&nbsp;TradingView...
+Link: https://news.google.com/rss/articles/CBMiwgFBVV95cUxORld4bjIwOVc0aEF0RU1KOUFfV3dzQWZpdVROWG5YY1YzeUNFU041aDVlSm05cXNMOE5VWGx3U0F1T1I3U01tOU5mNDQwcktjaml2Z09jRlo1d2lsRE1CRXZTdGpxcFZtZ1VwTXFVWGh0MzdKRkhBN1VDLUhaUnZ5YXFaazlIWVlVWVRvejYxTzQ2ZFdiRlRDdXh6blJiUkVrcEpuWi1kakI1R0ZqS185UXY3NHRpS09RZTc3ZVVNMUVlZw?oc=5
+
+[MATIC-USD] Qty Owned: 302.6216 | Value: ₹6228.48 | Price: 0.21823609 | Math Signal: HOLD
+Technicals -> RSI: None | MACD: None | TSL: None
+Fundamentals -> P/E: None | 52w High: 0
+News -> Title: Coinbase Delists Major Cryptocurrency: Details - TradingView
+Snippet: Coinbase Delists Major Cryptocurrency: Details&nbsp;&nbsp;TradingView...
+Link: https://news.google.com/rss/articles/CBMipgFBVV95cUxPMUFEcU9VMUdhRFdGekk0YjF1UnNiQzlxUlQ4UzJxYWVaclBmN3liUkl3dXd4REZZaFRBakdaTjBRdEtxQXNKMzFTSjRkbU52Y0JJWERfbkRfREZ4aGFBSTEyM3RwdEVOdGRYa21NTklCUFJ4ZWpiZTRKTzZXTXY2eFpodV9kOE83WDdVS2RMRHZRR0ppUExQWXhzZ29RVlNSbDM0bGxn?oc=5
+
+Title: Polygon to US Dollar Price Today | MATIC/USD Price Chart - Capital.com
+Snippet: Polygon to US Dollar Price Today | MATIC/USD Price Chart&nbsp;&nbsp;Capital.com...
+Link: https://news.google.com/rss/articles/CBMiggFBVV95cUxOc3p6ck5EUnFWa0VDV1VmeF9PbktUenFOcnBRbVR5blhSVHhTMGxvWXNITlpGaV9ydDVlMV84T3h3bF9jLTg0cjd3Y0t4U25MVGctbHczOG9lRHNXU1BwU3hseFBwbGdkVnotMlFqQVIwSldVcHpIVGdmUlJYdjVXdm9R?oc=5
+
+Title: Polygon Price Holds As Bulls Defend Crucial Trendline (Technical Analysis) - Seeking Alpha
+Snippet: Polygon Price Holds As Bulls Defend Crucial Trendline (Technical Analysis)&nbsp;&nbsp;Seeking Alpha...
+Link: https://news.google.com/rss/articles/CBMiswFBVV95cUxNbUd0RUlxaEl1UGgzcHZkN1dMTDJNNVRFVmRPMXIwZUd1blkxdU51MEpxTERCVmlhZi1DS0lnNWVYQVh2OXpEN1FHUlp2TnJ4cG9XQU8wdHpfVncta1VlRW9JbEhQVWktX0JJY2pZNEhQZjg0TzRNejRwVXdpSm1USE93czdnYWFSYllTN29QZHl2V3plMG9mZF9qakNqOVBDRUJJd0FGZnJTUFdqYTFQVUhURQ?oc=5
+
+[IRFC.NS] Qty Owned: 60.0000 | Value: ₹5547.00 | Price: 92.44999694824219 | Math Signal: HOLD
+Technicals -> RSI: None | MACD: None | TSL: None
+Fundamentals -> P/E: 17.25 | 52w High: 0
+News -> Title: IRFC shares gain 4% post signing ₹12,842 crore refinancing pact with Hindustan Urvarak and Rasayan Ltd; what you need to know - Upstox
+Snippet: IRFC shares gain 4% post signing ₹12,842 crore refinancing pact with Hindustan Urvarak and Rasayan Ltd; what you need to know&nbsp;&nbsp;Upstox...
+Link: https://news.google.com/rss/articles/CBMi_AFBVV95cUxNamRNb1NTcmZZUUNUVjRIR3J5a05LTHo1RGxIdkRxNlhaS0MtWnlrYmNlMW5YaXVUMGw0UmwtMFlkR2cxZkk1R2VndnRZWDVGa0ZVZHlSVHFEeFVVZmVPbHhLeWZ2MUJ0aDFRdE9KTldWNjFLaTV3VzZtbjdTUU8yWDBEeTVFY2t2OVJBWXpmdjNsMW1aRUVYdHlYdFNxUzROenhQM0xjYzNRMThLa1hJWm4tOXh2NHpNYzVraHJnbzZ2cDMwX29SU3pWVE54aDd0ZEE2SlNFYnlDejBmZElCTUNpMlZ4UFRWbHVxcWV1d0ZvYjZtMVk1WGZVT2o?oc=5
+
+Title: IRFC share price slipped over 2% to around ₹94 on March 16 so far - HDFC Sky
+Snippet: IRFC share price slipped over 2% to around ₹94 on March 16 so far&nbsp;&nbsp;HDFC Sky...
+Link: https://news.google.com/rss/articles/CBMigwFBVV95cUxNNElRR0otSGw0RWYtQ09JVnF3MXM3MmxkRVViLUltSkNEZTZDTmJqMGF1TUZUc2pZLWs4MWp5S0o5Mlcya1dreV8yYlR0enlfeDJMaVdsRFNLTWVvZHp6TXQwOUpBLUw0LVJHdVVBSUtBOWZmSGhzdmd6UkxCQ01uTTRNVQ?oc=5
+
+Title: Dividend, bonus, stock-split: IRFC , 9 others to remain in focus next week - Business Standard
+Snippet: Dividend, bonus, stock-split: IRFC , 9 others to remain in focus next week&nbsp;&nbsp;Business Standard...
+Link: https://news.google.com/rss/articles/CBMi0gFBVV95cUxPU2VGYVliQUxoNFpoanY0TFQxZ2oxZzA5U3lQaVo5WDEyWHU5S1EzaVlWSnhEZFBwQjEzdjZSY2ppRC1xSG9VSC1UblhBMklMQ2NxNFgtV3N5UHNwemVFY0gwWFZoS0s4UWRrRGFfUXU0TjduTlhERHlIV3BZN04zb0tMcGF4QlFIN0RhclpKWVlnMGo4NWcwaGRFVGxTTWo2Rk0tZUM1dXhVb3hCNVQ5RVFDYWkya1pNSUlNRlN0cDMyRVRfMC1tYXpHX052c0hLSVHSAdcBQVVfeXFMTTFWbUVGc001QWZqYlpIOHNhakIxbFFSVXRCdGlVbDBRbmVpaWpWRmlTRXE2WngzckhZeks4TDhQVzZJaWZ1b09EZUhydUtkdEtfV0dfOHZaSTN1V2ZPYnFNcXVyX0xxMXJWbTF5dUVPTHplTDJMMWoxSFdiUXE5clowZFNCTXZDWEwtQ3FCb2dQMnFIVWJkSFAxLU5JanozNmlrV1F5VmRydzlDZU9YTUpoTE1lNkI5UFllYnJRUURCQThueXo5cE1UU05GY0R1d0lOWERReHM?oc=5
+
+[BNB-USD] Qty Owned: 0.0899 | Value: ₹5191.92 | Price: 612.03955078125 | Math Signal: HOLD
+Technicals -> RSI: None | MACD: None | TSL: None
+Fundamentals -> P/E: None | 52w High: 0
+News -> Title: BNB USD Falls 3.40% as $728 Monthly Target Faces Pressure - Meyka
+Snippet: BNB USD Falls 3.40% as $728 Monthly Target Faces Pressure&nbsp;&nbsp;Meyka...
+Link: https://news.google.com/rss/articles/CBMiiwFBVV95cUxOUGNpTHdrdXlhQ3kyZzd2THRoNVZXd01UejdNdTg2cUx2VVVnbDd0OHRJT2dZM0U5X1l5SC1BbTNiQTFySEhJQ2hDR09pN0ZBRDU0LU1nWU9yY2lxbEFFMEM0dXA2UjNwNzMxVzRacUdkbDJIWUtiTEJUNkxob0h0eXcxRWhvZnRveUYw?oc=5
+
+Title: BNB price manages to stay above $600 support as downside risks build - TradingView
+Snippet: BNB price manages to stay above $600 support as downside risks build&nbsp;&nbsp;TradingView...
+Link: https://news.google.com/rss/articles/CBMiwgFBVV95cUxPU0Y4OEVTX21YNkhxaEpPVG15emtnYW5lSm1QVFdOU3ZZd1hqa1pIV1NJUEhyWUp0d3RweHdHQVAxQ0g1M0dDSGNNd1VZUUN3b1hvci0wYlZMMmUxUnVGemlQeHJZdmVaN3pqTF9IVEoyTkE1LW5NVUZRWl9MYUgwSnZocGFNcUFsSGc5N2otbUtsNUMxMi1EWmJ4UFVCMGZYazVsQ1dlTTFpekhiMlBFaW9USmE4Z0djY2RBNUJGSk5rUQ?oc=5
+
+Title: Crypto Market News Today, October 9: Why is Crypto Down Today? Bitcoin BTC and BNB USD Pairs Price Stay Green This Week, ETH and SOL Red, But XRP Brutally Dumping - Yahoo Finance
+Snippet: Crypto Market News Today, October 9: Why is Crypto Down Today? Bitcoin BTC and BNB USD Pairs Price Stay Green This Week, ETH and SOL Red, But XRP Brutally Dumping&nbsp;&nbsp;Yahoo Finance...
+Link: https://news.google.com/rss/articles/CBMihAFBVV95cUxNRGh3ZHNvYVRSTkpheTdTMmNDQW93X3JaU3VvY05zR1gwNDFzcFF6YUdNemU0V0RWeFFGQno5c2Q1UGcxTmRxWXZIYWUzb1ByRm93T1pqeDBEOHhkWG9pdFIyR3IwYnJGVm9vSFpkTk1yMnZKcFI3T2dPMjVkeVdkSnNVWnc?oc=5
+Historical Context: [-3.7% Impact] Grayscale CoinDesk Crypto 5 ETF adds Bitstamp as BNB trading platform - Investing.com | Latest Crypto Market News Today, October 3: BTC USD Still The Hottest Pair, But XRP, SOL, ETH Catching Up While BNB Blasts ATH - Yahoo Finance | BNB News: ‘L1 Wealth Effect’ Drives BNB Ecosystem Despite Pullback From $1.3K High - CoinDesk
+
+[AAVE-USD] Qty Owned: 0.3348 | Value: ₹3065.84 | Price: 97.0830307006836 | Math Signal: HOLD
+Technicals -> RSI: None | MACD: None | TSL: None
+Fundamentals -> P/E: None | 52w High: 0
+News -> Title: Aave Price USD, AAVE Price Live Charts, Market Cap & News - Bitget
+Snippet: Aave Price USD, AAVE Price Live Charts, Market Cap & News&nbsp;&nbsp;Bitget...
+Link: https://news.google.com/rss/articles/CBMiSEFVX3lxTE1Ra2dYcms4azBSQndjR3ZUZ1pZcGdzZlNzLVFubFNkdTNDdS01LTcwLWpCN3JCZUd0OWRXQnd4dmZHc1RkcDVVRw?oc=5
+
+Title: Crypto Trader Loses Nearly $50M in Aave Trade, Protocol Offers $600K Fee Refund - Yahoo Finance
+Snippet: Crypto Trader Loses Nearly $50M in Aave Trade, Protocol Offers $600K Fee Refund&nbsp;&nbsp;Yahoo Finance...
+Link: https://news.google.com/rss/articles/CBMiggFBVV95cUxNNjd6VW05V0ZmRHU2LTZLU2tiQVNTbzIxVVVEc1BwX0FMb2NpcjlNYzlvQldHWHhndVI0WDRIRmhPR3VSWUp6QV9pelZTV0dZc1haM05OR1R0WUdseTdySFB6MzVKVldMQUVWUVZwZEdZZVhxdkxGLUtsWHhVb1U5STJ3?oc=5
+
+Title: Bitcoin crawls to $88K as Aave faces governance drama: Finance Redefined - TradingView
+Snippet: Bitcoin crawls to $88K as Aave faces governance drama: Finance Redefined&nbsp;&nbsp;TradingView...
+Link: https://news.google.com/rss/articles/CBMizwFBVV95cUxQdjRBV1ZjTEhKMWRtX0ZuZERGR2RxLUJ1NjQzSUM4SkVBcElyNDdHbEJIRGF5TGJ1VlZaRU5HTFltR2xJbjVGcWFHRkNhcWtuMlZuUlVENG1nN2JDc0FXNlIwNWt6dGNWOERtTE5tOUNnMDB6V1FuMDFuMG0xZm9ZTVpYOVp4UU8tNEdLM3o1NDZ6MTFjai1GWEhBeXBuOU0xM3EycUc4OUhKdnlpVzFTcUtSTklpRmZVVlFjUmNxVU14S1NrbDh5MjJoN05Jb2M?oc=5
+Historical Context: [-6.9% Impact] Market Brief: Venus Exploited, Aave Exposed, DeFi's Liquidity Problem Is Showing - Seeking Alpha | Crypto Trader Loses Nearly $50M in Aave Trade, Protocol Offers $600K Fee Refund - Yahoo Finance | AAVE Price Analysis: 24% Surge Clears $250 as Volume and Support Build - CoinDesk
+
+[ATOM-USD] Qty Owned: 9.7932 | Value: ₹1534.03 | Price: 1.6609320640563965 | Math Signal: HOLD
+Technicals -> RSI: None | MACD: None | TSL: None
+Fundamentals -> P/E: None | 52w High: 0
+News -> Title: Why did some altcoins on Binance crash to zero? - TradingView
+Snippet: Why did some altcoins on Binance crash to zero?&nbsp;&nbsp;TradingView...
+Link: https://news.google.com/rss/articles/CBMirwFBVV95cUxNWkx4bE9ZQ0Z6V1kzV2U0QkpXWUhmM3FIbVVFanBhM2hDM09Ta3VSYVJoLUtYZEZsOGo1ZXN6T0JQNER2djJNQ1dVN3o0VlplLTdvM1NDWnY4RzlUMW5Cam9LYmdsSWxqRjl3YzlQTzRMd1BUT2ZFdldFQXJzaWV4dWw5cnhMSExlN3c2NmQ3SlhRVXlJZkJpemt5SkRNMVB2Mm1iOTFwU2hFVmFQZml3?oc=5
+
+Title: Cosmos' ATOM Surges 10% in High-Volume Breakout Rally - CoinDesk
+Snippet: Cosmos' ATOM Surges 10% in High-Volume Breakout Rally&nbsp;&nbsp;CoinDesk...
+Link: https://news.google.com/rss/articles/CBMinAFBVV95cUxOUVJhMGw1MnlVdjlfVTAwN29BYWZyeVZCeGozaU54dTNYMndUUmFJYXdnZldxYU1wbGFfWUJFcFBOTy0wMzJXSlRzaVBxcEtNelNqVXdIVWJjYVJHZ2k3bXFHMW03V0FER3U1VFZvdDNGbFdpYU9MaGc3MXZ4TkVsRmc1NC1GM1RfaVhLUmNNdmtXY3NCd1JYSWNJX0Y?oc=5
+
+Title: 3 Altcoins Breaking the Bearish Trend: Why ATOM, ZEC, and ASI Surge - Yahoo Finance
+Snippet: 3 Altcoins Breaking the Bearish Trend: Why ATOM, ZEC, and ASI Surge&nbsp;&nbsp;Yahoo Finance...
+Link: https://news.google.com/rss/articles/CBMihgFBVV95cUxQYnh6M011QklwaGpBNXlvN0VSbGJPcUVpVW1HLXBhdGRzWGdlYUVWVDhGelBEYk4zRHRXeFpNZTRGYmU2c2JHTlZ2QmFsb0ZEdXlUMlM0T1JOY0E5cThpTWpTRFhuX1l2NndrTThMRW5oX0Y2aThuZmJodV9oSzlqVWZEZmE3dw?oc=5
+Historical Context: [-6.4% Impact] Why did some altcoins on Binance crash to zero? - TradingView | 3 Altcoins Breaking the Bearish Trend: Why ATOM, ZEC, and ASI Surge - Yahoo Finance | Cosmos to US Dollar Price Today | ATOM/USD Price Chart - Capital.com
+
+[RENDER-USD] Qty Owned: 7.0702 | Value: ₹1121.66 | Price: 1.6821802854537964 | Math Signal: HOLD
+Technicals -> RSI: None | MACD: None | TSL: None
+Fundamentals -> P/E: None | 52w High: 0
+News -> Title: Render Price USD, RENDER Price Live Charts, Market Cap & News - Bitget
+Snippet: Render Price USD, RENDER Price Live Charts, Market Cap & News&nbsp;&nbsp;Bitget...
+Link: https://news.google.com/rss/articles/CBMiS0FVX3lxTE8zRmJFN0ZudVZDajhLWVp4UXNFQ2xncUMxOTh2cWtVZUpNTFAycjRPWUZSYlpYTW9paEJjamlpbDk3Q3Jud1NVRmhRUQ?oc=5
+
+Title: Key facts: Render (RENDERUSD) Trends Upward; Gains from GPU Demand - TradingView
+Snippet: Key facts: Render (RENDERUSD) Trends Upward; Gains from GPU Demand&nbsp;&nbsp;TradingView...
+Link: https://news.google.com/rss/articles/CBMiwgFBVV95cUxQRDA5VmhsZkJ6TVAtWk1yTzZ0dTRaTE1fRkhhTEEtNnZBSEwyM3R4RXRUUHdUNlJITWlTRHM2TUEzQV9pc2d6Tl9XQ1AwSUZfY2F1b0ZxSXBvT21nZms3NXoyRUJpbFY3ZVUtUEFsTWNISmtJNUs4TGR2RDVUaFRyQ0ZSaEZZUW0xZXllQlgxY2NGaG9ZeHFKcElEbXJFYmlZalF1OTNfQl9YYkptcVI2U0VXX2F1NzJoQ1NKaG5EcGt1dw?oc=5
+
+Title: Understanding the USD/JPY Currency Pair: Key Insights and Trading Tips - investopedia.com
+Snippet: Understanding the USD/JPY Currency Pair: Key Insights and Trading Tips&nbsp;&nbsp;investopedia.com...
+Link: https://news.google.com/rss/articles/CBMilgFBVV95cUxNOWV0cVd6anB0NDBmcmNNV1lHX0E3bE1CUG9PczlMb2FCTkNIRGl2ak1tX1lWbGItbWFUUFBGS2Uzc3ducjRQeWUwN2w1Nm1WNVdReUhpMUtyRVpRMmI0WUZVSmpKY3VoNHZlSmJDTURpRFFnd0tVNmJuMDFDaXhSZkg5eWFVOG5kMVAtQlRNY0VVVDREMlE?oc=5
+Historical Context: [-7.0% Impact] Render (RNDR) Price Action Shows Bullish Momentum: Key Resistance and Support Levels - TradingView | Understanding the USD/JPY Currency Pair: Key Insights and Trading Tips - Investopedia | Key facts: Render sees $59M surge in open interest; GPU shortages to 2026 - TradingView
+
+[CRV-USD] Qty Owned: 56.0251 | Value: ₹1119.71 | Price: 0.2119184285402298 | Math Signal: HOLD
+Technicals -> RSI: None | MACD: None | TSL: None
+Fundamentals -> P/E: None | 52w High: 0
+News -> Title: Curve DAO Token (CRV) Price Prediction 2026, 2027-2030: Can CRV Break Its Long-Term Range? - Coinpedia Fintech News
+Snippet: Curve DAO Token (CRV) Price Prediction 2026, 2027-2030: Can CRV Break Its Long-Term Range?&nbsp;&nbsp;Coinpedia Fintech News...
+Link: https://news.google.com/rss/articles/CBMiekFVX3lxTFA1UGVXeFR4a3RmcjUwVUJPX2hYcmVVNjdlZUwtcHZHeXJ3U2kzZnQzYVFDQXRLNFNDSWp6OW8wTmhIYzNCbVZMWEl5X1FoUTU0Y05vYmZrYW1KUkpyMzQzMGRGNkY4dC1URWlXS21RNU5JOEpOOElQeFBn0gF_QVVfeXFMTjRjN1RSM3RHelhvdDIzUWU5aFU3SHdBeGlTREpHT3YwTl9vaml3eklrRHE4VnAwWHVJX2Jkb1JGSlBFdmlRbk1fM3h2RUdNZUNGVUlzTlRMY3lxX3hrWHBPM0lwTVByZWJiN1Q5aWZpN0lRb2pGSkxqUTJ1azBQYw?oc=5
+
+Title: Governance Turmoil Hits DeFi—But Why Is CRV Price Rising and AAVE Price Plunging? - TradingView
+Snippet: Governance Turmoil Hits DeFi—But Why Is CRV Price Rising and AAVE Price Plunging?&nbsp;&nbsp;TradingView...
+Link: https://news.google.com/rss/articles/CBMi1wFBVV95cUxNN0dSQXRfcHFsX1dwclRVN2x0SlhwY29KZnF1T202OXZHRGJkendRTVBKajFNbmVHU3lJOWQ5ZzhLT1F1MlFtVlI4Sl84ekZxaFZXRG4yaDZCLTdqa3dKNGJkM3hQaHhIMDQxQmQzck80T3piNjl0YUtNVXFjaVhxQTVqUlZZWThDdTJkb3oycmNlWENZcU9RVHVVUkRpNGsycFJjS2laekNtNW5mUF9QdkREb2pTVVJIWERQWkV1UUxZOGtUM0lzaEpBLVN1b05VREhvU1ljWQ?oc=5
+
+Title: Curve Finance Pitches Yield Basis, a $60M Plan to Turn CRV Into an Income Asset - Yahoo Finance
+Snippet: Curve Finance Pitches Yield Basis, a $60M Plan to Turn CRV Into an Income Asset&nbsp;&nbsp;Yahoo Finance...
+Link: https://news.google.com/rss/articles/CBMihgFBVV95cUxOcEpBSnpjYW93WXZrd0FncUtxcnM0aVZ5ZmNERHNkUkl6SXJwRWJfZjU0S2NCOXhMOFMxWkM4MHExaEZ3c1NMaGJ5ME1uTE1EbGUxOGhDek12aDdmZklIaDZhcGpKSVFzT29RcGZyYVBwWlQxelFrZ2RQa1pWWmR3dlM1R3JiZw?oc=5
+Historical Context: [-9.6% Impact] CRV price slides towards range lows as LlamaLend pool exploit weighs on sentiment - Bitget | Governance Turmoil Hits DeFi—But Why Is CRV Price Rising and AAVE Price Plunging? - TradingView | Curve Finance Pitches Yield Basis, a $60M Plan to Turn CRV Into an Income Asset - CoinDesk
+
+[SKY-USD] Qty Owned: 405.3620 | Value: ₹814.25 | Price: 0.021299028769135475 | Math Signal: HOLD
+Technicals -> RSI: None | MACD: None | TSL: None
+Fundamentals -> P/E: None | 52w High: 0
+News -> Title: Sky News Australia. . Microsoft's shares plummeted overnight with a staggering $400 billion wiped off its value marking one of the largest single-day losses in corporate history. - facebook.com
+Snippet: Sky News Australia. . Microsoft's shares plummeted overnight with a staggering $400 billion wiped off its value marking one of the largest single-day losses in corporate history.&nbsp;&nbsp;facebook.com...
+Link: https://news.google.com/rss/articles/CBMiwwFBVV95cUxOazBucktaZndHNXpOOTdxVkRWVS1EZl9JLWxoQmRYbkV5LVBvLXREdEhwcXhNaTUtbjRONzlVUk1NWmFfNENYR1ZyN2FtMHZSMzhzQ054Y0lFamxOdVMybmc3YmRGZ3JDa3J3dUFNRGFJNFNNNFpETUFibzJRN0hJQzhEVWI3UXpoamR0ZGhiVmI5ZU9ndXA3WDlPQVJlOWRFRXA2RkVoQm81ZkZLN2VjY1FZZlNKLVU1OGc4WW1ieGZobTA?oc=5
+
+Title: Does SpaceX’s Sky-High Valuation Make Sense? - Morningstar Canada
+Snippet: Does SpaceX’s Sky-High Valuation Make Sense?&nbsp;&nbsp;Morningstar Canada...
+Link: https://news.google.com/rss/articles/CBMijwFBVV95cUxOa2tLQkFadDJoblBmTVBhXzBndE1lYk1nMWJZcjlONGc3TDJpZTZXd2FIQ1QtLVZWNWZyQjVrSnV6eVAtOEZZOTh6UFhRRWlwb1BORTRxeXF5QVpvSExOUzBZUndsVld1SVFTVE5oMHhGRG5BUmt3Q1VYTWo5N3F4eEtJWWcwSzcwdU1tdVVLUQ?oc=5
+
+Title: Bitcoin's slide deepens, dragging broader crypto market lower (BTC-USD:Cryptocurrency) - Seeking Alpha
+Snippet: Bitcoin's slide deepens, dragging broader crypto market lower (BTC-USD:Cryptocurrency)&nbsp;&nbsp;Seeking Alpha...
+Link: https://news.google.com/rss/articles/CBMingFBVV95cUxQYUM4M3dJdFU3ZDZJQzg5MEJYSTBQVU1IU2JGQXlTRjl1bWJkNkRnVy1US3pOMkJhYTc4YzBVYUR3U3dqTE1DWEcxa0RBM2VQY1huS3licW0wV0FDNDFYN1hXdUFHYTV3N3ozb1NzczJlOVlqMHY0bmpwRUtSMm5odEJXMUhaUWZQUnRtNFBPbllrOWw4VHY4VUhBUkJUUQ?oc=5
+Historical Context: [-69.1% Impact] Adani Enterprises Share Price Rise 2.08% After USD 100 Billion AI Infrastructure Investment Announcement - HDFC Sky | AI bubble fears take hold of stock markets and bitcoin - Yahoo Finance UK | Sky News Australia. . Microsoft's shares plummeted overnight with a staggering $400 billion wiped off its value marking one of the largest single-day losses in corporate history. - facebook.com
+
+[ROSE-USD] Qty Owned: 337.8461 | Value: ₹333.83 | Price: 0.010477227158844471 | Math Signal: HOLD
+Technicals -> RSI: None | MACD: None | TSL: None
+Fundamentals -> P/E: None | 52w High: 0
+News -> Title: Export Surge: India Steps Up on Global Stage - PIB
+Snippet: Export Surge: India Steps Up on Global Stage&nbsp;&nbsp;PIB...
+Link: https://news.google.com/rss/articles/CBMiaEFVX3lxTE00Q1Z1RUFJeWJrWm5OZHVuMWw1QU82MW1EdldOSjhtbVlZdjVmYUdXQWowQ2ZRTk4zcHk2cW5PYmVLNl9zbnhZQlExQmd6cjBlSmJ4WDVXc2x2VENOMWduS3hPMWZvT1VV?oc=5
+
+Title: US stocks recover, gold rises and oil surges as war with Iran spreads - CNN
+Snippet: US stocks recover, gold rises and oil surges as war with Iran spreads&nbsp;&nbsp;CNN...
+Link: https://news.google.com/rss/articles/CBMic0FVX3lxTFBuUmMzb0YtVkMxaktHVURKLTBETjVMT2NPRUdoTGNRY3N3RnVlTk9lREotWGN4aWk1ZUxkc3c0aVFMZlp2aVJuYk1MXzJTeF9RZzZnZTVkM2F0emQ5RmVZUV9FZi01WW1qNk1GQnhNRE55Slk?oc=5
+
+Title: VIEW Stocks jump after US Supreme Court rejects Trump's tariffs - Reuters
+Snippet: VIEW Stocks jump after US Supreme Court rejects Trump's tariffs&nbsp;&nbsp;Reuters...
+Link: https://news.google.com/rss/articles/CBMiqwFBVV95cUxPbWI1bm1fQUZqWDE3S1lPNU5xanR0aUZiWEgtUEVmRlVxdGVrc0hFMGxTUlBmdXZMQ0VNZk00RVlWU1NUVFBWY0gxR1dDVmZRb2xzWG5UYWU2UjhadTVVbG84YXlqcU9EeW8tbnRlZUJ4eERhRUxkLXJacjFwejB5ekdnODFyR3lXZmN1MXVjRFVSYjZnaklDRGxoWnYwQkpXQ2lJdHhiTk9lZHM?oc=5
+Historical Context: [-8.0% Impact] US stocks recover, gold rises and oil surges as war with Iran spreads - CNN | Treasuries Sink as Oil Jump Stokes Inflation Fears: Markets Wrap - Yahoo Finance | Stock Market Today: Tech Stocks Rose For a Second Day, Nasdaq and Dow Gains - Eurasia Business News
+
+[KWIL.NS] Qty Owned: 4.0000 | Value: ₹94.40 | Price: 23.600000381469727 | Math Signal: HOLD
+Technicals -> RSI: None | MACD: None | TSL: None
+Fundamentals -> P/E: None | 52w High: 0
+News -> Title: Kwality Wall’s shares list at 26% discount on NSE after demerger from HUL; all you need to know - Upstox
+Snippet: Kwality Wall’s shares list at 26% discount on NSE after demerger from HUL; all you need to know&nbsp;&nbsp;Upstox...
+Link: https://news.google.com/rss/articles/CBMi3wFBVV95cUxPdTgtME5VbkRETmcwSzhzdzZERVJIVUprSUdiY20wbjcwR2o5U2hzYkxMVG9Tb1ctZ1U4bUdLWjdKTUdPRHotZ21rek1SeG0wc1dJLTNQU1R1YnR2NUhKbUtER0tJZzk3TllHeDhWM3hiR1JfczlmTHc0VTh5MF9oQzF0aHJIREdnQ2VKbFF2Z2Z0a0RGMURfSkp6dXpDZDM0M3FKTDZiNjF1a1FkdjhHdXluS3VobmcyaDZvSnQtejRmZWNNdjlDMkRmbHlUVTZQbXRGWXV6NDFBZGJONWpZ?oc=5
+
+Title: Kwality Wall's to start trading on BSE, NSE from February 16 - Moneycontrol.com
+Snippet: Kwality Wall's to start trading on BSE, NSE from February 16&nbsp;&nbsp;Moneycontrol.com...
+Link: https://news.google.com/rss/articles/CBMiwgFBVV95cUxOTUlxM3Vldk9nc0MxVzFxaDJvcTZqb3lpRHFWYloyN0E2bWstZHhBakQ0SVpyQWJuNDBDZkZMT2doWV9kTExrRi1aQ2lMOEZJcmhNZWRzSlRNejhJaUl0S0ZaVWpTclJjZDkwS0dwUFppZW1OVFN1anFYdlYyVnNrOWtmS1dwb3lfV01OQmlHeDVFNC1aYkhnRTEwTTBHckZ2MVlMQVVIcXdBd2QzQlhyT1Flb1BsU0VzVW5LMmVVVjlZZ9IBxwFBVV95cUxPRVFEaVZ4ZmlBYXBQTGZEZjhiX1lRR3BnaEx4N2tER0Mwc1VuZmFJZVByNDR0NkRJdzMwb2YzZWVtYVk3ZG9jcjM2SHZBbkVyT3l3RUE0OTQ0UnBzeDN5N2JvVWZudHQ3UGtmRDY0d2l2YndTWU0xTC05ZnJwN01NbnNVandrZVJ5UDNUQUE3Q3NONjNlLUxaamNpV01KdG5QZXc3WnRNa0lZd2ZrRnVabHpZQlNLM1ZYb01aY3FLMHUtQ2dNZTlZ?oc=5
+
+Title: Kwality Wall's India to debut on Indian stock exchanges on Monday - Exchange4Media
+Snippet: Kwality Wall's India to debut on Indian stock exchanges on Monday&nbsp;&nbsp;Exchange4Media...
+Link: https://news.google.com/rss/articles/CBMixAFBVV95cUxNYlZmWEFyQnl3LW41SGVabmxTVHQyNkU4ZmtSLWJEZkctQVU4aHFRNmhSVTRtTTdhakdIakRKNV96VzFDc0t0dnpVRlZMTmRTb3JpUHNHU1U3SGxibGpoM0pCZGJXRHlfYlZQV3VCZ0R6NHdub3hRNzNoNmxJUDBEOGdUUDFQTjUwTFBfanN5YW5XZWhtSnhjanBnV2g4TVdGeDREZ29OUnE0dVhvbS02TEJKdE91YWVtOGJCbjFwaGNsMXho?oc=5
+
+[SXT-USD] Qty Owned: 15.6344 | Value: ₹22.76 | Price: 0.015438336879014969 | Math Signal: HOLD
+Technicals -> RSI: None | MACD: None | TSL: None
+Fundamentals -> P/E: None | 52w High: 0
+News -> Title: Space and Time Price Prediction 2026-2031: Will SXT reach $0.033 in Feb 2026? - CoinDCX
+Snippet: Space and Time Price Prediction 2026-2031: Will SXT reach $0.033 in Feb 2026?&nbsp;&nbsp;CoinDCX...
+Link: https://news.google.com/rss/articles/CBMigAFBVV95cUxQcUZTb2RpSGhGTW1iSTMxbm1Ybm9OWGQ3M3hkYjRNNHVsWGRVQmczSlp0V2ZoMEN0N2ZfSFpDUDQxM2hSbVlmRHhOTXEtU21fUEtWVERob09uVUUzSlRTZXpRY2ZQYy1hVU42TmoxVWR5UDJ3XzNWRTZoa0hTTHdMZg?oc=5
+
+Title: China SXT Pharmaceuticals, Inc. (SXTC) - msn.com
+Snippet: China SXT Pharmaceuticals, Inc. (SXTC)&nbsp;&nbsp;msn.com...
+Link: https://news.google.com/rss/articles/CBMiigFBVV95cUxOZGlhaGZhcmo2eFZoaGlQU1BvNzRwTndxTlBHSFVYaUNNenpWS3hOdFhLZDc4SUQwcTY1eXlGZTJ3aDBzcUxXZFNNNzc1c1A0cS1lRTVqRm9jZjVMZHNONnQwQUY2c0tWdkt2cHBkUmZic2N5V2JQWUdTQm1mY1RTR3ZoTW1iYVd6SEE?oc=5
+
+Title: Space and Time price today, SXT to USD live price, marketcap and chart - CoinMarketCap
+Snippet: Space and Time price today, SXT to USD live price, marketcap and chart&nbsp;&nbsp;CoinMarketCap...
+Link: https://news.google.com/rss/articles/CBMiYkFVX3lxTE9BcmhSSVg5Q1hpWWtReUxoM1Q3aHZxTTh3eTZ2azl1Q0dDN244Z29aQUVZYlE1SFZ5NzBjY1NocXpKZEJtOWd1QkN1SjZDZGZIb2NaXzlfZl9YcUVOT2N3NmJ3?oc=5
+Historical Context: [-7.7% Impact] Promotion A: Enjoy 5% Bonus APR in SXT with ETH Flexible Products - Binance | Space and Time price today, SXT to USD live price, marketcap and chart - CoinMarketCap | Space and Time Price: SXT Live Price Chart, Market Cap & News Today - CoinGecko
+
+[SONIC-USD] Qty Owned: 201.9050 | Value: ₹1.61 | Price: 8.4359e-05 | Math Signal: HOLD
+Technicals -> RSI: None | MACD: None | TSL: None
+Fundamentals -> P/E: None | 52w High: 0
+News -> Title: SonicStrategy Confirms Closing of $40 Million USD ($55M CAD) Sonic Token Investment From Sonic Labs - TMX Newsfile
+Snippet: SonicStrategy Confirms Closing of $40 Million USD ($55M CAD) Sonic Token Investment From Sonic Labs&nbsp;&nbsp;TMX Newsfile...
+Link: https://news.google.com/rss/articles/CBMi1gFBVV95cUxPODNRd3A2eGUzWFJmTFZYbUtFUTA4OVZCcjVyS2hrSEYxWklTY0RRV3RucGZzUnR2OU9sakpDaXRPS0ctTmJqaXc0WGxkdDFDT19FRTZQb05ZQ1dFWG11MlFTOUt0bXdMNndCcmUyUjQ4b1pEYjRBSmEtLWI0WFY1RWd0SmFvZkhKX2VOUlRBV3hFTTVVQzUxUlpfenE1MXRtZXBBQkhnT0V5bXc0aF9VTTBfTTR6R1cwamNSSUc2a3NpWVpfRWU3REhTWDIteHlQQmZCaUl3?oc=5
+
+Title: Sonic price prediction 2026, 2027, 2028-2032 - Cryptopolitan
+Snippet: Sonic price prediction 2026, 2027, 2028-2032&nbsp;&nbsp;Cryptopolitan...
+Link: https://news.google.com/rss/articles/CBMiZEFVX3lxTE4ydXBDUHRVUTl6TjZIWW9iVm1feFk5VXhScFpFTloxb1hvMHRERzh5UVBTb0p4SnFFekc4TzJyVWozaF9fbkJGQVlINjVoR2c0cFNNV2hNakRZLWtiZ1dpU1RMSks?oc=5
+
+Title: Bitcoin Price Forecast: SHIB to USD, SOL to USD, SONIC to USD - Markets.com
+Snippet: Bitcoin Price Forecast: SHIB to USD, SOL to USD, SONIC to USD&nbsp;&nbsp;Markets.com...
+Link: https://news.google.com/rss/articles/CBMilgFBVV95cUxPTEctcWVMNlVRZUlwVkpDVTcwVzN0bEZDTDI1dEdPTDlnUkw5djZ2X2Q5V0ZYb1loX05Ta0RPZDZZWlRmNUE2X3FqdXh5N2g5MWtaSWNpcDZVTHhUcGh1aTg0VTlzNFNqTG8tcTBxOEhIaDkxQVF1bDU0WEVRWGpHdHZQNm5LU1FVdnk0VnJqczFGcUNCZ1E?oc=5
+
+[A2Z-USD] Qty Owned: 13.0854 | Value: ₹0.28 | Price: 0.00022401552996598184 | Math Signal: HOLD
+Technicals -> RSI: None | MACD: None | TSL: None
+Fundamentals -> P/E: None | 52w High: 0
+News -> Title: Sabai Protocol Price Today | SABAI to USD Live Price, Market Cap & Chart - Binance
+Snippet: Sabai Protocol Price Today | SABAI to USD Live Price, Market Cap & Chart&nbsp;&nbsp;Binance...
+Link: https://news.google.com/rss/articles/CBMiW0FVX3lxTE9LUnZTekJvTFFpdmR2cU51Ykg3STJuRUdHZVVOelNoNW1iWTV0S0hySjk5bzBzdHlUTmlCZUNjd1ZaMlpRRHdBZWlLekEtWm0xQVpCdEFvRVBoM00?oc=5
+
+Title: Arena-Z price today, A2Z to USD live price, marketcap and chart - CoinMarketCap
+Snippet: Arena-Z price today, A2Z to USD live price, marketcap and chart&nbsp;&nbsp;CoinMarketCap...
+Link: https://news.google.com/rss/articles/CBMiWEFVX3lxTFByNjNBQWxoWjhTSWFjajUwZV95Z1I3THI0cUltTUY5QV9GMjBVc3czUDREOXQyMHZwYkVfVDVXYlg1Y3o3QXJWVHFqQ1dnb3huZHF5QUg3UFA?oc=5
+
+Title: A2Z Cust2Mate stock falls after Pelican issues short report - Investing.com
+Snippet: A2Z Cust2Mate stock falls after Pelican issues short report&nbsp;&nbsp;Investing.com...
+Link: https://news.google.com/rss/articles/CBMivgFBVV95cUxOR2VXUWhONVM4dUFIRl80aTc4R2tleFhPMTh2enQwTTZLdUhuZ1JSLUNVR0N0bjQteGRsQ3dHcEI2YWQ2dWduUl9IdUFVc3JKUlp2UEZBLVRWdlBlcldiMU1QMzJzdWFUU2hWeVB3VTVxemVwVnlvcFlLdXRhNVM0UVhUMzJ6eHk3RDZ3ZVJScVMyTXNxU1VXS1M1OF9IdWpha01VSXJNSWRMZGZGR3VqdUNZQWZyU0prNUp2dGZB?oc=5
+Historical Context: [+9.9% Impact] Arena-Z price today, A2Z to USD live price, marketcap and chart - CoinMarketCap | Arena-Z Price Today | A2Z to USD Live Price, Market Cap & Chart - Binance | A2Z Cust2Mate receives Nasdaq notification for delayed annual meeting By Investing.com - Investing.com Nigeria
+
+[SUI-USD] Qty Owned: 6.4154 | Value: ₹0.18 | Price: 0.000300194 | Math Signal: HOLD
+Technicals -> RSI: None | MACD: None | TSL: None
+Fundamentals -> P/E: None | 52w High: 0
+News -> Title: SUI Price Rebounds Above $1 as HashKey Enables Trading Support - Bitget
+Snippet: SUI Price Rebounds Above $1 as HashKey Enables Trading Support&nbsp;&nbsp;Bitget...
+Link: https://news.google.com/rss/articles/CBMiXkFVX3lxTE9jbDhIZGw4TXUzWFctN0h2RUQ0SEdNR0xjR2M3RVJMYTVyYnBLREkxSnl5S2VTZnI0TUpoVTl0cXBlUTljakltLTZEOTBpUzQzcHJCdDZsRmNHZ3BXN2fSAWNBVV95cUxOblpOVzF5NThvZHZmWDVrMzFuYklaX2g5TkU4cXp4SEdwSkpsRW5WNEpPZW8yNEN6TENKMlpxbVJxdlZQVy1IWXJoSnRZY1BrU1p4TVVlUDBEZlQtNHhzQ0ZwdFU?oc=5
+
+Title: Could the SUI Crypto Rally Push Toward $7 Soon? - TradingView
+Snippet: Could the SUI Crypto Rally Push Toward $7 Soon?&nbsp;&nbsp;TradingView...
+Link: https://news.google.com/rss/articles/CBMiqAFBVV95cUxNaExWd05NRmxYd3lYRU5Sc29DcUdfeS0yQ2lRZjJobTh2d1hTbXJLeWxkUW0yVThVQXZjYUs1bjd0Y1VrckpPeGx2Q0ZnY3BzanBQU1FFUFNaWlRHY1BJOG9oUlBmM2xBUVlHdjl5NnNpak1DMUg4Uy1YeUJfeXBNWm54WnFIamQzSFpUOURRWlI3LWd0eW81aU12UXBGYXlrdUtYNzJqbXI?oc=5
+
+Title: What is SUI crypto, and how do you trade it? - Capital.com
+Snippet: What is SUI crypto, and how do you trade it?&nbsp;&nbsp;Capital.com...
+Link: https://news.google.com/rss/articles/CBMiZ0FVX3lxTE9VMFY3WmMzZW1ZRmhzWXNPZkhIclFSZmYxWlI1TUZxek4tNktCNGtJQWlxSXVsbXlGVENvY1FqUE16VzJKMHZrcF80SGFQYXJ6Z3ZVaDFmQU5yNVhJT3libHByTUlha1k?oc=5
+
+[UNI-USD] Qty Owned: 9.9407 | Value: ₹0.15 | Price: 0.000162642 | Math Signal: HOLD
+Technicals -> RSI: None | MACD: None | TSL: None
+Fundamentals -> P/E: None | 52w High: 0
+News -> Title: Uniswap / BeBetter - TradingView
+Snippet: Uniswap / BeBetter&nbsp;&nbsp;TradingView...
+Link: https://news.google.com/rss/articles/CBMidkFVX3lxTE15Q1JyWGIzS20tc0Y0bGhjdnFxcmxkSnNHT29WaGg0LV9OVFFuYXZBb1F3Nm9MYklFLUlkZU9idUQ1M1dEUjFvdVJrc3BZMnNJSGkxWEpUREhlMjViekEyYVAySEdBNkg0SHdqSUFacms3MFB2amc?oc=5
+
+Title: Uniswap Price Prediction 2025–2030 | Future Forecast - Capital.com
+Snippet: Uniswap Price Prediction 2025–2030 | Future Forecast&nbsp;&nbsp;Capital.com...
+Link: https://news.google.com/rss/articles/CBMickFVX3lxTFA1cFRNNDVzUkNNX3NJSXBhcFBoU1VKaElCdlFvYVRUX3FBbWp3dlEzbXpKWHl4OTRKYzEyWU94UG5OQUVZX0QxaTYyVVdMTFo0d0QzQzA3M3ZvcVhKU2RCY3NGQXIwZXNYcmU3S09XZ3ByQQ?oc=5
+
+Title: Uniswap news: UNI Surges after voting opens on proposal to turn on protocol fees - CoinDesk
+Snippet: Uniswap news: UNI Surges after voting opens on proposal to turn on protocol fees&nbsp;&nbsp;CoinDesk...
+Link: https://news.google.com/rss/articles/CBMiuAFBVV95cUxNU19NY3V1aVVZNDBIUzhSZWdlMWZ3LXQ3dmNzR05qUHUzUUphUE5ETVpQOWZmNFRhaldWbEs5Zm5XeHVCNDM0X3BKakJTeUJjUzV4STh4N1VaMXlVLXZPWnVMSjlsbUZENlhIVHNnVDdXOUR0TDJlYmZXMzlENjg5UmdRX3lyWDROWUNSTjIyTzdlNHNtaFBCVVkwNWRxUzV0d0I4VFBNbWRUQkZaeWYta2g0UjNqWUFS?oc=5
+
+
+       Output Requirements:
+        Return ONLY a raw JSON payload with this strict schema:
+        {
+            "market_vibe": "2-sentence Global Market Pulse.",
+            "macro_analysis": "Deep analysis of sector contagion and macro impacts.",
+            "global_score": 0.5,
+            "confidence_score": 0.85,
+            "future_projections": {
+                "estimated_30d_trend": "Bullish / Bearish / Sideways / Volatile",
+                "portfolio_risk_level": "High / Medium / Low",
+                "catalyst_watch": "Specific upcoming global event to watch."
+            },
+            "directives":[
+                {
+                    "symbol": "TICKER",
+                    "action": "BUY | SELL | HOLD | AVG DOWN | TAKE PARTIAL PROFIT",
+                    "position_sizing": "Exact explicit instructions based on Qty Owned.",
+                    "conviction_level": 5, 
+                    "risk_reward_ratio": "1:3",
+                    "time_horizon": "Short-Term | Medium-Term | Long-Term",
+                    "technical_analysis": "Explicit RSI, MACD, and BB status.",
+                    "fundamental_analysis": "Explicit P/E, 52w distance, and functional health.",
+                    "news_sentiment": {
+                        "bias": "Bullish | Bearish | Neutral",
+                        "confidence": 95,
+                        "impact_summary": "How this specific news moves the asset."
+                    },
+                    "the_why": "High-conviction paragraph justifying the action."
+                }
+            ],
+            "skipped_assets_summary": "List tickers skipped and why."
+        }
+        
+2026-03-29 05:19:10 | INFO | AFC is enabled with max remote calls: 10.
+2026-03-29 05:19:41 | INFO | HTTP Request: POST https://generativelanguage.googleapis.com/v1beta/models/gemini-3.1-flash-lite-preview:generateContent "HTTP/1.1 200 OK"
+2026-03-29 05:19:41 | INFO | ✅ Institutional AI Strategy Received.
+2026-03-29 05:19:41 | INFO | 📝 PAPER TRADE: SOLD HDFCBANK.NS @ ₹756.20 | PnL: +1.89%
+2026-03-29 05:19:41 | INFO | ✅ Daily Cloud Report Sent to Telegram.
