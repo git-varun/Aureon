@@ -1,0 +1,60 @@
+# Dependencies
+venv/
+node_modules/
+frontend/node_modules/
+
+# Build & Caches
+__pycache__/
+.pytest_cache/
+dist/
+build/
+*.egg-info/
+.next/
+frontend/dist/
+
+# Data & Databases
+data/
+*.db
+*.db-shm
+*.db-wal
+*.json
+!config.py
+
+# Logs & Artifacts
+*.log
+*.pyc
+*.pyo
+*.pyd
+.coverage
+htmlcov/
+
+# IDE & Git
+.idea/
+.vscode/
+.git/
+.github/
+*.swp
+*.swo
+
+# Frontend
+frontend/node_modules/
+frontend/package-lock.json
+frontend/public/
+frontend/README.md
+frontend/vite.config.js
+frontend/eslint.config.js
+frontend/index.html
+
+# Secrets & Local Config
+.env
+.env.local
+.enc_key
+
+# Lock Files
+package-lock.json
+yarn.lock
+poetry.lock
+
+# OS
+.DS_Store
+Thumbs.db
