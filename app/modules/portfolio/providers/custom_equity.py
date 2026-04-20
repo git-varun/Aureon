@@ -2,9 +2,9 @@
 
 import json
 import logging
-import os
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List
 
+from app.modules.portfolio.providers.credential_manager import CredentialManager
 from app.shared.interfaces import AssetPayload, AssetSource
 
 
@@ -13,16 +13,10 @@ class CustomEquitySync(AssetSource):
 
     def __init__(self, cred_manager=None):
         self.logger = logging.getLogger("CustomEquity")
-        self.cred_manager = cred_manager
-
-        # Fetch credentials
-        if cred_manager:
-            json_payload, file_path = cred_manager.get_custom_equity_credentials()
-            self.json_payload = (json_payload or "").strip()
-            self.file_path = (file_path or "").strip()
-        else:
-            self.json_payload = os.getenv("CUSTOM_EQUITY_HOLDINGS_JSON", "").strip()
-            self.file_path = os.getenv("CUSTOM_EQUITY_HOLDINGS_FILE", "").strip()
+        cred_manager = cred_manager or CredentialManager()
+        json_payload, file_path = cred_manager.get_custom_equity_credentials()
+        self.json_payload = (json_payload or "").strip()
+        self.file_path = (file_path or "").strip()
 
     @property
     def provider_name(self) -> str:

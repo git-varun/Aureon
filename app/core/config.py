@@ -38,20 +38,25 @@ class Settings(BaseSettings):
 
     # External APIs
     gemini_api_key: str = ""
+    groq_api_key: str = ""
+
     telegram_bot_token: str = ""
     telegram_chat_id: str = ""
+
     binance_api_key: str = ""
     binance_api_secret: str = ""
+
     coinbase_api_key: str = ""
     coinbase_api_secret: str = ""
     coinbase_passphrase: str = ""
+
     zerodha_api_key: str = ""
     zerodha_api_secret: str = ""
     zerodha_access_token: str = ""
+
     groww_api_key: str = ""
     groww_api_secret: str = ""
-    groww_email: str = ""
-    groww_password: str = ""
+
     custom_equity_holdings_json: str = ""
     custom_equity_holdings_file: str = ""
 

@@ -3,14 +3,13 @@
 import base64
 import hashlib
 import hmac
-import json
 import logging
 import time
 from typing import Any, Dict, List
 
 import requests
 
-from app.core.config import settings
+from app.modules.portfolio.providers.credential_manager import CredentialManager
 from app.shared.interfaces import AssetPayload, AssetSource
 
 
@@ -19,15 +18,8 @@ class CoinbaseSync(AssetSource):
 
     def __init__(self, cred_manager=None):
         self.logger = logging.getLogger("Coinbase")
-        self.cred_manager = cred_manager
-
-        # Fetch credentials
-        if cred_manager:
-            self.api_key, self.api_secret, self.passphrase = cred_manager.get_coinbase_credentials()
-        else:
-            self.api_key = settings.coinbase_api_key
-            self.api_secret = settings.coinbase_api_secret
-            self.passphrase = settings.coinbase_passphrase
+        cred_manager = cred_manager or CredentialManager()
+        self.api_key, self.api_secret, self.passphrase = cred_manager.get_coinbase_credentials()
 
         self.session = requests.Session()
         self.session.headers.update({"Content-Type": "application/json"})

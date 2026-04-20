@@ -13,12 +13,25 @@ logger = logging.getLogger("config.service")
 # ── Default seed data ────────────────────────────────────────────────────────
 
 _DEFAULT_PROVIDERS = [
-    {"provider_name": "zerodha",  "provider_type": "broker",       "key_names": '["api_key","access_token"]'},
-    {"provider_name": "groww",    "provider_type": "broker",       "key_names": '["api_key","api_secret"]'},
-    {"provider_name": "binance",  "provider_type": "broker",       "key_names": '["api_key","api_secret"]'},
-    {"provider_name": "coinbase", "provider_type": "broker",       "key_names": '["api_key","api_secret","api_passphrase"]'},
-    {"provider_name": "custom_equity", "provider_type": "broker",  "key_names": '["holdings_json"]'},
-    {"provider_name": "gemini",   "provider_type": "ai",           "key_names": '["api_key"]'},
+    # Brokers
+    {"provider_name": "zerodha", "provider_type": "broker",
+     "key_names": '["api_key","api_secret","access_token","request_token"]'},
+    {"provider_name": "groww", "provider_type": "broker", "key_names": '["api_key","api_secret"]'},
+    {"provider_name": "binance", "provider_type": "broker", "key_names": '["api_key","api_secret"]'},
+    {"provider_name": "coinbase", "provider_type": "broker", "key_names": '["api_key","api_secret","api_passphrase"]'},
+    {"provider_name": "custom_equity", "provider_type": "broker", "key_names": '["holdings_json"]'},
+    # AI
+    {"provider_name": "gemini", "provider_type": "ai", "key_names": '["api_key"]'},
+    {"provider_name": "groq", "provider_type": "ai", "key_names": '["api_key"]'},
+    # News
+    {"provider_name": "rss", "provider_type": "news", "key_names": '[]'},
+    {"provider_name": "finnhub", "provider_type": "news", "key_names": '["api_key"]'},
+    {"provider_name": "newsapi", "provider_type": "news", "key_names": '["api_key"]'},
+    {"provider_name": "alphavantage", "provider_type": "news", "key_names": '["api_key"]'},
+    # Price
+    {"provider_name": "coingecko", "provider_type": "price", "key_names": '["api_key"]'},
+    {"provider_name": "coinmarketcap", "provider_type": "price", "key_names": '["api_key"]'},
+    # Notification
     {"provider_name": "telegram", "provider_type": "notification", "key_names": '["bot_token","chat_id"]'},
 ]
 
@@ -132,6 +145,11 @@ class ConfigService:
     def get_provider_dict(self, provider_name: str) -> Optional[dict]:
         p = self.get_provider(provider_name)
         return self._provider_to_dict(p) if p else None
+
+    def get_providers_by_type(self, provider_type: str) -> List[dict]:
+        """Return all providers of a given type (e.g. 'news', 'price', 'ai')."""
+        providers = self.db.query(ProviderConfig).filter_by(provider_type=provider_type).all()
+        return [self._provider_to_dict(p) for p in providers]
 
     def get_decrypted_key(self, provider_name: str, key_name: str) -> Optional[str]:
         """Internal use only — returns decrypted key value."""

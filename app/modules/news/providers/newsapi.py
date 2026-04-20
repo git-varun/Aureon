@@ -6,8 +6,8 @@ from typing import List
 import requests
 
 from app.modules.news.providers.base import BaseNewsProvider
+from app.modules.portfolio.providers.credential_manager import CredentialManager
 from app.shared.interfaces import NewsPayload
-from app.core.config import settings
 
 logger = logging.getLogger(__name__)
 
@@ -19,8 +19,9 @@ class NewsAPIProvider(BaseNewsProvider):
     def provider_name(self) -> str:
         return "newsapi"
 
-    def __init__(self):
-        self.api_key = settings.newsapi_api_key
+    def __init__(self, cred_manager=None):
+        cred_manager = cred_manager or CredentialManager()
+        self.api_key = cred_manager.get_newsapi_key()
         self.base_url = "https://newsapi.org/v2"
 
     def fetch_headlines(self, symbol: str) -> List[NewsPayload]:

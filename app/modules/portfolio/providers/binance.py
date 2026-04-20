@@ -1,14 +1,15 @@
-import time
-import hmac
 import hashlib
+import hmac
 import logging
-import requests
+import time
+from typing import Dict, List
 from urllib.parse import urlencode
-from typing import Dict, List, Optional
 
-from app.shared.interfaces import AssetSource, AssetPayload
-from app.core.config import settings
+import requests
 from pydantic import ValidationError
+
+from app.modules.portfolio.providers.credential_manager import CredentialManager
+from app.shared.interfaces import AssetPayload, AssetSource
 
 
 class BinanceIntelligenceClient(AssetSource):
@@ -18,14 +19,8 @@ class BinanceIntelligenceClient(AssetSource):
 
     def __init__(self, cred_manager=None):
         self.logger = logging.getLogger("BinanceREST")
-        self.cred_manager = cred_manager
-
-        # Fetch credentials
-        if cred_manager:
-            self.api_key, self.api_secret = cred_manager.get_binance_credentials()
-        else:
-            self.api_key = settings.binance_api_key
-            self.api_secret = settings.binance_api_secret
+        cred_manager = cred_manager or CredentialManager()
+        self.api_key, self.api_secret = cred_manager.get_binance_credentials()
 
         self.session = requests.Session()
         self.session.headers.update({"X-MBX-APIKEY": self.api_key or "", "Content-Type": "application/json"})
