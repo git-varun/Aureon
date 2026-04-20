@@ -6,7 +6,7 @@ import uuid
 from contextlib import asynccontextmanager
 from pathlib import Path
 
-from fastapi import FastAPI, Request
+from fastapi import Depends, FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 
@@ -20,16 +20,15 @@ from app.core.logger import correlation_id_var, setup_master_logger
 from app.modules.analytics.routes import router as analytics_router
 from app.modules.assets.routes import router as assets_router
 from app.modules.auth.routes import router as auth_router
-from app.modules.backtesting.routes import router as backtesting_router
 from app.modules.config.routes import router as config_router
 from app.modules.news.routes import router as news_router
 from app.modules.notification.routes import router as notification_router
 from app.modules.pipeline.routes import router as pipeline_router
 from app.modules.portfolio.routes import router as portfolio_router
 from app.modules.signals.routes import router as signals_router
-from app.modules.transactions.routes import router as transactions_router
 from app.modules.users.routes import router as users_router
 from app.shared.exceptions import AppException
+from app.core.dependencies import require_auth, get_current_user
 
 setup_master_logger()
 logger = logging.getLogger("app")
@@ -38,13 +37,11 @@ logger = logging.getLogger("app")
 def register_models() -> None:
     """Import all models so SQLAlchemy metadata includes every table exactly once."""
     from app.modules.analytics import models as _analytics  # noqa: F401
-    from app.modules.backtesting import models as _backtesting  # noqa: F401
     from app.modules.config import models as _config  # noqa: F401
     from app.modules.news import models as _news  # noqa: F401
     from app.modules.notification import models as _notification  # noqa: F401
     from app.modules.portfolio import models as _portfolio  # noqa: F401
     from app.modules.signals import models as _signals  # noqa: F401
-    from app.modules.transactions import models as _transactions  # noqa: F401
     from app.modules.users import models as _users  # noqa: F401
     # auth/models imports User from users — no separate import needed
 
@@ -112,10 +109,8 @@ def create_app() -> FastAPI:
     app.include_router(auth_router)
     app.include_router(users_router)
     app.include_router(assets_router)
-    app.include_router(transactions_router)
     app.include_router(analytics_router)
     app.include_router(news_router)
-    app.include_router(backtesting_router)
     app.include_router(pipeline_router)
     app.include_router(notification_router)
     app.include_router(config_router)   # DB-backed profile, providers, jobs
@@ -125,80 +120,12 @@ def create_app() -> FastAPI:
     async def health_check():
         return {"status": "healthy", "version": settings.api_version}
 
-    # ── Frontend URL aliases ──────────────────────────────────────────────
-    # Short paths the frontend was built against. Canonical routes live in
-    # the module routers; only aliases not covered by an existing router
-    # are kept here.
-    #
-    # Removed aliases (use the canonical endpoints instead):
-    #   POST /api/price      → POST /api/assets/price
-    #   GET  /api/chart/{s}  → GET  /api/assets/{symbol}/chart
-
-    @app.post("/api/sync")
-    def sync_alias(broker: str = "binance", force_refresh: bool = True, dry_run: bool = False):
-        logger.info(
-            "sync_alias called broker=%s force_refresh=%s dry_run=%s (deprecated; prefer /api/portfolio/sync)",
-            broker,
-            force_refresh,
-            dry_run,
-        )
-        from app.tasks.portfolio import sync_portfolio_task
-        task = sync_portfolio_task.delay(broker=broker, force_refresh=force_refresh, dry_run=dry_run)
-        return {
-            "status": "enqueued",
-            "task_id": task.id,
-            "broker": broker,
-            "force_refresh": force_refresh,
-            "dry_run": dry_run,
-            "deprecated": True,
-            "canonical_endpoint": "/api/portfolio/sync",
-        }
-
-    # AI route aliases (frontend uses /api/ai/*, routes live at /api/analytics/ai/*)
-    @app.post("/api/ai/global")
-    def ai_global_alias():
-        from app.core.cache import cache
-        from app.shared.utils import cache_key
-        cached = cache.get(cache_key("ai", "briefing"))
-        if cached:
-            return {"status": "cached", "data": cached}
-        from app.tasks.ai import global_briefing_task
-        task = global_briefing_task.delay()
-        return {"status": "processing", "task_id": task.id}
-
-    @app.post("/api/ai/single/{symbol}")
-    def ai_single_alias(symbol: str):
-        from app.core.cache import cache
-        from app.shared.utils import cache_key
-        cached = cache.get(cache_key("ai", "single", symbol))
-        if cached:
-            return {"status": "cached", "data": cached}
-        from app.tasks.ai import single_asset_briefing_task
-        task = single_asset_briefing_task.delay(symbol=symbol)
-        return {"status": "processing", "task_id": task.id}
-
-    @app.post("/api/ai/news/batch")
-    def ai_news_batch_alias():
-        from app.tasks.ai import news_sentiment_task
-        task = news_sentiment_task.delay()
-        return {"status": "enqueued", "task_id": task.id}
-
-    @app.post("/api/sync/hard-refresh")
-    def hard_refresh_alias():
-        from app.tasks.portfolio import refresh_prices_task, sync_portfolio_task
-        tasks = [sync_portfolio_task.delay(broker=b) for b in ["zerodha", "groww", "binance"]]
-        price_task = refresh_prices_task.delay()
-        return {
-            "status": "enqueued",
-            "sync_task_ids": [t.id for t in tasks],
-            "price_task_id": price_task.id,
-        }
 
     # ── /api/state — composite portfolio view ─────────────────────────────
     @app.get("/api/state")
-    def get_state():
+    def get_state(_user=Depends(get_current_user)):
         import json
-        from datetime import datetime, timedelta
+        from datetime import datetime, timedelta, timezone
         from app.core.cache import cache
         from app.core.db import SessionLocal
         from app.shared.utils import cache_key as ck
@@ -305,7 +232,7 @@ def create_app() -> FastAPI:
                 pass
 
             # ── Price history for ATR% + Fibonacci (one batched query) ───
-            cutoff_120 = datetime.utcnow() - timedelta(days=120)
+            cutoff_120 = datetime.now(timezone.utc) - timedelta(days=120)
             prices_by_asset_id: dict = {}
             if asset_ids:
                 for p in (

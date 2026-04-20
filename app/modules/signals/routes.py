@@ -15,7 +15,7 @@ from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy.orm import Session
 from celery.result import AsyncResult
 
-from app.core.dependencies import get_session
+from app.core.dependencies import get_session, require_auth
 from app.modules.signals.services import SignalService
 from app.modules.signals.schemas import SignalResponse, GenerateSignalsRequest
 from app.tasks.signals import generate_signals_task, generate_signal_for_symbol_task
@@ -24,7 +24,7 @@ router = APIRouter(prefix="/api/signals", tags=["signals"])
 
 
 @router.get("/{symbol}", response_model=Optional[SignalResponse])
-def get_signal(symbol: str, session: Session = Depends(get_session)):
+def get_signal(symbol: str, session: Session = Depends(get_session), _user=Depends(require_auth)):
     """Get the latest signal for an asset.
 
     Returns the most recent composite signal generated for the symbol.
@@ -51,7 +51,8 @@ def get_signal(symbol: str, session: Session = Depends(get_session)):
 @router.get("", response_model=List[SignalResponse])
 def list_signals(
     limit: int = Query(10, ge=1, le=100),
-    session: Session = Depends(get_session)
+        session: Session = Depends(get_session),
+        _user=Depends(require_auth)
 ):
     """List the most recent signals.
 
@@ -86,7 +87,8 @@ def list_signals(
 @router.post("/generate")
 def generate_signals(
     req: GenerateSignalsRequest,
-    session: Session = Depends(get_session)
+        session: Session = Depends(get_session),
+        _user=Depends(require_auth)
 ):
     """Enqueue signal generation for specified symbols.
 
@@ -119,7 +121,8 @@ def generate_signals(
 def generate_signal_for_symbol(
     symbol: str,
     asset_type: str = Query("equity", pattern="^(equity|crypto)$"),
-    session: Session = Depends(get_session)
+        session: Session = Depends(get_session),
+        _user=Depends(require_auth)
 ):
     """Generate a signal for a specific symbol.
 
@@ -143,7 +146,7 @@ def generate_signal_for_symbol(
 
 
 @router.get("/generate/{task_id}")
-def get_signal_generation_status(task_id: str):
+def get_signal_generation_status(task_id: str, _user=Depends(require_auth)):
     """Check the status of an async signal generation task.
 
     Args:

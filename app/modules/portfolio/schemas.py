@@ -3,7 +3,7 @@
 from datetime import datetime
 from typing import Literal, Optional, List
 
-from pydantic import BaseModel
+from pydantic import BaseModel, ConfigDict
 
 from app.shared.constants import AssetType, TransactionType
 
@@ -31,8 +31,7 @@ class AssetResponse(AssetBase):
     market_cap: Optional[float] = None
     created_at: datetime
 
-    class Config:
-        from_attributes = True
+    model_config = ConfigDict(from_attributes=True)
 
 
 class PositionBase(BaseModel):
@@ -60,8 +59,7 @@ class PositionResponse(PositionBase):
     asset: AssetResponse
     created_at: datetime
 
-    class Config:
-        from_attributes = True
+    model_config = ConfigDict(from_attributes=True)
 
 
 class PortfolioSyncRequest(BaseModel):
@@ -83,14 +81,6 @@ class PortfolioResponse(BaseModel):
     positions: List[PositionResponse]
 
 
-class PriceHistoryResponse(BaseModel):
-    """Historical price data."""
-
-    symbol: str
-    date: datetime
-    close: float
-    volume: Optional[float] = None
-
 
 class TransactionResponse(BaseModel):
     """Transaction response."""
@@ -104,5 +94,4 @@ class TransactionResponse(BaseModel):
     transaction_date: datetime
     broker: Optional[str] = None
 
-    class Config:
-        from_attributes = True
+    model_config = ConfigDict(from_attributes=True)

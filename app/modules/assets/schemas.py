@@ -3,7 +3,7 @@
 from datetime import datetime
 from typing import List, Optional
 
-from pydantic import BaseModel
+from pydantic import BaseModel, ConfigDict
 
 
 class AssetResponse(BaseModel):
@@ -19,8 +19,7 @@ class AssetResponse(BaseModel):
     market_cap: Optional[float] = None
     updated_at: Optional[datetime] = None
 
-    class Config:
-        from_attributes = True
+    model_config = ConfigDict(from_attributes=True)
 
 
 class AssetDetailResponse(AssetResponse):
@@ -48,8 +47,7 @@ class PriceHistoryEntry(BaseModel):
     close: float
     volume: Optional[float] = None
 
-    class Config:
-        from_attributes = True
+    model_config = ConfigDict(from_attributes=True)
 
 
 class ChartCandleResponse(BaseModel):

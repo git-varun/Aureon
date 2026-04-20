@@ -1,7 +1,7 @@
 """News services: multi-provider orchestration and DB persistence."""
 
 import logging
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import Dict, List
 
 from sqlalchemy.orm import Session
@@ -107,7 +107,7 @@ class NewsService:
                 url=url,
                 summary=payload.snippet,
                 symbols=symbol,
-                published_at=datetime.utcnow(),
+                published_at=datetime.now(timezone.utc),
             )
             db.add(article)
             new_count += 1
@@ -144,7 +144,7 @@ class NewsService:
 
         return new_count
 
-    def get_recent_news(self, symbol: str, db: Session, limit: int = 10) -> List[News]:
+    def get_recent_news(self, symbol: str, db: Session, limit: int = 10) -> List[type[News]]:
         """Return recent News ORM objects for *symbol*, newest first."""
         logger.debug("get_recent_news: symbol=%s limit=%d", symbol, limit)
         rows = (

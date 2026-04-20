@@ -1,8 +1,10 @@
 import React, { useEffect, useState, useMemo } from 'react';
-import { BrainCircuit, LayoutDashboard, LineChart, Newspaper, Wallet, Activity, Settings } from 'lucide-react';
+import {BrainCircuit, LayoutDashboard, LineChart, Newspaper, Wallet, Activity, Settings, LogOut} from 'lucide-react';
 import { toast, Toaster } from 'react-hot-toast';
 import { apiService } from './api/apiService';
 
+import SignIn from './components/SignIn';
+import Logout from './components/Logout';
 import MacroHUD from './components/MacroHUD';
 import Terminal from './components/Terminal';
 import Ledger from './components/Ledger';
@@ -10,9 +12,12 @@ import Analytics from './components/Analytics';
 import GlobalAI from './components/GlobalAI';
 import NewsFeed from './components/NewsFeed';
 import GlobalProcessingModal from './components/GlobalProcessingModal';
-import Profile from './components/Profile';
+import Profile from './components/Profile/index';
 
 export default function App() {
+    const [isAuthenticated, setIsAuthenticated] = useState(false);
+    const [logoutDialogOpen, setLogoutDialogOpen] = useState(false);
+
     const [state, setState] = useState(null);
     const [selectedSymbol, setSelectedSymbol] = useState('');
     const [activePage, setActivePage] = useState('terminal');
@@ -24,8 +29,31 @@ export default function App() {
     const [showLeft, setShowLeft] = useState(true);
     const [showRight, setShowRight] = useState(true);
 
+    // ⌨️ CHECK AUTHENTICATION ON MOUNT
+    useEffect(() => {
+        const token = localStorage.getItem('access_token');
+        if (token) {
+            setIsAuthenticated(true);
+        }
+        const handleAuthLogout = () => {
+            setIsAuthenticated(false);
+            toast.error('Session expired. Please sign in again.');
+        };
+        window.addEventListener('auth:logout', handleAuthLogout);
+        return () => window.removeEventListener('auth:logout', handleAuthLogout);
+    }, []);
+
+    // ⌨️ LOAD STATE WHEN AUTHENTICATED
+    useEffect(() => {
+        if (isAuthenticated) {
+            loadState();
+        }
+    }, [isAuthenticated]);
+
     // ⌨️ SWING TRADER HOTKEYS: Fast Page Switching
     useEffect(() => {
+        if (!isAuthenticated) return;
+
         const handleKeyDown = (e) => {
             if (e.altKey) {
                 switch (e.key) {
@@ -41,11 +69,7 @@ export default function App() {
         };
         window.addEventListener('keydown', handleKeyDown);
         return () => window.removeEventListener('keydown', handleKeyDown);
-    }, []);
-
-    useEffect(() => {
-        loadState();
-    }, []);
+    }, [isAuthenticated]);
 
     const loadState = async () => {
         try {
@@ -76,8 +100,15 @@ export default function App() {
             }
         } catch (err) {
             console.error("State reconciliation failed:", err);
-            toast.error("Failed to connect to Python Backend.");
-            setState(prev => prev || { error: true }); // Keep previous state if possible, else empty
+            if (err.response?.status === 401) {
+                setIsAuthenticated(false);
+                localStorage.removeItem('access_token');
+                localStorage.removeItem('refresh_token');
+                toast.error("Session expired. Please sign in again.");
+            } else {
+                toast.error("Failed to connect to Python Backend.");
+            }
+            setState(prev => prev || {error: true});
         }
     };
 
@@ -103,12 +134,56 @@ export default function App() {
         }
     };
 
+    // Handle logout
+    const handleLogout = () => {
+        setIsAuthenticated(false);
+        setState(null);
+        setActivePage('terminal');
+    };
+
     // Derived Metrics for Swing Trader Footer
     const activePositions = useMemo(() => {
         return state?.assets?.filter(a => Math.abs(a.qty) > 0.0001).length || 0;
     }, [state]);
 
-    if (!state) return <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', height: '100vh', backgroundColor: '#0B0E14', color: '#787B86' }}>Booting OS...</div>;
+    // 🔐 NOT AUTHENTICATED - SHOW LOGIN
+    if (!isAuthenticated) {
+        return (
+            <>
+                <Toaster
+                    position="top-right"
+                    toastOptions={{
+                        style: {
+                            background: '#1e293b',
+                            color: '#f8fafc',
+                            border: '1px solid #334155',
+                            fontSize: '13px',
+                            fontWeight: '500'
+                        },
+                        success: {iconTheme: {primary: '#089981', secondary: '#fff'}},
+                        error: {iconTheme: {primary: '#F23645', secondary: '#fff'}}
+                    }}
+                />
+                <SignIn onLogin={() => setIsAuthenticated(true)}/>
+            </>
+        );
+    }
+
+    if (!state) {
+        return (
+            <div style={{
+                display: 'flex',
+                justifyContent: 'center',
+                alignItems: 'center',
+                height: '100vh',
+                backgroundColor: '#0B0E14',
+                color: '#787B86',
+                fontSize: '14px'
+            }}>
+                Initializing Investment OS...
+            </div>
+        );
+    }
 
     const navBtnStyle = (page) => ({
         width: '100%', padding: '20px 0', backgroundColor: 'transparent', border: 'none',
@@ -121,6 +196,7 @@ export default function App() {
         <div style={{ display: 'flex', height: '100vh', backgroundColor: '#0B0E14', color: '#D1D4DC', fontFamily: '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif' }}>
 
             <GlobalProcessingModal isOpen={modalOpen} taskName={modalTask} />
+            <Logout isOpen={logoutDialogOpen} onClose={() => setLogoutDialogOpen(false)} onLogout={handleLogout}/>
 
             {/* 🚀 RESTORED HIGH-CONTRAST TOASTER */}
             <Toaster
@@ -142,6 +218,17 @@ export default function App() {
                 <button style={navBtnStyle('news')} onClick={() => setActivePage('news')} title="News Squawk (Alt+5)"><Newspaper size={22} /></button>
                 <div style={{ flex: 1 }} />
                 <button style={{ ...navBtnStyle('profile'), marginBottom: '10px' }} onClick={() => setActivePage('profile')} title="Control Center (Alt+6)"><Settings size={22} /></button>
+                <button
+                    style={{
+                        ...navBtnStyle('logout'),
+                        color: '#F23645',
+                        marginBottom: '10px'
+                    }}
+                    onClick={() => setLogoutDialogOpen(true)}
+                    title="Sign Out"
+                >
+                    <LogOut size={22}/>
+                </button>
             </div>
 
             {/* MAIN CONTENT AREA */}

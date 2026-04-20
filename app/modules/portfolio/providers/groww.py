@@ -10,10 +10,17 @@ from app.core.config import settings
 
 
 class GrowwSync(AssetSource):
-    def __init__(self):
+    def __init__(self, cred_manager=None):
         self.logger = logging.getLogger("Groww")
-        self.api_key = settings.groww_api_key
-        self.api_secret = settings.groww_api_secret
+        self.cred_manager = cred_manager
+
+        # Fetch credentials
+        if cred_manager:
+            self.api_key, self.api_secret = cred_manager.get_groww_credentials()
+        else:
+            self.api_key = settings.groww_api_key
+            self.api_secret = settings.groww_api_secret
+
         self.api = None
         self._authenticate()
 

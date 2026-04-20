@@ -1,6 +1,6 @@
 """FastAPI dependency injection factories."""
 
-from typing import Optional
+from typing import Any, Generator, Optional
 
 from fastapi import Depends, HTTPException, status
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
@@ -12,7 +12,7 @@ from app.core.cache import get_cache as _get_cache
 _bearer = HTTPBearer(auto_error=False)
 
 
-def get_session() -> Session:
+def get_session() -> Generator[Any, None, None]:
     """Dependency: get DB session."""
     yield from _get_session()
 

@@ -40,13 +40,17 @@ def _price_history(close=100.0):
 def client():
     from fastapi import FastAPI
     from app.modules.assets.routes import router
-    from app.core.dependencies import get_session
+    from app.core.dependencies import get_session, require_auth
     from unittest.mock import MagicMock
 
     test_app = FastAPI()
     test_app.include_router(router)
     # Override DB session with a no-op mock (routes mock AssetsService anyway)
     test_app.dependency_overrides[get_session] = lambda: MagicMock()
+    # Override auth to return a mock user
+    mock_user = MagicMock()
+    mock_user.id = 1
+    test_app.dependency_overrides[require_auth] = lambda: mock_user
     return TestClient(test_app)
 
 

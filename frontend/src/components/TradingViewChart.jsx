@@ -88,7 +88,9 @@ function InternalEquityChart({ symbol }) {
             priceFormat: { type: 'volume' }, priceScaleId: '', scaleMargins: { top: 0.8, bottom: 0 }
         });
         volumeSeries.setData(data.map(d => ({
-            time: d.time, value: d.value, color: d.close >= d.open ? 'rgba(8, 153, 129, 0.4)' : 'rgba(242, 54, 69, 0.4)'
+            time: d.time,
+            value: d.volume,
+            color: d.close >= d.open ? 'rgba(8, 153, 129, 0.4)' : 'rgba(242, 54, 69, 0.4)'
         })));
 
         // Algos

@@ -1,7 +1,5 @@
-import React, { useEffect, useState, useCallback } from 'react';
-import { User, Plug, Clock, Play, CheckCircle, XCircle, Loader, Save, RefreshCw } from 'lucide-react';
-import { toast } from 'react-hot-toast';
-import { apiService } from '../api/apiService';
+// This file is now a re-export from the new Profile directory structure
+export {default} from './Profile';
 
 // ─────────────────────────────────────────────────────────────────────────────
 // HELPERS

@@ -17,11 +17,18 @@ from app.shared.interfaces import AssetPayload, AssetSource
 class CoinbaseSync(AssetSource):
     """Fetch crypto holdings from Coinbase Pro / Coinbase Exchange API."""
 
-    def __init__(self):
+    def __init__(self, cred_manager=None):
         self.logger = logging.getLogger("Coinbase")
-        self.api_key = settings.coinbase_api_key
-        self.api_secret = settings.coinbase_api_secret
-        self.passphrase = settings.coinbase_passphrase
+        self.cred_manager = cred_manager
+
+        # Fetch credentials
+        if cred_manager:
+            self.api_key, self.api_secret, self.passphrase = cred_manager.get_coinbase_credentials()
+        else:
+            self.api_key = settings.coinbase_api_key
+            self.api_secret = settings.coinbase_api_secret
+            self.passphrase = settings.coinbase_passphrase
+
         self.session = requests.Session()
         self.session.headers.update({"Content-Type": "application/json"})
         self.base_url = "https://api.pro.coinbase.com"

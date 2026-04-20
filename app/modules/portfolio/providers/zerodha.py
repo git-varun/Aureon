@@ -57,11 +57,20 @@ class _Creds:
 
     __slots__ = ("api_key", "api_secret", "access_token", "request_token")
 
-    def __init__(self):
-        self.api_key = _read_cred(settings.zerodha_api_key)
-        self.api_secret = _read_cred(settings.zerodha_api_secret)
-        self.access_token = _read_cred(settings.zerodha_access_token)
-        self.request_token = _read_cred(os.getenv("ZERODHA_REQUEST_TOKEN"))
+    def __init__(self, cred_manager=None):
+        if cred_manager:
+            # Fetch from credential manager (database or env)
+            api_key, api_secret, access_token, request_token = cred_manager.get_zerodha_credentials()
+            self.api_key = _read_cred(api_key)
+            self.api_secret = _read_cred(api_secret)
+            self.access_token = _read_cred(access_token)
+            self.request_token = _read_cred(request_token)
+        else:
+            # Original behavior: read from settings and env
+            self.api_key = _read_cred(settings.zerodha_api_key)
+            self.api_secret = _read_cred(settings.zerodha_api_secret)
+            self.access_token = _read_cred(settings.zerodha_access_token)
+            self.request_token = _read_cred(os.getenv("ZERODHA_REQUEST_TOKEN"))
 
     @property
     def has_static_creds(self) -> bool:
@@ -85,8 +94,9 @@ class _Creds:
 
 
 class ZerodhaSync(AssetSource):
-    def __init__(self):
+    def __init__(self, cred_manager=None):
         self.logger = logging.getLogger("Zerodha")
+        self.cred_manager = cred_manager
         self._kite = None
         self._authenticate()
 
@@ -96,12 +106,13 @@ class ZerodhaSync(AssetSource):
 
     @property
     def login_url(self) -> str:
-        api_key = _read_cred(settings.zerodha_api_key)
+        creds = _Creds(self.cred_manager)
+        api_key = creds.api_key
         return f"{_KITE_LOGIN_BASE}&api_key={api_key}" if api_key else ""
 
     def validate_credentials(self) -> None:
         """Raise ValueError listing every missing or invalid Zerodha credential."""
-        creds = _Creds()
+        creds = _Creds(self.cred_manager)
         missing: List[str] = []
 
         # Static platform credentials — must always be present in .env
@@ -132,7 +143,7 @@ class ZerodhaSync(AssetSource):
             )
 
     def _authenticate(self) -> None:
-        creds = _Creds()
+        creds = _Creds(self.cred_manager)
 
         if not creds.is_configured:
             # Silently skip — validate_credentials() called by the Celery task will

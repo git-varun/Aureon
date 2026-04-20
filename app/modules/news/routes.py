@@ -5,7 +5,7 @@ from typing import Any, Dict, List
 from fastapi import APIRouter, Depends
 from sqlalchemy.orm import Session
 
-from app.core.dependencies import get_session
+from app.core.dependencies import get_session, require_auth
 from app.modules.news.services import NewsService
 
 router = APIRouter(prefix="/api/news", tags=["news"])
@@ -20,7 +20,7 @@ def news_health():
 
 
 @router.get("")
-def get_all_news(db: Session = Depends(get_session)) -> Dict[str, Any]:
+def get_all_news(db: Session = Depends(get_session), _user=Depends(require_auth)) -> Dict[str, Any]:
     """
     Return latest news articles grouped by symbol.
 
@@ -31,7 +31,7 @@ def get_all_news(db: Session = Depends(get_session)) -> Dict[str, Any]:
 
 @router.get("/{symbol}")
 def get_news_for_symbol(
-    symbol: str, db: Session = Depends(get_session)
+        symbol: str, db: Session = Depends(get_session), _user=Depends(require_auth)
 ) -> List[Dict[str, Any]]:
     """
     Return recent news articles for a specific symbol.

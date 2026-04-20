@@ -14,7 +14,7 @@ class UserService:
         self.db = db
         logger.debug("UserService initialised with session id=%s", id(db))
 
-    def get_user_by_id(self, user_id: int) -> User:
+    def get_user_by_id(self, user_id: int) -> type[User]:
         logger.debug("get_user_by_id: user_id=%s", user_id)
         user = self.db.query(User).filter(User.id == user_id).first()
         if not user:
@@ -23,7 +23,7 @@ class UserService:
         logger.debug("get_user_by_id: user_id=%s found email=%s", user_id, user.email)
         return user
 
-    def get_user_by_email(self, email: str) -> Optional[User]:
+    def get_user_by_email(self, email: str) -> type[User] | None:
         logger.debug("get_user_by_email: email=%s", email)
         user = self.db.query(User).filter(User.email == email).first()
         if user:
@@ -41,7 +41,7 @@ class UserService:
         logger.info("create_user: committed id=%s email=%s", user.id, email)
         return user
 
-    def update_user(self, user_id: int, **updates) -> User:
+    def update_user(self, user_id: int, **updates) -> type[User]:
         logger.info("update_user: user_id=%s fields=%s", user_id, list(updates.keys()))
         user = self.get_user_by_id(user_id)
         for key, value in updates.items():

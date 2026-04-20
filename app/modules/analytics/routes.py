@@ -1,6 +1,7 @@
-from fastapi import APIRouter
+from fastapi import APIRouter, Depends
 
 from app.core.cache import cache
+from app.core.dependencies import require_auth
 from app.shared.utils import cache_key
 
 router = APIRouter(prefix="/api/analytics", tags=["analytics"])
@@ -16,7 +17,7 @@ def analytics_health():
 # ---------------------------------------------------------------------------
 
 @router.post("/ai/global")
-def ai_global_briefing():
+def ai_global_briefing(_user=Depends(require_auth)):
     """Return a cached global portfolio briefing, or enqueue generation."""
     from app.tasks.ai import global_briefing_task
 
@@ -30,7 +31,7 @@ def ai_global_briefing():
 
 
 @router.post("/ai/single/{symbol}")
-def ai_single_briefing(symbol: str):
+def ai_single_briefing(symbol: str, _user=Depends(require_auth)):
     """Return a cached single-asset briefing, or enqueue generation."""
     from app.tasks.ai import single_asset_briefing_task
 
@@ -44,7 +45,7 @@ def ai_single_briefing(symbol: str):
 
 
 @router.post("/ai/news/batch")
-def ai_news_sentiment_batch():
+def ai_news_sentiment_batch(_user=Depends(require_auth)):
     """Enqueue sentiment scoring for unscored news articles."""
     from app.tasks.ai import news_sentiment_task
 

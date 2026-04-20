@@ -12,7 +12,7 @@ from typing import List, Dict, Tuple
 
 from app.core.context_cache import smart_cache, TTL_PRICES
 from app.modules.assets.services import PriceProviderService
-from app.modules.signals.quant import QuantEngine
+from app.shared.quant import QuantEngine
 from app.modules.analytics.fundamentals import FundamentalsEngine
 from app.modules.analytics.portfolio_analytics import PortfolioAnalytics
 from app.modules.signals.alt_data_engine import AltDataEngine

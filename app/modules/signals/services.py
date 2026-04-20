@@ -5,7 +5,7 @@ using majority voting to produce composite signals.
 """
 
 import logging
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import List, Optional, Dict
 
 from sqlalchemy import desc
@@ -317,7 +317,7 @@ class SignalService:
         history = SignalHistory(
             signal_id=signal.id,
             entry_date=signal.created_at,
-            exit_date=datetime.utcnow(),
+            exit_date=datetime.now(timezone.utc),
             entry_price=signal.entry_price or 0,
             exit_price=exit_price
         )
