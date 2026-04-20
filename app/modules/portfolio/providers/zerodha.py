@@ -26,13 +26,12 @@ Holdings vs lot-level cost basis:
 """
 
 import logging
-import os
 from typing import Dict, List, Optional
 
 from pydantic import ValidationError
 
-from app.core.config import settings
-from app.shared.interfaces import AssetSource, AssetPayload
+from app.modules.portfolio.providers.credential_manager import CredentialManager
+from app.shared.interfaces import AssetPayload, AssetSource
 
 _KITE_LOGIN_BASE = "https://kite.zerodha.com/connect/login?v=3"
 
@@ -58,19 +57,12 @@ class _Creds:
     __slots__ = ("api_key", "api_secret", "access_token", "request_token")
 
     def __init__(self, cred_manager=None):
-        if cred_manager:
-            # Fetch from credential manager (database or env)
-            api_key, api_secret, access_token, request_token = cred_manager.get_zerodha_credentials()
-            self.api_key = _read_cred(api_key)
-            self.api_secret = _read_cred(api_secret)
-            self.access_token = _read_cred(access_token)
-            self.request_token = _read_cred(request_token)
-        else:
-            # Original behavior: read from settings and env
-            self.api_key = _read_cred(settings.zerodha_api_key)
-            self.api_secret = _read_cred(settings.zerodha_api_secret)
-            self.access_token = _read_cred(settings.zerodha_access_token)
-            self.request_token = _read_cred(os.getenv("ZERODHA_REQUEST_TOKEN"))
+        cred_manager = cred_manager or CredentialManager()
+        api_key, api_secret, access_token, request_token = cred_manager.get_zerodha_credentials()
+        self.api_key = _read_cred(api_key)
+        self.api_secret = _read_cred(api_secret)
+        self.access_token = _read_cred(access_token)
+        self.request_token = _read_cred(request_token)
 
     @property
     def has_static_creds(self) -> bool:

@@ -1,25 +1,19 @@
 
 import logging
-from typing import List, Dict
+from typing import Dict, List
 
-from pydantic import ValidationError
 from growwapi import GrowwAPI
+from pydantic import ValidationError
 
-from app.shared.interfaces import AssetSource, AssetPayload
-from app.core.config import settings
+from app.modules.portfolio.providers.credential_manager import CredentialManager
+from app.shared.interfaces import AssetPayload, AssetSource
 
 
 class GrowwSync(AssetSource):
     def __init__(self, cred_manager=None):
         self.logger = logging.getLogger("Groww")
-        self.cred_manager = cred_manager
-
-        # Fetch credentials
-        if cred_manager:
-            self.api_key, self.api_secret = cred_manager.get_groww_credentials()
-        else:
-            self.api_key = settings.groww_api_key
-            self.api_secret = settings.groww_api_secret
+        cred_manager = cred_manager or CredentialManager()
+        self.api_key, self.api_secret = cred_manager.get_groww_credentials()
 
         self.api = None
         self._authenticate()

@@ -14,7 +14,6 @@ import httpx
 from google import genai
 from google.genai import errors as genai_errors
 
-from app.core.config import settings
 from app.shared.interfaces import AIModel
 
 logger = logging.getLogger("analytics.ai")
@@ -150,8 +149,7 @@ class GeminiAIService(AIModel):
     """Gemini provider — rotates through models on 429."""
 
     def __init__(self, api_key: str = ""):
-        key = api_key or settings.gemini_api_key
-        self._client = genai.Client(api_key=key)
+        self._client = genai.Client(api_key=api_key)
         logger.info("GeminiAIService: ready with %d models: %s", len(_GEMINI_MODELS), _GEMINI_MODELS)
 
     def _generate(self, prompt: str) -> str:
@@ -224,7 +222,7 @@ class GroqAIService(AIModel):
     """Groq provider — free tier, llama models, httpx REST calls."""
 
     def __init__(self, api_key: str = ""):
-        self._api_key = api_key or settings.groq_api_key
+        self._api_key = api_key
         logger.info("GroqAIService: ready with %d models: %s", len(_GROQ_MODELS), _GROQ_MODELS)
 
     def _generate(self, prompt: str) -> str:
@@ -337,22 +335,32 @@ class MultiProviderAIService(AIModel):
 # Factory
 # ---------------------------------------------------------------------------
 
-def build_ai_service() -> AIModel:
-    """Build the multi-provider AI service from current settings."""
+def build_ai_service(cred_manager=None) -> AIModel:
+    """Build the multi-provider AI service using DB-backed credentials."""
+    from app.modules.portfolio.providers.credential_manager import CredentialManager
+    cred_manager = cred_manager or CredentialManager()
+
     providers: List[AIModel] = []
 
-    if settings.gemini_api_key:
-        providers.append(GeminiAIService())
+    gemini_key = cred_manager.get_gemini_key()
+    groq_key = cred_manager.get_groq_key()
+
+    logger.info("build_ai_service: GEMINI_API_KEY=%s, GROQ_API_KEY=%s",
+                "set" if gemini_key else "not set",
+                "set" if groq_key else "not set")
+
+    if gemini_key:
+        providers.append(GeminiAIService(api_key=gemini_key))
     else:
         logger.warning("build_ai_service: GEMINI_API_KEY not set — Gemini provider skipped")
 
-    if settings.groq_api_key:
-        providers.append(GroqAIService())
+    if groq_key:
+        providers.append(GroqAIService(api_key=groq_key))
     else:
-        logger.info("build_ai_service: GROQ_API_KEY not set — Groq provider skipped (set it for free fallback)")
+        logger.info("build_ai_service: GROQ_API_KEY not set — Groq provider skipped")
 
     if not providers:
-        raise RuntimeError("No AI providers configured. Set GEMINI_API_KEY or GROQ_API_KEY.")
+        raise RuntimeError("No AI providers configured. Set GEMINI_API_KEY or GROQ_API_KEY in provider settings.")
 
     if len(providers) == 1:
         return providers[0]
