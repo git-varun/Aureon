@@ -335,10 +335,8 @@ class MultiProviderAIService(AIModel):
 # Factory
 # ---------------------------------------------------------------------------
 
-def build_ai_service(cred_manager=None) -> AIModel:
+def build_ai_service(cred_manager) -> AIModel:
     """Build the multi-provider AI service using DB-backed credentials."""
-    from app.modules.portfolio.providers.credential_manager import CredentialManager
-    cred_manager = cred_manager or CredentialManager()
 
     providers: List[AIModel] = []
 

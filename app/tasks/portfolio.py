@@ -1,4 +1,4 @@
-"""Portfolio Celery tasks: sync, refresh prices, enrich technicals."""
+"""Portfolio Celery tasks: sync, refresh prices, enrich technicals, seed OHLCV history."""
 
 import logging
 from datetime import datetime, timezone
@@ -203,3 +203,144 @@ def enrich_technicals_task(self, symbol: str):
     except Exception as exc:
         logger.exception(f"Technical enrichment failed for {symbol}: {exc}")
         raise self.retry(exc=exc, countdown=30, max_retries=2)
+
+
+# ---------------------------------------------------------------------------
+# OHLCV history seeding
+# ---------------------------------------------------------------------------
+
+@celery_app.task(bind=True, name="portfolio.seed_price_history", max_retries=1)
+def seed_price_history_task(self, symbol: Optional[str] = None, days: int = 365, force: bool = False):
+    """Seed real OHLCV price history for all assets (or one symbol).
+
+    Sources:
+    - Equity: yfinance ticker.history()
+    - Crypto (*-USD-*): yfinance using base pair (e.g. BTC-USD-SPOT → BTC-USD)
+    - Mutual Fund (*_MF): mfapi.in historical NAV
+    """
+    session = None
+    try:
+        from app.modules.portfolio.models import Asset, PriceHistory
+        from app.shared.constants import AssetType
+        from sqlalchemy import func
+
+        session = SessionLocal()
+        if symbol:
+            assets = session.query(Asset).filter(Asset.symbol == symbol).all()
+        else:
+            assets = session.query(Asset).all()
+
+        seeded = 0
+        skipped = 0
+        for asset in assets:
+            try:
+                if not force and asset.last_seeded_at:
+                    age_days = (datetime.now(timezone.utc) - asset.last_seeded_at.replace(tzinfo=timezone.utc)).days
+                    if age_days < 7:
+                        skipped += 1
+                        continue
+
+                rows = _fetch_ohlcv(asset, days)
+                if not rows:
+                    logger.warning("seed_price_history: no data for %s", asset.symbol)
+                    continue
+
+                for row in rows:
+                    date_val = row["date"]
+                    existing = session.query(PriceHistory).filter(
+                        PriceHistory.asset_id == asset.id,
+                        func.date(PriceHistory.date) == date_val.date() if hasattr(date_val, "date") else date_val,
+                    ).first()
+                    if existing:
+                        existing.open_price = row["open"]
+                        existing.high = row["high"]
+                        existing.low = row["low"]
+                        existing.close = row["close"]
+                        existing.volume = row["volume"]
+                    else:
+                        session.add(PriceHistory(
+                            asset_id=asset.id,
+                            date=date_val,
+                            open_price=row["open"],
+                            high=row["high"],
+                            low=row["low"],
+                            close=row["close"],
+                            volume=row["volume"],
+                        ))
+
+                asset.last_seeded_at = datetime.now(timezone.utc)
+                session.commit()
+                seeded += 1
+                logger.info("seed_price_history: seeded %d candles for %s", len(rows), asset.symbol)
+
+            except Exception as exc:
+                session.rollback()
+                logger.warning("seed_price_history: failed for %s: %s", asset.symbol, exc)
+
+        return {"status": "success", "seeded": seeded, "skipped": skipped}
+
+    except Exception as exc:
+        logger.exception("seed_price_history_task failed: %s", exc)
+        raise self.retry(exc=exc, countdown=120)
+    finally:
+        if session:
+            session.close()
+
+
+def _fetch_ohlcv(asset, days: int) -> list:
+    """Fetch OHLCV rows for one asset from the appropriate source."""
+    from app.shared.constants import AssetType
+
+    sym = asset.symbol
+    atype = asset.asset_type
+
+    # Mutual fund: mfapi historical NAV (daily)
+    if atype == AssetType.MUTUAL_FUND or (asset.sub_type and "mutual" in asset.sub_type):
+        from app.modules.assets.providers.mfapi import MFAPIPriceProvider
+        provider = MFAPIPriceProvider(None)
+        raw = provider.get_historical_nav(sym, limit=days)
+        rows = []
+        for entry in raw:
+            try:
+                import datetime as dt
+                d = dt.datetime.strptime(entry["date"], "%d-%m-%Y").replace(tzinfo=timezone.utc)
+                nav = float(entry["nav"])
+                rows.append({"date": d, "open": nav, "high": nav, "low": nav, "close": nav, "volume": 0})
+            except Exception:
+                pass
+        return rows
+
+    # Crypto: derive yfinance pair from compound symbol (e.g. BTC-USD-EARN-FLEX → BTC-USD)
+    if atype == AssetType.CRYPTO:
+        parts = sym.split("-")
+        yf_sym = f"{parts[0]}-{parts[1]}" if len(parts) >= 2 else sym
+        return _yfinance_ohlcv(yf_sym, days)
+
+    # Equity: use yfinance directly
+    return _yfinance_ohlcv(sym, days)
+
+
+def _yfinance_ohlcv(yf_symbol: str, days: int) -> list:
+    """Fetch OHLCV from yfinance for given symbol."""
+    try:
+        import yfinance as yf
+        period = "1y" if days <= 365 else "2y"
+        ticker = yf.Ticker(yf_symbol)
+        hist = ticker.history(period=period, auto_adjust=True)
+        if hist.empty:
+            return []
+        rows = []
+        for ts, row in hist.iterrows():
+            d = ts.to_pydatetime().replace(tzinfo=timezone.utc)
+            rows.append({
+                "date": d,
+                "open": float(row.get("Open", row["Close"])),
+                "high": float(row.get("High", row["Close"])),
+                "low": float(row.get("Low", row["Close"])),
+                "close": float(row["Close"]),
+                "volume": float(row.get("Volume", 0)),
+            })
+        return rows
+    except Exception as exc:
+        logger.debug("yfinance ohlcv failed for %s: %s", yf_symbol, exc)
+        return []

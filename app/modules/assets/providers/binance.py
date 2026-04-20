@@ -3,6 +3,7 @@ import logging
 
 import requests
 
+from app.modules.portfolio.providers.credential_manager import CredentialManager
 from app.shared.interfaces import PricePayload, PriceProvider
 
 logger = logging.getLogger("providers.binance")
@@ -13,6 +14,9 @@ _TIMEOUT = 5
 
 class BinanceProvider(PriceProvider):
     provider_name = "binance"
+
+    def __init__(self, cred_manager: CredentialManager):
+        pass  # public endpoint, no credentials required
 
     def get_price(self, symbol: str, asset_type: str) -> PricePayload | None:
         if asset_type.upper() != "CRYPTO":

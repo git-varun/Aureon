@@ -14,14 +14,17 @@ class AssetRepository:
     def get_by_symbol(self, symbol: str) -> Optional[Asset]:
         return self.db.query(Asset).filter(Asset.symbol == symbol).first()
 
-    def upsert(self, symbol: str, name: str, asset_type: AssetType, exchange: str | None = None) -> Asset:
+    def upsert(self, symbol: str, name: str, asset_type: AssetType, exchange: str | None = None,
+               sub_type: str | None = None) -> Asset:
         asset = self.get_by_symbol(symbol)
         if asset:
             asset.name = name
             asset.asset_type = asset_type
             asset.exchange = exchange
+            if sub_type is not None:
+                asset.sub_type = sub_type
         else:
-            asset = Asset(symbol=symbol, name=name, asset_type=asset_type, exchange=exchange)
+            asset = Asset(symbol=symbol, name=name, asset_type=asset_type, exchange=exchange, sub_type=sub_type)
             self.db.add(asset)
         self.db.commit()
         self.db.refresh(asset)

@@ -1,7 +1,7 @@
-import React, { useState, useMemo, useEffect, useRef, useCallback } from 'react';
-import { apiService } from '../api/apiService';
-import { toast } from 'react-hot-toast';
-import { UploadCloud, CheckCircle, XCircle, ChevronDown, ChevronUp } from 'lucide-react';
+import React, {useCallback, useEffect, useMemo, useRef, useState} from 'react';
+import {apiService} from '../api/apiService';
+import {toast} from 'react-hot-toast';
+import {CheckCircle, ChevronDown, ChevronUp, UploadCloud, XCircle} from 'lucide-react';
 
 // ─── Unified Data Import Panel ────────────────────────────────────────────────
 // Merges: (1) Transaction History upload and (2) Tax Lot import into one panel.
@@ -363,7 +363,7 @@ export default function Ledger({ assets, totalVal, fx, navigateToAsset }) {
     const filteredAndSortedAssets = useMemo(() => {
         let filtered = processedAssets
             .filter(a => a.symbol.toLowerCase().includes(filterName.toLowerCase()))
-            .filter(a => filterClass === 'ALL' ? true : a.type?.toUpperCase().includes(filterClass))
+            .filter(a => filterClass === 'ALL' ? true : a.type === filterClass)
             .filter(a => {
                 if (pnlFilter === 'ALL')    return true;
                 if (a.displayPnL == null)   return false;
@@ -497,9 +497,10 @@ export default function Ledger({ assets, totalVal, fx, navigateToAsset }) {
                                 <select value={filterClass} onChange={e => setFilterClass(e.target.value)}
                                     style={{ ...inputStyle, cursor: 'pointer' }}>
                                     <option value="ALL">All Classes</option>
-                                    <option value="SPOT">Spot</option>
-                                    <option value="EARN">Earn / MF</option>
-                                    <option value="FUTURES">Futures / F&O</option>
+                                    <option value="crypto">Crypto</option>
+                                    <option value="equity">Equity</option>
+                                    <option value="mutual_fund">Mutual Fund</option>
+                                    <option value="commodity">Commodity</option>
                                 </select>
                             </th>
                             <th colSpan={5} />
@@ -538,9 +539,23 @@ export default function Ledger({ assets, totalVal, fx, navigateToAsset }) {
                                     </td>
 
                                     <td style={{ ...tableCell, textAlign: 'left' }}>
-                                        <span style={{ background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.1)', padding: '4px 8px', borderRadius: '4px', fontSize: '10px', color: '#cbd5e1' }}>
-                                            {a.type?.replace(/_/g, ' ').toUpperCase()}
-                                        </span>
+                                        {(() => {
+                                            const typeColor = a.type === 'crypto' ? '#f59e0b' : a.type === 'equity' ? '#38bdf8' : a.type === 'mutual_fund' ? '#a78bfa' : '#94a3b8';
+                                            const label = a.sub_type ? a.sub_type.replace(/_/g, ' ').toUpperCase() : a.type?.replace(/_/g, ' ').toUpperCase();
+                                            return (
+                                                <span style={{
+                                                    background: `${typeColor}15`,
+                                                    border: `1px solid ${typeColor}40`,
+                                                    padding: '4px 8px',
+                                                    borderRadius: '4px',
+                                                    fontSize: '10px',
+                                                    color: typeColor,
+                                                    fontWeight: 600
+                                                }}>
+                                                    {label}
+                                                </span>
+                                            );
+                                        })()}
                                     </td>
 
                                     <td style={tableCell}>

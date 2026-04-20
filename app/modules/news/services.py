@@ -7,7 +7,7 @@ from typing import Dict, List
 from sqlalchemy.orm import Session
 
 from app.modules.news.models import News
-from app.modules.news.providers.registry import get_default_registry
+from app.modules.news.providers.registry import get_registry
 
 logger = logging.getLogger("news.service")
 
@@ -15,8 +15,9 @@ logger = logging.getLogger("news.service")
 class NewsService:
     """Fetch news from multiple providers and persist to News table."""
 
-    def __init__(self):
-        self.registry = get_default_registry()
+    def __init__(self, session: Session):
+        self.session = session
+        self.registry = get_registry(session)
         logger.debug(
             "NewsService initialized with providers: %s",
             self.registry.list_enabled(),

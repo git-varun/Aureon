@@ -10,8 +10,6 @@ from app.modules.news.services import NewsService
 
 router = APIRouter(prefix="/api/news", tags=["news"])
 
-_news_service = NewsService()
-
 
 @router.get("/health")
 def news_health():
@@ -26,13 +24,12 @@ def get_all_news(db: Session = Depends(get_session), _user=Depends(require_auth)
 
     Returns dict with symbol keys and list of article dicts as values.
     """
-    return _news_service.get_all_recent(db, limit=30)
+    return NewsService(session=db).get_all_recent(db, limit=30)
 
 
 @router.get("/{symbol}")
-def get_news_for_symbol(
-        symbol: str, db: Session = Depends(get_session), _user=Depends(require_auth)
-) -> List[Dict[str, Any]]:
+def get_news_for_symbol(symbol: str, db: Session = Depends(get_session), _user=Depends(require_auth)) -> List[
+    Dict[str, Any]]:
     """
     Return recent news articles for a specific symbol.
 
@@ -42,7 +39,7 @@ def get_news_for_symbol(
     Returns:
         List of article dicts sorted by published_at (newest first)
     """
-    articles = _news_service.get_recent_news(symbol, db, limit=10)
+    articles = NewsService(session=db).get_recent_news(symbol, db, limit=10)
     return [
         {
             "id": a.id,

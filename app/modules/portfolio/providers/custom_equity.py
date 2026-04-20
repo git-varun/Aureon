@@ -11,9 +11,8 @@ from app.shared.interfaces import AssetPayload, AssetSource
 class CustomEquitySync(AssetSource):
     """Load custom equity holdings from JSON configuration."""
 
-    def __init__(self, cred_manager=None):
+    def __init__(self, cred_manager: CredentialManager):
         self.logger = logging.getLogger("CustomEquity")
-        cred_manager = cred_manager or CredentialManager()
         json_payload, file_path = cred_manager.get_custom_equity_credentials()
         self.json_payload = (json_payload or "").strip()
         self.file_path = (file_path or "").strip()

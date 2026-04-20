@@ -20,17 +20,24 @@ _DEFAULT_PROVIDERS = [
     {"provider_name": "binance", "provider_type": "broker", "key_names": '["api_key","api_secret"]'},
     {"provider_name": "coinbase", "provider_type": "broker", "key_names": '["api_key","api_secret","api_passphrase"]'},
     {"provider_name": "custom_equity", "provider_type": "broker", "key_names": '["holdings_json"]'},
+
     # AI
     {"provider_name": "gemini", "provider_type": "ai", "key_names": '["api_key"]'},
     {"provider_name": "groq", "provider_type": "ai", "key_names": '["api_key"]'},
+
     # News
     {"provider_name": "rss", "provider_type": "news", "key_names": '[]'},
     {"provider_name": "finnhub", "provider_type": "news", "key_names": '["api_key"]'},
     {"provider_name": "newsapi", "provider_type": "news", "key_names": '["api_key"]'},
     {"provider_name": "alphavantage", "provider_type": "news", "key_names": '["api_key"]'},
+
     # Price
+    {"provider_name": "binance_price", "provider_type": "price", "key_names": '[]'},
+    {"provider_name": "yfinance", "provider_type": "price", "key_names": '[]'},
     {"provider_name": "coingecko", "provider_type": "price", "key_names": '["api_key"]'},
     {"provider_name": "coinmarketcap", "provider_type": "price", "key_names": '["api_key"]'},
+    {"provider_name": "mfapi", "provider_type": "price", "key_names": '[]'},
+
     # Notification
     {"provider_name": "telegram", "provider_type": "notification", "key_names": '["bot_token","chat_id"]'},
 ]
@@ -40,7 +47,8 @@ _DEFAULT_JOBS = [
     {"job_name": "refresh_prices",  "cron_expression": "*/15 9-15 * * 1-5", "enabled": True},
     {"job_name": "fetch_news",      "cron_expression": "0 8 * * *",        "enabled": True},
     {"job_name": "daily_briefing",  "cron_expression": "0 7 * * *",        "enabled": True},
-    {"job_name": "run_signals",     "cron_expression": "30 9 * * 1-5",     "enabled": False},
+    {"job_name": "run_signals", "cron_expression": "30 9 * * 1-5", "enabled": False},
+    {"job_name": "seed_price_history", "cron_expression": "0 2 * * 0", "enabled": True},
 ]
 
 # ── Encryption helpers ────────────────────────────────────────────────────────
@@ -167,7 +175,7 @@ class ConfigService:
         logger.debug("get_all_jobs: returned %d jobs", len(jobs))
         return [self._job_to_dict(j) for j in jobs]
 
-    def get_job(self, job_name: str) -> Optional[JobConfig]:
+    def get_job(self, job_name: str) -> type[JobConfig] | None:
         logger.debug("get_job: job_name=%s", job_name)
         j = self.db.query(JobConfig).filter_by(job_name=job_name).first()
         if j:
@@ -233,7 +241,7 @@ class ConfigService:
         self.db.refresh(log)
         return log
 
-    def log_job_end(self, log_id: int, status: JobStatus, error: Optional[str] = None) -> JobLog:
+    def log_job_end(self, log_id: int, status: JobStatus, error: Optional[str] = None) -> type[JobLog] | None:
         log = self.db.query(JobLog).filter_by(id=log_id).first()
         if log:
             log.status = status
@@ -270,9 +278,14 @@ class ConfigService:
     def dispatch_job(self, job_name: str) -> Optional[str]:
         """Dispatch the named job to Celery and return task_id(s)."""
         if job_name == "sync_portfolio":
-            from app.modules.portfolio.providers.factory import list_supported_brokers
+            from app.modules.portfolio.providers.factory import SUPPORTED_BROKERS
             from app.tasks.portfolio import sync_portfolio_task
-            task_ids = [sync_portfolio_task.delay(broker=broker).id for broker in list_supported_brokers()]
+            enabled = self.db.query(ProviderConfig).filter_by(provider_type="broker", enabled=True).all()
+            brokers = [p.provider_name for p in enabled if p.provider_name in SUPPORTED_BROKERS]
+            if not brokers:
+                logger.warning("dispatch_job: sync_portfolio — no enabled brokers")
+                return None
+            task_ids = [sync_portfolio_task.delay(broker=b).id for b in brokers]
             return ",".join(task_ids)
         if job_name == "refresh_prices":
             from app.tasks.portfolio import refresh_prices_task
@@ -286,6 +299,9 @@ class ConfigService:
         if job_name == "run_signals":
             from app.tasks.signals import generate_signals_task
             return generate_signals_task.delay().id
+        if job_name == "seed_price_history":
+            from app.tasks.portfolio import seed_price_history_task
+            return seed_price_history_task.delay().id
         raise ValueError(f"Unknown job: {job_name}")
 
     # ── Seed ───────────────────────────────────────────────────────────────

@@ -2,14 +2,17 @@
 import logging
 
 import yfinance as yf
-
-from app.shared.interfaces import PriceProvider, PricePayload
+from app.modules.portfolio.providers.credential_manager import CredentialManager
+from app.shared.interfaces import PricePayload, PriceProvider
 
 logger = logging.getLogger("providers.yfinance")
 
 
 class YahooFinanceProvider(PriceProvider):
     provider_name = "yfinance"
+
+    def __init__(self, cred_manager: CredentialManager):
+        pass  # uses yfinance library, no API key required
 
     def get_price(self, symbol: str, asset_type: str) -> PricePayload | None:
         try:

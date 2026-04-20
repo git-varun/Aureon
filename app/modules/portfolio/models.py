@@ -1,11 +1,8 @@
 """Portfolio domain models (SQLAlchemy ORM)."""
 
 from datetime import datetime
-from decimal import Decimal
 
-from sqlalchemy import (
-    Column, String, Float, Integer, DateTime, Text, Enum, Index, ForeignKey
-)
+from sqlalchemy import (Column, DateTime, Enum, Float, ForeignKey, Index, Integer, String, Text)
 from sqlalchemy.orm import relationship
 
 from app.core.db import Base
@@ -18,15 +15,17 @@ class Asset(Base):
     __tablename__ = "assets"
 
     id = Column(Integer, primary_key=True)
-    symbol = Column(String(20), unique=True, nullable=False, index=True)
+    symbol = Column(String(60), unique=True, nullable=False, index=True)
     name = Column(String(255), nullable=False)
     asset_type = Column(Enum(AssetType), nullable=False)
-    exchange = Column(String(20), nullable=True)  # NSE, BSE, NASDAQ, etc.
+    sub_type = Column(String(50), nullable=True)
+    exchange = Column(String(20), nullable=True)
 
     current_price = Column(Float, nullable=True)
     previous_close = Column(Float, nullable=True)
     market_cap = Column(Float, nullable=True)
 
+    last_seeded_at = Column(DateTime, nullable=True)
     created_at = Column(DateTime, default=datetime.utcnow)
     updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
 

@@ -3,6 +3,7 @@ import logging
 
 import requests
 
+from app.modules.portfolio.providers.credential_manager import CredentialManager
 from app.shared.interfaces import PricePayload, PriceProvider
 
 logger = logging.getLogger("providers.coingecko")
@@ -53,8 +54,8 @@ _SYMBOL_ID_MAP: dict[str, str] = {
 class CoinGeckoProvider(PriceProvider):
     provider_name = "coingecko"
 
-    def __init__(self, api_key: str = ""):
-        self._api_key = api_key
+    def __init__(self, cred_manager: CredentialManager):
+        self._api_key = cred_manager.get_coingecko_key() or ""
         self._search_cache: dict[str, str] = {}  # symbol → coin_id
 
     def _headers(self) -> dict:

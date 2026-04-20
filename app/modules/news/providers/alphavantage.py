@@ -19,8 +19,7 @@ class AlphaVantageNewsProvider(BaseNewsProvider):
     def provider_name(self) -> str:
         return "alphavantage"
 
-    def __init__(self, cred_manager=None):
-        cred_manager = cred_manager or CredentialManager()
+    def __init__(self, cred_manager: CredentialManager):
         self.api_key = cred_manager.get_alphavantage_key()
         self.base_url = "https://www.alphavantage.co/query"
 

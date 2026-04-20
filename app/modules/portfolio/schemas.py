@@ -1,7 +1,7 @@
 """Portfolio request/response schemas (Pydantic)."""
 
 from datetime import datetime
-from typing import Literal, Optional, List
+from typing import List, Literal, Optional
 
 from pydantic import BaseModel, ConfigDict
 
@@ -20,7 +20,7 @@ class AssetBase(BaseModel):
 class AssetCreate(AssetBase):
     """Create asset."""
 
-    pass
+    sub_type: Optional[str] = None
 
 
 class AssetResponse(AssetBase):

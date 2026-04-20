@@ -56,8 +56,7 @@ class _Creds:
 
     __slots__ = ("api_key", "api_secret", "access_token", "request_token")
 
-    def __init__(self, cred_manager=None):
-        cred_manager = cred_manager or CredentialManager()
+    def __init__(self, cred_manager: CredentialManager):
         api_key, api_secret, access_token, request_token = cred_manager.get_zerodha_credentials()
         self.api_key = _read_cred(api_key)
         self.api_secret = _read_cred(api_secret)
@@ -86,7 +85,7 @@ class _Creds:
 
 
 class ZerodhaSync(AssetSource):
-    def __init__(self, cred_manager=None):
+    def __init__(self, cred_manager: CredentialManager):
         self.logger = logging.getLogger("Zerodha")
         self.cred_manager = cred_manager
         self._kite = None

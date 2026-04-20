@@ -1,86 +1,65 @@
-"""Provider registry for managing news providers."""
+"""News provider registry — DB-driven enabled list, injected credentials."""
 
 import logging
 from typing import Dict, List
 
+from sqlalchemy.orm import Session
+
+from app.modules.news.providers.alphavantage import AlphaVantageNewsProvider
 from app.modules.news.providers.base import BaseNewsProvider
-from app.modules.news.providers.rss_provider import RSSNewsProvider
 from app.modules.news.providers.finnhub import FinnhubNewsProvider
 from app.modules.news.providers.newsapi import NewsAPIProvider
-from app.modules.news.providers.alphavantage import AlphaVantageNewsProvider
+from app.modules.news.providers.rss_provider import RSSNewsProvider
+from app.modules.portfolio.providers.credential_manager import CredentialManager
 
 logger = logging.getLogger(__name__)
 
 
 class ProviderRegistry:
-    """Registry to manage and load news providers."""
+    """Assembles enabled news providers from DB config with injected credentials."""
 
-    # All available providers
-    _ALL_PROVIDERS = {
+    _ALL_PROVIDERS: Dict[str, type] = {
         "rss": RSSNewsProvider,
         "finnhub": FinnhubNewsProvider,
         "newsapi": NewsAPIProvider,
         "alphavantage": AlphaVantageNewsProvider,
     }
 
-    def __init__(self, enabled_providers: List[str] = None):
-        """
-        Initialize registry with optional list of enabled providers.
+    def __init__(self, session: Session):
+        from app.modules.config.services import ConfigService
 
-        Args:
-            enabled_providers: List of provider names to enable (e.g., ['rss', 'finnhub']).
-                             If None, all available providers are enabled.
-        """
-        self.enabled_providers = enabled_providers or list(self._ALL_PROVIDERS.keys())
+        config_svc = ConfigService(session)
+        cred_manager = CredentialManager(session)
+
+        enabled = [
+            p["provider_name"]
+            for p in config_svc.get_providers_by_type("news")
+            if p["enabled"]
+        ]
+
         self.providers: Dict[str, BaseNewsProvider] = {}
-        self._initialize_providers()
-
-    def _initialize_providers(self):
-        """Initialize and cache provider instances."""
-        for name in self.enabled_providers:
+        for name in enabled:
             if name not in self._ALL_PROVIDERS:
                 logger.warning("ProviderRegistry: unknown provider '%s', skipping", name)
                 continue
-
             try:
-                provider_class = self._ALL_PROVIDERS[name]
-                provider = provider_class()
-                self.providers[name] = provider
+                self.providers[name] = self._ALL_PROVIDERS[name](cred_manager)
                 logger.debug("ProviderRegistry: loaded provider '%s'", name)
             except Exception as exc:
-                logger.error(
-                    "ProviderRegistry: failed to initialize provider '%s': %s",
-                    name,
-                    exc,
-                )
+                logger.error("ProviderRegistry: failed to init provider '%s': %s", name, exc)
 
-        logger.info(
-            "ProviderRegistry: initialized with %d/%d providers",
-            len(self.providers),
-            len(self.enabled_providers),
-        )
+        logger.info("ProviderRegistry: %d/%d providers ready: %s",
+                    len(self.providers), len(enabled), list(self.providers))
 
     def get_providers(self) -> List[BaseNewsProvider]:
-        """Return list of initialized provider instances."""
         return list(self.providers.values())
 
     def get_provider(self, name: str) -> BaseNewsProvider | None:
-        """Get a specific provider by name."""
         return self.providers.get(name)
 
-    def is_enabled(self, name: str) -> bool:
-        """Check if a provider is enabled and initialized."""
-        return name in self.providers
-
     def list_enabled(self) -> List[str]:
-        """List names of enabled providers."""
         return list(self.providers.keys())
 
 
-# Default registry (used by NewsService)
-_default_registry = ProviderRegistry(enabled_providers=["rss", "finnhub", "newsapi"])
-
-
-def get_default_registry() -> ProviderRegistry:
-    """Get the default provider registry."""
-    return _default_registry
+def get_registry(session: Session) -> ProviderRegistry:
+    return ProviderRegistry(session)

@@ -4,16 +4,15 @@ import logging
 from datetime import datetime
 from typing import List, Optional
 
-from sqlalchemy.orm import Session
 from sqlalchemy import func
+from sqlalchemy.orm import Session
 
 from app.modules.portfolio.models import Asset, Position, PriceHistory, Transaction
 from app.modules.portfolio.repositories import AssetRepository, PositionRepository
-from app.modules.portfolio.schemas import (
-    AssetCreate, PositionCreate, PositionResponse, PortfolioResponse, AssetResponse
-)
-from app.shared.exceptions import NotFoundError
+from app.modules.portfolio.schemas import (AssetCreate, AssetResponse, PortfolioResponse, PositionCreate,
+                                           PositionResponse)
 from app.shared.constants import AssetType, TransactionType
+from app.shared.exceptions import NotFoundError
 from app.shared.interfaces import AssetSource
 
 logger = logging.getLogger("portfolio.service")
@@ -37,6 +36,7 @@ class PortfolioService:
             name=data.name,
             asset_type=data.asset_type,
             exchange=data.exchange,
+            sub_type=getattr(data, "sub_type", None),
         )
         logger.info("create_asset: symbol=%s id=%s committed", data.symbol, asset.id)
         return asset
@@ -165,6 +165,7 @@ class PortfolioService:
                     "name": holding.symbol,
                     "asset_type": asset_type,
                     "exchange": exchange,
+                    "sub_type": holding.sub_type or holding.type,
                 })
                 self._update_or_create_position(asset, holding.qty, holding.avg_buy_price)
                 updated_assets += 1

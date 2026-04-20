@@ -17,9 +17,8 @@ class BinanceIntelligenceClient(AssetSource):
     def provider_name(self) -> str:
         return "Binance"
 
-    def __init__(self, cred_manager=None):
+    def __init__(self, cred_manager: CredentialManager):
         self.logger = logging.getLogger("BinanceREST")
-        cred_manager = cred_manager or CredentialManager()
         self.api_key, self.api_secret = cred_manager.get_binance_credentials()
 
         self.session = requests.Session()
@@ -219,16 +218,34 @@ class BinanceIntelligenceClient(AssetSource):
             self.logger.debug(f"Binance COIN-M positions skipped: {e}")
 
         # ─────────────────────────────────────────────────────────────────────
-        # Group by symbol and aggregate into positions[] structure
+        # Map sub_type → compound symbol suffix
+        # ─────────────────────────────────────────────────────────────────────
+        _SUFFIX = {
+            "crypto_spot": "SPOT",
+            "crypto_earn_flexible": "EARN-FLEX",
+            "crypto_earn_locked": "EARN-LOCKED",
+            "crypto_futures_long": "FUTURES-LONG",
+            "crypto_futures_short": "FUTURES-SHORT",
+            "crypto_futures_margin": "FUTURES-MARGIN",
+            "crypto_cash": "CASH",
+        }
+
+        # ─────────────────────────────────────────────────────────────────────
+        # Group by (base_symbol, sub_type) → compound symbol  e.g. BTC-USD-EARN-FLEX
         # ─────────────────────────────────────────────────────────────────────
         assets_map: Dict[str, Dict] = {}
 
         for b in balances:
-            symbol = b["symbol"]
-            if symbol not in assets_map:
-                assets_map[symbol] = {
-                    "symbol": symbol,
+            base_symbol = b["symbol"]
+            sub_type = b.get("type", "crypto_spot")
+            suffix = _SUFFIX.get(sub_type, "SPOT")
+            compound = f"{base_symbol}-{suffix}"
+
+            if compound not in assets_map:
+                assets_map[compound] = {
+                    "symbol": compound,
                     "type": "crypto",
+                    "sub_type": sub_type,
                     "qty": 0.0,
                     "avg_buy_price": 0.0,
                     "unrealized_pnl": 0.0,
@@ -236,9 +253,7 @@ class BinanceIntelligenceClient(AssetSource):
                     "sources": set(),
                 }
 
-            # Infer market_type and position_type from source and asset_type
             source_tag = b["source"]
-            asset_type = b.get("type", "crypto_spot")
 
             market_type = "spot"
             if "Futures" in source_tag:
@@ -247,44 +262,39 @@ class BinanceIntelligenceClient(AssetSource):
                 market_type = "earn"
 
             position_type = "long"
-            if "short" in asset_type.lower():
+            if "short" in sub_type:
                 position_type = "short"
-            elif "flexible" in asset_type.lower():
+            elif "flexible" in sub_type:
                 position_type = "flexible"
-            elif "locked" in asset_type.lower():
+            elif "locked" in sub_type:
                 position_type = "locked"
 
-            position = {
+            assets_map[compound]["positions"].append({
                 "source": source_tag,
                 "market_type": market_type,
                 "position_type": position_type,
                 "qty": float(b["qty"]),
                 "avg_buy_price": float(b.get("avg_buy_price", 0.0)),
                 "unrealized_pnl": float(b.get("unrealized_pnl", 0.0)),
-            }
+            })
+            assets_map[compound]["sources"].add(source_tag)
+            assets_map[compound]["qty"] += b["qty"]
+            assets_map[compound]["unrealized_pnl"] += b.get("unrealized_pnl", 0.0)
 
-            assets_map[symbol]["positions"].append(position)
-            assets_map[symbol]["sources"].add(source_tag)
-            assets_map[symbol]["qty"] += b["qty"]
-            assets_map[symbol]["unrealized_pnl"] += b.get("unrealized_pnl", 0.0)
-
-        # Compute aggregated avg_buy_price (long positions only)
-        for symbol, asset in assets_map.items():
-            long_qty = sum(p["qty"] for p in asset["positions"] if p["qty"] > 0)
+        # Weighted avg_buy_price from long (positive qty) positions
+        for compound, asset in assets_map.items():
+            long_positions = [p for p in asset["positions"] if p["qty"] > 0]
+            long_qty = sum(p["qty"] for p in long_positions)
             if long_qty > 0:
-                total_cost = sum(p["avg_buy_price"] * p["qty"] for p in asset["positions"] if p["qty"] > 0)
-                asset["avg_buy_price"] = total_cost / long_qty
-
-            # Aggregate source
+                asset["avg_buy_price"] = sum(p["avg_buy_price"] * p["qty"] for p in long_positions) / long_qty
             asset["source"] = " / ".join(sorted(asset["sources"])) if asset["sources"] else "Unknown"
             del asset["sources"]
 
-        # Validate against AssetPayload contract
         validated: List[AssetPayload] = []
-        for symbol, asset in assets_map.items():
+        for compound, asset in assets_map.items():
             try:
                 validated.append(AssetPayload(**asset))
             except ValidationError as e:
-                self.logger.error(f"Schema violation in Binance for {symbol}: {e}")
+                self.logger.error(f"Schema violation in Binance for {compound}: {e}")
 
         return validated
