@@ -16,9 +16,8 @@ from app.shared.interfaces import AssetPayload, AssetSource
 class CoinbaseSync(AssetSource):
     """Fetch crypto holdings from Coinbase Pro / Coinbase Exchange API."""
 
-    def __init__(self, cred_manager=None):
+    def __init__(self, cred_manager: CredentialManager):
         self.logger = logging.getLogger("Coinbase")
-        cred_manager = cred_manager or CredentialManager()
         self.api_key, self.api_secret, self.passphrase = cred_manager.get_coinbase_credentials()
 
         self.session = requests.Session()

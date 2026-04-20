@@ -7,6 +7,7 @@ from urllib.parse import quote
 import feedparser
 
 from app.modules.news.providers.base import BaseNewsProvider
+from app.modules.portfolio.providers.credential_manager import CredentialManager
 from app.shared.interfaces import NewsPayload
 
 logger = logging.getLogger(__name__)
@@ -14,6 +15,9 @@ logger = logging.getLogger(__name__)
 
 class RSSNewsProvider(BaseNewsProvider):
     """Fetches news headlines from RSS feeds (Google Finance, Yahoo Finance)."""
+
+    def __init__(self, cred_manager: CredentialManager):
+        pass  # RSS requires no credentials
 
     @property
     def provider_name(self) -> str:

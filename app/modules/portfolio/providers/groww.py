@@ -10,9 +10,8 @@ from app.shared.interfaces import AssetPayload, AssetSource
 
 
 class GrowwSync(AssetSource):
-    def __init__(self, cred_manager=None):
+    def __init__(self, cred_manager: CredentialManager):
         self.logger = logging.getLogger("Groww")
-        cred_manager = cred_manager or CredentialManager()
         self.api_key, self.api_secret = cred_manager.get_groww_credentials()
 
         self.api = None

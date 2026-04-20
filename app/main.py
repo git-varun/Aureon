@@ -28,7 +28,7 @@ from app.modules.portfolio.routes import router as portfolio_router
 from app.modules.signals.routes import router as signals_router
 from app.modules.users.routes import router as users_router
 from app.shared.exceptions import AppException
-from app.core.dependencies import require_auth, get_current_user
+from app.core.dependencies import get_current_user
 
 setup_master_logger()
 logger = logging.getLogger("app")
@@ -305,6 +305,7 @@ def create_app() -> FastAPI:
                     "symbol":     a.symbol,
                     "name":       a.name,
                     "type":       asset_type,
+                    "sub_type": a.sub_type,
                     "qty":        float(pos.quantity or 0),
                     "live_price": float(a.current_price or 0),
                     "value_inr":  float(value),

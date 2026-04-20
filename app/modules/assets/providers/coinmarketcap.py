@@ -3,6 +3,7 @@ import logging
 
 import requests
 
+from app.modules.portfolio.providers.credential_manager import CredentialManager
 from app.shared.interfaces import PricePayload, PriceProvider
 
 logger = logging.getLogger("providers.coinmarketcap")
@@ -14,8 +15,8 @@ _TIMEOUT = 10
 class CoinMarketCapProvider(PriceProvider):
     provider_name = "coinmarketcap"
 
-    def __init__(self, api_key: str):
-        self._api_key = api_key
+    def __init__(self, cred_manager: CredentialManager):
+        self._api_key = cred_manager.get_coinmarketcap_key() or ""
 
     def get_price(self, symbol: str, asset_type: str) -> PricePayload | None:
         if asset_type.upper() != "CRYPTO":

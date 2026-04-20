@@ -28,8 +28,8 @@ def fetch_news_task(self, symbols=None):
         from app.modules.news.services import NewsService
         from app.modules.portfolio.models import Asset
 
-        service = NewsService()
         session = SessionLocal()
+        service = NewsService(session)
 
         try:
             # Resolve symbol list: use provided or fetch from portfolio

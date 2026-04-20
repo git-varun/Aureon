@@ -11,6 +11,7 @@ class AssetPayload(BaseModel):
     qty: float
     source: str
     type: str
+    sub_type: Optional[str] = None
     avg_buy_price: float = 0.0
     unrealized_pnl: float = 0.0
     positions: Optional[List[Dict[str, Any]]] = Field(default_factory=list)

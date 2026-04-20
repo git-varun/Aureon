@@ -36,35 +36,6 @@ class Settings(BaseSettings):
     # CORS
     cors_origins: list = ["http://localhost:5173", "http://localhost:3000", "http://localhost:8001"]
 
-    # External APIs
-    gemini_api_key: str = ""
-    groq_api_key: str = ""
-
-    telegram_bot_token: str = ""
-    telegram_chat_id: str = ""
-
-    binance_api_key: str = ""
-    binance_api_secret: str = ""
-
-    coinbase_api_key: str = ""
-    coinbase_api_secret: str = ""
-    coinbase_passphrase: str = ""
-
-    zerodha_api_key: str = ""
-    zerodha_api_secret: str = ""
-    zerodha_access_token: str = ""
-
-    groww_api_key: str = ""
-    groww_api_secret: str = ""
-
-    custom_equity_holdings_json: str = ""
-    custom_equity_holdings_file: str = ""
-
-    # News providers
-    finnhub_api_key: str = ""
-    newsapi_api_key: str = ""
-    alphavantage_api_key: str = ""
-
     # Security
     secret_key: str = "change-me"
     jwt_algorithm: str = "HS256"

@@ -12,7 +12,7 @@ from sqlalchemy.orm import Session
 
 from app.core.cache import cache
 from app.modules.assets.repositories import AssetRepository, PriceHistoryRepository
-from app.modules.portfolio.models import Asset, PriceHistory, Position
+from app.modules.portfolio.models import Asset, Position, PriceHistory
 from app.shared.constants import AssetType
 from app.shared.interfaces import PriceProvider
 from app.shared.utils import cache_key, normalize_yf_symbol
@@ -211,21 +211,10 @@ class AssetsService:
         """Fetch live prices for one or all assets and persist them.
 
         This is the canonical price-refresh path; Celery tasks delegate here.
-        Provider construction lives here so the logic is testable without
-        touching the task layer.
         """
-        from app.core.config import settings
-        from app.modules.assets.providers.binance import BinanceProvider
-        from app.modules.assets.providers.coingecko import CoinGeckoProvider
-        from app.modules.assets.providers.coinmarketcap import CoinMarketCapProvider
-        from app.modules.assets.providers.yfinance import YahooFinanceProvider
+        from app.modules.assets.providers.factory import get_price_providers
 
-        providers: List[PriceProvider] = [
-            BinanceProvider(),
-            CoinGeckoProvider(api_key=getattr(settings, "coingecko_api_key", None)),
-            CoinMarketCapProvider(api_key=getattr(settings, "coinmarketcap_api_key", None)),
-            YahooFinanceProvider(),
-        ]
+        providers = get_price_providers(self.session)
         price_svc = PriceProviderService(providers)
 
         assets = (

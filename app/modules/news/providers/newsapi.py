@@ -19,8 +19,7 @@ class NewsAPIProvider(BaseNewsProvider):
     def provider_name(self) -> str:
         return "newsapi"
 
-    def __init__(self, cred_manager=None):
-        cred_manager = cred_manager or CredentialManager()
+    def __init__(self, cred_manager: CredentialManager):
         self.api_key = cred_manager.get_newsapi_key()
         self.base_url = "https://newsapi.org/v2"
 

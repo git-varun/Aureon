@@ -39,6 +39,25 @@ class AIStatus(str, Enum):
     FAILED = "failed"
 
 
+class SubType(str, Enum):
+    """Fine-grained asset sub-classification."""
+
+    # Crypto
+    CRYPTO_SPOT = "crypto_spot"
+    CRYPTO_EARN_FLEXIBLE = "crypto_earn_flexible"
+    CRYPTO_EARN_LOCKED = "crypto_earn_locked"
+    CRYPTO_FUTURES_LONG = "crypto_futures_long"
+    CRYPTO_FUTURES_SHORT = "crypto_futures_short"
+    CRYPTO_FUTURES_MARGIN = "crypto_futures_margin"
+    CRYPTO_CASH = "crypto_cash"
+    # Equity
+    EQUITY_SPOT = "equity_spot"
+    EQUITY_FO_LONG = "equity_fo_long"
+    EQUITY_FO_SHORT = "equity_fo_short"
+    # Mutual Fund
+    MUTUAL_FUND = "mutual_fund"
+
+
 class TransactionType(str, Enum):
     """Transaction type."""
 

@@ -6,6 +6,7 @@ import logging
 from app.core.cache import cache
 from app.core.celery_app import celery_app
 from app.core.db import SessionLocal
+from app.modules.portfolio.providers.credential_manager import CredentialManager
 from app.shared.utils import cache_key
 
 logger = logging.getLogger("celery.ai")
@@ -35,7 +36,7 @@ def global_briefing_task(self):
         db = SessionLocal()
         try:
             context = PortfolioContextBuilder().build_global_context(db)
-            service = build_ai_service()
+            service = build_ai_service(CredentialManager(db))
             result = service.analyze_briefing(context)
 
             briefing = AIBriefing(
@@ -79,7 +80,7 @@ def single_asset_briefing_task(self, symbol: str):
         db = SessionLocal()
         try:
             context = PortfolioContextBuilder().build_single_context(symbol, db)
-            service = build_ai_service()
+            service = build_ai_service(CredentialManager(db))
             result = service.analyze_single_asset(context)
 
             briefing = AIBriefing(
@@ -136,7 +137,7 @@ def news_sentiment_task(self):
                 for n in unscoreds
             ]
 
-            service = build_ai_service()
+            service = build_ai_service(CredentialManager(db))
             response = service.analyze_news_batch(articles)
 
             sentiments_by_url = {}

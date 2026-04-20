@@ -19,8 +19,7 @@ class FinnhubNewsProvider(BaseNewsProvider):
     def provider_name(self) -> str:
         return "finnhub"
 
-    def __init__(self, cred_manager=None):
-        cred_manager = cred_manager or CredentialManager()
+    def __init__(self, cred_manager: CredentialManager):
         self.api_key = cred_manager.get_finnhub_key()
         self.base_url = "https://finnhub.io/api/v1"
 
