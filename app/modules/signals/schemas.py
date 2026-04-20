@@ -3,7 +3,7 @@
 from datetime import datetime
 from typing import Optional
 
-from pydantic import BaseModel
+from pydantic import BaseModel, ConfigDict
 
 from app.shared.constants import SignalType, TimeFrame
 
@@ -38,8 +38,7 @@ class SignalResponse(SignalBase):
     exit_price: Optional[float] = None
     created_at: datetime
 
-    class Config:
-        from_attributes = True
+    model_config = ConfigDict(from_attributes=True)
 
 
 class GenerateSignalsRequest(BaseModel):
@@ -59,5 +58,4 @@ class SignalHistoryResponse(BaseModel):
     profit_loss: Optional[float] = None
     profit_loss_percent: Optional[float] = None
 
-    class Config:
-        from_attributes = True
+    model_config = ConfigDict(from_attributes=True)

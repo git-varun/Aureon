@@ -4,7 +4,7 @@ Data flow: Route / Task / Cron → AssetsService → Repositories / PriceProvide
 """
 
 import logging
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import List, Optional
 
 import pandas as pd
@@ -183,7 +183,7 @@ class AssetsService:
         # Save snapshot in price_history
         self.price_repo.save_snapshot(
             asset_id=asset.id,
-            date=datetime.utcnow(),
+            date=datetime.now(timezone.utc),
             close=price,
             open_price=price,
             high=price,
@@ -253,7 +253,7 @@ class AssetsService:
                 logger.warning("refresh_prices: no price for %s (%s)", asset.symbol, yf_sym)
                 skipped += 1
 
-        cache.set(cache_key("prices", "refreshed_at"), datetime.utcnow().isoformat(), ttl=3600)
+        cache.set(cache_key("prices", "refreshed_at"), datetime.now(timezone.utc).isoformat(), ttl=3600)
         cache.clear_pattern("portfolio:*")
         logger.info("refresh_prices: updated=%d skipped=%d", updated, skipped)
         return {"status": "success", "assets_updated": updated, "assets_skipped": skipped}

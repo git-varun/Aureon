@@ -15,7 +15,7 @@ from app.shared.constants import SignalType, TimeFrame
 def client():
     """Create a test client."""
     from fastapi import FastAPI
-    from app.core.dependencies import get_session
+    from app.core.dependencies import get_session, require_auth
 
     app = FastAPI()
     app.include_router(router)
@@ -23,6 +23,11 @@ def client():
     # Mock get_session dependency
     mock_session = MagicMock()
     app.dependency_overrides[get_session] = lambda: mock_session
+
+    # Override auth to return a mock user
+    mock_user = MagicMock()
+    mock_user.id = 1
+    app.dependency_overrides[require_auth] = lambda: mock_user
 
     return TestClient(app), mock_session
 

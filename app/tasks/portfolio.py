@@ -1,7 +1,7 @@
 """Portfolio Celery tasks: sync, refresh prices, enrich technicals."""
 
 import logging
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import Optional
 
 from app.core.cache import cache
@@ -31,14 +31,18 @@ def sync_portfolio_task(self, broker: str, force_refresh: bool = True, dry_run: 
     errors = []
     holdings_count = 0
     updated_assets = 0
+    cred_session = None
 
     # ── Stage 1: resolve provider ────────────────────────────────────────────
     try:
         from app.modules.portfolio.providers.factory import get_broker_provider
-        provider = get_broker_provider(broker)
+        cred_session = SessionLocal()
+        provider = get_broker_provider(broker, session=cred_session)
         logger.info("[sync:%s] provider resolved -> %s", broker, provider.provider_name)
     except ValueError as exc:
         logger.error("[sync:%s] unsupported broker: %s", broker, exc)
+        if cred_session:
+            cred_session.close()
         return {"status": "error", "broker": broker, "stage": "resolve", "errors": [str(exc)]}
 
     # ── Stage 2: credential validation ──────────────────────────────────────
@@ -47,18 +51,22 @@ def sync_portfolio_task(self, broker: str, force_refresh: bool = True, dry_run: 
         logger.info("[sync:%s] credentials validated", broker)
     except Exception as exc:
         logger.error("[sync:%s] credential validation failed: %s", broker, exc)
+        if cred_session:
+            cred_session.close()
         return {"status": "error", "broker": broker, "stage": "validation", "errors": [str(exc)]}
 
     # ── dry_run: credential check only, skip fetch + persist ────────────────
     if dry_run:
         logger.info("[sync:%s] dry_run=true -> stopping after credential validation.", broker)
+        if cred_session:
+            cred_session.close()
         return {"status": "ok", "broker": broker, "stage": "validated", "dry_run": True, "errors": []}
 
     # ── Stage 3: delegate sync to service ────────────────────────────────────
-    session = None
+    service_session = None
     try:
-        session = SessionLocal()
-        service = PortfolioService(session)
+        service_session = SessionLocal()
+        service = PortfolioService(service_session)
         result = service.sync_portfolio(provider, force_refresh=force_refresh, dry_run=dry_run)
         holdings_count = result.get("holdings_count", 0)
         updated_assets = result.get("updated_assets", 0)
@@ -79,14 +87,16 @@ def sync_portfolio_task(self, broker: str, force_refresh: bool = True, dry_run: 
         errors.append(str(exc))
         raise self.retry(exc=exc, countdown=60, max_retries=3)
     finally:
-        if session is not None:
-            session.close()
+        if service_session is not None:
+            service_session.close()
+        if cred_session is not None:
+            cred_session.close()
 
     # ── Stage 4: cache invalidation ──────────────────────────────────────────
     cache.clear_pattern("portfolio:*")
     cache.set(
         "portfolio:sync_status",
-        {"status": "success", "broker": broker, "timestamp": datetime.utcnow().isoformat()},
+        {"status": "success", "broker": broker, "timestamp": datetime.now(timezone.utc).isoformat()},
         ttl=3600,
     )
 

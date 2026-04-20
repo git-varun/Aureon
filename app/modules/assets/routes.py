@@ -8,7 +8,7 @@ from typing import List, Optional
 from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy.orm import Session
 
-from app.core.dependencies import get_session
+from app.core.dependencies import get_session, require_auth
 from app.modules.assets.schemas import (
     AssetDetailResponse,
     AssetListResponse,
@@ -33,6 +33,7 @@ def list_assets(
     exchange: Optional[str] = Query(None, description="Filter by exchange (NSE, BSE, BINANCE…)"),
     search: Optional[str] = Query(None, description="Search symbol or name"),
     session: Session = Depends(get_session),
+        _user=Depends(require_auth),
 ):
     """List all tracked assets with optional filtering."""
     svc = AssetsService(session)
@@ -57,7 +58,7 @@ def list_assets(
 
 
 @router.get("/{symbol}", response_model=AssetDetailResponse)
-def get_asset(symbol: str, session: Session = Depends(get_session)):
+def get_asset(symbol: str, session: Session = Depends(get_session), _user=Depends(require_auth)):
     """Return full asset detail including recent price samples."""
     svc = AssetsService(session)
     detail = svc.get_asset_detail(symbol.upper())
@@ -71,6 +72,7 @@ def get_price_history(
     symbol: str,
     days: int = Query(30, ge=1, le=365, description="Number of days of history"),
     session: Session = Depends(get_session),
+        _user=Depends(require_auth),
 ):
     """Return historical OHLCV data for an asset."""
     svc = AssetsService(session)
@@ -96,6 +98,7 @@ def get_chart(
     symbol: str,
     days: int = Query(365, ge=1, le=730, description="Number of days"),
     session: Session = Depends(get_session),
+        _user=Depends(require_auth),
 ):
     """Return OHLCV + per-candle technical overlays for TradingView lightweight-charts."""
     svc = AssetsService(session)
@@ -106,7 +109,7 @@ def get_chart(
 
 
 @router.post("/price")
-def trigger_price_refresh(symbol: Optional[str] = None):
+def trigger_price_refresh(symbol: Optional[str] = None, _user=Depends(require_auth)):
     """Enqueue a price refresh task for all assets or a specific symbol."""
     from app.tasks.portfolio import refresh_prices_task
     task = refresh_prices_task.delay(symbol=symbol)

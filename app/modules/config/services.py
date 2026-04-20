@@ -104,18 +104,34 @@ class ConfigService:
         logger.info("set_provider_key: provider=%s key=%s encrypted and stored", provider_name, key_name)
         return True
 
+    def set_provider_keys_bulk(self, provider_name: str, keys: dict) -> bool:
+        """Encrypt and store multiple API keys for a provider at once."""
+        p = self.get_provider(provider_name)
+        if not p:
+            return False
+        stored = json.loads(p.encrypted_keys or "{}")
+        for key_name, value in keys.items():
+            stored[key_name] = _encrypt(value) if value else ""
+        p.encrypted_keys = json.dumps(stored)
+        self.db.commit()
+        return True
+
     def _provider_to_dict(self, p: ProviderConfig) -> dict:
         """Return provider dict with keys_status (boolean presence, never plaintext)."""
         encrypted = json.loads(p.encrypted_keys or "{}")
         key_names = json.loads(p.key_names or "[]")
         keys_status = {k: bool(encrypted.get(k)) for k in key_names}
         return {
-            "name": p.provider_name,
+            "provider_name": p.provider_name,
             "provider_type": p.provider_type,
             "enabled": p.enabled,
-            "key_names": p.key_names,
+            "key_names": key_names,
             "keys_status": keys_status,
         }
+
+    def get_provider_dict(self, provider_name: str) -> Optional[dict]:
+        p = self.get_provider(provider_name)
+        return self._provider_to_dict(p) if p else None
 
     def get_decrypted_key(self, provider_name: str, key_name: str) -> Optional[str]:
         """Internal use only — returns decrypted key value."""
@@ -171,10 +187,21 @@ class ConfigService:
             logger.warning("mark_job_ran: job=%s not found", job_name)
 
     def _job_to_dict(self, j: JobConfig) -> dict:
+        # Get last log status
+        last_log = (
+            self.db.query(JobLog)
+            .filter_by(job_name=j.job_name)
+            .order_by(JobLog.started_at.desc())
+            .first()
+        )
+        last_status = last_log.status.value if last_log else None
+
         return {
+            "id": j.id,
             "job_name": j.job_name,
             "enabled": j.enabled,
             "cron_schedule": j.cron_expression,
+            "last_status": last_status,
             "last_run_at": j.last_run_at.isoformat() if j.last_run_at else None,
             "next_run_at": j.next_run_at.isoformat() if j.next_run_at else None,
         }
@@ -221,6 +248,27 @@ class ConfigService:
             }
             for l in logs
         ]
+
+    def dispatch_job(self, job_name: str) -> Optional[str]:
+        """Dispatch the named job to Celery and return task_id(s)."""
+        if job_name == "sync_portfolio":
+            from app.modules.portfolio.providers.factory import list_supported_brokers
+            from app.tasks.portfolio import sync_portfolio_task
+            task_ids = [sync_portfolio_task.delay(broker=broker).id for broker in list_supported_brokers()]
+            return ",".join(task_ids)
+        if job_name == "refresh_prices":
+            from app.tasks.portfolio import refresh_prices_task
+            return refresh_prices_task.delay().id
+        if job_name == "fetch_news":
+            from app.tasks.news import fetch_news_task
+            return fetch_news_task.delay().id
+        if job_name == "daily_briefing":
+            from app.tasks.ai import global_briefing_task
+            return global_briefing_task.delay().id
+        if job_name == "run_signals":
+            from app.tasks.signals import generate_signals_task
+            return generate_signals_task.delay().id
+        raise ValueError(f"Unknown job: {job_name}")
 
     # ── Seed ───────────────────────────────────────────────────────────────
 

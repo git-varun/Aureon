@@ -4,7 +4,7 @@ import hashlib
 import logging
 import requests
 from urllib.parse import urlencode
-from typing import Dict, List
+from typing import Dict, List, Optional
 
 from app.shared.interfaces import AssetSource, AssetPayload
 from app.core.config import settings
@@ -16,13 +16,19 @@ class BinanceIntelligenceClient(AssetSource):
     def provider_name(self) -> str:
         return "Binance"
 
-    def __init__(self):
+    def __init__(self, cred_manager=None):
         self.logger = logging.getLogger("BinanceREST")
-        self.api_key    = settings.binance_api_key
-        self.api_secret = settings.binance_api_secret
+        self.cred_manager = cred_manager
+
+        # Fetch credentials
+        if cred_manager:
+            self.api_key, self.api_secret = cred_manager.get_binance_credentials()
+        else:
+            self.api_key = settings.binance_api_key
+            self.api_secret = settings.binance_api_secret
 
         self.session = requests.Session()
-        self.session.headers.update({"X-MBX-APIKEY": self.api_key, "Content-Type": "application/json"})
+        self.session.headers.update({"X-MBX-APIKEY": self.api_key or "", "Content-Type": "application/json"})
 
         self.base_url = "https://api.binance.com"
         self.fapi_url = "https://fapi.binance.com"   # USD-M Futures

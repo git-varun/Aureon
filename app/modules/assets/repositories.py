@@ -1,6 +1,6 @@
 """Assets repositories — SQLAlchemy query helpers for Asset and PriceHistory."""
 
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from typing import List, Optional
 
 from sqlalchemy import func
@@ -92,8 +92,8 @@ class PriceHistoryRepository:
         )
 
     def get_last_n_days(self, asset_id: int, days: int = 30) -> List[PriceHistory]:
-        start = datetime.utcnow() - timedelta(days=days)
-        return self.get_range(asset_id, start, datetime.utcnow())
+        start = datetime.now(timezone.utc) - timedelta(days=days)
+        return self.get_range(asset_id, start, datetime.now(timezone.utc))
 
     def save_snapshot(
         self,

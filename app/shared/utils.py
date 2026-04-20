@@ -1,7 +1,7 @@
 """Utility functions."""
 
 import hashlib
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 
 
 def md5_hash(text: str) -> str:
@@ -34,7 +34,7 @@ def add_days(date: datetime, days: int) -> datetime:
 
 def days_ago(days: int) -> datetime:
     """Get datetime N days ago."""
-    return datetime.utcnow() - timedelta(days=days)
+    return datetime.now(timezone.utc) - timedelta(days=days)
 
 
 def normalize_yf_symbol(symbol: str, asset_type: str, exchange: str = "NSE") -> str:
