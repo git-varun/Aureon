@@ -23,29 +23,42 @@ logger = logging.getLogger("analytics.ai")
 # ---------------------------------------------------------------------------
 
 _GLOBAL_BRIEFING_PROMPT = """\
-You are a professional portfolio analyst. Analyse the portfolio context below and respond with
-ONLY valid JSON (no markdown, no extra text) using exactly these keys:
+Role: Elite Multi-Strategy Portfolio Manager.
+Objective: Perform 3-tier analysis (Macro, Fundamental, Technical) on the ENTIRE portfolio.
+Position sizing rule: CRITICAL — use the provided Qty to give exact numbers (e.g. "SELL 50% / 45 shares" or "HOLD all 90 shares").
+Directive count rule: CRITICAL — generate directives for the Top 15 assets by value. The "directives" array MUST contain exactly 15 objects.
+
+Respond with ONLY valid JSON (no markdown, no extra text) using exactly these keys:
 {{
-  "market_vibe": "<1 sentence market mood phrase>",
-  "macro_analysis": "<2-3 paragraph macro environment analysis covering global rates, India market conditions, and sector outlook>",
+  "market_vibe": "<2-sentence Global Market Pulse>",
+  "macro_analysis": "<Deep analysis of sector contagion and macro impacts>",
+  "global_score": <float 0.0-1.0 overall market health>,
+  "confidence_score": <float 0.0-1.0 confidence in this briefing>,
   "future_projections": {{
-    "estimated_30d_trend": "<directional estimate e.g. +5% to +12% or BEARISH -8%>",
+    "estimated_30d_trend": "<Bullish / Bearish / Sideways / Volatile>",
     "portfolio_risk_level": "<LOW | MEDIUM | MEDIUM-HIGH | HIGH | EXTREME>",
-    "catalyst_watch": "<key upcoming events and catalysts to monitor>"
+    "catalyst_watch": "<Specific upcoming global event to watch>"
   }},
   "directives": [
     {{
       "symbol": "<exact ticker symbol from portfolio>",
-      "action": "<BUY | SELL | HOLD | AVG DOWN | PROFIT BOOK>",
+      "action": "<BUY | SELL | HOLD | AVG DOWN | TAKE PARTIAL PROFIT>",
       "conviction_level": <integer 1-5>,
       "financial_impact": "<expected return or risk in % over timeframe>",
-      "position_sizing": "<capital allocation guidance>",
-      "time_horizon": "<e.g. 1-2 weeks, 1 month, 3-6 months>",
+      "position_sizing": "<exact explicit instructions based on Qty Owned>",
+      "time_horizon": "<Short-Term | Medium-Term | Long-Term>",
       "risk_reward_ratio": "<e.g. 1:2, 1:3>",
-      "the_why": "<concise macro and technical reasoning for this directive>"
+      "technical_analysis": "<explicit RSI, MACD, and Bollinger Band status>",
+      "fundamental_analysis": "<explicit P/E, 52w distance, and financial health>",
+      "news_sentiment": {{
+        "bias": "<Bullish | Bearish | Neutral>",
+        "confidence": <integer 0-100>,
+        "impact_summary": "<how this specific news moves the asset>"
+      }},
+      "the_why": "<high-conviction paragraph justifying the action>"
     }}
   ],
-  "skipped_assets_summary": "<brief description of assets requiring no action and why>"
+  "skipped_assets_summary": "<list tickers skipped and why>"
 }}
 
 Portfolio context:
@@ -53,13 +66,17 @@ Portfolio context:
 """
 
 _SINGLE_ASSET_PROMPT = """\
-You are a professional equity/crypto analyst. Analyse the asset context below and respond with
-ONLY valid JSON (no markdown, no extra text) using exactly these keys:
+Role: Elite Proprietary Trader.
+Objective: Perform a highly detailed, laser-focused analysis on this single asset.
+
+Respond with ONLY valid JSON (no markdown, no extra text) using exactly these keys:
 {{
-  "signal": "<BUY | SELL | HOLD | WATCH>",
-  "rationale": "<concise reason for the signal>",
-  "entry_range": "<price range string or null>",
-  "risk_level": "<low | medium | high>"
+  "short_term_trend": "<Bullish | Bearish | Neutral>",
+  "key_catalyst": "<the main driver moving this asset based on the news>",
+  "support_resistance": "<estimate support/resistance based on ATR, Bollinger Bands, and 52w high/low>",
+  "recommended_action": "<BUY | SELL | HOLD | AVG DOWN>",
+  "position_sizing": "<exact explicit instructions based on Qty Owned>",
+  "deep_reasoning": "<a thick, professional paragraph explaining the structural market setup>"
 }}
 
 Asset context:
@@ -164,6 +181,7 @@ class GeminiAIService(AIModel):
                 response = self._client.models.generate_content(
                     model=model,
                     contents=prompt,
+                    config={"response_mime_type": "application/json"},
                 )
                 logger.info("Gemini: success via model=%s", model)
                 return response.text

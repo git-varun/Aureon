@@ -290,8 +290,18 @@ class BinanceIntelligenceClient(AssetSource):
             asset["source"] = " / ".join(sorted(asset["sources"])) if asset["sources"] else "Unknown"
             del asset["sources"]
 
+        # TODO: implement proper futures position tracking — compute current_value from
+        # Binance mark price × qty + unrealized_pnl rather than dropping positions entirely.
+        # For now, only keep FUTURES-MARGIN (wallet/equity) rows; FUTURES-LONG/SHORT are
+        # leveraged exposures whose value is already captured in the margin wallet balance.
+        _SKIP_SUBTYPES = {"crypto_futures_long", "crypto_futures_short"}
+
         validated: List[AssetPayload] = []
         for compound, asset in assets_map.items():
+            if asset.get("sub_type") in _SKIP_SUBTYPES:
+                self.logger.debug("fetch_holdings: skipping leveraged position %s (sub_type=%s)", compound,
+                                  asset["sub_type"])
+                continue
             try:
                 validated.append(AssetPayload(**asset))
             except ValidationError as e:

@@ -50,6 +50,11 @@ def normalize_yf_symbol(symbol: str, asset_type: str, exchange: str = "NSE") -> 
         # Already in yfinance crypto format (e.g. BTC-USD, ETH-USDT)
         if sym_upper.endswith("-USD") or sym_upper.endswith("-USDT"):
             return sym_upper
+        # Compound Binance symbols: BTC-USD-EARN-FLEX, USDT-USD-FUTURES-MARGIN, etc.
+        # Extract just the base coin — BTC-USD, USDT-USD — for price lookup.
+        if "-USD-" in sym_upper:
+            base = sym_upper.split("-USD-")[0]
+            return f"{base}-USD"
         base = sym_upper.replace("USDT", "").replace("-", "")
         return f"{base}-USD"
 
