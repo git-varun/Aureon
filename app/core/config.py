@@ -37,7 +37,7 @@ class Settings(BaseSettings):
     cors_origins: list = ["http://localhost:5173", "http://localhost:3000", "http://localhost:8001"]
 
     # Security
-    secret_key: str = "change-me"
+    secret_key: str = "a7ab7603b94dfe3dd6c0fa505548081fc5cda3bc340ac80e0f37aaf2f05623fa"
     jwt_algorithm: str = "HS256"
     access_token_expire_minutes: int = 60
 
@@ -47,6 +47,16 @@ class Settings(BaseSettings):
     # Debug
     debug: bool = True
     log_level: str = "DEBUG"
+
+    @field_validator("secret_key")
+    @classmethod
+    def validate_secret_key(cls, value: str) -> str:
+        if len(value.encode()) < 32:
+            raise ValueError(
+                f"SECRET_KEY must be at least 32 bytes for HS256 (current: {len(value.encode())} bytes). "
+                "Generate one with: python3 -c \"import secrets; print(secrets.token_hex(32))\""
+            )
+        return value
 
     @field_validator("database_url")
     @classmethod

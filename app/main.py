@@ -267,7 +267,7 @@ def create_app() -> FastAPI:
                 a = pos.asset
                 if not a:
                     continue
-                value = pos.current_value or 0.0
+                value = _safe_float(pos.current_value, 0.0)
                 total_value += value
                 asset_type = a.asset_type.value.lower() if a.asset_type else "equity"
                 allocation[asset_type] = round(allocation.get(asset_type, 0.0) + value, 2)
@@ -279,9 +279,9 @@ def create_app() -> FastAPI:
                 # ATR% and Fibonacci from recent price history
                 price_risk_pct = fib_618 = fib_382 = None
                 if ph and len(ph) >= 14:
-                    closes = [float(p.close) for p in ph]
-                    highs  = [float(p.high or p.close) for p in ph]
-                    lows   = [float(p.low or p.close) for p in ph]
+                    closes = [_safe_float(p.close, 0.0) for p in ph]
+                    highs = [_safe_float(p.high or p.close, 0.0) for p in ph]
+                    lows = [_safe_float(p.low or p.close, 0.0) for p in ph]
                     trs = [
                         max(highs[i] - lows[i],
                             abs(highs[i] - closes[i - 1]),
@@ -304,13 +304,20 @@ def create_app() -> FastAPI:
                 score = 50
                 if tech:
                     if tech.rsi:
-                        rsi = float(tech.rsi)
-                        if   rsi > 70: score -= 10
-                        elif rsi < 30: score += 15
-                        elif rsi > 55: score += 7
-                        elif rsi < 45: score -= 7
+                        rsi = _safe_float(tech.rsi)
+                        if rsi is not None:
+                            if rsi > 70:
+                                score -= 10
+                            elif rsi < 30:
+                                score += 15
+                            elif rsi > 55:
+                                score += 7
+                            elif rsi < 45:
+                                score -= 7
                     if tech.macd:
-                        score += 10 if float(tech.macd) > 0 else -10
+                        macd_val = _safe_float(tech.macd)
+                        if macd_val is not None:
+                            score += 10 if macd_val > 0 else -10
                 technical_score = max(0, min(100, score))
 
                 assets_out.append({
@@ -318,19 +325,19 @@ def create_app() -> FastAPI:
                     "name":       a.name,
                     "type":       asset_type,
                     "sub_type": a.sub_type,
-                    "qty":        float(pos.quantity or 0),
-                    "live_price": float(a.current_price or 0),
-                    "value_inr":  float(value),
-                    "gross_value_inr": float(value),
-                    "pnl":        float(pos.pnl or 0),
-                    "pnl_pct":    float(pos.pnl_percent or 0),
+                    "qty": _safe_float(pos.quantity, 0),
+                    "live_price": _safe_float(a.current_price, 0),
+                    "value_inr": value,
+                    "gross_value_inr": value,
+                    "pnl": _safe_float(pos.pnl, 0),
+                    "pnl_pct": _safe_float(pos.pnl_percent, 0),
                     "tv_signal":  sig.signal_type.value if sig and sig.signal_type else None,
                     # Technical enrichment
-                    "momentum_rsi":       float(tech.rsi)              if tech and tech.rsi              else None,
-                    "trend_strength":     float(tech.macd)             if tech and tech.macd             else None,
-                    "bb_upper":           float(tech.bollinger_upper)  if tech and tech.bollinger_upper  else None,
-                    "bb_lower":           float(tech.bollinger_lower)  if tech and tech.bollinger_lower  else None,
-                    "vwap_volume_profile":float(tech.vwap)             if tech and tech.vwap             else None,
+                    "momentum_rsi": _safe_float(tech.rsi) if tech and tech.rsi else None,
+                    "trend_strength": _safe_float(tech.macd) if tech and tech.macd else None,
+                    "bb_upper": _safe_float(tech.bollinger_upper) if tech and tech.bollinger_upper else None,
+                    "bb_lower": _safe_float(tech.bollinger_lower) if tech and tech.bollinger_lower else None,
+                    "vwap_volume_profile": _safe_float(tech.vwap) if tech and tech.vwap else None,
                     "price_risk_pct":     price_risk_pct,
                     "fib_618":            fib_618,
                     "fib_382":            fib_382,

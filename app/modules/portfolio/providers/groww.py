@@ -83,7 +83,7 @@ class GrowwSync(AssetSource):
                 invested = float(mf.get('invested_amount', 0.0))
                 avg_nav = invested / qty if qty > 0 and invested > 0 else 0.0
                 raw_holdings.append({
-                    "symbol": f"{scheme_name[:20].replace(' ', '_')}_MF",
+                    "symbol": f"{scheme_name[:40].replace(' ', '_')}_MF",
                     "qty": qty,
                     "avg_buy_price": avg_nav,
                     "source": "Groww (MF)",

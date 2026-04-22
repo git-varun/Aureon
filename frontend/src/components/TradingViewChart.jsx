@@ -82,13 +82,14 @@ function InternalEquityChart({ symbol }) {
         const candleSeries = chart.addCandlestickSeries({
             upColor: '#089981', downColor: '#F23645', borderVisible: false, wickUpColor: '#089981', wickDownColor: '#F23645'
         });
-        candleSeries.setData(data);
+        const validCandles = data.filter(d => typeof d.open === 'number' && typeof d.high === 'number' && typeof d.low === 'number' && typeof d.close === 'number');
+        candleSeries.setData(validCandles);
 
         // Volume Profile
         const volumeSeries = chart.addHistogramSeries({
             priceFormat: { type: 'volume' }, priceScaleId: '', scaleMargins: { top: 0.8, bottom: 0 }
         });
-        volumeSeries.setData(data.map(d => ({
+        volumeSeries.setData(validCandles.map(d => ({
             time: d.time,
             value: d.volume,
             color: d.close >= d.open ? 'rgba(8, 153, 129, 0.4)' : 'rgba(242, 54, 69, 0.4)'
