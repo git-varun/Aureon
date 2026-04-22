@@ -56,5 +56,9 @@ celery_app.conf.update(
             "task": "ai.global_briefing",
             "schedule": crontab(hour=7, minute=0),
         },
+        "seed-price-history": {
+            "task": "portfolio.seed_price_history",
+            "schedule": crontab(hour=2, minute=0, day_of_week="sun"),
+        },
     },
 )

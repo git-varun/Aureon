@@ -324,14 +324,29 @@ def _fetch_ohlcv(asset, days: int) -> list:
                 pass
         return rows
 
-    # Crypto: derive yfinance pair from compound symbol (e.g. BTC-USD-EARN-FLEX → BTC-USD)
+    # Crypto: derive yfinance pair, fall back to CoinGecko when yfinance returns nothing.
+    # CoinGecko resolves any ticker via search so new/rebranded coins work automatically.
     if atype == AssetType.CRYPTO:
         parts = sym.split("-")
-        yf_sym = f"{parts[0]}-{parts[1]}" if len(parts) >= 2 else sym
-        return _yfinance_ohlcv(yf_sym, days)
+        base = parts[0]
+        yf_sym = f"{base}-{parts[1]}" if len(parts) >= 2 else sym
+        rows = _yfinance_ohlcv(yf_sym, days)
+        if not rows:
+            logger.debug("_fetch_ohlcv: yfinance empty for %s, trying CoinGecko", yf_sym)
+            rows = _coingecko_ohlcv(base, days)
+        return rows
 
     # Equity: use yfinance directly
     return _yfinance_ohlcv(sym, days)
+
+
+def _coingecko_ohlcv(base: str, days: int) -> list:
+    """CoinGecko OHLCV fallback for crypto. Resolves any ticker via search — no static map needed."""
+    import time
+    from app.modules.portfolio.providers.price.coingecko import CoinGeckoProvider
+    time.sleep(1)  # avoid 429 when called after multiple back-to-back yfinance attempts
+    provider = CoinGeckoProvider()
+    return provider.get_ohlcv(base, days)
 
 
 def _yfinance_ohlcv(yf_symbol: str, days: int) -> list:

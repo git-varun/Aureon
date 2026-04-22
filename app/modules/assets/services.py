@@ -156,7 +156,7 @@ class AssetsService:
 
         def is_valid_float(val) -> bool:
             """Check if value is a valid JSON-serializable number."""
-            if pd.notna(val).empty:
+            if pd.notna(val):
                 return False
             if isinstance(val, (float, int)):
                 return not (pd.isna(val) or pd.isnull(val) or pd.isna(float(val)))

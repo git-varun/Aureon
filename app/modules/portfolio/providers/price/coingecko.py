@@ -1,5 +1,7 @@
 """CoinGecko price provider — free public API, optional Pro key for higher rate limits."""
 import logging
+import time
+from datetime import datetime, timezone
 
 import requests
 
@@ -93,6 +95,53 @@ class CoinGeckoProvider(PriceProvider):
             logger.debug("CoinGecko search failed for %s: %s", base, e)
 
         return None
+
+    def get_ohlcv(self, base: str, days: int) -> list[dict]:
+        """Fetch daily OHLCV from CoinGecko for a crypto base ticker (e.g. 'SONIC', 'SUI').
+
+        Uses /coins/{id}/market_chart. Requests min 365 days to guarantee daily
+        (not hourly) candle granularity on the free tier. Retries once on 429.
+        """
+        coin_id = self._resolve_coin_id(base)
+        if not coin_id:
+            logger.debug("CoinGecko ohlcv: no coin ID for %s", base)
+            return []
+
+        cg_days = max(days, 365)
+        for attempt in range(2):
+            try:
+                resp = requests.get(
+                    f"{self._base()}/coins/{coin_id}/market_chart",
+                    params={"vs_currency": "usd", "days": cg_days},
+                    headers=self._headers(),
+                    timeout=_TIMEOUT,
+                )
+                if resp.status_code == 429:
+                    logger.warning("CoinGecko rate limited fetching ohlcv for %s, retry in 10s", base)
+                    time.sleep(10)
+                    continue
+                if resp.status_code != 200:
+                    logger.debug("CoinGecko ohlcv HTTP %s for %s", resp.status_code, base)
+                    return []
+                data = resp.json()
+                prices = data.get("prices", [])
+                volumes = data.get("total_volumes", [])
+                vol_map = {ts: v for ts, v in volumes}
+                return [
+                    {
+                        "date": datetime.fromtimestamp(ts / 1000, tz=timezone.utc),
+                        "open": float(price),
+                        "high": float(price),
+                        "low": float(price),
+                        "close": float(price),
+                        "volume": float(vol_map.get(ts, 0.0)),
+                    }
+                    for ts, price in prices
+                ]
+            except Exception as exc:
+                logger.debug("CoinGecko ohlcv failed for %s (%s): %s", base, coin_id, exc)
+                return []
+        return []
 
     def get_price(self, symbol: str, asset_type: str) -> PricePayload | None:
         if asset_type.upper() != "CRYPTO":
