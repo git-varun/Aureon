@@ -71,6 +71,13 @@ class CredentialManager:
 
     # ── AI ───────────────────────────────────────────────────────────────────
 
+    def is_provider_enabled(self, provider: str) -> bool:
+        try:
+            p = self.config_service.get_provider(provider)
+            return bool(p and p.enabled)
+        except Exception("Provider not found:"):
+            return False
+
     def get_gemini_key(self) -> Optional[str]:
         return self.get_credential("gemini", "api_key")
 

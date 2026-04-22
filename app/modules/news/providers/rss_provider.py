@@ -23,23 +23,31 @@ class RSSNewsProvider(BaseNewsProvider):
     def provider_name(self) -> str:
         return "rss"
 
-    def fetch_headlines(self, symbol: str) -> List[NewsPayload]:
+    def fetch_headlines(self, symbol: str, is_crypto: bool = False) -> List[NewsPayload]:
         """
         Fetch news for a symbol from multiple RSS feeds.
         Returns up to 20 deduplicated NewsPayload objects.
         Never raises — exceptions are caught and partial results returned.
         """
         encoded = quote(symbol)
-        urls = [
-            (
-                f"https://news.google.com/rss/search"
-                f"?q={encoded}+stock&hl=en-IN&gl=IN&ceid=IN:en"
-            ),
-            (
-                f"https://feeds.finance.yahoo.com/rss/2.0/headline"
-                f"?s={encoded}.NS&region=US&lang=en-US"
-            ),
-        ]
+        if is_crypto:
+            urls = [
+                (
+                    f"https://news.google.com/rss/search"
+                    f"?q={encoded}+crypto+cryptocurrency&hl=en-IN&gl=IN&ceid=IN:en"
+                ),
+            ]
+        else:
+            urls = [
+                (
+                    f"https://news.google.com/rss/search"
+                    f"?q={encoded}+stock&hl=en-IN&gl=IN&ceid=IN:en"
+                ),
+                (
+                    f"https://feeds.finance.yahoo.com/rss/2.0/headline"
+                    f"?s={encoded}.NS&region=US&lang=en-US"
+                ),
+            ]
 
         seen_links: set = set()
         results: List[NewsPayload] = []

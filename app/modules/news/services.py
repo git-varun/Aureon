@@ -23,14 +23,19 @@ class NewsService:
             self.registry.list_enabled(),
         )
 
-    def fetch_and_store(self, symbol: str, db: Session) -> int:
+    def fetch_and_store(self, symbol: str, db: Session, is_crypto: bool = False) -> int:
         """
         Fetch headlines for *symbol* from all enabled providers, deduplicate by URL,
         and persist new articles to database.
 
+        Args:
+            symbol: Effective query symbol (base coin for crypto, e.g. "BTC").
+            is_crypto: When True, providers receive the crypto hint so they can
+                       adjust query format/URL (e.g. skip equity-only endpoints).
+
         Returns count of newly inserted records.
         """
-        logger.info("fetch_and_store: symbol=%s", symbol)
+        logger.info("fetch_and_store: symbol=%s is_crypto=%s", symbol, is_crypto)
 
         providers = self.registry.get_providers()
         if not providers:
@@ -48,7 +53,7 @@ class NewsService:
                     symbol,
                     provider.provider_name,
                 )
-                payloads = provider.fetch_headlines(symbol)
+                payloads = provider.fetch_headlines(symbol, is_crypto=is_crypto)
 
                 for payload in payloads:
                     if payload.link and payload.link not in seen_urls:

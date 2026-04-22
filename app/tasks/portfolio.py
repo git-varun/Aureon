@@ -232,6 +232,7 @@ def seed_price_history_task(self, symbol: Optional[str] = None, days: int = 365,
 
         seeded = 0
         skipped = 0
+        seen_yf_symbols: set = set()  # deduplicate crypto base pairs across compound symbols
         for asset in assets:
             try:
                 if not force and asset.last_seeded_at:
@@ -239,6 +240,19 @@ def seed_price_history_task(self, symbol: Optional[str] = None, days: int = 365,
                     if age_days < 7:
                         skipped += 1
                         continue
+
+                # For crypto, multiple compound symbols share the same yfinance base pair
+                # (BTC-USD-SPOT, BTC-USD-EARN-FLEX, BTC-USD-FUTURES-MARGIN → all BTC-USD).
+                # Fetch OHLCV once; each asset row still gets its own PriceHistory records.
+                if asset.asset_type == AssetType.CRYPTO:
+                    parts = asset.symbol.split("-")
+                    yf_key = f"{parts[0]}-{parts[1]}" if len(parts) >= 2 else asset.symbol
+                    if yf_key in seen_yf_symbols:
+                        logger.debug("seed_price_history: dedup crypto %s (yf_key=%s already seeded)",
+                                     asset.symbol, yf_key)
+                        skipped += 1
+                        continue
+                    seen_yf_symbols.add(yf_key)
 
                 rows = _fetch_ohlcv(asset, days)
                 if not rows:

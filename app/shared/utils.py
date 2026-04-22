@@ -37,6 +37,17 @@ def days_ago(days: int) -> datetime:
     return datetime.now(timezone.utc) - timedelta(days=days)
 
 
+def extract_crypto_base_coin(symbol: str) -> str:
+    """Return the base coin from a compound Binance-style crypto symbol.
+
+    BTC-USD-EARN-FLEX  → BTC
+    ETH-USD-SPOT       → ETH
+    USDT-USD-CASH      → USDT
+    BTC                → BTC  (passthrough)
+    """
+    return symbol.split("-")[0].upper()
+
+
 def normalize_yf_symbol(symbol: str, asset_type: str, exchange: str = "NSE") -> str:
     """Convert internal symbol to yfinance format.
     NSE equities → SYMBOL.NS, BSE → SYMBOL.BO, crypto → SYMBOL-USD, others unchanged.

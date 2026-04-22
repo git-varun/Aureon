@@ -1,7 +1,7 @@
-import React, { useState, useEffect, useRef } from 'react';
-import { AdvancedRealTimeChart } from "react-ts-tradingview-widgets";
-import { createChart, CrosshairMode } from 'lightweight-charts';
-import { apiService } from '../api/apiService';
+import React, {useEffect, useRef, useState} from 'react';
+import {AdvancedRealTimeChart} from "react-ts-tradingview-widgets";
+import {createChart, CrosshairMode} from 'lightweight-charts';
+import {apiService} from '../api/apiService';
 
 export default function TradingViewChart({ symbol, assetType }) {
     // 🛡️ ROUTING LOGIC: Is it Crypto (TV Widget) or Equity (Internal Chart)?
@@ -12,9 +12,10 @@ export default function TradingViewChart({ symbol, assetType }) {
     // ==========================================
     if (isCrypto) {
         const getTVSymbol = (sym) => {
-            console.log("sym", sym);
-            if(sym=== "USDT-USD") return "BINANCE:USDTUSD";
-            return `BINANCE:${sym.replace("-USD", "USDT")}`;
+            // Extract base coin from compound symbols: BTC-USD-EARN-FLEX → BTC, USDT-USD-FUTURES-MARGIN → USDT
+            const base = sym.includes("-USD-") ? sym.split("-USD-")[0] : sym.replace("-USD", "");
+            if (base === "USDT") return "BINANCE:USDTUSD";
+            return `BINANCE:${base}USDT`;
         }
 
         return (

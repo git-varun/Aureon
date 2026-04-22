@@ -7,13 +7,14 @@ Each provider is responsible for generating signals based on specific data sourc
 """
 
 import logging
-from typing import Optional, List
+from typing import Optional
+
 from sqlalchemy.orm import Session
 
-from app.shared.interfaces import SignalProvider, SignalPayload
-from app.shared.quant import QuantEngine
-from app.modules.portfolio.models import Asset, PriceHistory
 from app.modules.analytics.models import Fundamentals
+from app.modules.portfolio.models import Asset, PriceHistory
+from app.shared.interfaces import SignalPayload, SignalProvider
+from app.shared.quant import QuantEngine
 
 logger = logging.getLogger("signal_providers")
 
@@ -406,10 +407,12 @@ class OnChainSignalProvider(SignalProvider):
         """Check if we have on-chain data availability.
 
         For now, returns True for major cryptos (BTC, ETH, etc).
-        In the future, would check a dedicated on_chain_metrics table.
+        Handles compound Binance symbols (BTC-USD-EARN-FLEX → BTC).
         """
+        from app.shared.utils import extract_crypto_base_coin
         major_cryptos = {"BTC", "ETH", "BNB", "SOL", "XRP", "ADA", "DOT", "DOGE"}
-        return symbol.upper() in major_cryptos
+        base = extract_crypto_base_coin(symbol)
+        return base in major_cryptos
 
     def generate_signal(
         self,

@@ -1,6 +1,7 @@
 """FastAPI application factory and startup."""
 
 import logging
+import math
 import sys
 import uuid
 from contextlib import asynccontextmanager
@@ -62,6 +63,17 @@ async def lifespan(app: FastAPI):
 
     yield
     logger.info("Application shutting down...")
+
+
+def _safe_float(v, default=None):
+    """Return float(v), or default if v is None / NaN / infinite."""
+    if v is None:
+        return default
+    try:
+        f = float(v)
+        return default if (math.isnan(f) or math.isinf(f)) else f
+    except (TypeError, ValueError):
+        return default
 
 
 def create_app() -> FastAPI:
