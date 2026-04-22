@@ -1,7 +1,8 @@
 """Signals domain models (SQLAlchemy ORM)."""
 
 from datetime import datetime
-from sqlalchemy import Column, Integer, String, Float, DateTime, Enum, ForeignKey, Text, Index
+
+from sqlalchemy import Column, DateTime, Enum, Float, ForeignKey, Index, Integer, String, Text
 
 from app.core.db import Base
 from app.shared.constants import SignalType, TimeFrame
@@ -13,7 +14,7 @@ class Signal(Base):
     __tablename__ = "signals"
 
     id = Column(Integer, primary_key=True)
-    symbol = Column(String(20), nullable=False, index=True)
+    symbol = Column(String(60), nullable=False, index=True)
     signal_type = Column(Enum(SignalType), nullable=False)
     timeframe = Column(Enum(TimeFrame), nullable=False, default=TimeFrame.SHORT_TERM)
 

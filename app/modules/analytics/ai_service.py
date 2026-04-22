@@ -156,9 +156,11 @@ _tracker = _RateLimitTracker()
 # ---------------------------------------------------------------------------
 
 _GEMINI_MODELS = [
-    "gemini-2.0-flash",
-    "gemini-2.0-flash-lite",
-    "gemini-1.5-pro",
+    # "gemini-2.5-flash",
+    # "gemini-2.5-pro",
+    # "gemini-2.0-flash",
+    # "gemini-2.0-flash-lite",
+    "gemini-3.1-flash-lite-preview",
 ]
 
 
@@ -169,7 +171,7 @@ class GeminiAIService(AIModel):
         self._client = genai.Client(api_key=api_key)
         logger.info("GeminiAIService: ready with %d models: %s", len(_GEMINI_MODELS), _GEMINI_MODELS)
 
-    def _generate(self, prompt: str) -> str:
+    def _generate(self, prompt: str) -> str | None:
         available = _tracker.available_keys(_GEMINI_MODELS)
         if not available:
             raise RuntimeError("All Gemini models are currently rate-limited")
@@ -193,6 +195,9 @@ class GeminiAIService(AIModel):
                     last_exc = exc
                 elif exc.code == 404:
                     logger.warning("Gemini: 404 on %s (model unavailable) — trying next model", model)
+                    last_exc = exc
+                elif exc.code == 503:
+                    logger.warning("Gemini: 503 on %s (overloaded) — trying next model", model)
                     last_exc = exc
                 else:
                     raise
@@ -365,15 +370,19 @@ def build_ai_service(cred_manager) -> AIModel:
                 "set" if gemini_key else "not set",
                 "set" if groq_key else "not set")
 
-    if gemini_key:
+    if gemini_key and cred_manager.is_provider_enabled("gemini"):
         providers.append(GeminiAIService(api_key=gemini_key))
     else:
-        logger.warning("build_ai_service: GEMINI_API_KEY not set — Gemini provider skipped")
+        logger.warning("build_ai_service: Gemini skipped (key=%s enabled=%s)",
+                       "set" if gemini_key else "not set",
+                       cred_manager.is_provider_enabled("gemini"))
 
-    if groq_key:
+    if groq_key and cred_manager.is_provider_enabled("groq"):
         providers.append(GroqAIService(api_key=groq_key))
     else:
-        logger.info("build_ai_service: GROQ_API_KEY not set — Groq provider skipped")
+        logger.info("build_ai_service: Groq skipped (key=%s enabled=%s)",
+                    "set" if groq_key else "not set",
+                    cred_manager.is_provider_enabled("groq"))
 
     if not providers:
         raise RuntimeError("No AI providers configured. Set GEMINI_API_KEY or GROQ_API_KEY in provider settings.")

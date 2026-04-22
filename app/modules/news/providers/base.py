@@ -19,12 +19,14 @@ class BaseNewsProvider(ABC):
         pass
 
     @abstractmethod
-    def fetch_headlines(self, symbol: str) -> List[NewsPayload]:
+    def fetch_headlines(self, symbol: str, is_crypto: bool = False) -> List[NewsPayload]:
         """
         Fetch news headlines for a given symbol.
 
         Args:
-            symbol: Stock ticker symbol (e.g., 'AAPL', 'TCS')
+            symbol: Ticker or base coin (e.g. 'AAPL', 'TCS', 'BTC').
+            is_crypto: True when symbol is a crypto base coin — providers
+                       may adjust query format or skip equity-only endpoints.
 
         Returns:
             List of NewsPayload objects. Should return empty list on error,

@@ -154,23 +154,40 @@ class AssetsService:
         bbu    = rm20 + 2 * rs20
         bbl    = rm20 - 2 * rs20
 
+        def is_valid_float(val) -> bool:
+            """Check if value is a valid JSON-serializable number."""
+            if pd.notna(val).empty:
+                return False
+            if isinstance(val, (float, int)):
+                return not (pd.isna(val) or pd.isnull(val) or pd.isna(float(val)))
+            return False
+
         result = []
         for i, p in enumerate(prices):
+            # Skip incomplete candles (market closure: weekends, holidays, data gaps)
+            # lightweight-charts requires valid OHLC numbers, not null
+            if p.open_price is None or p.high is None or p.low is None or p.close is None:
+                logger.debug("get_chart_data: skipping incomplete candle for %s on %s", symbol, p.date)
+                continue
+
             candle: dict = {
                 "time":   int(p.date.timestamp()),
-                "open":   float(p.open_price or p.close),
-                "high":   float(p.high or p.close),
-                "low":    float(p.low or p.close),
+                "open": float(p.open_price),
+                "high": float(p.high),
+                "low": float(p.low),
                 "close":  float(p.close),
                 "volume": int(p.volume or 0),
             }
-            if pd.notna(sma50.iloc[i]):  candle["sma50"]  = round(float(sma50.iloc[i]),  2)
-            if pd.notna(sma200.iloc[i]): candle["sma200"] = round(float(sma200.iloc[i]), 2)
-            if pd.notna(ema20.iloc[i]):  candle["ema20"]  = round(float(ema20.iloc[i]),  2)
-            if pd.notna(bbu.iloc[i]):    candle["bbu"]    = round(float(bbu.iloc[i]),    2)
-            if pd.notna(bbl.iloc[i]):    candle["bbl"]    = round(float(bbl.iloc[i]),    2)
+            # Add technical indicators only if valid (not NaN, not inf)
+            if is_valid_float(sma50.iloc[i]):  candle["sma50"] = round(float(sma50.iloc[i]), 2)
+            if is_valid_float(sma200.iloc[i]): candle["sma200"] = round(float(sma200.iloc[i]), 2)
+            if is_valid_float(ema20.iloc[i]):  candle["ema20"] = round(float(ema20.iloc[i]), 2)
+            if is_valid_float(bbu.iloc[i]):    candle["bbu"] = round(float(bbu.iloc[i]), 2)
+            if is_valid_float(bbl.iloc[i]):    candle["bbl"] = round(float(bbl.iloc[i]), 2)
             result.append(candle)
 
+        logger.info("get_chart_data: %s — returned %d candles (filtered from %d prices)", symbol, len(result),
+                    len(prices))
         return result
 
     # ── Price updates ────────────────────────────────────────────────────

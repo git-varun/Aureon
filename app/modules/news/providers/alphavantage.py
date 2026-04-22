@@ -23,19 +23,23 @@ class AlphaVantageNewsProvider(BaseNewsProvider):
         self.api_key = cred_manager.get_alphavantage_key()
         self.base_url = "https://www.alphavantage.co/query"
 
-    def fetch_headlines(self, symbol: str) -> List[NewsPayload]:
+    def fetch_headlines(self, symbol: str, is_crypto: bool = False) -> List[NewsPayload]:
         """
         Fetch news headlines for a symbol from Alpha Vantage.
         Returns empty list on error or if API key not configured.
+        Crypto base coins use the CRYPTO: prefix format.
         """
         if not self.api_key:
             logger.debug("AlphaVantageNewsProvider: API key not configured, skipping")
             return []
 
+        # Alpha Vantage expects CRYPTO:BTC format for crypto assets
+        av_symbol = f"CRYPTO:{symbol}" if is_crypto else symbol
+
         try:
             params = {
                 "function": "NEWS_SENTIMENT",
-                "tickers": symbol,
+                "tickers": av_symbol,
                 "apikey": self.api_key,
                 "limit": 20,
             }

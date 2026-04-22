@@ -27,6 +27,8 @@ def fetch_news_task(self, symbols=None):
     try:
         from app.modules.news.services import NewsService
         from app.modules.portfolio.models import Asset
+        from app.shared.constants import AssetType
+        from app.shared.utils import extract_crypto_base_coin
 
         session = SessionLocal()
         service = NewsService(session)
@@ -34,24 +36,44 @@ def fetch_news_task(self, symbols=None):
         try:
             # Resolve symbol list: use provided or fetch from portfolio
             if symbols is None:
-                assets = session.query(Asset.symbol).all()
-                symbols_list = [row.symbol for row in assets]
+                assets = session.query(Asset).all()
+                raw_symbols = [(a.symbol, a.asset_type) for a in assets]
             else:
-                symbols_list = list(symbols)
+                # Caller-supplied list: no asset_type info, treat all as equity
+                raw_symbols = [(s, None) for s in symbols]
 
-            if not symbols_list:
+            if not raw_symbols:
                 logger.warning("fetch_news_task: no symbols to process")
                 session.close()
                 return {"status": "success", "symbols": [], "total_fetched": 0}
 
-            logger.info("fetch_news_task: processing %d symbols", len(symbols_list))
+            # Resolve effective query symbol per asset:
+            # - crypto  → base coin (BTC-USD-EARN-FLEX → BTC), deduplicated
+            # - equity  → symbol as-is
+            seen_query_symbols: set = set()
+            symbols_list = []  # (query_symbol, is_crypto)
+            for sym, atype in raw_symbols:
+                if atype == AssetType.CRYPTO:
+                    base = extract_crypto_base_coin(sym)
+                    if base in seen_query_symbols:
+                        logger.debug("fetch_news_task: dedup crypto base=%s (from %s)", base, sym)
+                        continue
+                    seen_query_symbols.add(base)
+                    symbols_list.append((base, True))
+                else:
+                    if sym not in seen_query_symbols:
+                        seen_query_symbols.add(sym)
+                        symbols_list.append((sym, False))
+
+            logger.info("fetch_news_task: processing %d effective symbols (from %d assets)",
+                        len(symbols_list), len(raw_symbols))
 
             total_fetched = 0
             failed_symbols = []
 
-            for symbol in symbols_list:
+            for symbol, is_crypto in symbols_list:
                 try:
-                    count = service.fetch_and_store(symbol, session)
+                    count = service.fetch_and_store(symbol, session, is_crypto=is_crypto)
                     total_fetched += count
                     logger.info("fetch_news_task: symbol=%s fetched %d new articles", symbol, count)
 
@@ -74,6 +96,7 @@ def fetch_news_task(self, symbols=None):
             return {
                 "status": "success",
                 "symbols_processed": len(symbols_list),
+                "assets_total": len(raw_symbols),
                 "total_fetched": total_fetched,
                 "failed": failed_symbols,
             }

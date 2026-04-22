@@ -23,7 +23,7 @@ class NewsAPIProvider(BaseNewsProvider):
         self.api_key = cred_manager.get_newsapi_key()
         self.base_url = "https://newsapi.org/v2"
 
-    def fetch_headlines(self, symbol: str) -> List[NewsPayload]:
+    def fetch_headlines(self, symbol: str, is_crypto: bool = False) -> List[NewsPayload]:
         """
         Fetch news headlines for a symbol from NewsAPI.
         Returns empty list on error or if API key not configured.
@@ -33,9 +33,9 @@ class NewsAPIProvider(BaseNewsProvider):
             return []
 
         try:
-            # Search for stock symbol in news
+            query_term = f"{symbol} crypto" if is_crypto else f"{symbol} stock"
             params = {
-                "q": f"{symbol} stock",
+                "q": query_term,
                 "language": "en",
                 "sortBy": "publishedAt",
                 "apiKey": self.api_key,

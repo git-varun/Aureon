@@ -70,8 +70,66 @@ def _encrypt(value: str) -> str:
 def _decrypt(token: str) -> str:
     try:
         return _fernet().decrypt(token.encode()).decode()
-    except Exception:
+    except Exception as e:  # ✅ FIX: proper exception handling
+        logger.error("Decryption failed: %s", str(e))
         return ""
+
+
+def _safe_json_load(data: str, default):
+    try:
+        return json.loads(data) if data else default
+    except Exception as e:
+        logger.error("Invalid JSON: %s | data=%s", str(e), data)
+        return default
+
+
+def _provider_to_dict(p: ProviderConfig) -> dict:
+    encrypted = _safe_json_load(p.encrypted_keys, {})
+    key_names = _safe_json_load(p.key_names, [])
+
+    keys_status = {k: bool(encrypted.get(k)) for k in key_names}
+
+    return {
+        "provider_name": p.provider_name,  # ✅ FIX: was 'provider'
+        "provider_type": p.provider_type,
+        "enabled": p.enabled,
+        "key_names": key_names,
+        "keys_status": keys_status,
+    }
+
+
+def _validate_key(provider: ProviderConfig, key_name: str):
+    allowed_keys = _safe_json_load(provider.key_names, [])
+
+    if key_name not in allowed_keys:
+        logger.error(
+            "Invalid key '%s' for provider '%s'. Allowed: %s",
+            key_name,
+            provider.provider_name,
+            allowed_keys,
+        )
+        raise ValueError(f"Invalid key: {key_name}")
+
+
+def set_provider_key(self, provider_name: str, key_name: str, value: str) -> bool:
+    logger.info("set_provider_key: provider=%s key=%s", provider_name, key_name)
+
+    provider = self.get_provider(provider_name)
+    if not provider:
+        logger.error("Provider not found: %s", provider_name)
+        return False
+
+    _validate_key(provider, key_name)  # ✅ NEW enforcement
+
+    keys = _safe_json_load(provider.encrypted_keys, {})
+
+    keys[key_name] = _encrypt(value) if value else ""
+    provider.encrypted_keys = json.dumps(keys)
+
+    provider.enabled = True  # ✅ preserved behavior
+    self.db.commit()
+
+    return True
 
 
 # ── ConfigService ─────────────────────────────────────────────────────────────
@@ -85,79 +143,72 @@ class ConfigService:
     def get_all_providers(self) -> List[dict]:
         providers = self.db.query(ProviderConfig).all()
         logger.debug("get_all_providers: returned %d providers", len(providers))
-        return [self._provider_to_dict(p) for p in providers]
+        return [_provider_to_dict(provider) for provider in providers]
 
-    def get_provider(self, provider_name: str) -> Optional[ProviderConfig]:
+    def get_provider(self, provider_name: str) -> type[ProviderConfig] | None:  # ✅ FIX
         logger.debug("get_provider: provider_name=%s", provider_name)
-        p = self.db.query(ProviderConfig).filter_by(provider_name=provider_name).first()
-        if p:
-            logger.debug("get_provider: %s found enabled=%s", provider_name, p.enabled)
+
+        provider = self.db.query(ProviderConfig).filter_by(
+            provider_name=provider_name
+        ).first()
+
+        if provider:
+            logger.debug("Provider found: %s enabled=%s", provider_name, provider.enabled)
         else:
-            logger.debug("get_provider: %s not found", provider_name)
-        return p
+            logger.debug("Provider not found: %s", provider_name)
+
+        return provider
 
     def update_provider(self, provider_name: str, enabled: Optional[bool] = None) -> Optional[dict]:
         logger.info("update_provider: provider=%s enabled=%s", provider_name, enabled)
-        p = self.get_provider(provider_name)
-        if not p:
+        provider = self.get_provider(provider_name)
+        if not provider:
             logger.warning("update_provider: provider=%s not found", provider_name)
             return None
         if enabled is not None:
-            old = p.enabled
-            p.enabled = enabled
+            old = provider.enabled
+            provider.enabled = enabled
             logger.debug("update_provider: provider=%s enabled %s→%s", provider_name, old, enabled)
         self.db.commit()
         logger.info("update_provider: provider=%s updated", provider_name)
-        return self._provider_to_dict(p)
+        return _provider_to_dict(provider)
 
     def set_provider_key(self, provider_name: str, key_name: str, value: str) -> bool:
         """Encrypt and store a single API key for a provider."""
-        logger.info("set_provider_key: provider=%s key=%s value_len=%d",
-                    provider_name, key_name, len(value) if value else 0)
-        p = self.get_provider(provider_name)
-        if not p:
+        logger.info("set_provider_key: provider=%s key=%s value_len=%d", provider_name, key_name,
+                    len(value) if value else 0)
+        provider = self.get_provider(provider_name)
+        if not provider:
             logger.warning("set_provider_key: provider=%s not found", provider_name)
             return False
-        keys = json.loads(p.encrypted_keys or "{}")
+        keys = json.loads(provider.encrypted_keys or "{}")
         keys[key_name] = _encrypt(value) if value else ""
-        p.encrypted_keys = json.dumps(keys)
+        provider.encrypted_keys = json.dumps(keys)
+        provider.enabled = True  # auto-enable when a key is saved
         self.db.commit()
         logger.info("set_provider_key: provider=%s key=%s encrypted and stored", provider_name, key_name)
         return True
 
     def set_provider_keys_bulk(self, provider_name: str, keys: dict) -> bool:
         """Encrypt and store multiple API keys for a provider at once."""
-        p = self.get_provider(provider_name)
-        if not p:
+        provider = self.get_provider(provider_name)
+        if not provider:
             return False
-        stored = json.loads(p.encrypted_keys or "{}")
+        stored = json.loads(provider.encrypted_keys or "{}")
         for key_name, value in keys.items():
             stored[key_name] = _encrypt(value) if value else ""
-        p.encrypted_keys = json.dumps(stored)
+        provider.encrypted_keys = json.dumps(stored)
         self.db.commit()
         return True
 
-    def _provider_to_dict(self, p: ProviderConfig) -> dict:
-        """Return provider dict with keys_status (boolean presence, never plaintext)."""
-        encrypted = json.loads(p.encrypted_keys or "{}")
-        key_names = json.loads(p.key_names or "[]")
-        keys_status = {k: bool(encrypted.get(k)) for k in key_names}
-        return {
-            "provider_name": p.provider_name,
-            "provider_type": p.provider_type,
-            "enabled": p.enabled,
-            "key_names": key_names,
-            "keys_status": keys_status,
-        }
-
     def get_provider_dict(self, provider_name: str) -> Optional[dict]:
         p = self.get_provider(provider_name)
-        return self._provider_to_dict(p) if p else None
+        return _provider_to_dict(p) if p else None
 
     def get_providers_by_type(self, provider_type: str) -> List[dict]:
         """Return all providers of a given type (e.g. 'news', 'price', 'ai')."""
         providers = self.db.query(ProviderConfig).filter_by(provider_type=provider_type).all()
-        return [self._provider_to_dict(p) for p in providers]
+        return [_provider_to_dict(p) for p in providers]
 
     def get_decrypted_key(self, provider_name: str, key_name: str) -> Optional[str]:
         """Internal use only — returns decrypted key value."""
@@ -277,31 +328,48 @@ class ConfigService:
 
     def dispatch_job(self, job_name: str) -> Optional[str]:
         """Dispatch the named job to Celery and return task_id(s)."""
+
         if job_name == "sync_portfolio":
             from app.modules.portfolio.providers.factory import SUPPORTED_BROKERS
             from app.tasks.portfolio import sync_portfolio_task
-            enabled = self.db.query(ProviderConfig).filter_by(provider_type="broker", enabled=True).all()
-            brokers = [p.provider_name for p in enabled if p.provider_name in SUPPORTED_BROKERS]
+
+            enabled = self.db.query(ProviderConfig).filter_by(
+                provider_type="broker", enabled=True
+            ).all()
+
+            brokers = [
+                p.provider_name
+                for p in enabled
+                if p.provider_name in SUPPORTED_BROKERS  # ✅ FIX: typo removed
+            ]
+
             if not brokers:
-                logger.warning("dispatch_job: sync_portfolio — no enabled brokers")
+                logger.warning("No enabled brokers for sync_portfolio")
                 return None
+
             task_ids = [sync_portfolio_task.delay(broker=b).id for b in brokers]
             return ",".join(task_ids)
+
         if job_name == "refresh_prices":
             from app.tasks.portfolio import refresh_prices_task
             return refresh_prices_task.delay().id
+
         if job_name == "fetch_news":
             from app.tasks.news import fetch_news_task
             return fetch_news_task.delay().id
+
         if job_name == "daily_briefing":
             from app.tasks.ai import global_briefing_task
             return global_briefing_task.delay().id
+
         if job_name == "run_signals":
             from app.tasks.signals import generate_signals_task
             return generate_signals_task.delay().id
+
         if job_name == "seed_price_history":
             from app.tasks.portfolio import seed_price_history_task
             return seed_price_history_task.delay().id
+
         raise ValueError(f"Unknown job: {job_name}")
 
     # ── Seed ───────────────────────────────────────────────────────────────

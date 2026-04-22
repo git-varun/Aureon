@@ -23,13 +23,18 @@ class FinnhubNewsProvider(BaseNewsProvider):
         self.api_key = cred_manager.get_finnhub_key()
         self.base_url = "https://finnhub.io/api/v1"
 
-    def fetch_headlines(self, symbol: str) -> List[NewsPayload]:
+    def fetch_headlines(self, symbol: str, is_crypto: bool = False) -> List[NewsPayload]:
         """
         Fetch news headlines for a symbol from Finnhub.
         Returns empty list on error or if API key not configured.
+        Finnhub /company-news is equity-only; crypto symbols are skipped.
         """
         if not self.api_key:
             logger.debug("FinnhubNewsProvider: API key not configured, skipping")
+            return []
+
+        if is_crypto:
+            logger.debug("FinnhubNewsProvider: skipping crypto symbol %s (equity-only endpoint)", symbol)
             return []
 
         try:

@@ -45,8 +45,8 @@ class Settings(BaseSettings):
     timezone: str = "Asia/Kolkata"
 
     # Debug
-    debug: bool = False
-    log_level: str = "INFO"
+    debug: bool = True
+    log_level: str = "DEBUG"
 
     @field_validator("database_url")
     @classmethod
