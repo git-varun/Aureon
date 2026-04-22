@@ -67,11 +67,16 @@ def _encrypt(value: str) -> str:
     return _fernet().encrypt(value.encode()).decode()
 
 
-def _decrypt(token: str) -> str:
+def _decrypt(token: str, context: str = "") -> str:
     try:
         return _fernet().decrypt(token.encode()).decode()
-    except Exception as e:  # ✅ FIX: proper exception handling
-        logger.error("Decryption failed: %s", str(e))
+    except Exception as e:
+        hint = f" [{context}]" if context else ""
+        logger.error(
+            "Decryption failed%s — likely SECRET_KEY mismatch. "
+            "Re-save credentials via the Provider Config UI. err=%s",
+            hint, type(e).__name__,
+        )
         return ""
 
 
@@ -217,7 +222,7 @@ class ConfigService:
             return None
         keys = json.loads(p.encrypted_keys or "{}")
         encrypted = keys.get(key_name, "")
-        return _decrypt(encrypted) if encrypted else None
+        return _decrypt(encrypted, context=f"{provider_name}.{key_name}") if encrypted else None
 
     # ── Jobs ───────────────────────────────────────────────────────────────
 

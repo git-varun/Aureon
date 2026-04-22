@@ -180,6 +180,7 @@ def enrich_technicals_task(self, symbol: str):
                 record.macd            = macd_dict.get("value")
                 record.bollinger_upper = bollinger_dict.get("upper")
                 record.bollinger_lower = bollinger_dict.get("lower")
+                record.vwap = technicals.get("vwap")
             else:
                 record = TechnicalIndicators(
                     symbol=symbol,
@@ -187,6 +188,7 @@ def enrich_technicals_task(self, symbol: str):
                     macd=macd_dict.get("value"),
                     bollinger_upper=bollinger_dict.get("upper"),
                     bollinger_lower=bollinger_dict.get("lower"),
+                    vwap=technicals.get("vwap"),
                 )
                 session2.add(record)
             session2.commit()
@@ -373,3 +375,113 @@ def _yfinance_ohlcv(yf_symbol: str, days: int) -> list:
     except Exception as exc:
         logger.debug("yfinance ohlcv failed for %s: %s", yf_symbol, exc)
         return []
+
+
+# ---------------------------------------------------------------------------
+# Fundamentals seeding
+# ---------------------------------------------------------------------------
+
+@celery_app.task(bind=True, name="portfolio.seed_fundamentals", max_retries=1)
+def seed_fundamentals_task(self, symbol: Optional[str] = None):
+    """Fetch and cache fundamental data for portfolio assets from yfinance.
+
+    Stores results in Redis (24h TTL) for fast access by /api/state, and
+    upserts pe_ratio / eps into the Fundamentals DB table.
+    Skips mutual funds and assets with no yfinance coverage.
+    """
+    session = None
+    try:
+        import math
+        import yfinance as yf
+        from app.modules.portfolio.models import Asset
+        from app.modules.analytics.models import Fundamentals
+        from app.shared.constants import AssetType
+        from app.core.cache import cache
+        from app.shared.utils import cache_key
+
+        session = SessionLocal()
+        if symbol:
+            assets = session.query(Asset).filter(Asset.symbol == symbol).all()
+        else:
+            assets = session.query(Asset).all()
+
+        updated = 0
+        for asset in assets:
+            if asset.asset_type == AssetType.MUTUAL_FUND:
+                continue
+            try:
+                # Determine yfinance symbol
+                if asset.asset_type == AssetType.CRYPTO:
+                    parts = asset.symbol.split("-")
+                    yf_sym = f"{parts[0]}-{parts[1]}" if len(parts) >= 2 else asset.symbol
+                else:
+                    yf_sym = asset.symbol
+
+                info = yf.Ticker(yf_sym).info or {}
+
+                def _g(key):
+                    val = info.get(key)
+                    try:
+                        return float(val) if val is not None else None
+                    except (TypeError, ValueError):
+                        return None
+
+                pe_ratio = _g("trailingPE")
+                eps = _g("trailingEps")
+                book_val = _g("bookValue")
+                market_cap = _g("marketCap")
+                high_52w = _g("fiftyTwoWeekHigh")
+                low_52w = _g("fiftyTwoWeekLow")
+
+                graham_number = None
+                if eps and book_val and eps > 0 and book_val > 0:
+                    try:
+                        graham_number = round(math.sqrt(22.5 * eps * book_val), 2)
+                    except Exception:
+                        pass
+
+                # Cache full fundamentals dict in Redis (24h TTL)
+                fund_data = {
+                    "pe_ratio": pe_ratio,
+                    "eps": eps,
+                    "graham_number": graham_number,
+                    "market_cap": market_cap,
+                    "high_52w": high_52w,
+                    "low_52w": low_52w,
+                }
+                cache.set(cache_key("fundamentals", asset.symbol), fund_data, ttl=86400)
+
+                # Upsert basic fields to Fundamentals DB table
+                record = session.query(Fundamentals).filter_by(symbol=asset.symbol).first()
+                if record:
+                    record.pe_ratio = pe_ratio
+                    record.eps = eps
+                    record.market_cap = market_cap
+                    record.high_52w = high_52w
+                    record.low_52w = low_52w
+                else:
+                    session.add(Fundamentals(
+                        symbol=asset.symbol,
+                        pe_ratio=pe_ratio,
+                        eps=eps,
+                        market_cap=market_cap,
+                        high_52w=high_52w,
+                        low_52w=low_52w,
+                    ))
+                session.commit()
+                updated += 1
+                logger.info("seed_fundamentals: updated %s pe=%.2f graham=%s",
+                            asset.symbol, pe_ratio or 0, graham_number)
+
+            except Exception as exc:
+                session.rollback()
+                logger.warning("seed_fundamentals: failed for %s: %s", asset.symbol, exc)
+
+        return {"status": "success", "updated": updated}
+
+    except Exception as exc:
+        logger.exception("seed_fundamentals_task failed: %s", exc)
+        raise self.retry(exc=exc, countdown=300)
+    finally:
+        if session:
+            session.close()
