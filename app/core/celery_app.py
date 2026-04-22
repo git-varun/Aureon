@@ -60,5 +60,13 @@ celery_app.conf.update(
             "task": "portfolio.seed_price_history",
             "schedule": crontab(hour=2, minute=0, day_of_week="sun"),
         },
+        "fetch-news": {
+            "task": "news.fetch",
+            "schedule": crontab(hour=8, minute=0),
+        },
+        "refresh-fundamentals": {
+            "task": "portfolio.seed_fundamentals",
+            "schedule": crontab(hour=3, minute=0, day_of_week="sun"),
+        },
     },
 )

@@ -1,3 +1,14 @@
+import logging
+from typing import Dict
+
+import requests
+import yfinance as yf
+
+from app.core.context_cache import TTL_ALT_DATA, smart_cache
+
+logger = logging.getLogger("analytics.macro")
+
+
 class FearGreedProvider:
     """Fetches Crypto Fear & Greed Index from alternative.me API."""
 

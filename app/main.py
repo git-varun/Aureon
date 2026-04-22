@@ -152,10 +152,17 @@ def create_app() -> FastAPI:
             positions = svc.list_positions()
 
             _empty_health = {"beta": 0.0, "allocation": {}, "correlation_matrix": {}}
-            _alt = {
-                "fear_and_greed": {"value": 50, "classification": "Neutral"},
-                "fii_proxy": {"dxy_value": 100.0, "fii_trend": "UNKNOWN"},
-            }
+            try:
+                from app.modules.analytics.macro import FearGreedProvider, DXYProvider
+                _alt = {
+                    "fear_and_greed": FearGreedProvider().fetch(),
+                    "fii_proxy": DXYProvider().fetch(),
+                }
+            except Exception:
+                _alt = {
+                    "fear_and_greed": {"value": 50, "classification": "Neutral"},
+                    "fii_proxy": {"dxy_value": 100.0, "fii_trend": "UNKNOWN"},
+                }
 
             if not positions:
                 return {
@@ -243,8 +250,19 @@ def create_app() -> FastAPI:
             except Exception:
                 pass
 
-            # ── Price history for ATR% + Fibonacci (one batched query) ───
-            cutoff_120 = datetime.now(timezone.utc) - timedelta(days=120)
+            # ── Fundamentals: one query for all symbols ──────────────────
+            from app.modules.analytics.models import Fundamentals
+            fund_by_symbol: dict = {}
+            if symbols:
+                for row in (
+                        session.query(Fundamentals)
+                                .filter(Fundamentals.symbol.in_(symbols))
+                                .all()
+                ):
+                    fund_by_symbol[row.symbol] = row
+
+            # ── Price history for ATR% + Fibonacci + signal metrics ──────
+            cutoff_120 = datetime.now(timezone.utc) - timedelta(days=200)
             prices_by_asset_id: dict = {}
             if asset_ids:
                 for p in (
@@ -300,48 +318,117 @@ def create_app() -> FastAPI:
                             fib_618 = round(h120 - 0.618 * rng, 2)
                             fib_382 = round(h120 - 0.382 * rng, 2)
 
+                # Full technical analysis from price history (Redis-cached per symbol)
+                quant_result: dict = {}
+                _quant_ck = ck("quant", a.symbol)
+                cached_quant = cache.get(_quant_ck)
+                if cached_quant:
+                    quant_result = cached_quant
+                elif ph and len(ph) >= 14:
+                    from app.shared.quant import QuantEngine
+                    quant_result = QuantEngine().compute_all(ph)
+                    cache.set(_quant_ck, quant_result, ttl=3600)
+
+                macd_dict = quant_result.get("macd") or {}
+                bb_dict = quant_result.get("bollinger") or {}
+                momentum_rsi = quant_result.get("rsi_14")
+                trend_strength = macd_dict.get("value")
+                bb_upper = bb_dict.get("upper")
+                bb_lower = bb_dict.get("lower")
+                vwap_val = quant_result.get("vwap")
+                sma_100 = quant_result.get("sma_100")
+                ema_105 = quant_result.get("ema_105")
+                atr_50_val = quant_result.get("atr_50")
+                sma_200 = quant_result.get("sma_200")
+
+                # Fallback to TechnicalIndicators DB when compute_all had no data
+                if momentum_rsi is None and tech:   momentum_rsi = _safe_float(tech.rsi)
+                if trend_strength is None and tech: trend_strength = _safe_float(tech.macd)
+                if bb_upper is None and tech:       bb_upper = _safe_float(tech.bollinger_upper)
+                if bb_lower is None and tech:       bb_lower = _safe_float(tech.bollinger_lower)
+                if vwap_val is None and tech:       vwap_val = _safe_float(tech.vwap)
+
+                # Signal metrics: BMSB, TSL, 1:2 Target, Z-Score
+                current_price = _safe_float(a.current_price, 0)
+                bmsb_status = macro_tsl = target_1_2 = z_score = None
+
+                if sma_100 and ema_105 and current_price:
+                    bmsb_status = (
+                        "ABOVE BAND (HOLD)"
+                        if current_price > sma_100 and current_price > ema_105
+                        else "BELOW BAND (RISK OFF)"
+                    )
+
+                if atr_50_val and current_price:
+                    macro_tsl = round(current_price - 3.5 * atr_50_val, 2)
+                    target_1_2 = round(current_price + 2 * (current_price - macro_tsl), 2)
+
+                if sma_200 and ph and len(ph) >= 200:
+                    import statistics as _stats
+                    closes_200 = [_safe_float(p.close, 0.0) for p in ph[-200:]]
+                    try:
+                        std_200 = _stats.stdev(closes_200)
+                        if std_200:
+                            z_score = round((current_price - sma_200) / std_200, 2)
+                    except Exception:
+                        pass
+
                 # Composite technical score
                 score = 50
-                if tech:
-                    if tech.rsi:
-                        rsi = _safe_float(tech.rsi)
-                        if rsi is not None:
-                            if rsi > 70:
-                                score -= 10
-                            elif rsi < 30:
-                                score += 15
-                            elif rsi > 55:
-                                score += 7
-                            elif rsi < 45:
-                                score -= 7
-                    if tech.macd:
-                        macd_val = _safe_float(tech.macd)
-                        if macd_val is not None:
-                            score += 10 if macd_val > 0 else -10
+                if momentum_rsi is not None:
+                    if momentum_rsi > 70:
+                        score -= 10
+                    elif momentum_rsi < 30:
+                        score += 15
+                    elif momentum_rsi > 55:
+                        score += 7
+                    elif momentum_rsi < 45:
+                        score -= 7
+                if trend_strength is not None:
+                    score += 10 if trend_strength > 0 else -10
+                if bmsb_status and "ABOVE" in bmsb_status:
+                    score += 5
                 technical_score = max(0, min(100, score))
 
+                # Fundamentals: Redis cache (populated by seed task) with DB fallback
+                fund_cache = cache.get(ck("fundamentals", a.symbol)) or {}
+                fund_db = fund_by_symbol.get(a.symbol)
+                pe_ratio = fund_cache.get("pe_ratio") or (_safe_float(fund_db.pe_ratio) if fund_db else None)
+                graham_number = fund_cache.get("graham_number")
+
                 assets_out.append({
-                    "symbol":     a.symbol,
-                    "name":       a.name,
-                    "type":       asset_type,
+                    "symbol": a.symbol,
+                    "name": a.name,
+                    "type": asset_type,
                     "sub_type": a.sub_type,
+                    "source": a.exchange,
                     "qty": _safe_float(pos.quantity, 0),
+                    "avg_buy_price": _safe_float(pos.avg_buy_price, 0),
                     "live_price": _safe_float(a.current_price, 0),
                     "value_inr": value,
                     "gross_value_inr": value,
                     "pnl": _safe_float(pos.pnl, 0),
                     "pnl_pct": _safe_float(pos.pnl_percent, 0),
-                    "tv_signal":  sig.signal_type.value if sig and sig.signal_type else None,
+                    "tv_signal": sig.signal_type.value if sig and sig.signal_type else None,
                     # Technical enrichment
-                    "momentum_rsi": _safe_float(tech.rsi) if tech and tech.rsi else None,
-                    "trend_strength": _safe_float(tech.macd) if tech and tech.macd else None,
-                    "bb_upper": _safe_float(tech.bollinger_upper) if tech and tech.bollinger_upper else None,
-                    "bb_lower": _safe_float(tech.bollinger_lower) if tech and tech.bollinger_lower else None,
-                    "vwap_volume_profile": _safe_float(tech.vwap) if tech and tech.vwap else None,
-                    "price_risk_pct":     price_risk_pct,
-                    "fib_618":            fib_618,
-                    "fib_382":            fib_382,
-                    "technical_score":    technical_score,
+                    "momentum_rsi": momentum_rsi,
+                    "trend_strength": trend_strength,
+                    "bb_upper": bb_upper,
+                    "bb_lower": bb_lower,
+                    "vwap_volume_profile": vwap_val,
+                    "bmsb_status": bmsb_status,
+                    "macro_tsl": macro_tsl,
+                    "target_1_2": target_1_2,
+                    "z_score": z_score,
+                    "price_risk_pct": price_risk_pct,
+                    "fib_618": fib_618,
+                    "fib_382": fib_382,
+                    "technical_score": technical_score,
+                    # Fundamentals
+                    "pe_ratio": pe_ratio,
+                    "graham_number": graham_number,
+                    "altman_z_score": None,
+                    "delivery_pct": None,
                 })
 
             return {
