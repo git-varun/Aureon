@@ -14,6 +14,7 @@ import httpx
 from google import genai
 from google.genai import errors as genai_errors
 
+from app.core.cache import cache
 from app.shared.interfaces import AIModel
 
 logger = logging.getLogger("analytics.ai")
@@ -124,17 +125,27 @@ def _parse_retry_delay(exc: Exception, default: float = 60.0) -> float:
 # ---------------------------------------------------------------------------
 
 class _RateLimitTracker:
-    """Tracks per-key cooldown timestamps (in-process, non-persistent)."""
+    """Tracks per-key cooldown — Redis-backed when available, in-process fallback."""
 
     def __init__(self):
-        self._limits: dict[str, float] = {}   # key → expiry epoch
+        self._limits: dict[str, float] = {}
 
     def mark(self, key: str, cooldown_seconds: float) -> None:
-        expiry = time.monotonic() + cooldown_seconds
-        self._limits[key] = expiry
         logger.warning("rate-limit: %s cooling down for %.0fs", key, cooldown_seconds)
+        if cache.client is not None:
+            try:
+                cache.client.set(f"ratelimit:{key}", "1", ex=int(cooldown_seconds))
+                return
+            except Exception:
+                pass
+        self._limits[key] = time.monotonic() + cooldown_seconds
 
     def is_limited(self, key: str) -> bool:
+        if cache.client is not None:
+            try:
+                return bool(cache.client.exists(f"ratelimit:{key}"))
+            except Exception:
+                pass
         expiry = self._limits.get(key)
         if expiry is None:
             return False

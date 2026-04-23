@@ -32,6 +32,23 @@ celery_app.conf.update(
     task_track_started=True,
     task_time_limit=30 * 60,
     task_soft_time_limit=25 * 60,
+    task_routes={
+        "portfolio.refresh_prices": {"queue": "price-queue"},
+        "portfolio.seed_price_history": {"queue": "price-queue"},
+        "portfolio.fetch_fx_rate": {"queue": "price-queue"},
+        "portfolio.compute_state": {"queue": "price-queue"},
+        "portfolio.enrich_technicals": {"queue": "price-queue"},
+        "ai.global_briefing": {"queue": "ai-queue"},
+        "ai.single_briefing": {"queue": "ai-queue"},
+        "ai.news_sentiment": {"queue": "ai-queue"},
+        "news.fetch": {"queue": "ai-queue"},
+        "portfolio.seed_fundamentals": {"queue": "ai-queue"},
+        "pipeline.daily": {"queue": "pipeline-queue"},
+        "signals.daily_batch": {"queue": "pipeline-queue"},
+        "signals.generate_all": {"queue": "pipeline-queue"},
+        "signals.generate_for_symbol": {"queue": "pipeline-queue"},
+        "portfolio.sync": {"queue": "pipeline-queue"},
+    },
     imports=[
         "app.tasks.portfolio",
         "app.tasks.signals",
@@ -67,6 +84,14 @@ celery_app.conf.update(
         "refresh-fundamentals": {
             "task": "portfolio.seed_fundamentals",
             "schedule": crontab(hour=3, minute=0, day_of_week="sun"),
+        },
+        "fetch-fx-rate": {
+            "task": "portfolio.fetch_fx_rate",
+            "schedule": crontab(minute=0, hour="*/4"),
+        },
+        "compute-state": {
+            "task": "portfolio.compute_state",
+            "schedule": crontab(minute="*/15", hour="9-15", day_of_week="mon-fri"),
         },
     },
 )

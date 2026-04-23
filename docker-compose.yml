@@ -30,6 +30,7 @@ services:
   redis:
     image: redis:7-alpine
     container_name: investment_os_redis
+    command: redis-server --appendonly yes --appendfsync everysec
     ports:
       - "6379:6379"
     volumes:
@@ -71,13 +72,30 @@ services:
         max-size: "10m"
         max-file: "3"
 
+  pgbouncer:
+    image: edoburu/pgbouncer:latest
+    container_name: investment_os_pgbouncer
+    environment:
+      DATABASE_URL: postgresql://postgres:postgres@postgres:5432/investment_os
+      POOL_MODE: transaction
+      MAX_CLIENT_CONN: 100
+      DEFAULT_POOL_SIZE: 20
+    ports:
+      - "5433:5432"
+    depends_on:
+      postgres:
+        condition: service_healthy
+    networks:
+      - investment_os_network
+    restart: unless-stopped
+
   api:
     build:
       context: .
       dockerfile: Dockerfile
     container_name: investment_os_api
     environment:
-      DATABASE_URL: postgresql://postgres:postgres@postgres:5432/investment_os
+      DATABASE_URL: postgresql://postgres:postgres@pgbouncer:5432/investment_os
       REDIS_URL: redis://redis:6379/0
       CELERY_BROKER_URL: amqp://guest:guest@rabbitmq:5672//
       CELERY_RESULT_BACKEND: redis://redis:6379/1
@@ -112,13 +130,13 @@ services:
         max-size: "10m"
         max-file: "3"
 
-  celery_worker:
+  celery_worker_price:
     build:
       context: .
       dockerfile: Dockerfile
-    container_name: investment_os_celery_worker
+    container_name: investment_os_worker_price
     environment:
-      DATABASE_URL: postgresql://postgres:postgres@postgres:5432/investment_os
+      DATABASE_URL: postgresql://postgres:postgres@pgbouncer:5432/investment_os
       REDIS_URL: redis://redis:6379/0
       CELERY_BROKER_URL: amqp://guest:guest@rabbitmq:5672//
       CELERY_RESULT_BACKEND: redis://redis:6379/1
@@ -135,7 +153,69 @@ services:
       - ./logs:/app/logs
     networks:
       - investment_os_network
-    command: celery -A app.core.celery_app worker --loglevel=info
+    command: celery -A app.core.celery_app worker --loglevel=info -Q price-queue --concurrency=4
+    restart: unless-stopped
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+  celery_worker_ai:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: investment_os_worker_ai
+    environment:
+      DATABASE_URL: postgresql://postgres:postgres@pgbouncer:5432/investment_os
+      REDIS_URL: redis://redis:6379/0
+      CELERY_BROKER_URL: amqp://guest:guest@rabbitmq:5672//
+      CELERY_RESULT_BACKEND: redis://redis:6379/1
+      PYTHONUNBUFFERED: 1
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      rabbitmq:
+        condition: service_healthy
+    volumes:
+      - .:/app
+      - ./logs:/app/logs
+    networks:
+      - investment_os_network
+    command: celery -A app.core.celery_app worker --loglevel=info -Q ai-queue --concurrency=2 --time-limit=600
+    restart: unless-stopped
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+  celery_worker_pipeline:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: investment_os_worker_pipeline
+    environment:
+      DATABASE_URL: postgresql://postgres:postgres@pgbouncer:5432/investment_os
+      REDIS_URL: redis://redis:6379/0
+      CELERY_BROKER_URL: amqp://guest:guest@rabbitmq:5672//
+      CELERY_RESULT_BACKEND: redis://redis:6379/1
+      PYTHONUNBUFFERED: 1
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      rabbitmq:
+        condition: service_healthy
+    volumes:
+      - .:/app
+      - ./logs:/app/logs
+    networks:
+      - investment_os_network
+    command: celery -A app.core.celery_app worker --loglevel=info -Q pipeline-queue --concurrency=1
     restart: unless-stopped
     logging:
       driver: "json-file"
@@ -149,7 +229,7 @@ services:
       dockerfile: Dockerfile
     container_name: investment_os_celery_beat
     environment:
-      DATABASE_URL: postgresql://postgres:postgres@postgres:5432/investment_os
+      DATABASE_URL: postgresql://postgres:postgres@pgbouncer:5432/investment_os
       REDIS_URL: redis://redis:6379/0
       CELERY_BROKER_URL: amqp://guest:guest@rabbitmq:5672//
       CELERY_RESULT_BACKEND: redis://redis:6379/1
