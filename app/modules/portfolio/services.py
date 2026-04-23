@@ -7,7 +7,7 @@ from typing import List, Optional
 from sqlalchemy import func
 from sqlalchemy.orm import Session
 
-from app.modules.portfolio.models import Asset, Position, PriceHistory, Transaction
+from app.modules.portfolio.models import Asset, AuditLog, Position, PriceHistory, Transaction
 from app.modules.portfolio.repositories import AssetRepository, PositionRepository
 from app.modules.portfolio.schemas import (AssetCreate, AssetResponse, PortfolioResponse, PositionCreate,
                                            PositionResponse)
@@ -200,6 +200,12 @@ class PortfolioService:
             position_id, old_value, pos.current_value, pos.pnl, pos.pnl_percent
         )
         self.session.commit()
+        self.session.add(AuditLog(
+            entity="position", entity_id=position_id, action="update",
+            before_json={"current_value": old_value},
+            after_json={"current_value": pos.current_value, "pnl": pos.pnl},
+        ))
+        self.session.commit()
         logger.info("update_position_price: position_id=%s updated price=%.4f pnl=%.2f", position_id, new_price, pos.pnl)
         return pos
 
@@ -221,6 +227,12 @@ class PortfolioService:
             broker=broker
         )
         self.session.add(trans)
+        self.session.commit()
+        self.session.add(AuditLog(
+            entity="transaction", entity_id=trans.id, action="create",
+            after_json={"asset_id": asset_id, "type": str(trans_type), "qty": quantity, "price": price,
+                        "total": total_value},
+        ))
         self.session.commit()
         logger.info("record_transaction: committed id=%s asset_id=%s type=%s total=%.2f",
                     trans.id, asset_id, trans_type, total_value)

@@ -4,6 +4,8 @@ import logging
 from datetime import datetime, timezone
 from typing import Optional
 
+import httpx
+
 from app.core.cache import cache
 from app.core.celery_app import celery_app
 from app.core.db import SessionLocal
@@ -130,6 +132,7 @@ def refresh_prices_task(self, symbol: Optional[str] = None):
         session = SessionLocal()
         result = AssetsService(session).refresh_prices(symbol=symbol)
         logger.info("refresh_prices_task: %s", result)
+        compute_state_task.delay()
         return result
     except Exception as exc:
         logger.exception("refresh_prices_task failed: %s", exc)
@@ -485,3 +488,303 @@ def seed_fundamentals_task(self, symbol: Optional[str] = None):
     finally:
         if session:
             session.close()
+
+
+@celery_app.task(name="portfolio.compute_state")
+def compute_state_task():
+    """Pre-compute /api/state and write to Redis. Run after every price refresh."""
+    import json
+    import math
+    import statistics as _stats
+    from datetime import datetime, timedelta, timezone
+
+    def _sf(v, default=None):
+        if v is None:
+            return default
+        try:
+            f = float(v)
+            return default if (math.isnan(f) or math.isinf(f)) else f
+        except (TypeError, ValueError):
+            return default
+
+    session = None
+    try:
+        from app.modules.portfolio.models import PriceHistory
+        from app.modules.portfolio.services import PortfolioService
+        from app.modules.news.models import News
+        from app.modules.analytics.models import AIBriefing, TechnicalIndicators, Fundamentals
+
+        session = SessionLocal()
+        svc = PortfolioService(session)
+        positions = svc.list_positions()
+
+        try:
+            from app.modules.analytics.macro import FearGreedProvider, DXYProvider
+            _alt = {
+                "fear_and_greed": FearGreedProvider().fetch(),
+                "fii_proxy": DXYProvider().fetch(),
+            }
+        except Exception:
+            _alt = {
+                "fear_and_greed": {"value": 50, "classification": "Neutral"},
+                "fii_proxy": {"dxy_value": 100.0, "fii_trend": "UNKNOWN"},
+            }
+
+        fx_rate = cache.get(cache_key("fx", "usd_inr")) or 83.50
+
+        if not positions:
+            result = {
+                "status": "empty",
+                "total_value_inr": 0,
+                "fx_rate": fx_rate,
+                "assets": [],
+                "health": {"beta": 0.0, "allocation": {}, "correlation_matrix": {}},
+                "briefing": None,
+                "news": {},
+                "alt_metrics": _alt,
+            }
+            cache.set(cache_key("state", "computed"), result, ttl=1200)
+            return result
+
+        briefing = cache.get(cache_key("ai", "briefing"))
+        if not briefing:
+            db_briefing = (
+                session.query(AIBriefing)
+                .filter(AIBriefing.briefing_type == "global")
+                .order_by(AIBriefing.created_at.desc())
+                .first()
+            )
+            if db_briefing and db_briefing.content:
+                try:
+                    briefing = json.loads(db_briefing.content)
+                except Exception:
+                    briefing = None
+
+        news_rows = (
+            session.query(News)
+            .order_by(News.published_at.desc())
+            .limit(60)
+            .all()
+        )
+        news: dict = {}
+        for row in news_rows:
+            sym_key = (row.symbols or "GENERAL").split(",")[0].strip()
+            news.setdefault(sym_key, [])
+            sentiment = None
+            if row.sentiment_score is not None:
+                score = float(row.sentiment_score)
+                bias = "POSITIVE" if score > 0.1 else "NEGATIVE" if score < -0.1 else "NEUTRAL"
+                sentiment = {
+                    "bias": bias,
+                    "confidence": round(abs(score) * 100, 1),
+                    "impact_summary": row.summary or "No additional context available.",
+                }
+            news[sym_key].append({
+                "id": row.id, "title": row.title, "snippet": row.summary,
+                "link": row.url, "provider": row.source or "RSS", "sentiment": sentiment,
+            })
+
+        symbols = [pos.asset.symbol for pos in positions if pos.asset]
+        asset_ids = [pos.asset_id for pos in positions]
+
+        tech_by_symbol: dict = {}
+        if symbols:
+            for row in (
+                    session.query(TechnicalIndicators)
+                            .filter(TechnicalIndicators.symbol.in_(symbols))
+                            .order_by(TechnicalIndicators.symbol, TechnicalIndicators.created_at.desc())
+                            .all()
+            ):
+                if row.symbol not in tech_by_symbol:
+                    tech_by_symbol[row.symbol] = row
+
+        signals_by_symbol: dict = {}
+        try:
+            from app.modules.signals.models import Signal
+            for row in (
+                    session.query(Signal)
+                            .filter(Signal.symbol.in_(symbols))
+                            .order_by(Signal.symbol, Signal.created_at.desc())
+                            .all()
+            ):
+                if row.symbol not in signals_by_symbol:
+                    signals_by_symbol[row.symbol] = row
+        except Exception:
+            pass
+
+        fund_by_symbol: dict = {}
+        if symbols:
+            for row in session.query(Fundamentals).filter(Fundamentals.symbol.in_(symbols)).all():
+                fund_by_symbol[row.symbol] = row
+
+        cutoff_120 = datetime.now(timezone.utc) - timedelta(days=200)
+        prices_by_asset_id: dict = {}
+        if asset_ids:
+            for p in (
+                    session.query(PriceHistory)
+                            .filter(PriceHistory.asset_id.in_(asset_ids), PriceHistory.date >= cutoff_120)
+                            .order_by(PriceHistory.asset_id, PriceHistory.date)
+                            .all()
+            ):
+                prices_by_asset_id.setdefault(p.asset_id, []).append(p)
+
+        assets_out = []
+        total_value = 0.0
+        allocation: dict = {}
+
+        for pos in positions:
+            a = pos.asset
+            if not a:
+                continue
+            value = _sf(pos.current_value, 0.0)
+            total_value += value
+            asset_type = a.asset_type.value.lower() if a.asset_type else "equity"
+            allocation[asset_type] = round(allocation.get(asset_type, 0.0) + value, 2)
+
+            tech = tech_by_symbol.get(a.symbol)
+            ph = prices_by_asset_id.get(a.id, [])
+            sig = signals_by_symbol.get(a.symbol)
+
+            price_risk_pct = fib_618 = fib_382 = None
+            if ph and len(ph) >= 14:
+                closes = [_sf(p.close, 0.0) for p in ph]
+                highs = [_sf(p.high or p.close, 0.0) for p in ph]
+                lows = [_sf(p.low or p.close, 0.0) for p in ph]
+                trs = [
+                    max(highs[i] - lows[i], abs(highs[i] - closes[i - 1]), abs(lows[i] - closes[i - 1]))
+                    for i in range(1, len(ph))
+                ]
+                if trs:
+                    atr = sum(trs[-14:]) / min(14, len(trs))
+                    cur = closes[-1] or 1
+                    price_risk_pct = round((atr / cur) * 100, 2)
+                if len(ph) >= 20:
+                    h120 = max(highs)
+                    l120 = min(lows)
+                    rng = h120 - l120
+                    if rng > 0:
+                        fib_618 = round(h120 - 0.618 * rng, 2)
+                        fib_382 = round(h120 - 0.382 * rng, 2)
+
+            quant_result: dict = {}
+            _quant_ck = cache_key("quant", a.symbol)
+            cached_quant = cache.get(_quant_ck)
+            if cached_quant:
+                quant_result = cached_quant
+            elif ph and len(ph) >= 14:
+                from app.shared.quant import QuantEngine
+                quant_result = QuantEngine().compute_all(ph)
+                cache.set(_quant_ck, quant_result, ttl=3600)
+
+            macd_dict = quant_result.get("macd") or {}
+            bb_dict = quant_result.get("bollinger") or {}
+            momentum_rsi = quant_result.get("rsi_14")
+            trend_strength = macd_dict.get("value")
+            bb_upper = bb_dict.get("upper")
+            bb_lower = bb_dict.get("lower")
+            vwap_val = quant_result.get("vwap")
+            sma_100 = quant_result.get("sma_100")
+            ema_105 = quant_result.get("ema_105")
+            atr_50_val = quant_result.get("atr_50")
+            sma_200 = quant_result.get("sma_200")
+
+            if momentum_rsi is None and tech:   momentum_rsi = _sf(tech.rsi)
+            if trend_strength is None and tech: trend_strength = _sf(tech.macd)
+            if bb_upper is None and tech:       bb_upper = _sf(tech.bollinger_upper)
+            if bb_lower is None and tech:       bb_lower = _sf(tech.bollinger_lower)
+            if vwap_val is None and tech:       vwap_val = _sf(tech.vwap)
+
+            current_price = _sf(a.current_price, 0)
+            bmsb_status = macro_tsl = target_1_2 = z_score = None
+
+            if sma_100 and ema_105 and current_price:
+                bmsb_status = (
+                    "ABOVE BAND (HOLD)" if current_price > sma_100 and current_price > ema_105
+                    else "BELOW BAND (RISK OFF)"
+                )
+            if atr_50_val and current_price:
+                macro_tsl = round(current_price - 3.5 * atr_50_val, 2)
+                target_1_2 = round(current_price + 2 * (current_price - macro_tsl), 2)
+            if sma_200 and ph and len(ph) >= 200:
+                closes_200 = [_sf(p.close, 0.0) for p in ph[-200:]]
+                try:
+                    std_200 = _stats.stdev(closes_200)
+                    if std_200:
+                        z_score = round((current_price - sma_200) / std_200, 2)
+                except Exception:
+                    pass
+
+            score = 50
+            if momentum_rsi is not None:
+                if momentum_rsi > 70:
+                    score -= 10
+                elif momentum_rsi < 30:
+                    score += 15
+                elif momentum_rsi > 55:
+                    score += 7
+                elif momentum_rsi < 45:
+                    score -= 7
+            if trend_strength is not None:
+                score += 10 if trend_strength > 0 else -10
+            if bmsb_status and "ABOVE" in bmsb_status:
+                score += 5
+            technical_score = max(0, min(100, score))
+
+            fund_cache = cache.get(cache_key("fundamentals", a.symbol)) or {}
+            fund_db = fund_by_symbol.get(a.symbol)
+            pe_ratio = fund_cache.get("pe_ratio") or (_sf(fund_db.pe_ratio) if fund_db else None)
+            graham_number = fund_cache.get("graham_number")
+
+            assets_out.append({
+                "symbol": a.symbol, "name": a.name, "type": asset_type,
+                "sub_type": a.sub_type, "source": a.exchange,
+                "qty": _sf(pos.quantity, 0), "avg_buy_price": _sf(pos.avg_buy_price, 0),
+                "live_price": _sf(a.current_price, 0), "value_inr": value,
+                "gross_value_inr": value, "pnl": _sf(pos.pnl, 0),
+                "pnl_pct": _sf(pos.pnl_percent, 0),
+                "tv_signal": sig.signal_type.value if sig and sig.signal_type else None,
+                "momentum_rsi": momentum_rsi, "trend_strength": trend_strength,
+                "bb_upper": bb_upper, "bb_lower": bb_lower,
+                "vwap_volume_profile": vwap_val, "bmsb_status": bmsb_status,
+                "macro_tsl": macro_tsl, "target_1_2": target_1_2,
+                "z_score": z_score, "price_risk_pct": price_risk_pct,
+                "fib_618": fib_618, "fib_382": fib_382,
+                "technical_score": technical_score,
+                "pe_ratio": pe_ratio, "graham_number": graham_number,
+                "altman_z_score": None, "delivery_pct": None,
+            })
+
+        result = {
+            "status": "success",
+            "total_value_inr": total_value,
+            "fx_rate": fx_rate,
+            "assets": assets_out,
+            "health": {"beta": 0.0, "allocation": allocation, "correlation_matrix": {}},
+            "briefing": briefing,
+            "news": news,
+            "alt_metrics": _alt,
+        }
+        cache.set(cache_key("state", "computed"), result, ttl=1200)
+        logger.info("compute_state_task: cached %d assets total_value=%.2f", len(assets_out), total_value)
+        return {"status": "success", "assets": len(assets_out)}
+
+    except Exception as exc:
+        logger.exception("compute_state_task failed: %s", exc)
+        raise
+    finally:
+        if session:
+            session.close()
+
+
+@celery_app.task(name="portfolio.fetch_fx_rate")
+def fetch_fx_rate_task():
+    try:
+        resp = httpx.get("https://api.frankfurter.app/latest?from=USD&to=INR", timeout=10)
+        resp.raise_for_status()
+        rate = float(resp.json()["rates"]["INR"])
+        cache.set(cache_key("fx", "usd_inr"), rate, ttl=14400)
+        logger.info("fetch_fx_rate: USD/INR=%.4f", rate)
+        return rate
+    except Exception as exc:
+        logger.warning("fetch_fx_rate: failed: %s", exc)
+        return None

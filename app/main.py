@@ -28,7 +28,7 @@ from app.modules.pipeline.routes import router as pipeline_router
 from app.modules.portfolio.routes import router as portfolio_router
 from app.modules.signals.routes import router as signals_router
 from app.modules.users.routes import router as users_router
-from app.shared.exceptions import AppException
+from app.shared.exceptions import AppException, NotFoundError, ConflictError, ValidationError, DataFetchError
 from app.core.dependencies import get_current_user
 
 setup_master_logger()
@@ -110,8 +110,15 @@ def create_app() -> FastAPI:
     # App-level exception handler
     @app.exception_handler(AppException)
     async def app_exception_handler(request: Request, exc: AppException):
+        status_codes = {
+            NotFoundError: 404,
+            ConflictError: 409,
+            ValidationError: 422,
+            DataFetchError: 502,
+        }
+        status_code = status_codes.get(type(exc), 400)
         return JSONResponse(
-            status_code=400,
+            status_code=status_code,
             content={"error": exc.code, "message": exc.message},
         )
 
@@ -141,6 +148,10 @@ def create_app() -> FastAPI:
         from app.core.cache import cache
         from app.core.db import SessionLocal
         from app.shared.utils import cache_key as ck
+
+        cached_state = cache.get(ck("state", "computed"))
+        if cached_state:
+            return cached_state
         from app.modules.portfolio.models import PriceHistory
         from app.modules.portfolio.services import PortfolioService
         from app.modules.news.models import News
@@ -164,11 +175,13 @@ def create_app() -> FastAPI:
                     "fii_proxy": {"dxy_value": 100.0, "fii_trend": "UNKNOWN"},
                 }
 
+            fx_rate = cache.get(ck("fx", "usd_inr")) or 83.50
+
             if not positions:
                 return {
                     "status": "empty",
                     "total_value_inr": 0,
-                    "fx_rate": 83.50,
+                    "fx_rate": fx_rate,
                     "assets": [],
                     "health": _empty_health,
                     "briefing": None,
@@ -434,7 +447,7 @@ def create_app() -> FastAPI:
             return {
                 "status": "success",
                 "total_value_inr": total_value,
-                "fx_rate": 83.50,
+                "fx_rate": fx_rate,
                 "assets": assets_out,
                 "health": {
                     "beta": 0.0,

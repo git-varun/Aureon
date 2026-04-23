@@ -2,7 +2,7 @@
 
 from datetime import datetime
 
-from sqlalchemy import (Column, DateTime, Enum, Float, ForeignKey, Index, Integer, String, Text)
+from sqlalchemy import (Column, DateTime, Enum, Float, ForeignKey, Index, Integer, JSON, String, Text)
 from sqlalchemy.orm import relationship
 
 from app.core.db import Base
@@ -136,3 +136,18 @@ class Transaction(Base):
     asset = relationship("Asset", back_populates="transactions")
 
     __table_args__ = (Index("idx_transaction_asset_date", "asset_id", "transaction_date"),)
+
+
+class AuditLog(Base):
+    """Append-only audit trail for financial writes."""
+
+    __tablename__ = "audit_log"
+
+    id = Column(Integer, primary_key=True)
+    entity = Column(String(50), nullable=False)
+    entity_id = Column(Integer, nullable=True)
+    action = Column(String(20), nullable=False)
+    before_json = Column(JSON, nullable=True)
+    after_json = Column(JSON, nullable=True)
+    actor_id = Column(Integer, nullable=True)
+    created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
