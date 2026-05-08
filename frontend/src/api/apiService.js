@@ -107,7 +107,24 @@ export const apiService = {
     },
 
     // ── Portfolio ──────────────────────────────────────────────────────────
-    fetchState: async () => (await API.get(`/state?t=${new Date().getTime()}`)).data,
+    fetchState: async () => (await API.get(`/portfolio/state?t=${Date.now()}`)).data,
+
+    // ── Aureon ─────────────────────────────────────────────────────────────
+    fetchAureonState: async () => (await API.get(`/aureon/state?t=${Date.now()}`)).data,
+    fetchAureonAsset: async (ticker) => (await API.get(`/aureon/assets/${encodeURIComponent(ticker)}`)).data,
+    fetchAureonActivity: async () => (await API.get('/aureon/activity')).data,
+    listRecommendations: async (status) => {
+        const q = status ? `?status=${encodeURIComponent(status)}` : '';
+        return (await API.get(`/aureon/recommendations${q}`)).data;
+    },
+    applyRecommendation: async (extId) => (await API.post(`/aureon/recommendations/${encodeURIComponent(extId)}/apply`)).data,
+    dismissRecommendation: async (extId, reason) =>
+        (await API.post(`/aureon/recommendations/${encodeURIComponent(extId)}/dismiss`, {reason})).data,
+    undoRecommendation: async (extId) => (await API.post(`/aureon/recommendations/${encodeURIComponent(extId)}/undo`)).data,
+    seedRecommendations: async () => (await API.post('/aureon/recommendations/seed')).data,
+    getAllocationTargets: async () => (await API.get('/config/allocation_targets')).data,
+    upsertAllocationTarget: async (assetClass, payload) =>
+        (await API.put(`/config/allocation_targets/${encodeURIComponent(assetClass)}`, payload)).data,
     fetchChartData: async (symbol) => (await API.get(`/assets/${symbol}/chart`)).data,
     fetchNews: async () => (await API.get('/news')).data,
     refreshPrices: async () => (await API.post('/price')).data,

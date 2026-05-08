@@ -23,14 +23,15 @@ dev only).
 
 ### `app/tasks/portfolio.py`
 
-| Task                      | Name                           | Reads                              | Writes                                                | Notes                                                         |
-|---------------------------|--------------------------------|------------------------------------|-------------------------------------------------------|---------------------------------------------------------------|
-| `sync_portfolio_task`     | `portfolio.sync`               | broker API (Zerodha/Binance/Groww) | `assets`, `positions`                                 | accepts `broker`, `force_refresh`, `dry_run` args             |
-| `refresh_prices_task`     | `portfolio.refresh_prices`     | broker price API                   | `assets.current_price`, `positions.current_value/pnl` | chains `compute_state_task` on success                        |
-| `seed_price_history_task` | `portfolio.seed_price_history` | yfinance/Binance OHLCV             | `price_history`                                       | weekly Sunday, 200 days lookback                              |
-| `seed_fundamentals_task`  | `portfolio.seed_fundamentals`  | yfinance fundamentals              | `fundamentals` table + Redis `fundamentals:{symbol}`  | weekly Sunday                                                 |
-| `compute_state_task`      | `portfolio.compute_state`      | DB + Redis                         | Redis `cache_key("state","computed")` TTL 20 min      | replicates full /api/state logic; chained after price refresh |
-| `fetch_fx_rate_task`      | `portfolio.fetch_fx_rate`      | api.frankfurter.app                | Redis `cache_key("fx","usd_inr")` TTL 4h              | fallback hardcoded 83.50                                      |
+| Task                      | Name                           | Reads                              | Writes                                                                       | Notes                                                                                   |
+|---------------------------|--------------------------------|------------------------------------|------------------------------------------------------------------------------|-----------------------------------------------------------------------------------------|
+| `sync_portfolio_task`     | `portfolio.sync`               | broker API (Zerodha/Binance/Groww) | `assets`, `positions`                                                        | accepts `broker`, `force_refresh`, `dry_run` args                                       |
+| `refresh_prices_task`     | `portfolio.refresh_prices`     | broker price API                   | `assets.current_price`, `positions.current_value/pnl`                        | chains `compute_state_task` on success                                                  |
+| `seed_price_history_task` | `portfolio.seed_price_history` | yfinance/Binance OHLCV             | `price_history`                                                              | weekly Sunday, 200 days lookback                                                        |
+| `seed_fundamentals_task`  | `portfolio.seed_fundamentals`  | yfinance fundamentals              | `fundamentals` table + Redis `cache_key("fundamentals",symbol)`              | weekly Sunday                                                                           |
+| `compute_state_task`      | `portfolio.compute_state`      | DB + Redis                         | Redis `cache_key("state","computed")` TTL 20 min                             | delegates to `build_state_payload()` in `state_builder.py`; chained after price refresh |
+| `fetch_fx_rate_task`      | `portfolio.fetch_fx_rate`      | api.frankfurter.app                | Redis `cache_key("fx","usd_inr")` TTL 4h                                     | fallback hardcoded 83.50                                                                |
+| `enrich_technicals_task`  | `portfolio.enrich_technicals`  | `price_history`                    | `technical_indicators` table + Redis `cache_key("technicals",symbol)` TTL 1h | single session (bug: dual-session resource leak fixed)                                  |
 
 ### `app/tasks/signals.py`
 

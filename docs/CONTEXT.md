@@ -20,18 +20,22 @@ Aggregates equities (Zerodha/Groww), crypto (Binance), MF across brokers into on
 ## Critical Files
 
 ```
-app/main.py                          — app factory, /api/state god endpoint (line 137)
-app/core/config.py                   — Settings (pydantic-settings, reads .env)
-app/core/db.py                       — engine + SessionLocal + get_session
-app/core/cache.py                    — CacheManager singleton (cache)
-app/core/celery_app.py               — Celery config + beat schedule
-app/core/dependencies.py             — get_current_user, require_auth, get_session, get_cache
-app/core/security.py                 — JWT create/verify, password hash/verify
-app/modules/<name>/{models,schemas,services,routes}.py  — per-module structure
+app/main.py                                            — app factory, router registration, middleware, exception handler
+app/modules/portfolio/state_builder.py                 — build_state_payload(): single source of truth for /api/portfolio/state data; used by endpoint fallback and compute_state_task
+app/modules/aureon/services.py                         — Aureon composite: build_aureon_state(), build_asset_detail() — backs /api/aureon/*
+app/modules/recommendations/services.py                — Recommendation lifecycle (apply/dismiss/undo) + DEFAULT_FIXTURES seed
+app/core/db_patcher.py                                 — idempotent ALTER TABLE + one-time backfills (replaces Alembic for solo project)
+app/core/config.py                                     — Settings (pydantic-settings, reads .env)
+app/core/db.py                                         — engine + SessionLocal + get_session
+app/core/cache.py                                      — CacheManager singleton (cache)
+app/core/celery_app.py                                 — Celery config + beat schedule
+app/core/dependencies.py                               — get_current_user, require_auth, get_session, get_cache
+app/core/security.py                                   — JWT create/verify, password hash/verify
+app/modules/<name>/{models,schemas,services,routes}.py — per-module structure
 app/modules/portfolio/providers/credential_manager.py  — DB-first credential lookup
 app/tasks/{portfolio,signals,news,ai,pipeline}.py      — Celery tasks
-app/shared/exceptions.py             — AppException hierarchy
-app/shared/quant.py                  — QuantEngine (RSI, MACD, BB, VWAP, ATR, Z-score)
+app/shared/exceptions.py                               — AppException hierarchy
+app/shared/quant.py                                    — QuantEngine (RSI, MACD, BB, VWAP, ATR, Z-score)
 ```
 
 ## Load Which Doc When
@@ -84,7 +88,7 @@ GROWW_EMAIL / GROWW_PASSWORD
 
 ## Module List
 
-`analytics` `assets` `auth` `backtesting` `config` `news` `notification` `pipeline` `portfolio` `signals` `transactions`
-`users`
+`analytics` `assets` `aureon` `auth` `backtesting` `config` `news` `notification` `pipeline` `portfolio`
+`recommendations` `signals` `transactions` `users`
 
 All registered in `app/main.py::register_models()` and `create_app()`.

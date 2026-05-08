@@ -25,20 +25,22 @@ def list_items(session: Session = Depends(get_session), _=Depends(require_auth))
 
 ## Module Ownership
 
-| Module         | Domain            | Owned Tables                                                                    | Key Extra Files                                                 |
-|----------------|-------------------|---------------------------------------------------------------------------------|-----------------------------------------------------------------|
-| `portfolio`    | Core holdings     | `assets`, `positions`, `transactions`, `price_history`, `tax_lots`, `audit_log` | `providers/` (broker adapters), `repositories.py`               |
-| `analytics`    | AI & indicators   | `technical_indicators`, `fundamentals`, `analytics_results`, `ai_briefing`      | `ai_service.py`, `macro.py`                                     |
-| `signals`      | Trading signals   | `signals`                                                                       | `signal_engine.py`, `providers.py`                              |
-| `news`         | Market news       | `news`                                                                          | —                                                               |
-| `auth`         | Auth tokens       | `tokens` (User from users module)                                               | —                                                               |
-| `users`        | User accounts     | `users`                                                                         | —                                                               |
-| `config`       | Providers & jobs  | `provider_configs`, `job_configs`, `job_logs`                                   | `credential_manager` in portfolio                               |
-| `notification` | Alerts            | `notifications`                                                                 | —                                                               |
-| `pipeline`     | Orchestration     | — (no tables)                                                                   | `orchestrator.py`, `pipeline_orchestrator.py`, `job_service.py` |
-| `backtesting`  | Strategy tests    | `backtesting_runs`                                                              | —                                                               |
-| `assets`       | Asset aggregation | reads `assets`                                                                  | thin layer over portfolio                                       |
-| `transactions` | Trade history     | reads `transactions`                                                            | —                                                               |
+| Module            | Domain            | Owned Tables                                                                    | Key Extra Files                                                       |
+|-------------------|-------------------|---------------------------------------------------------------------------------|-----------------------------------------------------------------------|
+| `portfolio`       | Core holdings     | `assets`, `positions`, `transactions`, `price_history`, `tax_lots`, `audit_log` | `providers/` (broker adapters), `repositories.py`, `state_builder.py` |
+| `analytics`       | AI & indicators   | `technical_indicators`, `fundamentals`, `analytics_results`, `ai_briefing`      | `ai_service.py`, `macro.py`                                           |
+| `signals`         | Trading signals   | `signals`                                                                       | `signal_engine.py`, `providers.py`                                    |
+| `news`            | Market news       | `news`                                                                          | —                                                                     |
+| `auth`            | Auth tokens       | `tokens` (User from users module)                                               | —                                                                     |
+| `users`           | User accounts     | `users`                                                                         | —                                                                     |
+| `config`          | Providers & jobs  | `provider_configs`, `job_configs`, `job_logs`                                   | `credential_manager` in portfolio                                     |
+| `notification`    | Alerts            | `notifications`                                                                 | —                                                                     |
+| `pipeline`        | Orchestration     | — (no tables)                                                                   | `orchestrator.py`, `pipeline_orchestrator.py`, `job_service.py`       |
+| `backtesting`     | Strategy tests    | `backtesting_runs`                                                              | —                                                                     |
+| `assets`          | Asset aggregation | reads `assets`                                                                  | thin layer over portfolio                                             |
+| `transactions`    | Trade history     | reads `transactions`                                                            | —                                                                     |
+| `recommendations` | Aureon decisions  | `recommendations`                                                               | seed fixtures in `services.py`; `materializer.py` (signal→rec)        |
+| `aureon`          | UI composite      | — (reads positions, recs, signals, transactions)                                | `services.py` (state + asset detail + activity)                       |
 
 ## Route Map
 
@@ -66,6 +68,10 @@ GET  /health      [open]
 ### Portfolio (`/api/portfolio`)
 
 ```
+GET  /state       → composite legacy view: positions + technicals + signals + news + briefing + alt_metrics
+                    Served from cache_key("state","computed") (TTL 20 min); built by state_builder.build_state_payload().
+                    Pre-computed by compute_state_task after every price refresh.
+                    Used by LegacyApp.jsx (#/legacy). Will be removed when legacy UI is retired.
 GET  /summary     → total_value, total_pnl, positions list
 GET  /positions   → all positions with asset data
 POST /positions   → create position
@@ -142,15 +148,6 @@ POST /            → record transaction
 GET  /health      [open]
 ```
 
-### State (`/api/state`) — defined in `app/main.py`
-
-```
-GET  /api/state   → composite response: positions + technicals + signals + news + briefing + alt_metrics
-                    Serves from cache_key("state","computed") (TTL 20 min) when available.
-                    Falls back to inline computation (7 DB queries + QuantEngine per symbol).
-                    Pre-computed by compute_state_task after every price refresh.
-```
-
 ## Auth Rules
 
 Two dependency functions in `app/core/dependencies.py`:
@@ -163,6 +160,43 @@ Silent refresh: on 401, frontend uses `refresh_token` to get new `access_token`.
 
 Exempt endpoints: `/health`, `/docs`, `/redoc`, `/api/auth/*`, `/api/users/health`, `/api/transactions/health`,
 `/api/assets/health`, `/api/analytics/health`, `/api/news/health`.
+
+### Aureon (`/api/aureon`)
+
+```
+GET  /state                        → composite for Aureon UI (holdings+tier, recs, signals, activity, classTarget, dayDelta)
+GET  /assets/{ticker}              → asset detail (priceSeries 60d, position, fundamentals, signals, active recs)
+GET  /activity                     → unified ledger (transactions + dismissed recs)
+GET  /recommendations[?status=]    → list (active|applied|dismissed)
+POST /recommendations/{ext_id}/apply
+POST /recommendations/{ext_id}/dismiss   body: { reason? }
+POST /recommendations/{ext_id}/undo
+POST /recommendations/seed         → idempotent fixture loader (6 default recs)
+```
+
+### Allocation Targets (`/api/config/allocation_targets`)
+
+```
+GET  /                              → list of {asset_class, target_pct, band_low_pct?, band_high_pct?}
+PUT  /{asset_class}                 body: { target_pct, band_low_pct?, band_high_pct?, notes? }
+```
+
+Stored as basis-points (0–10000) in `allocation_targets`; surface as 0..1 floats. Seeded from Aureon's `CLASS_TARGET` on
+first boot.
+
+### Signal → Recommendation linkage (Phase 3)
+
+`app/modules/recommendations/materializer.py::materialize_from_signals(session, threshold=65)` runs after every
+signal batch (`generate_signals_task`, `daily_signal_batch_task`). It buckets active signals per `(symbol, action)`,
+upserts a `Recommendation` by stable `ext_id` `sg-<symbol>-<add|reduce>`, and persists the source `signal_ids`.
+Strength: `recommended` if confidence ≥ 80, else `consider`. Dismissed/applied recs reactivate when a fresh
+above-threshold signal fires. Below-threshold or `neutral`/`hold` signals are skipped.
+
+### Asset detail prior-action markers (Phase 3)
+
+`build_asset_detail` now returns `priorActions: [{i, kind, label, ts}]` — applied transactions and dismissed
+recs filtered by symbol, mapped onto the `priceSeries` index. Frontend `AssetDetail.jsx` overlays them on the
+60-day chart; falls back to synthetic markers when the BE returns none.
 
 ## Error Handling
 
