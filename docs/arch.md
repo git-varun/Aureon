@@ -13,24 +13,29 @@ React SPA → FastAPI (single process) → PostgreSQL (primary only)
                                      → Celery workers (all tasks, one pool)
 ```
 
-Key: `/api/state` (`app/main.py:137`) is the frontend's only data source.
-Currently does 7 DB queries + QuantEngine CPU work + 2 external HTTP calls inline per request.
+Key: `/api/state` (`app/main.py:131`) is the frontend's only data source.
+Serves from Redis pre-computed cache (`state:computed`, TTL 20 min) on cache hit.
+On cache miss falls back to `build_state_payload()` (`app/modules/portfolio/state_builder.py`)
+which does 7 DB queries + QuantEngine CPU work + 2 external HTTP calls.
 
 ---
 
 ## Known Issues
 
-| # | Issue                                                                | Status                                                          |
-|---|----------------------------------------------------------------------|-----------------------------------------------------------------|
-| 1 | God endpoint — 7 DB queries + QuantEngine + 2 HTTP calls per request | Fixed — P2-A: served from Redis pre-compute; inline as fallback |
-| 2 | In-process AI rate-limit tracker — lost on restart                   | Fixed — P1-D: Redis-backed with in-memory fallback              |
-| 3 | No audit trail for financial writes                                  | Fixed — P1-C: AuditLog table, written on every write            |
-| 4 | All `AppException` → HTTP 400 regardless of type                     | Fixed — P1-B: 404/409/422/502 by exception type                 |
-| 5 | Celery eager-mode blocks API thread when broker absent               | Known; acceptable for dev (no broker = no background tasks)     |
-| 6 | Redis single node: cache + task backend share fate                   | Mitigated — P2-C: AOF persistence enabled                       |
-| 7 | FX rate hardcoded `83.50`                                            | Fixed — P1-E: fetched every 4h via task, cache with fallback    |
-| 8 | Default SQLAlchemy pool, no PgBouncer                                | Fixed — P2-B: PgBouncer added; pool_size=5 max_overflow=2       |
-| 9 | QuantEngine runs in request thread on cache miss                     | Fixed — P2-A: compute_state_task runs in price-queue worker     |
+| #  | Issue                                                                | Status                                                                                                                      |
+|----|----------------------------------------------------------------------|-----------------------------------------------------------------------------------------------------------------------------|
+| 1  | God endpoint — 7 DB queries + QuantEngine + 2 HTTP calls per request | Fixed — P2-A: served from Redis pre-compute; inline fallback via state_builder                                              |
+| 2  | In-process AI rate-limit tracker — lost on restart                   | Fixed — P1-D: Redis-backed with in-memory fallback                                                                          |
+| 3  | No audit trail for financial writes                                  | Fixed — P1-C: AuditLog table, written on every write                                                                        |
+| 4  | All `AppException` → HTTP 400 regardless of type                     | Fixed — P1-B: 404/409/422/502 by exception type                                                                             |
+| 5  | Celery eager-mode blocks API thread when broker absent               | Known; acceptable for dev (no broker = no background tasks)                                                                 |
+| 6  | Redis single node: cache + task backend share fate                   | Mitigated — P2-C: AOF persistence enabled                                                                                   |
+| 7  | FX rate hardcoded `83.50`                                            | Fixed — P1-E: fetched every 4h via task, cache with fallback                                                                |
+| 8  | Default SQLAlchemy pool, no PgBouncer                                | Fixed — P2-B: PgBouncer added; pool_size=5 max_overflow=2                                                                   |
+| 9  | QuantEngine runs in request thread on cache miss                     | Fixed — P2-A: compute_state_task runs in price-queue worker                                                                 |
+| 10 | `positions.pnl` always 0 after broker sync                           | Fixed — `_update_or_create_position` now preserves `current_value` from last price refresh; pnl computed against live value |
+| 11 | `enrich_technicals_task` opened two DB sessions (resource leak)      | Fixed — single session reused for query + upsert                                                                            |
+| 12 | `/api/state` god-endpoint logic duplicated in endpoint and task      | Fixed — extracted to `app/modules/portfolio/state_builder.py`                                                               |
 
 ---
 
@@ -67,13 +72,13 @@ Currently does 7 DB queries + QuantEngine CPU work + 2 external HTTP calls inlin
 
 ### Phase 2 — Decouple `/api/state` from request path
 
-**P2-A: Pre-compute state in worker** ← biggest change
+**P2-A: Pre-compute state in worker** ← biggest change — DONE
 
-- New task `app/tasks/portfolio.py::compute_state_task()`
-- Runs after every `refresh_prices_task` (chain)
-- Replicates all logic in `app/main.py:137–449`
-- Writes to Redis: `state:computed`, TTL 20 min
-- `/api/state` handler: `data = cache.get("state:computed"); if data: return data; # fallback inline`
+- Task `app/tasks/portfolio.py::compute_state_task()` — runs after every `refresh_prices_task` (chain)
+- All state-assembly logic lives in `app/modules/portfolio/state_builder.py::build_state_payload()`
+  — single source of truth used by both the endpoint fallback and the task pre-compute path
+- Writes to Redis: `cache_key("state","computed")`, TTL 20 min
+- `/api/state` handler: reads cache first; on miss calls `build_state_payload()` inline
 
 **P2-B: PgBouncer**
 
@@ -155,11 +160,14 @@ QuantEngine (`app/shared/quant.py`) is the single shared indicator engine — do
   "fx_rate": float,
   "assets": [{
     "symbol", "name", "type", "sub_type", "source", "qty", "avg_buy_price",
-    "live_price", "value_inr", "pnl", "pnl_pct",
+    "live_price", "value_inr", "gross_value_inr",   // gross_value_inr == value_inr (net deductions placeholder)
+    "pnl", "pnl_pct",
     "momentum_rsi", "trend_strength", "bb_upper", "bb_lower", "vwap_volume_profile",
     "bmsb_status", "macro_tsl", "target_1_2", "z_score", "price_risk_pct",
     "fib_618", "fib_382", "technical_score",
-    "pe_ratio", "graham_number", "tv_signal"
+    "pe_ratio", "graham_number", "tv_signal",
+    "altman_z_score",   // always null — placeholder for future fundamental scoring
+    "delivery_pct"      // always null — placeholder for NSE delivery data
   }],
   "health": { "beta", "allocation": {asset_type: value}, "correlation_matrix" },
   "briefing": { ...ai_briefing JSON... },

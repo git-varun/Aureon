@@ -1,0 +1,12 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 48 48" fill="none">
+
+    <defs>
+        <linearGradient id="aurum" x1="0" y1="0" x2="0" y2="1">
+            <stop offset="0" stop-color="#E7D3A1"></stop>
+            <stop offset="1" stop-color="#B4924F"></stop>
+        </linearGradient>
+    </defs>
+    <path d="M24 6 L40 40 L33 40 L24 20 L15 40 L8 40 Z" fill="url(#aurum)"></path>
+    <circle cx="24" cy="30" r="2.2" fill="#0B0D10"></circle>
+    <circle cx="24" cy="30" r="1" fill="url(#aurum)"></circle>
+</svg>

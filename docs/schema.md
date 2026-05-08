@@ -155,8 +155,9 @@ users          → backtesting_runs (1:N)
 
 ```
 cache_key("ai", "briefing")          → ai_briefing content JSON, TTL 6h
-cache_key("quant", symbol)           → QuantEngine.compute_all() result, TTL 1h
-cache_key("fundamentals", symbol)    → fundamentals dict, TTL varies
+cache_key("quant", symbol)           → QuantEngine.compute_all() result dict, TTL 1h
+cache_key("technicals", symbol)      → TechnicalIndicators subset dict, TTL 1h (written by enrich_technicals_task)
+cache_key("fundamentals", symbol)    → fundamentals dict, TTL varies (written by seed_fundamentals_task)
 cache_key("fx", "usd_inr")          → FX rate float, TTL 4h (refreshed by fetch_fx_rate task; fallback 83.50)
 cache_key("state", "computed")       → full /api/state JSON, TTL 20 min (pre-computed after each price refresh)
 ratelimit:{provider}:{model}         → "1", TTL = cooldown seconds (Redis-backed; in-memory fallback when Redis unavailable)

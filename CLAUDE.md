@@ -6,27 +6,44 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 Investment OS is a personal portfolio management platform covering equities (Zerodha/Groww), crypto (Binance), and other asset classes. It has a FastAPI backend, React/Vite frontend, PostgreSQL database, Redis cache, and Celery task queue backed by RabbitMQ.
 
+## Project layout
+
+```
+investment-os/
+├── backend/          # FastAPI app, Celery tasks, tests
+│   ├── app/
+│   ├── tests/
+│   ├── scripts/      # DB init SQL
+│   ├── Dockerfile
+│   └── requirements.txt
+├── frontend/         # React/Vite SPA
+├── data/             # Runtime data (smart_cache) — mounted into Docker
+├── logs/             # Runtime logs — mounted into Docker
+├── .env              # Env vars (read by docker-compose and local dev)
+└── docker-compose.yml
+```
+
 ## Commands
 
-### Backend
+### Backend (run from project root)
 ```bash
 # Run API server (development)
-uvicorn app.main:app --host 0.0.0.0 --port 8001 --reload
+PYTHONPATH=backend uvicorn app.main:app --host 0.0.0.0 --port 8001 --reload
 
 # Run Celery worker (requires broker)
-celery -A app.core.celery_app worker --loglevel=info
+PYTHONPATH=backend celery -A app.core.celery_app worker --loglevel=info
 
 # Run Celery beat scheduler
-celery -A app.core.celery_app beat --loglevel=info
+PYTHONPATH=backend celery -A app.core.celery_app beat --loglevel=info
 
 # Run all tests
-pytest
+pytest backend/
 
 # Run a single test file
-pytest tests/core/test_config.py
+pytest backend/tests/core/test_config.py
 
 # Run a specific test
-pytest tests/core/test_config.py::test_function_name -v
+pytest backend/tests/core/test_config.py::test_function_name -v
 ```
 
 ### Frontend
@@ -45,9 +62,9 @@ docker-compose up -d postgres redis  # infra only
 
 ## Architecture
 
-### Backend module layout (`app/`)
+### Backend module layout (`backend/app/`)
 
-Each feature is a self-contained module under `app/modules/` with the same internal structure:
+Each feature is a self-contained module under `backend/app/modules/` with the same internal structure:
 ```
 models.py      — SQLAlchemy ORM models (extend app.core.db.Base)
 schemas.py     — Pydantic request/response models

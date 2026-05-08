@@ -1,0 +1,321 @@
+/* ============================================================
+   Aureon Design System — tokens + semantic classes
+   ============================================================
+   All values are tuned for the Aureon "graphite & glass, lit by
+   gold" dark canvas. Do not hard-code colors or type sizes in
+   product code — always reference these tokens.
+   ============================================================ */
+
+/* Satoshi (headings) — Fontshare · Inter (UI) + JetBrains Mono (numbers) — Google Fonts */
+@import url('https://api.fontshare.com/v2/css?f[]=satoshi@400,500,600,700&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600&display=swap');
+
+:root {
+    /* ---------- CANVAS ---------- */
+    --canvas: #0B0D10; /* obsidian room */
+    --canvas-deep: #07090B; /* behind canvas, for vignette */
+    --canvas-raised: #101318; /* non-glass elevated, e.g. inputs on canvas */
+
+    /* ---------- NEUTRAL RAMP (cool bias so gold reads warm) ---------- */
+    --ink-00: #F4F5F7; /* highest-contrast text, hero numerals */
+    --ink-10: #DDE0E6; /* primary text */
+    --ink-20: #B6BBC4; /* secondary text */
+    --ink-30: #8A909B; /* tertiary / metadata */
+    --ink-40: #6A6F79; /* disabled text / placeholder */
+    --ink-50: #4B4F57; /* dividers, icons-at-rest */
+    --ink-60: #32353B; /* deep divider, sparkline grid */
+    --ink-70: #1E2026; /* surface outline on canvas */
+    --ink-80: #141619; /* near-canvas fill */
+
+    /* ---------- WHITE-INK (semi-transparent, for glass rings/fills) ---------- */
+    --ink-a02: rgba(255, 255, 255, 0.02);
+    --ink-a04: rgba(255, 255, 255, 0.04);
+    --ink-a06: rgba(255, 255, 255, 0.06);
+    --ink-a08: rgba(255, 255, 255, 0.08);
+    --ink-a10: rgba(255, 255, 255, 0.10);
+    --ink-a14: rgba(255, 255, 255, 0.14);
+    --ink-a20: rgba(255, 255, 255, 0.20);
+
+    /* ---------- AURUM (signature gold) ---------- */
+    --aurum-50: #F5EBD3; /* tint, rare use */
+    --aurum-100: #E7D3A1;
+    --aurum-300: #D4B888;
+    --aurum-500: #C9A86A; /* THE aureon gold */
+    --aurum-600: #B4924F;
+    --aurum-700: #8E7035;
+    --aurum-glow: rgba(201, 168, 106, 0.18); /* for ambient halos */
+    --aurum-ring: rgba(201, 168, 106, 0.40);
+
+    /* ---------- SEMANTIC (desaturated, calm) ---------- */
+    --sage-500: #6FAE88; /* positive, gain */
+    --sage-600: #538F6B;
+    --sage-bg: rgba(111, 174, 136, 0.10);
+    --sage-ring: rgba(111, 174, 136, 0.28);
+
+    --crimson-500: #D16B6B; /* negative, loss */
+    --crimson-600: #B04E4E;
+    --crimson-bg: rgba(209, 107, 107, 0.10);
+    --crimson-ring: rgba(209, 107, 107, 0.28);
+
+    --dusk-500: #D4A257; /* warning, conflict */
+    --dusk-600: #B08540;
+    --dusk-bg: rgba(212, 162, 87, 0.10);
+    --dusk-ring: rgba(212, 162, 87, 0.28);
+
+    --azure-500: #7AA8D4; /* informational, neutral accent (rare) */
+    --azure-bg: rgba(122, 168, 212, 0.10);
+
+    /* ---------- GLASS TIERS ---------- */
+    --glass-1-fill: rgba(255, 255, 255, 0.030);
+    --glass-1-ring: rgba(255, 255, 255, 0.060);
+    --glass-1-blur: 24px;
+
+    --glass-2-fill: rgba(255, 255, 255, 0.045);
+    --glass-2-ring: rgba(255, 255, 255, 0.080);
+    --glass-2-highlight: rgba(255, 255, 255, 0.060);
+    --glass-2-blur: 32px;
+
+    --glass-3-fill: rgba(22, 24, 28, 0.72);
+    --glass-3-ring: rgba(255, 255, 255, 0.100);
+    --glass-3-blur: 40px;
+    --glass-3-shadow: 0 24px 64px rgba(0, 0, 0, 0.50);
+
+    /* ---------- SPACING SCALE ---------- */
+    --sp-0: 0;
+    --sp-1: 2px;
+    --sp-2: 4px;
+    --sp-3: 8px;
+    --sp-4: 12px;
+    --sp-5: 16px;
+    --sp-6: 24px;
+    --sp-7: 32px;
+    --sp-8: 48px;
+    --sp-9: 64px;
+    --sp-10: 96px;
+
+    /* ---------- RADII ---------- */
+    --r-xs: 2px;
+    --r-sm: 6px;
+    --r-md: 12px;
+    --r-lg: 20px;
+    --r-pill: 999px;
+
+    /* ---------- MOTION ---------- */
+    --ease-decel: cubic-bezier(0.22, 0.61, 0.36, 1);
+    --ease-std: cubic-bezier(0.4, 0, 0.2, 1);
+    --dur-micro: 120ms;
+    --dur-state: 200ms;
+    --dur-panel: 320ms;
+
+    /* ---------- TYPE ----------
+       Three families, strict roles:
+         · Satoshi      → headings & section titles (premium, modern)
+         · Inter        → ALL UI: body, navigation, labels, tables
+         · JetBrains Mono → numeric data: prices, %, values, ticker IDs
+       Readability and fast scanning > stylistic expression.
+    */
+    --font-heading: 'Satoshi', 'Inter', -apple-system, system-ui, sans-serif;
+    --font-ui: 'Inter', -apple-system, system-ui, sans-serif;
+    --font-mono: 'JetBrains Mono', ui-monospace, SFMono-Regular, Menlo, monospace;
+
+    /* Legacy alias — kept so older markup doesn't break.
+       Resolves to Satoshi (headings face). Prefer --font-heading in new work. */
+    --font-display: var(--font-heading);
+
+    /* size scale — desktop-first, financial density */
+    --fs-hero: 72px; /* net-worth marquee (numeric → mono) */
+    --fs-figure: 48px; /* panel figures (numeric → mono) */
+    --fs-metric: 32px; /* tile metrics (numeric → mono) */
+    --fs-h1: 28px;
+    --fs-h2: 20px;
+    --fs-h3: 16px;
+    --fs-body: 14px; /* workspace default */
+    --fs-label: 13px;
+    --fs-micro: 11px; /* metadata, timestamps */
+
+    --lh-tight: 1.1;
+    --lh-snug: 1.25;
+    --lh-body: 1.5;
+
+    /* ---------- FOCUS RING ---------- */
+    --focus-ring: 0 0 0 2px var(--canvas), 0 0 0 4px var(--aurum-ring);
+}
+
+/* ============================================================
+   Base
+   ============================================================ */
+
+html, body {
+    background: var(--canvas);
+    color: var(--ink-10);
+    font-family: var(--font-ui);
+    font-size: var(--fs-body);
+    line-height: var(--lh-body);
+    font-feature-settings: "ss01", "cv11";
+    font-variant-numeric: tabular-nums;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+}
+
+* {
+    box-sizing: border-box;
+}
+
+/* ============================================================
+   Semantic type classes
+   ============================================================ */
+
+/* HERO / FIGURE / METRIC — always numeric, always mono for tabular alignment. */
+.t-hero {
+    font-family: var(--font-mono);
+    font-size: var(--fs-hero);
+    font-weight: 500;
+    line-height: var(--lh-tight);
+    letter-spacing: -0.02em;
+    color: var(--ink-00);
+    font-variant-numeric: tabular-nums;
+    font-feature-settings: "zero", "ss01";
+}
+
+.t-figure {
+    font-family: var(--font-mono);
+    font-size: var(--fs-figure);
+    font-weight: 500;
+    line-height: var(--lh-tight);
+    letter-spacing: -0.015em;
+    color: var(--ink-00);
+    font-variant-numeric: tabular-nums;
+    font-feature-settings: "zero", "ss01";
+}
+
+.t-metric {
+    font-family: var(--font-mono);
+    font-size: var(--fs-metric);
+    font-weight: 500;
+    line-height: var(--lh-tight);
+    letter-spacing: -0.01em;
+    color: var(--ink-00);
+    font-variant-numeric: tabular-nums;
+}
+
+/* HEADINGS — Satoshi. Section titles, page headers, panel titles. */
+.t-h1 {
+    font-family: var(--font-heading);
+    font-size: var(--fs-h1);
+    font-weight: 600;
+    line-height: var(--lh-snug);
+    letter-spacing: -0.02em;
+    color: var(--ink-00);
+}
+
+.t-h2 {
+    font-family: var(--font-heading);
+    font-size: var(--fs-h2);
+    font-weight: 600;
+    line-height: var(--lh-snug);
+    letter-spacing: -0.015em;
+    color: var(--ink-00);
+}
+
+.t-h3 {
+    font-family: var(--font-heading);
+    font-size: var(--fs-h3);
+    font-weight: 600;
+    line-height: var(--lh-snug);
+    letter-spacing: -0.01em;
+    color: var(--ink-00);
+}
+
+.t-body {
+    font-family: var(--font-ui);
+    font-size: var(--fs-body);
+    font-weight: 400;
+    line-height: var(--lh-body);
+    color: var(--ink-10);
+}
+
+.t-label {
+    font-family: var(--font-ui);
+    font-size: var(--fs-label);
+    font-weight: 500;
+    letter-spacing: 0.01em;
+    color: var(--ink-20);
+}
+
+.t-eyebrow {
+    font-family: var(--font-ui);
+    font-size: var(--fs-micro);
+    font-weight: 600;
+    letter-spacing: 0.14em;
+    text-transform: uppercase;
+    color: var(--ink-30);
+}
+
+.t-micro {
+    font-family: var(--font-ui);
+    font-size: var(--fs-micro);
+    font-weight: 500;
+    color: var(--ink-30);
+}
+
+.t-mono {
+    font-family: var(--font-mono);
+    font-size: var(--fs-body);
+    font-weight: 500;
+    font-feature-settings: "zero", "ss01";
+    color: var(--ink-10);
+}
+
+.t-ticker {
+    font-family: var(--font-mono);
+    font-size: var(--fs-body);
+    font-weight: 600;
+    letter-spacing: 0.02em;
+    color: var(--ink-00);
+}
+
+/* Delta (change) classes */
+.t-delta-up {
+    color: var(--sage-500);
+    font-variant-numeric: tabular-nums;
+}
+
+.t-delta-down {
+    color: var(--crimson-500);
+    font-variant-numeric: tabular-nums;
+}
+
+.t-delta-flat {
+    color: var(--ink-30);
+    font-variant-numeric: tabular-nums;
+}
+
+/* ============================================================
+   Glass surfaces
+   ============================================================ */
+
+.glass-1 {
+    background: var(--glass-1-fill);
+    border: 1px solid var(--glass-1-ring);
+    backdrop-filter: blur(var(--glass-1-blur));
+    -webkit-backdrop-filter: blur(var(--glass-1-blur));
+    border-radius: var(--r-md);
+}
+
+.glass-2 {
+    background: var(--glass-2-fill);
+    border: 1px solid var(--glass-2-ring);
+    backdrop-filter: blur(var(--glass-2-blur));
+    -webkit-backdrop-filter: blur(var(--glass-2-blur));
+    border-radius: var(--r-md);
+    box-shadow: inset 0 1px 0 var(--glass-2-highlight);
+}
+
+.glass-3 {
+    background: var(--glass-3-fill);
+    border: 1px solid var(--glass-3-ring);
+    backdrop-filter: blur(var(--glass-3-blur));
+    -webkit-backdrop-filter: blur(var(--glass-3-blur));
+    border-radius: var(--r-md);
+    box-shadow: var(--glass-3-shadow), inset 0 1px 0 var(--glass-2-highlight);
+}

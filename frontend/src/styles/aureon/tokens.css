@@ -1,0 +1,528 @@
+/* ============================================================
+   Aureon v3 — decision engine additions (layered on v2/shell.css)
+   ============================================================ */
+
+:root {
+    --v3-ring-idle: rgba(255, 255, 255, 0.07);
+    --v3-ring-hover: rgba(255, 255, 255, 0.14);
+    --v3-ring-evaluate: rgba(201, 168, 106, 0.35);
+    --v3-ring-conflict: rgba(212, 162, 87, 0.45);
+    --v3-ring-error: rgba(209, 107, 107, 0.45);
+    --v3-bg-applied: linear-gradient(180deg, rgba(111, 174, 136, 0.05), rgba(111, 174, 136, 0.015));
+    --v3-bg-dim: rgba(255, 255, 255, 0.02);
+}
+
+/* ---------- Decision unit (v3) ---------- */
+.du3 {
+    position: relative;
+    border-radius: 12px;
+    background: rgba(255, 255, 255, 0.035);
+    border: 1px solid var(--v3-ring-idle);
+    padding: 16px 18px;
+    transition: border-color 160ms var(--ease-std), background 160ms var(--ease-std);
+}
+
+.du3[data-state="hover"], .du3:hover {
+    border-color: var(--v3-ring-hover);
+}
+
+.du3[data-state="evaluating"] {
+    border-color: var(--v3-ring-evaluate);
+    background: rgba(255, 255, 255, 0.045);
+}
+
+.du3[data-state="confirming"] {
+    border-color: var(--v3-ring-evaluate);
+}
+
+.du3[data-state="applied"] {
+    background: var(--v3-bg-applied);
+    border-color: rgba(111, 174, 136, 0.25);
+}
+
+.du3[data-state="conflict-blocked"] {
+    border-color: var(--v3-ring-conflict);
+}
+
+.du3[data-state="error"] {
+    border-color: var(--v3-ring-error);
+}
+
+.du3[data-stage]::before {
+    content: attr(data-stage);
+    position: absolute;
+    top: 10px;
+    right: 14px;
+    font-size: 9px;
+    letter-spacing: 0.18em;
+    text-transform: uppercase;
+    color: var(--ink-40);
+    font-weight: 600;
+    opacity: 0.6;
+}
+
+/* collapsed row: title/impact/action/confidence only */
+.du3-row {
+    display: grid;
+    grid-template-columns:auto 1fr auto auto;
+    gap: 16px;
+    align-items: center;
+}
+
+.du3-dot {
+    width: 10px;
+    height: 10px;
+    border-radius: 999px;
+    background: var(--ink-30);
+    box-shadow: 0 0 0 3px rgba(255, 255, 255, 0.02);
+}
+
+.du3-dot.is-recommended {
+    background: var(--aurum-500);
+    box-shadow: 0 0 0 3px rgba(201, 168, 106, 0.12);
+}
+
+.du3-dot.is-conflict {
+    background: var(--dusk-500);
+    box-shadow: 0 0 0 3px rgba(212, 162, 87, 0.12);
+}
+
+.du3-dot.is-hold, .du3-dot.is-consider {
+    background: var(--ink-30);
+}
+
+.du3-title {
+    font-family: var(--font-heading);
+    font-size: 15px;
+    font-weight: 600;
+    color: var(--ink-00);
+    letter-spacing: -0.01em;
+}
+
+.du3-impact {
+    font-size: 12.5px;
+    color: var(--ink-20);
+}
+
+.du3-impact b {
+    font-family: var(--font-mono);
+    font-weight: 500;
+    color: var(--ink-10);
+}
+
+.du3-cta {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    height: 30px;
+    padding: 0 12px;
+    border-radius: 6px;
+    font-size: 12.5px;
+    font-weight: 500;
+    background: rgba(255, 255, 255, 0.05);
+    border: 1px solid rgba(255, 255, 255, 0.08);
+    color: var(--ink-00);
+    cursor: pointer;
+    transition: background 120ms var(--ease-std), border-color 120ms var(--ease-std);
+}
+
+.du3-cta:hover {
+    background: rgba(255, 255, 255, 0.08);
+    border-color: rgba(255, 255, 255, 0.14);
+}
+
+.du3-cta[disabled] {
+    opacity: 0.4;
+    cursor: not-allowed;
+}
+
+.du3-cta.primary {
+    background: rgba(201, 168, 106, 0.14);
+    border-color: rgba(201, 168, 106, 0.35);
+    color: var(--aurum-100);
+}
+
+.du3-cta.primary:hover {
+    background: rgba(201, 168, 106, 0.22);
+}
+
+.du3-cta.ghost {
+    background: transparent;
+    border-color: transparent;
+    color: var(--ink-30);
+}
+
+.du3-cta.ghost:hover {
+    color: var(--ink-10);
+    background: rgba(255, 255, 255, 0.04);
+}
+
+/* compact confidence indicator */
+.ci-compact {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    font-family: var(--font-mono);
+    font-size: 11px;
+    color: var(--ink-20);
+}
+
+.ci-bar {
+    display: inline-grid;
+    grid-template-columns:repeat(10, 6px);
+    gap: 2px;
+}
+
+.ci-seg {
+    height: 10px;
+    background: rgba(255, 255, 255, 0.07);
+    border-radius: 1px;
+}
+
+.ci-seg.on.high {
+    background: var(--aurum-500);
+}
+
+.ci-seg.on.med {
+    background: var(--ink-20);
+}
+
+.ci-seg.on.low {
+    background: var(--ink-40);
+}
+
+/* evaluate panel (inline attached) */
+.ev-panel {
+    margin-top: 14px;
+    padding-top: 14px;
+    border-top: 1px dashed rgba(255, 255, 255, 0.10);
+    display: grid;
+    gap: 14px;
+}
+
+.ev-grid {
+    display: grid;
+    grid-template-columns:1fr 1fr;
+    gap: 14px;
+}
+
+.ev-block {
+    border: 1px solid rgba(255, 255, 255, 0.07);
+    border-radius: 8px;
+    padding: 12px 14px;
+    background: rgba(255, 255, 255, 0.02);
+}
+
+.ev-block h4 {
+    margin: 0 0 10px;
+    font-family: var(--font-ui);
+    font-size: 10.5px;
+    font-weight: 600;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    color: var(--ink-30);
+}
+
+.ev-row {
+    display: flex;
+    justify-content: space-between;
+    gap: 12px;
+    padding: 4px 0;
+    font-size: 12.5px;
+    color: var(--ink-10);
+}
+
+.ev-row span:first-child {
+    color: var(--ink-30);
+}
+
+.ev-row b {
+    font-family: var(--font-mono);
+    font-weight: 500;
+}
+
+.ev-actions {
+    display: flex;
+    justify-content: space-between;
+    gap: 8px;
+}
+
+.ev-actions .left {
+    display: flex;
+    gap: 8px;
+}
+
+.ev-actions .right {
+    display: flex;
+    gap: 8px;
+}
+
+.ev-conflict-strip {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 10px 12px;
+    border-radius: 8px;
+    background: rgba(212, 162, 87, 0.08);
+    border: 1px solid rgba(212, 162, 87, 0.28);
+    font-size: 12.5px;
+    color: var(--dusk-500);
+}
+
+.ev-conflict-strip b {
+    color: var(--ink-10);
+    font-weight: 500;
+}
+
+.ev-conflict-strip .grow {
+    flex: 1;
+}
+
+/* impact preview — before/after bar */
+.ip-bars {
+    display: grid;
+    gap: 6px;
+    font-family: var(--font-mono);
+    font-size: 11px;
+    color: var(--ink-20);
+}
+
+.ip-bar {
+    position: relative;
+    height: 8px;
+    border-radius: 999px;
+    background: rgba(255, 255, 255, 0.05);
+    overflow: hidden;
+}
+
+.ip-bar > i {
+    position: absolute;
+    inset: 0 auto 0 0;
+    background: var(--ink-30);
+    border-radius: inherit;
+}
+
+.ip-bar.after > i {
+    background: var(--aurum-500);
+}
+
+.ip-target {
+    position: absolute;
+    top: -2px;
+    bottom: -2px;
+    width: 1px;
+    background: var(--ink-10);
+    opacity: 0.6;
+}
+
+/* outcome feedback (attached below DU) */
+.ofc {
+    margin-top: 10px;
+    padding: 12px 16px;
+    border-radius: 10px;
+    background: linear-gradient(180deg, rgba(111, 174, 136, 0.07), rgba(111, 174, 136, 0.02));
+    border: 1px solid rgba(111, 174, 136, 0.25);
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    font-size: 12.5px;
+}
+
+.ofc .check {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 22px;
+    height: 22px;
+    border-radius: 999px;
+    background: rgba(111, 174, 136, 0.2);
+    color: var(--sage-500);
+}
+
+.ofc .text {
+    flex: 1;
+    color: var(--ink-10);
+}
+
+.ofc .text b {
+    font-family: var(--font-mono);
+    font-weight: 500;
+    color: var(--sage-500);
+}
+
+.ofc .undo {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    padding: 6px 10px;
+    border-radius: 6px;
+    background: rgba(255, 255, 255, 0.06);
+    border: 1px solid rgba(255, 255, 255, 0.12);
+    cursor: pointer;
+    font-size: 12px;
+    color: var(--ink-00);
+}
+
+.ofc .undo:hover {
+    background: rgba(255, 255, 255, 0.1);
+}
+
+.ofc .countdown {
+    font-family: var(--font-mono);
+    font-size: 11px;
+    color: var(--ink-30);
+}
+
+/* dim-applied unit under OFC */
+.du3[data-state="applied"] .du3-title {
+    color: var(--ink-20);
+}
+
+.du3[data-state="applied"] .du3-cta {
+    display: none;
+}
+
+/* portfolio decision unit */
+.pdu-tag {
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    height: 20px;
+    padding: 0 8px;
+    border-radius: 999px;
+    font-size: 10px;
+    font-weight: 600;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    background: rgba(201, 168, 106, 0.12);
+    color: var(--aurum-100);
+    border: 1px solid rgba(201, 168, 106, 0.25);
+}
+
+/* allocation impact grid */
+.ai-grid {
+    display: grid;
+    grid-template-columns:auto 1fr auto;
+    gap: 10px 16px;
+    align-items: center;
+    font-size: 12.5px;
+}
+
+.ai-grid .lbl {
+    color: var(--ink-20);
+}
+
+.ai-grid .num {
+    font-family: var(--font-mono);
+    color: var(--ink-10);
+}
+
+/* confirmation modal (portfolio + high-impact) */
+.cm-scrim {
+    position: fixed;
+    inset: 0;
+    background: rgba(4, 6, 8, 0.68);
+    backdrop-filter: blur(6px);
+    z-index: 120;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    animation: cardEnter 180ms var(--ease-decel);
+}
+
+.cm-panel {
+    width: min(680px, 92vw);
+    max-height: 88vh;
+    overflow: auto;
+    padding: 22px 24px;
+}
+
+.cm-head {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 16px;
+}
+
+.cm-foot {
+    display: flex;
+    justify-content: flex-end;
+    gap: 8px;
+    margin-top: 18px;
+    padding-top: 14px;
+    border-top: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+/* conflict resolver modal */
+.cr-list {
+    display: grid;
+    gap: 10px;
+}
+
+.cr-option {
+    padding: 12px 14px;
+    border-radius: 10px;
+    border: 1px solid rgba(255, 255, 255, 0.08);
+    background: rgba(255, 255, 255, 0.025);
+    cursor: pointer;
+    transition: border-color 120ms var(--ease-std);
+}
+
+.cr-option:hover {
+    border-color: rgba(201, 168, 106, 0.35);
+}
+
+.cr-option .row1 {
+    display: flex;
+    justify-content: space-between;
+    gap: 12px;
+    margin-bottom: 6px;
+}
+
+.cr-option .row1 b {
+    font-family: var(--font-heading);
+    font-size: 14px;
+    font-weight: 600;
+    color: var(--ink-00);
+}
+
+/* empty state */
+.empty {
+    padding: 40px 28px;
+    border: 1px dashed rgba(255, 255, 255, 0.10);
+    border-radius: 12px;
+    text-align: center;
+    background: rgba(255, 255, 255, 0.015);
+}
+
+.empty h3 {
+    margin: 0 0 6px;
+    font-family: var(--font-heading);
+    font-size: 18px;
+    font-weight: 600;
+    color: var(--ink-00);
+    letter-spacing: -0.01em;
+}
+
+.empty p {
+    margin: 0 0 14px;
+    font-size: 13px;
+    color: var(--ink-30);
+    max-width: 520px;
+    margin-left: auto;
+    margin-right: auto;
+}
+
+.empty .row {
+    display: inline-flex;
+    gap: 8px;
+}
+
+/* interaction state lamp (debug label, subtle) */
+.state-lamp {
+    font-family: var(--font-mono);
+    font-size: 10px;
+    color: var(--ink-40);
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+}
