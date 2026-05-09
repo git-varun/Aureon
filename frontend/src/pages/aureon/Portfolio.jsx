@@ -1,10 +1,9 @@
-/* Aureon — Portfolio page (ported). */
+/* Aureon — Portfolio page. */
 import React, {useMemo, useState} from 'react';
 import {useApp} from '../../components/aureon/store';
 import {Sparkline, Eyebrow, TierChip} from '../../components/aureon/ui';
-import {
-    HOLDINGS, CLASS_LABEL, NET_WORTH, valueOf, costOf, plOf, plPctOf, PRICE_SERIES,
-} from '../../components/aureon/data';
+import {valueOf, costOf, plOf, plPctOf} from '../../components/aureon/utils';
+import {useAureonData} from '../../hooks/useAureonData';
 
 const TableHead = ({cols}) => (
     <div style={{
@@ -18,9 +17,9 @@ const TableHead = ({cols}) => (
     </div>
 );
 
-const HoldingsRow = ({h, go, recBadge}) => {
+const HoldingsRow = ({h, go, recBadge, netWorth, priceSeries}) => {
     const v = valueOf(h), pl = plOf(h), plPct = plPctOf(h);
-    const wt = v / NET_WORTH;
+    const wt = netWorth > 0 ? v / netWorth : 0;
     return (
         <button onClick={() => go('assets', h.class, h.ticker)} style={{
             display: 'grid', gridTemplateColumns: '1.6fr 0.9fr 1fr 1fr 1fr 1fr 1fr 0.5fr',
@@ -81,13 +80,10 @@ const HoldingsRow = ({h, go, recBadge}) => {
                 <TierChip tier={h.tier}/>
             </div>
             <div style={{alignSelf: 'center', fontFamily: 'var(--font-mono)', fontSize: 13, color: 'var(--ink-10)'}}>
-                ${h.price.toLocaleString(undefined, {
-                minimumFractionDigits: h.price < 10 ? 2 : 2,
-                maximumFractionDigits: 2
-            })}
+                ${h.price.toLocaleString(undefined, {minimumFractionDigits: 2, maximumFractionDigits: 2})}
             </div>
             <div style={{alignSelf: 'center', display: 'flex', justifyContent: 'flex-start'}}>
-                <Sparkline data={PRICE_SERIES[h.ticker] || [h.cost, h.price]} w={64} h={20}/>
+                <Sparkline data={priceSeries[h.ticker] || [h.cost, h.price]} w={64} h={20}/>
             </div>
             <div style={{
                 alignSelf: 'center',
@@ -127,6 +123,7 @@ const HoldingsRow = ({h, go, recBadge}) => {
 
 export default function Portfolio({go}) {
     const {search, allRecs, active} = useApp();
+    const {holdings, classLabel, netWorth, priceSeries} = useAureonData();
     const [filter, setFilter] = useState('all');
     const [sort, setSort] = useState('value');
 
@@ -137,15 +134,15 @@ export default function Portfolio({go}) {
     }, [allRecs, active]);
 
     const filtered = useMemo(() => {
-        let h = HOLDINGS.slice();
+        let h = holdings.slice();
         if (filter !== 'all') h = h.filter(x => x.tier === filter);
-        if (search) h = h.filter(x => (x.ticker + ' ' + x.name + ' ' + CLASS_LABEL[x.class]).toLowerCase().includes(search.toLowerCase()));
+        if (search) h = h.filter(x => (x.ticker + ' ' + x.name + ' ' + (classLabel[x.class] || '')).toLowerCase().includes(search.toLowerCase()));
         if (sort === 'value') h.sort((a, b) => valueOf(b) - valueOf(a));
         if (sort === 'day') h.sort((a, b) => b.dayPct - a.dayPct);
         if (sort === 'pl') h.sort((a, b) => plPctOf(b) - plPctOf(a));
         if (sort === 'ticker') h.sort((a, b) => a.ticker.localeCompare(b.ticker));
         return h;
-    }, [filter, sort, search]);
+    }, [holdings, filter, sort, search, classLabel]);
 
     const totals = useMemo(() => ({
         value: filtered.reduce((s, h) => s + valueOf(h), 0),
@@ -192,7 +189,7 @@ export default function Portfolio({go}) {
                             fontSize: 14,
                             marginLeft: 8,
                             color: 'var(--ink-30)'
-                        }}>({((totals.pl / totals.cost) * 100).toFixed(1)}%)</span>
+                        }}>({totals.cost > 0 ? ((totals.pl / totals.cost) * 100).toFixed(1) : '0.0'}%)</span>
                     </div>
                 </div>
                 <div>
@@ -205,7 +202,7 @@ export default function Portfolio({go}) {
                         marginTop: 6
                     }}>
                         {filtered.length}<span
-                        style={{color: 'var(--ink-40)', fontSize: 14, marginLeft: 6}}>of {HOLDINGS.length}</span>
+                        style={{color: 'var(--ink-40)', fontSize: 14, marginLeft: 6}}>of {holdings.length}</span>
                     </div>
                 </div>
                 <div style={{
@@ -260,7 +257,8 @@ export default function Portfolio({go}) {
                 {filtered.length === 0 ? (
                     <div style={{padding: 40, textAlign: 'center', color: 'var(--ink-30)'}}>No holdings match.</div>
                 ) : filtered.map(h => (
-                    <HoldingsRow key={h.id} h={h} go={go} recBadge={!!assetRecs[h.ticker]}/>
+                    <HoldingsRow key={h.id || h.ticker} h={h} go={go} recBadge={!!assetRecs[h.ticker]}
+                                 netWorth={netWorth} priceSeries={priceSeries}/>
                 ))}
             </div>
 

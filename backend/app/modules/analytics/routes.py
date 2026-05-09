@@ -30,6 +30,18 @@ def ai_global_briefing(_user=Depends(require_auth)):
     return {"status": "processing", "task_id": task.id}
 
 
+@router.get("/ai/single/{symbol}")
+def ai_single_briefing_cached(symbol: str, _user=Depends(require_auth)):
+    """Return the last cached AI take for a symbol without triggering a new run."""
+    from fastapi import HTTPException
+
+    ck = cache_key("ai", "single", symbol)
+    cached = cache.get(ck)
+    if not cached:
+        raise HTTPException(status_code=404, detail="No cached AI briefing for this symbol")
+    return {"status": "cached", "data": cached}
+
+
 @router.post("/ai/single/{symbol}")
 def ai_single_briefing(symbol: str, _user=Depends(require_auth)):
     """Return a cached single-asset briefing, or enqueue generation."""

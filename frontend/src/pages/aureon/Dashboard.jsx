@@ -1,4 +1,4 @@
-/* Aureon — Dashboard page (ported). */
+/* Aureon — Dashboard page. */
 import React, {useMemo, useState} from 'react';
 import {useApp} from '../../components/aureon/store';
 import {Sparkline, Eyebrow, SectionHead, AllocDonut} from '../../components/aureon/ui';
@@ -8,12 +8,10 @@ import {
     ActionConfirmationModal,
     EmptyDecisions
 } from '../../components/aureon/flow';
-import {
-    HOLDINGS, SIGNALS, NET_WORTH, DAY_DELTA_DOLLARS, DAY_DELTA_PCT,
-    CLASS_LABEL, allocByClass, valueOf, PRICE_SERIES, V3_PORTFOLIO_REC,
-} from '../../components/aureon/data';
+import {valueOf} from '../../components/aureon/utils';
+import {useAureonData} from '../../hooks/useAureonData';
 
-const Hero = () => (
+const Hero = ({netWorth, dayDelta, classLabel, allocByClass}) => (
     <div style={{
         padding: '10px 0 22px',
         borderBottom: '1px solid rgba(255,255,255,0.05)',
@@ -34,10 +32,10 @@ const Hero = () => (
                 lineHeight: 1,
                 marginTop: 6
             }}>
-                ${Math.floor(NET_WORTH).toLocaleString()}<span style={{
+                ${Math.floor(netWorth).toLocaleString()}<span style={{
                 fontSize: 30,
                 color: 'var(--ink-30)'
-            }}>.{Math.round((NET_WORTH % 1) * 100).toString().padStart(2, '0')}</span>
+            }}>.{Math.round((netWorth % 1) * 100).toString().padStart(2, '0')}</span>
             </div>
             <div style={{
                 marginTop: 8,
@@ -47,8 +45,9 @@ const Hero = () => (
                 fontFamily: 'var(--font-mono)',
                 fontSize: 13
             }}>
-                <span
-                    style={{color: 'var(--sage-500)'}}>▲ ${DAY_DELTA_DOLLARS.toLocaleString()} · +{(DAY_DELTA_PCT * 100).toFixed(2)}%</span>
+                <span style={{color: 'var(--sage-500)'}}>
+                    ▲ ${dayDelta.dollars.toLocaleString()} · +{(dayDelta.pct * 100).toFixed(2)}%
+                </span>
                 <span style={{color: 'var(--ink-40)'}}>today</span>
                 <span style={{display: 'inline-flex', gap: 0, marginLeft: 8}}>
           {['1D', '1W', '1M', '3M', '1Y', 'ALL'].map((p, i) => (
@@ -80,9 +79,9 @@ const Hero = () => (
             </div>
         </div>
         <div style={{display: 'flex', alignItems: 'center', gap: 14}}>
-            <AllocDonut alloc={allocByClass()} size={120}/>
+            <AllocDonut alloc={allocByClass} size={120}/>
             <div style={{display: 'grid', gap: 4, fontSize: 11}}>
-                {Object.entries(allocByClass()).slice(0, 4).map(([k, v]) => (
+                {Object.entries(allocByClass).slice(0, 4).map(([k, v]) => (
                     <div key={k} style={{display: 'flex', alignItems: 'center', gap: 8, color: 'var(--ink-20)'}}>
                         <span style={{
                             width: 8,
@@ -98,7 +97,7 @@ const Hero = () => (
                                 insurance: '#4B4F57'
                             })[k]
                         }}/>
-                        <span style={{flex: 1}}>{CLASS_LABEL[k]}</span>
+                        <span style={{flex: 1}}>{classLabel[k]}</span>
                         <span style={{
                             fontFamily: 'var(--font-mono)',
                             color: 'var(--ink-10)'
@@ -110,10 +109,10 @@ const Hero = () => (
     </div>
 );
 
-const LifecycleStrip = ({go}) => {
+const LifecycleStrip = ({go, signalCount}) => {
     const {active, applied} = useApp();
     const stages = [
-        {k: 'Input', v: SIGNALS.length, sub: 'signals', route: 'signals'},
+        {k: 'Input', v: signalCount, sub: 'signals', route: 'signals'},
         {k: 'Interpretation', v: active.length + applied.length, sub: 'interpreted', route: 'recommendations'},
         {k: 'Decision', v: active.length, sub: 'ready', active: true, route: 'recommendations'},
         {k: 'Confirmation', v: 0, sub: 'pending', route: 'recommendations'},
@@ -149,8 +148,8 @@ const LifecycleStrip = ({go}) => {
     );
 };
 
-const TopHoldingsRow = ({go}) => {
-    const top = HOLDINGS.filter(h => h.tier !== 'passive').slice().sort((a, b) => valueOf(b) - valueOf(a)).slice(0, 5);
+const TopHoldingsRow = ({go, holdings, priceSeries}) => {
+    const top = holdings.filter(h => h.tier !== 'passive').slice().sort((a, b) => valueOf(b) - valueOf(a)).slice(0, 5);
     return (
         <div style={{display: 'grid', gridTemplateColumns: 'repeat(5,1fr)', gap: 10}}>
             {top.map(h => (
@@ -171,7 +170,7 @@ const TopHoldingsRow = ({go}) => {
                             color: 'var(--ink-00)',
                             letterSpacing: '0.04em'
                         }}>{h.ticker}</span>
-                        <Sparkline data={PRICE_SERIES[h.ticker] || [h.cost, h.price]} w={56} h={18}/>
+                        <Sparkline data={priceSeries[h.ticker] || [h.cost, h.price]} w={56} h={18}/>
                     </div>
                     <div style={{
                         fontFamily: 'var(--font-mono)',
@@ -193,12 +192,12 @@ const TopHoldingsRow = ({go}) => {
     );
 };
 
-const SupportingStrip = ({go}) => (
+const SupportingStrip = ({go, signalCount}) => (
     <div style={{marginTop: 20, display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 12}}>
         {[
             {
                 t: 'Signals · inputs',
-                v: SIGNALS.length,
+                v: signalCount,
                 sub: '3 new today',
                 foot: 'See Recommendations for decisions',
                 route: 'signals'
@@ -243,10 +242,10 @@ const WiredDecisionUnit = ({rec, openModal}) => {
 
 export default function Dashboard({go}) {
     const {allRecs, active, apply} = useApp();
+    const {holdings, signals, netWorth, dayDelta, classLabel, allocByClass, priceSeries, portfolioRec} = useAureonData();
     const [modal, setModal] = useState(null);
     const recs = useMemo(() => allRecs.filter(r => active.includes(r.id)), [allRecs, active]);
     const dashRecs = recs.filter(r => r.confidence >= 50).slice(0, 3);
-    const portfolio = V3_PORTFOLIO_REC;
 
     const openModal = (rec, onConfirm) => setModal({rec, onConfirm});
     const closeModal = () => setModal(null);
@@ -257,8 +256,8 @@ export default function Dashboard({go}) {
 
     return (
         <>
-            <Hero/>
-            <LifecycleStrip go={go}/>
+            <Hero netWorth={netWorth} dayDelta={dayDelta} classLabel={classLabel} allocByClass={allocByClass}/>
+            <LifecycleStrip go={go} signalCount={signals.length}/>
 
             <SectionHead
                 eyebrow="Decisions · what should you do next"
@@ -272,10 +271,12 @@ export default function Dashboard({go}) {
                 <EmptyDecisions/>
             ) : (
                 <>
-                    <div style={{marginBottom: 14}}>
-                        <PortfolioDecisionUnit rec={portfolio} onCommit={() => apply('pr-rebalance')}
-                                               openModal={openModal}/>
-                    </div>
+                    {portfolioRec && (
+                        <div style={{marginBottom: 14}}>
+                            <PortfolioDecisionUnit rec={portfolioRec} onCommit={() => apply(portfolioRec.id)}
+                                                   openModal={openModal}/>
+                        </div>
+                    )}
                     <div style={{display: 'grid', gap: 10}}>
                         {dashRecs.map(rec => (
                             <WiredDecisionUnit key={rec.id} rec={rec} openModal={openModal}/>
@@ -287,13 +288,13 @@ export default function Dashboard({go}) {
             <SectionHead
                 eyebrow="Portfolio · holdings at a glance"
                 title="Top positions"
-                meta={`${HOLDINGS.filter(h => h.tier !== 'passive').length} active · ${HOLDINGS.filter(h => h.tier === 'passive').length} passive`}
+                meta={`${holdings.filter(h => h.tier !== 'passive').length} active · ${holdings.filter(h => h.tier === 'passive').length} passive`}
                 action={<button className="du3-cta ghost" onClick={() => go('portfolio')}>Open portfolio <span
                     style={{marginLeft: 4}}>→</span></button>}
             />
-            <TopHoldingsRow go={go}/>
+            <TopHoldingsRow go={go} holdings={holdings} priceSeries={priceSeries}/>
 
-            <SupportingStrip go={go}/>
+            <SupportingStrip go={go} signalCount={signals.length}/>
             <div style={{height: 32}}/>
 
             {modal && <ActionConfirmationModal rec={modal.rec} onCancel={closeModal} onConfirm={confirmModal}/>}

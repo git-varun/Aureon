@@ -1,59 +1,26 @@
 import React, {useEffect, useState, useCallback} from 'react';
-import {Clock, Play, RefreshCw, Loader, Save} from 'lucide-react';
 import {toast} from 'react-hot-toast';
 import {apiService} from '../../api/apiService';
 
 const JOB_LABELS = {
     sync_portfolio: {label: 'Portfolio Sync', desc: 'Sync all broker holdings from APIs'},
-    refresh_prices: {label: 'Price Refresh', desc: 'Fetch live prices and update portfolio values'},
-    fetch_news: {label: 'News Scraper', desc: 'Scrape headlines and run AI sentiment analysis'},
-    daily_briefing: {label: 'Global AI', desc: 'Generate alpha briefing and send alerts'},
-    run_signals: {label: 'Signal Generation', desc: 'Generate trading signals'},
-};
-
-const inputStyle = {
-    background: '#1E222D', border: '1px solid #2A2E39', borderRadius: '6px',
-    color: '#D1D4DC', padding: '8px 12px', fontSize: '13px', width: '100%',
-    boxSizing: 'border-box', outline: 'none',
-};
-
-const btnPrimary = {
-    background: '#2962FF', color: '#fff', border: 'none', borderRadius: '6px',
-    padding: '8px 18px', fontSize: '13px', fontWeight: 600, cursor: 'pointer',
-    display: 'flex', alignItems: 'center', gap: '6px',
-};
-
-const btnSecondary = {
-    background: 'transparent', color: '#D1D4DC', border: '1px solid #2A2E39',
-    borderRadius: '6px', padding: '7px 14px', fontSize: '12px',
-    fontWeight: 600, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '6px',
-};
-
-const StatusBadge = ({status}) => {
-    const map = {
-        success: {color: '#089981', label: 'Success'},
-        failed: {color: '#F23645', label: 'Failed'},
-        running: {color: '#F5A623', label: 'Running'},
-        never_run: {color: '#787B86', label: 'Never Run'},
-    };
-    const s = map[status] ?? map.never_run;
-    return (
-        <span style={{
-            padding: '2px 8px', borderRadius: '4px', fontSize: '11px', fontWeight: 700,
-            background: s.color + '22', color: s.color, textTransform: 'uppercase',
-        }}>
-            {s.label}
-        </span>
-    );
+    refresh_prices:  {label: 'Price Refresh', desc: 'Fetch live prices and update portfolio values'},
+    fetch_news:      {label: 'News Scraper', desc: 'Scrape headlines and run AI sentiment analysis'},
+    daily_briefing:  {label: 'AI Briefing', desc: 'Generate alpha briefing and send alerts'},
+    run_signals:     {label: 'Signal Generation', desc: 'Generate trading signals across holdings'},
 };
 
 const fmt = (iso) => {
     if (!iso) return '—';
-    try {
-        return new Date(iso).toLocaleString('en-IN', {dateStyle: 'medium', timeStyle: 'short'});
-    } catch {
-        return iso;
-    }
+    try { return new Date(iso).toLocaleString('en-IN', {dateStyle: 'medium', timeStyle: 'short'}); }
+    catch { return iso; }
+};
+
+const STATUS = {
+    success:   {color: 'var(--sage-500)',    label: 'Success'},
+    failed:    {color: 'var(--crimson-500)', label: 'Failed'},
+    running:   {color: 'var(--dusk-500)',    label: 'Running'},
+    never_run: {color: 'var(--ink-40)',      label: 'Never run'},
 };
 
 function JobRow({job, onUpdate, onRun}) {
@@ -66,23 +33,19 @@ function JobRow({job, onUpdate, onRun}) {
     const [logs, setLogs] = useState([]);
 
     const dirty = cronEdit !== job.cron_schedule || enabled !== Boolean(job.enabled);
+    const status = STATUS[job.last_status] ?? STATUS.never_run;
+    const tone = !enabled ? 'var(--ink-40)' : status.color;
 
     const handleSave = async () => {
         setSaving(true);
-        try {
-            await onUpdate(job.job_name, cronEdit, enabled);
-        } finally {
-            setSaving(false);
-        }
+        try { await onUpdate(job.job_name, cronEdit, enabled); }
+        finally { setSaving(false); }
     };
 
     const handleRun = async () => {
         setRunning(true);
-        try {
-            await onRun(job.job_name);
-        } finally {
-            setTimeout(() => setRunning(false), 2000);
-        }
+        try { await onRun(job.job_name); }
+        finally { setTimeout(() => setRunning(false), 2000); }
     };
 
     const handleToggleLogs = async () => {
@@ -90,119 +53,92 @@ function JobRow({job, onUpdate, onRun}) {
             try {
                 const res = await apiService.getJobLogs(job.job_name);
                 setLogs(res.logs || []);
-            } catch {
-                setLogs([]);
-            }
+            } catch { setLogs([]); }
         }
         setShowLogs(v => !v);
     };
 
     return (
-        <div style={{borderBottom: '1px solid #1E222D', paddingBottom: '16px', marginBottom: '16px'}}>
-            <div style={{display: 'grid', gridTemplateColumns: '200px 1fr auto', gap: '16px', alignItems: 'start'}}>
-                <div>
-                    <div
-                        style={{fontSize: '13px', fontWeight: 700, color: '#D1D4DC', marginBottom: '4px'}}>{label}</div>
-                    <div style={{fontSize: '11px', color: '#787B86', marginBottom: '8px'}}>{desc}</div>
-                    <StatusBadge status={job.last_status}/>
-                    <div style={{fontSize: '11px', color: '#4C525E', marginTop: '6px'}}>
-                        Last run: {fmt(job.last_run_at)}<br/>
-                        Next: {fmt(job.next_run_at)}
+        <div style={{borderBottom: '1px solid rgba(255,255,255,0.04)'}}>
+            <div style={{display: 'grid', gridTemplateColumns: '1.4fr 0.8fr 1fr 1fr auto auto auto', gap: 14, padding: '14px 18px', alignItems: 'center'}}>
+                <div style={{minWidth: 0}}>
+                    <div style={{display: 'flex', alignItems: 'center', gap: 8}}>
+                        <span style={{width: 6, height: 6, borderRadius: 999, background: tone}}/>
+                        <span style={{fontFamily: 'var(--font-heading)', fontSize: 14, fontWeight: 600, color: enabled ? 'var(--ink-00)' : 'var(--ink-30)'}}>{label}</span>
                     </div>
-                    <button
-                        onClick={handleToggleLogs}
-                        style={{...btnSecondary, marginTop: '8px', padding: '3px 10px', fontSize: '11px'}}
-                    >
-                        {showLogs ? 'Hide Logs' : 'View Logs'}
-                    </button>
+                    <div style={{fontSize: 11.5, color: 'var(--ink-30)', marginTop: 3}}>{desc}</div>
                 </div>
-
-                <div>
-                    <div style={{display: 'flex', alignItems: 'center', gap: '12px', marginBottom: '8px'}}>
-                        <label style={{display: 'flex', flexDirection: 'column', gap: '4px', flex: 1}}>
-                            <span style={{fontSize: '11px', color: '#787B86', fontWeight: 600}}>Cron Schedule</span>
-                            <input
-                                value={cronEdit}
-                                onChange={e => setCronEdit(e.target.value)}
-                                style={{...inputStyle, fontFamily: 'monospace', width: '200px'}}
-                                placeholder="0 9 * * *"
-                            />
-                        </label>
-                        <label style={{display: 'flex', flexDirection: 'column', gap: '4px', alignItems: 'center'}}>
-                            <span style={{fontSize: '11px', color: '#787B86', fontWeight: 600}}>Enabled</span>
-                            <div
-                                onClick={() => setEnabled(v => !v)}
-                                style={{
-                                    width: '40px', height: '22px', borderRadius: '11px', cursor: 'pointer',
-                                    background: enabled ? '#2962FF' : '#2A2E39',
-                                    position: 'relative', transition: 'background 0.2s',
-                                }}
-                            >
-                                <div style={{
-                                    position: 'absolute', top: '3px',
-                                    left: enabled ? '21px' : '3px', transition: 'left 0.2s',
-                                    width: '16px', height: '16px', borderRadius: '50%', background: '#fff',
-                                }}/>
-                            </div>
-                        </label>
-                    </div>
-                    {dirty && (
-                        <button style={btnPrimary} onClick={handleSave} disabled={saving}>
-                            {saving ? <Loader size={13}/> : <Save size={13}/>}
-                            {saving ? 'Saving…' : 'Save Schedule'}
-                        </button>
+                <span style={{fontFamily: 'var(--font-mono)', fontSize: 11, color: 'var(--ink-30)'}}>{job.cron_schedule}</span>
+                <span style={{fontFamily: 'var(--font-mono)', fontSize: 11.5, color: enabled ? 'var(--ink-10)' : 'var(--ink-40)'}}>
+                    last · {fmt(job.last_run_at)}
+                </span>
+                <span style={{fontFamily: 'var(--font-mono)', fontSize: 11.5, color: enabled ? 'var(--ink-20)' : 'var(--ink-40)'}}>
+                    next · {enabled ? fmt(job.next_run_at) : '—'}
+                </span>
+                <button
+                    onClick={handleRun} disabled={!enabled || running}
+                    className="du3-cta" title="Run now"
+                >
+                    {running ? '…' : (
+                        <svg width="11" height="11" viewBox="0 0 24 24" fill="currentColor"><polygon points="6,4 20,12 6,20"/></svg>
                     )}
-                </div>
-
-                <div style={{paddingTop: '20px'}}>
-                    <button
-                        onClick={handleRun} disabled={running}
-                        style={{
-                            ...btnPrimary, background: running ? '#1E222D' : '#089981',
-                            color: running ? '#787B86' : '#fff',
-                        }}
-                    >
-                        {running ? <Loader size={14}/> : <Play size={14}/>}
-                        {running ? 'Running…' : 'Run Now'}
-                    </button>
-                </div>
+                    Run
+                </button>
+                <button
+                    onClick={() => setEnabled(e => !e)}
+                    aria-label="toggle"
+                    style={{
+                        width: 36, height: 20, borderRadius: 999, padding: 2,
+                        background: enabled ? 'rgba(201,168,106,0.30)' : 'rgba(255,255,255,0.06)',
+                        border: '1px solid ' + (enabled ? 'rgba(201,168,106,0.40)' : 'rgba(255,255,255,0.10)'),
+                        cursor: 'pointer', display: 'flex', alignItems: 'center',
+                        justifyContent: enabled ? 'flex-end' : 'flex-start',
+                        transition: 'background 160ms var(--ease-std)',
+                    }}
+                >
+                    <span style={{width: 14, height: 14, borderRadius: 999, background: enabled ? 'var(--aurum-100)' : 'var(--ink-30)'}}/>
+                </button>
+                <button onClick={handleToggleLogs} className="du3-cta ghost">{showLogs ? '▴' : '▾'}</button>
             </div>
 
+            {dirty && (
+                <div style={{padding: '0 18px 14px', display: 'flex', alignItems: 'center', gap: 10}}>
+                    <input
+                        value={cronEdit}
+                        onChange={e => setCronEdit(e.target.value)}
+                        style={{
+                            padding: '7px 12px', borderRadius: 7, width: 180,
+                            background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.07)',
+                            color: 'var(--ink-10)', fontFamily: 'var(--font-mono)', fontSize: 12, outline: 'none',
+                        }}
+                        placeholder="cron expression"
+                    />
+                    <button onClick={handleSave} disabled={saving} className="du3-cta primary" style={{height: 34}}>
+                        {saving ? 'Saving…' : 'Save schedule'}
+                    </button>
+                </div>
+            )}
+
             {showLogs && (
-                <div style={{
-                    marginTop: '12px',
-                    background: '#0B0E14',
-                    borderRadius: '6px',
-                    padding: '12px',
-                    maxHeight: '200px',
-                    overflowY: 'auto'
-                }}>
-                    {logs.length === 0
-                        ? <div style={{fontSize: '12px', color: '#787B86'}}>No logs yet.</div>
-                        : logs.map((log, i) => (
-                            <div key={i} style={{display: 'flex', gap: '12px', fontSize: '12px', marginBottom: '6px'}}>
-                                <span style={{color: '#4C525E', minWidth: '150px'}}>{fmt(log.ran_at)}</span>
-                                <StatusBadge status={log.status}/>
-                                <span style={{color: '#787B86'}}>{log.duration_ms ? `${log.duration_ms}ms` : ''}</span>
-                                {log.message && <span style={{color: '#F23645', flex: 1}}>{log.message}</span>}
-                            </div>
-                        ))
-                    }
+                <div style={{padding: '10px 18px 16px 36px'}}>
+                    <div style={{fontSize: 10.5, letterSpacing: '0.12em', textTransform: 'uppercase', color: 'var(--ink-30)', fontWeight: 600, marginBottom: 6}}>
+                        Recent runs
+                    </div>
+                    <pre style={{
+                        margin: 0, padding: '10px 12px', borderRadius: 6,
+                        background: 'rgba(0,0,0,0.30)', border: '1px solid rgba(255,255,255,0.05)',
+                        fontFamily: 'var(--font-mono)', fontSize: 11, color: 'var(--ink-20)',
+                        lineHeight: 1.7, whiteSpace: 'pre-wrap', maxHeight: 200, overflowY: 'auto',
+                    }}>
+                        {logs.length === 0
+                            ? 'No logs yet.'
+                            : logs.map((l, i) => `▸ ${fmt(l.ran_at)}  ${l.status}${l.duration_ms ? `  ${l.duration_ms}ms` : ''}${l.message ? `  ${l.message}` : ''}`).join('\n')}
+                    </pre>
                 </div>
             )}
         </div>
     );
 }
-
-const SectionHeader = ({icon: Icon, title, subtitle}) => (
-    <div style={{marginBottom: '20px'}}>
-        <div style={{display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '4px'}}>
-            <Icon size={18} color="#2962FF"/>
-            <h2 style={{margin: 0, fontSize: '15px', fontWeight: 700, color: '#D1D4DC'}}>{title}</h2>
-        </div>
-        {subtitle && <p style={{margin: '0 0 0 28px', fontSize: '12px', color: '#787B86'}}>{subtitle}</p>}
-    </div>
-);
 
 export default function JobConfig() {
     const [jobs, setJobs] = useState([]);
@@ -210,18 +146,12 @@ export default function JobConfig() {
 
     const load = useCallback(async () => {
         setLoading(true);
-        try {
-            setJobs((await apiService.getJobs()).jobs);
-        } catch {
-            toast.error('Failed to load job configs.');
-        } finally {
-            setLoading(false);
-        }
+        try { setJobs((await apiService.getJobs()).jobs); }
+        catch { toast.error('Failed to load job configs.'); }
+        finally { setLoading(false); }
     }, []);
 
-    useEffect(() => {
-        load();
-    }, [load]);
+    useEffect(() => { load(); }, [load]);
 
     const handleUpdate = async (jobName, cronSchedule, enabled) => {
         try {
@@ -236,41 +166,34 @@ export default function JobConfig() {
     const handleRun = async (jobName) => {
         try {
             await apiService.runJob(jobName);
-            toast.success(`Job '${jobName}' triggered. Check logs for status.`);
+            toast.success(`Job '${jobName}' triggered.`);
             setTimeout(load, 1500);
         } catch (e) {
-            const msg = e?.response?.data?.detail || `Failed to trigger '${jobName}'.`;
-            toast.error(msg);
+            toast.error(e?.response?.data?.detail || `Failed to trigger '${jobName}'.`);
         }
     };
 
+    const enabledCount = jobs.filter(j => j.enabled).length;
+
     return (
-        <div style={{
-            background: '#131722', border: '1px solid #2A2E39', borderRadius: '8px',
-            padding: '24px', marginBottom: '20px',
-        }}>
-            <div style={{
-                display: 'flex',
-                justifyContent: 'space-between',
-                alignItems: 'flex-start',
-                marginBottom: '20px'
-            }}>
-                <SectionHeader
-                    icon={Clock} title="Background Jobs"
-                    subtitle="Configure cron schedules, enable/disable jobs, and trigger manual runs."
-                />
-                <button style={{...btnSecondary, alignSelf: 'flex-start'}} onClick={load}>
-                    <RefreshCw size={13}/> Refresh
-                </button>
+        <section className="layer-1" style={{padding: 0, overflow: 'hidden'}}>
+            <div style={{display: 'grid', gridTemplateColumns: '1.4fr 0.8fr 1fr 1fr auto auto auto', gap: 14, padding: '12px 18px', fontSize: 10.5, letterSpacing: '0.12em', textTransform: 'uppercase', color: 'var(--ink-30)', fontWeight: 600, borderBottom: '1px solid rgba(255,255,255,0.06)'}}>
+                <span>Job</span><span>Schedule</span><span>Last run</span><span>Next run</span>
+                <span/><span>Enabled</span><span/>
             </div>
             {loading ? (
-                <div style={{color: '#787B86', fontSize: '13px'}}>Loading job configs…</div>
+                <div style={{padding: 40, textAlign: 'center', color: 'var(--ink-40)', fontSize: 13}}>Loading jobs…</div>
             ) : (
                 jobs.map(job => (
                     <JobRow key={job.job_name} job={job} onUpdate={handleUpdate} onRun={handleRun}/>
                 ))
             )}
-        </div>
+            {!loading && (
+                <div style={{padding: '10px 18px', fontSize: 11.5, color: 'var(--ink-40)', borderTop: '1px solid rgba(255,255,255,0.04)', display: 'flex', justifyContent: 'space-between', alignItems: 'center'}}>
+                    <span>{enabledCount} of {jobs.length} jobs enabled</span>
+                    <button onClick={load} className="du3-cta ghost">Refresh</button>
+                </div>
+            )}
+        </section>
     );
 }
-

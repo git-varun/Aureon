@@ -109,19 +109,40 @@ def build_aureon_state(session: Session) -> dict[str, Any]:
     recs_applied = [r for r in recs_all if r["status"] == "applied"]
     recs_dismissed = [r for r in recs_all if r["status"] == "dismissed"]
 
+    # Build reverse map: signal ext_id → recommendation ext_id (active recs only)
+    _sig_to_rec: dict[str, str] = {}
+    for r in recs_active:
+        for sid in (r.get("signal_ids") or []):
+            _sig_to_rec[sid] = r["ext_id"]
+
+    # signal_type → UI kind mapping (best-effort; signal_metadata.kind wins if present)
+    _SIGNAL_KIND: dict[str, str] = {
+        "buy": "momentum",
+        "sell": "momentum",
+        "hold": "fundamentals",
+        "neutral": "macro",
+    }
+
     # Signals — latest 20
     signals_out = []
     for s in (
             session.query(Signal).order_by(Signal.created_at.desc()).limit(20).all()
     ):
+        sig_ext_id = f"sg-{s.id}"
+        raw_type = s.signal_type.value if s.signal_type and hasattr(s.signal_type, "value") else "neutral"
+        meta = s.signal_metadata or {}
+        kind = meta.get("kind") or _SIGNAL_KIND.get(raw_type, "macro")
+        raw_severity = s.risk_level or "med"
+        severity = "med" if raw_severity == "medium" else raw_severity
+        ts = s.created_at.strftime("%Y-%m-%dT%H:%M:%SZ") if s.created_at else ""
         signals_out.append({
-            "id": f"sg-{s.id}",
-            "ts": s.created_at.strftime("%H:%M") if s.created_at else "",
+            "id": sig_ext_id,
+            "ts": ts,
             "asset": s.symbol,
-            "kind": (s.signal_type.value if s.signal_type and hasattr(s.signal_type, "value") else "neutral"),
-            "severity": s.risk_level or "med",
+            "kind": kind,
+            "severity": severity,
             "text": s.rationale or "",
-            "linkedRec": None,
+            "linkedRec": _sig_to_rec.get(sig_ext_id),
         })
 
     # Activity ledger — combines transactions + dismissed recs (most recent 50)

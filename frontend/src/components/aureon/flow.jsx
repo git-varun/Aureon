@@ -1,6 +1,6 @@
 /* Aureon — DecisionUnit + flow (Confirmation, Outcome, Undo, Conflict). */
 import React, {useState, useEffect, useMemo, useRef} from 'react';
-import {isBlocked, needsModal, UNDO_WINDOW_MS, fmt$} from './data';
+import {isBlocked, needsModal, UNDO_WINDOW_MS, fmt$} from './utils';
 import {ConfidenceIndicator, EvaluatePanel, AllocationImpactPanel} from './primitives';
 
 export const DecisionUnit = ({rec, activeIds, onCommit, onUndo, onResolveConflict, openModal}) => {

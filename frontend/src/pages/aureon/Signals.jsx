@@ -2,10 +2,11 @@
 import React, {useMemo, useState} from 'react';
 import {useApp} from '../../components/aureon/store';
 import {Eyebrow} from '../../components/aureon/ui';
-import {SIGNALS} from '../../components/aureon/data';
+import {useAureonData} from '../../hooks/useAureonData';
 
 export default function Signals({go}) {
     const {search} = useApp();
+    const {signals: SIGNALS} = useAureonData();
     const [kind, setKind] = useState('all');
     const [sev, setSev] = useState('all');
 
@@ -15,7 +16,7 @@ export default function Signals({go}) {
         if (sev !== 'all') s = s.filter(x => x.severity === sev);
         if (search) s = s.filter(x => (x.asset + ' ' + x.text + ' ' + x.kind).toLowerCase().includes(search.toLowerCase()));
         return s;
-    }, [kind, sev, search]);
+    }, [SIGNALS, kind, sev, search]);
 
     const kinds = ['all', 'momentum', 'sentiment', 'allocation', 'volatility', 'fundamentals', 'macro', 'news'];
     const sevs = ['all', 'high', 'med', 'low'];

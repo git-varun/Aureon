@@ -12,7 +12,7 @@ logger = logging.getLogger("celery.config")
 broker_url = settings.celery_broker_url
 backend_url = settings.celery_result_backend
 
-celery_app = Celery("investment_os")
+celery_app = Celery("aureon")
 
 if broker_url and backend_url:
     celery_app.conf.broker_url = broker_url
