@@ -1,8 +1,8 @@
 /* Aureon — Decision primitives (ported from lib/v3-primitives.jsx). */
 import React from 'react';
-import {band, bandLabel, fmt$, CONFIDENCE_FACTORS} from './data';
+import {band, bandLabel, fmt$} from './utils';
 
-export const ConfidenceIndicator = ({score, variant = 'compact', factors, recId}) => {
+export const ConfidenceIndicator = ({score, variant = 'compact', factors}) => {
     const b = band(score);
     const filled = Math.round(score / 10);
     const segs = Array.from({length: 10}, (_, i) => (
@@ -16,7 +16,7 @@ export const ConfidenceIndicator = ({score, variant = 'compact', factors, recId}
       </span>
         );
     }
-    const fmap = factors || CONFIDENCE_FACTORS[recId] || {};
+    const fmap = factors || {};
     return (
         <div>
             <div style={{display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 8}}>

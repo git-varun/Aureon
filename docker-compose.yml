@@ -3,7 +3,7 @@ x-backend-common: &backend-common
     context: ./backend
   env_file: .env
   environment: &backend-env
-    DATABASE_URL: postgresql://postgres:postgres@postgres:5432/investment_os
+    DATABASE_URL: postgresql://postgres:postgres@postgres:5432/aureon
     REDIS_URL: redis://redis:6379/0
     CELERY_BROKER_URL: amqp://guest:guest@rabbitmq:5672//
     CELERY_RESULT_BACKEND: redis://redis:6379/1
@@ -20,7 +20,7 @@ x-backend-common: &backend-common
     rabbitmq:
       condition: service_healthy
   networks:
-    - investment_os_network
+    - aureon_network
   restart: unless-stopped
   logging:
     driver: "json-file"
@@ -31,11 +31,11 @@ x-backend-common: &backend-common
 services:
   postgres:
     image: postgres:16-alpine
-    container_name: investment_os_postgres
+    container_name: aureon_postgres
     environment:
       POSTGRES_USER: postgres
       POSTGRES_PASSWORD: postgres
-      POSTGRES_DB: investment_os
+      POSTGRES_DB: aureon
       PGDATA: /var/lib/postgresql/data/pgdata
     ports:
       - "5433:5432"
@@ -48,7 +48,7 @@ services:
       timeout: 5s
       retries: 5
     networks:
-      - investment_os_network
+      - aureon_network
     logging:
       driver: "json-file"
       options:
@@ -57,7 +57,7 @@ services:
 
   redis:
     image: redis:7-alpine
-    container_name: investment_os_redis
+    container_name: aureon_redis
     command: redis-server --appendonly yes --appendfsync everysec
     ports:
       - "6379:6379"
@@ -69,7 +69,7 @@ services:
       timeout: 5s
       retries: 5
     networks:
-      - investment_os_network
+      - aureon_network
     logging:
       driver: "json-file"
       options:
@@ -78,7 +78,7 @@ services:
 
   rabbitmq:
     image: rabbitmq:3.12-management-alpine
-    container_name: investment_os_rabbitmq
+    container_name: aureon_rabbitmq
     environment:
       RABBITMQ_DEFAULT_USER: guest
       RABBITMQ_DEFAULT_PASS: guest
@@ -92,7 +92,7 @@ services:
       timeout: 5s
       retries: 5
     networks:
-      - investment_os_network
+      - aureon_network
     logging:
       driver: "json-file"
       options:
@@ -101,24 +101,24 @@ services:
 
   api:
     <<: *backend-common
-    container_name: investment_os_api
+    container_name: aureon_api
     ports:
       - "8001:8000"
     command: uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload
 
   celery_worker:
     <<: *backend-common
-    container_name: investment_os_worker
+    container_name: aureon_worker
     command: celery -A app.core.celery_app worker --loglevel=info --concurrency=4
 
   celery_beat:
     <<: *backend-common
-    container_name: investment_os_celery_beat
+    container_name: aureon_celery_beat
     command: celery -A app.core.celery_app beat --loglevel=info
 
   frontend:
     image: node:22-alpine
-    container_name: investment_os_frontend
+    container_name: aureon_frontend
     working_dir: /app
     volumes:
       - ./frontend:/app
@@ -127,7 +127,7 @@ services:
     depends_on:
       - api
     networks:
-      - investment_os_network
+      - aureon_network
     command: sh -c "npm install && npm run dev"
     restart: unless-stopped
     logging:
@@ -142,5 +142,5 @@ volumes:
   rabbitmq_data:
 
 networks:
-  investment_os_network:
+  aureon_network:
     driver: bridge

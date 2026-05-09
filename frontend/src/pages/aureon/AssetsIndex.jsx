@@ -2,19 +2,21 @@
 import React, {useMemo} from 'react';
 import {useApp} from '../../components/aureon/store';
 import {Sparkline, Eyebrow, TierChip, MiniBar} from '../../components/aureon/ui';
-import {
-    HOLDINGS, CLASS_LABEL, CLASS_TARGET, NET_WORTH, valueOf, plOf, plPctOf, PRICE_SERIES, allocByClass,
-} from '../../components/aureon/data';
+import {valueOf, plOf, plPctOf} from '../../components/aureon/utils';
+import {useAureonData} from '../../hooks/useAureonData';
 
 export default function AssetsIndex({go}) {
     const {allRecs, active} = useApp();
+    const {holdings, classLabel, classTarget, netWorth, priceSeries, allocByClass} = useAureonData();
+
     const grouped = useMemo(() => {
         const g = {};
-        HOLDINGS.forEach(h => {
+        holdings.forEach(h => {
             (g[h.class] = g[h.class] || []).push(h);
         });
         return g;
-    }, []);
+    }, [holdings]);
+
     const recsByAsset = useMemo(() => {
         const m = {};
         allRecs.filter(r => active.includes(r.id)).forEach(r => {
@@ -24,7 +26,6 @@ export default function AssetsIndex({go}) {
     }, [allRecs, active]);
 
     const order = ['stocks', 'crypto', 'funds', 'bonds', 'real_estate', 'retirement', 'insurance'];
-    const allocs = allocByClass();
 
     return (
         <>
@@ -38,7 +39,7 @@ export default function AssetsIndex({go}) {
                     letterSpacing: '-0.015em',
                     marginTop: 6
                 }}>
-                    Seven classes · ${Math.round(NET_WORTH).toLocaleString()} under management
+                    {Object.keys(grouped).length} classes · ${Math.round(netWorth).toLocaleString()} under management
                 </div>
                 <div style={{fontSize: 12, color: 'var(--ink-30)', marginTop: 6, maxWidth: 680}}>
                     Active assets receive real-time signals and recommendations. Semi-active receive low-frequency
@@ -68,15 +69,15 @@ export default function AssetsIndex({go}) {
                                     fontWeight: 600,
                                     color: 'var(--ink-00)',
                                     letterSpacing: '-0.01em'
-                                }}>{CLASS_LABEL[cls]}</h3>
+                                }}>{classLabel[cls]}</h3>
                                 <TierChip tier={tier}/>
                                 <span style={{fontFamily: 'var(--font-mono)', fontSize: 12, color: 'var(--ink-30)'}}>
-                  ${Math.round(value).toLocaleString()} · {((value / NET_WORTH) * 100).toFixed(1)}% · target {((CLASS_TARGET[cls] || 0) * 100).toFixed(0)}%
+                  ${Math.round(value).toLocaleString()} · {netWorth > 0 ? ((value / netWorth) * 100).toFixed(1) : '0.0'}% · target {((classTarget[cls] || 0) * 100).toFixed(0)}%
                 </span>
                             </div>
                             <div style={{display: 'flex', alignItems: 'center', gap: 14}}>
                                 <div style={{width: 120}}>
-                                    <MiniBar value={(allocs[cls] || 0)} target={CLASS_TARGET[cls]} max={0.5}/>
+                                    <MiniBar value={(allocByClass[cls] || 0)} target={classTarget[cls]} max={0.5}/>
                                 </div>
                                 <span style={{
                                     fontFamily: 'var(--font-mono)',
@@ -91,7 +92,7 @@ export default function AssetsIndex({go}) {
                             gap: 10
                         }}>
                             {items.map(h => (
-                                <button key={h.id} onClick={() => go('assets', h.class, h.ticker)} style={{
+                                <button key={h.id || h.ticker} onClick={() => go('assets', h.class, h.ticker)} style={{
                                     textAlign: 'left',
                                     cursor: 'pointer',
                                     padding: '12px 14px',
@@ -157,7 +158,7 @@ export default function AssetsIndex({go}) {
                                             </div>
                                         </div>
                                         {h.tier !== 'passive' &&
-                                            <Sparkline data={PRICE_SERIES[h.ticker] || [h.cost, h.price]} w={70}
+                                            <Sparkline data={priceSeries[h.ticker] || [h.cost, h.price]} w={70}
                                                        h={22}/>}
                                     </div>
                                 </button>

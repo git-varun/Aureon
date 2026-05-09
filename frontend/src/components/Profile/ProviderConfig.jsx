@@ -1,5 +1,4 @@
 import React, {useEffect, useState, useCallback} from 'react';
-import {Plug, CheckCircle, XCircle, Loader, Save} from 'lucide-react';
 import {toast} from 'react-hot-toast';
 import {apiService} from '../../api/apiService';
 
@@ -11,32 +10,11 @@ const KEY_LABELS = {
 };
 
 const inputStyle = {
-    background: '#1E222D', border: '1px solid #2A2E39', borderRadius: '6px',
-    color: '#D1D4DC', padding: '8px 12px', fontSize: '13px', width: '100%',
-    boxSizing: 'border-box', outline: 'none',
+    width: '100%', padding: '9px 12px', borderRadius: 7,
+    background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.07)',
+    color: 'var(--ink-10)', fontSize: 13, fontFamily: 'var(--font-mono)', outline: 'none',
+    boxSizing: 'border-box',
 };
-
-const btnPrimary = {
-    background: '#2962FF', color: '#fff', border: 'none', borderRadius: '6px',
-    padding: '8px 18px', fontSize: '13px', fontWeight: 600, cursor: 'pointer',
-    display: 'flex', alignItems: 'center', gap: '6px',
-};
-
-const btnSecondary = {
-    background: 'transparent', color: '#D1D4DC', border: '1px solid #2A2E39',
-    borderRadius: '6px', padding: '7px 14px', fontSize: '12px',
-    fontWeight: 600, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '6px',
-};
-
-const SectionHeader = ({icon: Icon, title, subtitle}) => (
-    <div style={{marginBottom: '20px'}}>
-        <div style={{display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '4px'}}>
-            <Icon size={18} color="#2962FF"/>
-            <h2 style={{margin: 0, fontSize: '15px', fontWeight: 700, color: '#D1D4DC'}}>{title}</h2>
-        </div>
-        {subtitle && <p style={{margin: '0 0 0 28px', fontSize: '12px', color: '#787B86'}}>{subtitle}</p>}
-    </div>
-);
 
 function ProviderRow({provider, onToggle, onSetKey}) {
     const [expanded, setExpanded] = useState(false);
@@ -54,13 +32,17 @@ function ProviderRow({provider, onToggle, onSetKey}) {
     const keysStatus = provider.keys_status || {};
     const allKeysSet = keyNames.length === 0 || keyNames.every(k => keysStatus[k]);
 
+    const statusColor = provider.enabled
+        ? (allKeysSet ? 'var(--sage-500)' : 'var(--dusk-500)')
+        : 'var(--ink-40)';
+    const statusLabel = provider.enabled
+        ? (allKeysSet ? 'Connected' : 'Keys missing')
+        : 'Disabled';
+
     const handleToggle = async () => {
         setToggling(true);
-        try {
-            await onToggle(provider.provider_name, !provider.enabled);
-        } finally {
-            setToggling(false);
-        }
+        try { await onToggle(provider.provider_name, !provider.enabled); }
+        finally { setToggling(false); }
     };
 
     const handleSetKey = async (keyName) => {
@@ -78,116 +60,86 @@ function ProviderRow({provider, onToggle, onSetKey}) {
     };
 
     return (
-        <div style={{borderBottom: '1px solid #1E222D'}}>
-            <div style={{
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'space-between',
-                padding: '12px 0',
-                gap: '12px'
-            }}>
-                <div style={{flex: 1, cursor: keyNames.length ? 'pointer' : 'default'}}
-                     onClick={() => keyNames.length && setExpanded(v => !v)}>
-                    <div style={{display: 'flex', alignItems: 'center', gap: '8px'}}>
-                        <span style={{
-                            fontSize: '13px',
-                            fontWeight: 600,
-                            color: '#D1D4DC'
-                        }}>{provider.provider_name}</span>
-                        <span style={{
-                            fontSize: '10px',
-                            color: '#4C525E',
-                            background: '#1E222D',
-                            padding: '1px 6px',
-                            borderRadius: '3px'
-                        }}>
+        <div style={{borderBottom: '1px solid rgba(255,255,255,0.04)'}}>
+            <div style={{display: 'grid', gridTemplateColumns: 'auto 1fr auto auto auto', gap: 14, padding: '14px 18px', alignItems: 'center'}}>
+                <div style={{
+                    width: 36, height: 36, borderRadius: 8,
+                    display: 'flex', alignItems: 'center', justifyContent: 'center',
+                    background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.07)',
+                    fontFamily: 'var(--font-mono)', fontSize: 11, fontWeight: 600, color: 'var(--ink-10)', letterSpacing: '0.04em',
+                }}>
+                    {provider.provider_name.slice(0, 2).toUpperCase()}
+                </div>
+                <div style={{minWidth: 0, cursor: keyNames.length ? 'pointer' : 'default'}} onClick={() => keyNames.length && setExpanded(v => !v)}>
+                    <div style={{display: 'flex', alignItems: 'baseline', gap: 10}}>
+                        <span style={{fontFamily: 'var(--font-heading)', fontSize: 14, fontWeight: 600, color: 'var(--ink-00)'}}>{provider.provider_name}</span>
+                        <span style={{fontSize: 10.5, letterSpacing: '0.10em', textTransform: 'uppercase', color: 'var(--ink-40)', fontWeight: 600}}>
                             {PROVIDER_TYPE_LABELS[provider.provider_type] ?? provider.provider_type}
                         </span>
-                        {keyNames.length > 0 && (
-                            allKeysSet
-                                ? <span style={{
-                                    fontSize: '11px',
-                                    color: '#089981',
-                                    display: 'flex',
-                                    alignItems: 'center',
-                                    gap: '3px'
-                                }}><CheckCircle size={11}/> Configured</span>
-                                : <span style={{
-                                    fontSize: '11px',
-                                    color: '#F5A623',
-                                    display: 'flex',
-                                    alignItems: 'center',
-                                    gap: '3px'
-                                }}><XCircle size={11}/> Keys Missing</span>
-                        )}
                     </div>
                     {keyNames.length > 0 && (
-                        <div style={{fontSize: '11px', color: '#4C525E', marginTop: '3px'}}>
+                        <div style={{fontSize: 11.5, color: 'var(--ink-40)', marginTop: 2}}>
                             {expanded ? '▲ Hide credentials' : '▼ Configure credentials'}
                         </div>
                     )}
                 </div>
+                <span style={{display: 'inline-flex', alignItems: 'center', gap: 6, fontSize: 11.5, color: statusColor}}>
+                    <span style={{width: 6, height: 6, borderRadius: 999, background: statusColor}}/> {statusLabel}
+                </span>
                 <button
                     onClick={handleToggle} disabled={toggling}
-                    style={{
-                        ...btnSecondary, padding: '4px 12px', fontSize: '11px',
-                        color: provider.enabled ? '#089981' : '#F23645',
-                        borderColor: provider.enabled ? '#089981' : '#F23645',
-                        minWidth: '80px',
-                    }}
+                    className="du3-cta ghost"
+                    style={{minWidth: 72, justifyContent: 'center'}}
                 >
-                    {toggling ? <Loader size={12}/> : (provider.enabled ? 'Enabled' : 'Disabled')}
+                    {toggling ? '…' : (provider.enabled ? 'Disable' : 'Enable')}
                 </button>
+                {keyNames.length > 0 && (
+                    <button onClick={() => setExpanded(v => !v)} className="du3-cta ghost">
+                        {expanded ? 'Hide' : 'Configure'}
+                    </button>
+                )}
             </div>
 
             {expanded && keyNames.length > 0 && (
-                <div style={{paddingBottom: '16px', display: 'flex', flexDirection: 'column', gap: '10px'}}>
+                <div style={{padding: '4px 18px 18px', borderTop: '1px dashed rgba(255,255,255,0.05)', display: 'flex', flexDirection: 'column', gap: 12}}>
                     {keyNames.map(keyName => {
                         const isSet = keysStatus[keyName];
                         const draft = keyDrafts[keyName] ?? '';
                         const show = showValues[keyName] ?? false;
                         return (
-                            <div key={keyName} style={{display: 'flex', flexDirection: 'column', gap: '4px'}}>
-                                <div style={{display: 'flex', alignItems: 'center', gap: '8px'}}>
-                                    <span style={{
-                                        fontSize: '11px',
-                                        fontWeight: 600,
-                                        color: '#787B86',
-                                        minWidth: '110px'
-                                    }}>
+                            <div key={keyName}>
+                                <div style={{display: 'flex', alignItems: 'center', gap: 8, marginBottom: 6}}>
+                                    <span style={{fontSize: 10.5, letterSpacing: '0.12em', textTransform: 'uppercase', color: 'var(--ink-30)', fontWeight: 600}}>
                                         {KEY_LABELS[keyName] || keyName}
                                     </span>
-                                    {isSet ? <span style={{fontSize: '11px', color: '#089981'}}>● Set</span>
-                                        : <span style={{fontSize: '11px', color: '#F5A623'}}>● Not set</span>}
+                                    {isSet
+                                        ? <span style={{fontSize: 11, color: 'var(--sage-500)'}}>● Set</span>
+                                        : <span style={{fontSize: 11, color: 'var(--dusk-500)'}}>● Not set</span>}
                                 </div>
-                                <div style={{display: 'flex', gap: '8px', alignItems: 'center'}}>
-                                    <input
-                                        type={show ? 'text' : 'password'}
-                                        placeholder={isSet ? '••••••••  (leave blank to keep)' : `Enter ${KEY_LABELS[keyName] || keyName}`}
-                                        value={draft}
-                                        onChange={e => setKeyDrafts(d => ({...d, [keyName]: e.target.value}))}
-                                        style={{...inputStyle, fontFamily: 'monospace', flex: 1}}
-                                        autoComplete="off"
-                                        spellCheck="false"
-                                    />
-                                    <button
-                                        onClick={() => setShowValues(s => ({...s, [keyName]: !show}))}
-                                        style={{
-                                            ...btnSecondary,
-                                            padding: '7px 10px',
-                                            fontSize: '11px',
-                                            minWidth: '52px'
-                                        }}
-                                    >
-                                        {show ? 'Hide' : 'Show'}
-                                    </button>
+                                <div style={{display: 'flex', gap: 8, alignItems: 'center'}}>
+                                    <div style={{position: 'relative', flex: 1}}>
+                                        <input
+                                            type={show ? 'text' : 'password'}
+                                            placeholder={isSet ? '•••••••• (leave blank to keep)' : `Enter ${KEY_LABELS[keyName] || keyName}`}
+                                            value={draft}
+                                            onChange={e => setKeyDrafts(d => ({...d, [keyName]: e.target.value}))}
+                                            style={{...inputStyle, paddingRight: 64}}
+                                            autoComplete="off"
+                                        />
+                                        <button
+                                            onClick={() => setShowValues(s => ({...s, [keyName]: !show}))}
+                                            style={{position: 'absolute', right: 4, top: 4, bottom: 4, padding: '0 10px', fontSize: 11, background: 'transparent', border: 'none', color: 'var(--ink-30)', cursor: 'pointer'}}
+                                        >
+                                            {show ? 'Hide' : 'Show'}
+                                        </button>
+                                    </div>
                                     <button
                                         onClick={() => handleSetKey(keyName)}
                                         disabled={saving[keyName]}
-                                        style={{...btnPrimary, padding: '7px 14px', fontSize: '11px'}}
+                                        className="du3-cta primary"
+                                        style={{height: 34, padding: '0 14px', whiteSpace: 'nowrap'}}
                                     >
-                                        {saving[keyName] ? <Loader size={12}/> : <Save size={12}/>}
-                                        {draft === '' && isSet ? 'Clear' : 'Save'}
+                                        {saving[keyName] ? 'Saving…' : (draft === '' && isSet ? 'Clear' : 'Save')}
                                     </button>
                                 </div>
                             </div>
@@ -214,9 +166,7 @@ export default function ProviderConfig() {
         }
     }, []);
 
-    useEffect(() => {
-        load();
-    }, [load]);
+    useEffect(() => { load(); }, [load]);
 
     const handleToggle = async (name, enabled) => {
         try {
@@ -239,39 +189,36 @@ export default function ProviderConfig() {
         return acc;
     }, {});
 
+    const connected = providers.filter(p => p.enabled).length;
+
     return (
-        <div style={{
-            background: '#131722', border: '1px solid #2A2E39', borderRadius: '8px',
-            padding: '24px', marginBottom: '20px',
-        }}>
-            <SectionHeader
-                icon={Plug} title="Provider Configuration"
-                subtitle="All API keys are encrypted and stored locally. Keys from .env are used as fallback."
-            />
+        <section className="layer-1" style={{padding: 0, overflow: 'hidden'}}>
+            <div style={{padding: '14px 18px', borderBottom: '1px solid rgba(255,255,255,0.06)', display: 'flex', alignItems: 'center', justifyContent: 'space-between'}}>
+                <div>
+                    <div style={{fontFamily: 'var(--font-heading)', fontSize: 14, fontWeight: 600, color: 'var(--ink-00)'}}>
+                        Connected providers
+                    </div>
+                    <div style={{fontSize: 11.5, color: 'var(--ink-30)', marginTop: 2}}>
+                        API keys are encrypted at rest. {connected} of {providers.length} active.
+                    </div>
+                </div>
+                <button onClick={load} className="du3-cta ghost">Refresh</button>
+            </div>
+
             {loading ? (
-                <div style={{color: '#787B86', fontSize: '13px'}}>Loading providers…</div>
+                <div style={{padding: 40, textAlign: 'center', color: 'var(--ink-40)', fontSize: 13}}>Loading providers…</div>
             ) : (
                 Object.entries(grouped).map(([type, list]) => (
                     <div key={type}>
-                        <div style={{
-                            fontSize: '10px', fontWeight: 700, color: '#2962FF',
-                            marginTop: '16px', marginBottom: '4px',
-                            textTransform: 'uppercase', letterSpacing: '0.1em',
-                        }}>
+                        <div style={{padding: '10px 18px 4px', fontSize: 10, fontWeight: 600, letterSpacing: '0.14em', textTransform: 'uppercase', color: 'var(--aurum-500)'}}>
                             {PROVIDER_TYPE_LABELS[type] ?? type}
                         </div>
                         {list.map(p => (
-                            <ProviderRow
-                                key={p.provider_name}
-                                provider={p}
-                                onToggle={handleToggle}
-                                onSetKey={handleSetKey}
-                            />
+                            <ProviderRow key={p.provider_name} provider={p} onToggle={handleToggle} onSetKey={handleSetKey}/>
                         ))}
                     </div>
                 ))
             )}
-        </div>
+        </section>
     );
 }
-

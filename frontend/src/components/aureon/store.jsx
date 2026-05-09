@@ -6,13 +6,10 @@
  * and surfaces a toast on API failure.
  */
 import React, {createContext, useContext, useEffect, useMemo, useState} from 'react';
-import {V3_RECS_ACTIVE, EXTRA_RECS, ACTIVITY} from './data';
 import {apiService} from '../../api/apiService';
 
 const AppContext = createContext(null);
 export const useApp = () => useContext(AppContext);
-
-const MOCK_RECS = [...V3_RECS_ACTIVE, ...EXTRA_RECS];
 
 // Map an API rec (snake_case) → FE shape used by Aureon UI primitives.
 const apiRecToFE = (r) => ({
@@ -33,11 +30,11 @@ const apiRecToFE = (r) => ({
 });
 
 export const AppProvider = ({children}) => {
-    const [allRecs, setAllRecs] = useState(MOCK_RECS);
-    const [active, setActive] = useState(() => MOCK_RECS.map(r => r.id));
+    const [allRecs, setAllRecs] = useState([]);
+    const [active, setActive] = useState([]);
     const [applied, setApplied] = useState([]);
     const [dismissed, setDismissed] = useState([]);
-    const [activity, setActivity] = useState(ACTIVITY);
+    const [activity, setActivity] = useState([]);
     const [drawer, setDrawer] = useState(null);
     const [search, setSearch] = useState('');
     const [toast, setToast] = useState(null);

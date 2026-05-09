@@ -27,8 +27,10 @@ from app.modules.notification.routes import router as notification_router
 from app.modules.pipeline.routes import router as pipeline_router
 from app.modules.portfolio.routes import router as portfolio_router
 from app.modules.recommendations.routes import router as recommendations_router
+from app.modules.market.routes import router as market_router
 from app.modules.signals.routes import router as signals_router
 from app.modules.users.routes import router as users_router
+from app.modules.watchlist.routes import router as watchlist_router
 from app.shared.exceptions import AppException, NotFoundError, ConflictError, ValidationError, DataFetchError
 
 setup_master_logger()
@@ -45,6 +47,7 @@ def register_models() -> None:
     from app.modules.recommendations import models as _recommendations  # noqa: F401
     from app.modules.signals import models as _signals  # noqa: F401
     from app.modules.users import models as _users  # noqa: F401
+    from app.modules.watchlist import models as _watchlist  # noqa: F401
     # auth/models imports User from users — no separate import needed
 
 
@@ -129,6 +132,8 @@ def create_app() -> FastAPI:
     app.include_router(config_router)  # DB-backed profile, providers, jobs
     app.include_router(recommendations_router)  # Aureon decision-units
     app.include_router(aureon_router)  # Aureon composite endpoints
+    app.include_router(market_router)  # Market data — indices, sectors, movers, themes, universe
+    app.include_router(watchlist_router)  # Per-user watchlists
 
     # ── Health ────────────────────────────────────────────────────────────
     @app.get("/health")

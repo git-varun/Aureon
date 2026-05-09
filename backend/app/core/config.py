@@ -16,7 +16,7 @@ class Settings(BaseSettings):
     """App configuration loaded from env."""
 
     # Database
-    database_url: str = "postgresql://admin:admin@localhost/investment_os"
+    database_url: str = "postgresql://admin:admin@localhost/aureon"
     enable_db_init: bool = True
 
     # Redis

@@ -1,17 +1,7 @@
-/* Aureon data hook — hydrates from /api/aureon/state with mock fallback.
- *
- * If the backend has positions seeded, real data fills `holdings`, `signals`,
- * `recommendations`, `activity`, `classTarget`, `netWorth`, `dayDelta`.
- * Otherwise the mocks from `components/aureon/data.js` are returned so the UI
- * still renders during early development.
- */
-import {useEffect, useState} from 'react';
-import {
-    HOLDINGS, SIGNALS, ACTIVITY, V3_RECS_ACTIVE, EXTRA_RECS, V3_PORTFOLIO_REC,
-    CLASS_LABEL, CLASS_TARGET, NET_WORTH, DAY_DELTA_DOLLARS, DAY_DELTA_PCT,
-    PRICE_SERIES, ASSET_EXTRAS, SIGNAL_BY_ID,
-} from '../components/aureon/data';
+/* Aureon data hook — hydrates from /api/aureon/state. */
+import {useEffect, useMemo, useState} from 'react';
 import {apiService} from '../api/apiService';
+import {CLASS_LABEL, CLASS_TARGET, valueOf} from '../components/aureon/utils';
 
 const isNonEmpty = (x) => Array.isArray(x) ? x.length > 0 : !!x;
 
@@ -40,26 +30,40 @@ export function useAureonData() {
     const hasApiHoldings = isNonEmpty(api?.holdings);
     const recsActiveApi = api?.recommendations?.active || [];
     const recsAppliedApi = api?.recommendations?.applied || [];
-    const hasApiRecs = recsActiveApi.length > 0 || recsAppliedApi.length > 0;
+
+    const holdings = useMemo(() => hasApiHoldings ? api.holdings : [], [hasApiHoldings, api?.holdings]);
+    const signals = useMemo(() => isNonEmpty(api?.signals) ? api.signals : [], [api?.signals]);
+    const netWorth = api?.netWorth ?? 0;
+
+    const signalById = useMemo(() => Object.fromEntries(signals.map(s => [s.id, s])), [signals]);
+
+    const allocByClass = useMemo(() => {
+        const map = {};
+        holdings.forEach(h => {
+            map[h.class] = (map[h.class] || 0) + valueOf(h);
+        });
+        if (netWorth > 0) Object.keys(map).forEach(k => map[k] /= netWorth);
+        return map;
+    }, [holdings, netWorth]);
 
     return {
         loading,
         error,
-        source: {mocked: !hasApiHoldings, partial: !api},
-        holdings: hasApiHoldings ? api.holdings : HOLDINGS,
+        holdings,
         classLabel: CLASS_LABEL,
         classTarget: (api?.classTarget && Object.keys(api.classTarget).length) ? api.classTarget : CLASS_TARGET,
-        netWorth: api?.netWorth ?? NET_WORTH,
-        dayDelta: api?.dayDelta ?? {dollars: DAY_DELTA_DOLLARS, pct: DAY_DELTA_PCT},
-        signals: isNonEmpty(api?.signals) ? api.signals : SIGNALS,
-        signalById: SIGNAL_BY_ID,
-        activity: isNonEmpty(api?.activity) ? api.activity : ACTIVITY,
-        recsActive: hasApiRecs ? recsActiveApi : V3_RECS_ACTIVE,
-        recsExtra: hasApiRecs ? [] : EXTRA_RECS,
+        netWorth,
+        dayDelta: api?.dayDelta ?? {dollars: 0, pct: 0},
+        signals,
+        signalById,
+        activity: isNonEmpty(api?.activity) ? api.activity : [],
+        recsActive: recsActiveApi,
         recsApplied: recsAppliedApi,
-        portfolioRec: V3_PORTFOLIO_REC,
-        priceSeries: PRICE_SERIES,
-        assetExtras: ASSET_EXTRAS,
+        portfolioRec: api?.portfolioRec ?? null,
+        priceSeries: api?.priceSeries ?? {},
+        assetExtras: api?.assetExtras ?? {},
+        allocByClass,
+        unreadCount: api?.unreadCount ?? 0,
         apiState: api,
     };
 }

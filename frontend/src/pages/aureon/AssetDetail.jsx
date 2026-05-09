@@ -4,16 +4,15 @@ import {useApp} from '../../components/aureon/store';
 import {Eyebrow, TierChip, SectionHead, PriceChart, Empty} from '../../components/aureon/ui';
 import {DecisionUnit, ActionConfirmationModal} from '../../components/aureon/flow';
 import {apiService} from '../../api/apiService';
-import {
-    HOLDINGS, CLASS_LABEL, NET_WORTH, valueOf, plOf, plPctOf,
-    PRICE_SERIES, ASSET_EXTRAS, SIGNAL_BY_ID,
-} from '../../components/aureon/data';
+import {valueOf, plOf, plPctOf} from '../../components/aureon/utils';
+import {useAureonData} from '../../hooks/useAureonData';
 
 export default function AssetDetail({ticker, go}) {
     const {allRecs, active, apply} = useApp();
+    const {holdings, classLabel, netWorth, priceSeries, assetExtras, signalById} = useAureonData();
     const [modal, setModal] = useState(null);
     const [apiAsset, setApiAsset] = useState(null);
-    const h = HOLDINGS.find(x => x.ticker === ticker);
+    const h = holdings.find(x => x.ticker === ticker);
 
     useEffect(() => {
         let cancelled = false;
@@ -31,17 +30,15 @@ export default function AssetDetail({ticker, go}) {
     if (!h) return <div style={{padding: 40, color: 'var(--ink-30)'}}>Asset not found. <button
         onClick={() => go('assets')} className="du3-cta ghost">Back to assets</button></div>;
 
-    const ex = ASSET_EXTRAS[h.ticker] || {};
+    const ex = assetExtras[h.ticker] || {};
     const series = (apiAsset?.priceSeries && apiAsset.priceSeries.length)
         ? apiAsset.priceSeries
-        : PRICE_SERIES[h.ticker];
+        : priceSeries[h.ticker];
     const v = valueOf(h), pl = plOf(h), plPct = plPctOf(h);
-    const wt = v / NET_WORTH;
+    const wt = netWorth > 0 ? v / netWorth : 0;
     const rec = allRecs.find(r => r.scope?.kind === 'asset' && r.scope.ref === ticker && active.includes(r.id));
-    const sigs = (ex.signals || []).map(id => SIGNAL_BY_ID[id]).filter(Boolean);
+    const sigs = (ex.signals || []).map(id => signalById[id]).filter(Boolean);
 
-    // Prior-action markers — prefer API (transactions + dismissed recs); fall
-    // back to the synthetic mock if the BE has no history yet.
     const events = (() => {
         if (!series) return [];
         if (apiAsset?.priorActions?.length) {
@@ -70,7 +67,7 @@ export default function AssetDetail({ticker, go}) {
                 </button>
                 <span>/</span>
                 <button onClick={() => go('assets')} className="du3-cta ghost"
-                        style={{padding: '2px 6px', height: 'auto', fontSize: 11.5}}>{CLASS_LABEL[h.class]}</button>
+                        style={{padding: '2px 6px', height: 'auto', fontSize: 11.5}}>{classLabel[h.class]}</button>
                 <span>/</span>
                 <span style={{color: 'var(--ink-10)', fontFamily: 'var(--font-mono)'}}>{h.ticker}</span>
             </div>
@@ -123,7 +120,7 @@ export default function AssetDetail({ticker, go}) {
                             fontSize: 11.5,
                             color: 'var(--ink-40)',
                             marginTop: 4
-                        }}>{CLASS_LABEL[h.class]} · {h.sector}</div>
+                        }}>{classLabel[h.class]} · {h.sector}</div>
                     </div>
                 </div>
                 <div style={{flex: 1, minWidth: 120}}/>
@@ -231,7 +228,7 @@ export default function AssetDetail({ticker, go}) {
                             ['Market cap', ex.mcap || '—'],
                             ['Beta', h.beta || '—'],
                             ['Rev · 1y', ex.rev1y || '—'],
-                        ].map(([k, v]) => (
+                        ].map(([k, val]) => (
                             <div key={k}>
                                 <div style={{
                                     fontSize: 10.5,
@@ -246,7 +243,7 @@ export default function AssetDetail({ticker, go}) {
                                     fontWeight: 500,
                                     color: 'var(--ink-00)',
                                     marginTop: 4
-                                }}>{v}</div>
+                                }}>{val}</div>
                             </div>
                         ))}
                     </div>

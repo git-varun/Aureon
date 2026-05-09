@@ -127,14 +127,15 @@ export const apiService = {
         (await API.put(`/config/allocation_targets/${encodeURIComponent(assetClass)}`, payload)).data,
     fetchChartData: async (symbol) => (await API.get(`/assets/${symbol}/chart`)).data,
     fetchNews: async () => (await API.get('/news')).data,
-    refreshPrices: async () => (await API.post('/price')).data,
+    refreshPrices: async () => (await API.post('/assets/price')).data,
     runGlobalAI: async () => (await API.post('/analytics/ai/global')).data,
+    getAITake: async (symbol) => (await API.get(`/analytics/ai/single/${symbol}`)).data,
     runSingleAI: async (symbol) => (await API.post(`/analytics/ai/single/${symbol}`)).data,
     analyzeNewsBatch: async () => (await API.post('/analytics/ai/news/batch')).data,
-    syncBrokers: async () => (await API.post('/sync')).data,
+    syncBrokers: async () => (await API.post('/portfolio/sync')).data,
     hardRefresh: async () => {
         try {
-            return (await API.post('/sync/hard-refresh')).data;
+            return (await API.post('/pipeline/run')).data;
         } catch (err) {
             if (err.response && err.response.status === 429) {
                 throw new Error(err.response.data.detail);
@@ -142,25 +143,12 @@ export const apiService = {
             throw err;
         }
     },
-    fetchTaxSummary: async () => (await API.get('/tax/summary')).data,
-    importTaxLots: async (file, broker = 'Groww', replace = false) => {
-        const form = new FormData();
-        form.append('file', file);
-        return (await API.post(`/tax/import?broker=${broker}&replace=${replace}`, form, {
-            headers: { 'Content-Type': 'multipart/form-data' },
-            timeout: 30000,
-        })).data;
-    },
 
     // ── User Profile (refactored to /api/users/me) ─────────────────────────
     getCurrentUserProfile: async () => (await API.get('/users/me')).data,
     updateCurrentUserProfile: async (payload) => (await API.put('/users/me', payload)).data,
     changeUserPassword: async (currentPassword, newPassword) =>
         (await API.post('/users/me/password', {current_password: currentPassword, new_password: newPassword})).data,
-
-    // Legacy profile endpoints (kept for backward compatibility)
-    getProfile: async () => (await API.get('/profile')).data,
-    updateProfile: async (payload) => (await API.put('/profile', payload)).data,
 
     // ── Providers (refactored to /api/config/providers) ──────────────────────
     getProviders: async () => (await API.get('/config/providers')).data,
@@ -176,20 +164,41 @@ export const apiService = {
     getJobLogs: async (jobName, limit = 20) =>
         (await API.get(`/config/jobs/${jobName}/logs?limit=${limit}`)).data,
 
-    // ── Ledger — Transactions ───────────────────────────────────────────────
-    uploadTransactions: async (file, provider = 'Binance') => {
-        const form = new FormData();
-        form.append('file', file);
-        return (await API.post(`/ledger/upload?provider=${encodeURIComponent(provider)}`, form, {
-            headers: { 'Content-Type': 'multipart/form-data' },
-            timeout: 30000,
-        })).data;
-    },
+    // ── Transactions ────────────────────────────────────────────────────────
     getTransactions: async ({ provider, asset, limit = 200 } = {}) => {
         const params = new URLSearchParams();
         if (provider) params.append('provider', provider);
         if (asset)    params.append('asset', asset);
         params.append('limit', limit);
-        return (await API.get(`/ledger/transactions?${params}`)).data;
+        return (await API.get(`/portfolio/transactions?${params}`)).data;
     },
+
+    // ── Notifications ───────────────────────────────────────────────────────
+    getNotifications: async () => (await API.get('/notifications/')).data,
+    markNotificationRead: async (id) => (await API.put(`/notifications/${id}/read`)).data,
+    markAllNotificationsRead: async (ids) =>
+        Promise.all(ids.map(id => API.put(`/notifications/${id}/read`))),
+
+    // ── Market Data ─────────────────────────────────────────────────────────
+    getMarketIndices: async () => (await API.get('/market/indices')).data,
+    getMarketSectors: async () => (await API.get('/market/sectors')).data,
+    getMarketMovers: async () => (await API.get('/market/movers')).data,
+    getMarketThemes: async () => (await API.get('/market/themes')).data,
+    getMarketUniverse: async ({region, search} = {}) => {
+        const params = new URLSearchParams();
+        if (region) params.append('region', region);
+        if (search) params.append('search', search);
+        const q = params.toString();
+        return (await API.get(`/market/universe${q ? '?' + q : ''}`)).data;
+    },
+
+    // ── Watchlist ────────────────────────────────────────────────────────────
+    getWatchlists: async () => (await API.get('/watchlist/')).data,
+    createWatchlist: async (name) => (await API.post('/watchlist/', {name})).data,
+    renameWatchlist: async (id, name) => (await API.put(`/watchlist/${id}`, {name})).data,
+    deleteWatchlist: async (id) => (await API.delete(`/watchlist/${id}`)).data,
+    addWatchlistSymbol: async (id, symbol) => (await API.post(`/watchlist/${id}/symbols`, {symbol})).data,
+    removeWatchlistSymbol: async (id, symbol) => (await API.delete(`/watchlist/${id}/symbols/${encodeURIComponent(symbol)}`)).data,
+    setWatchlistAlert: async (id, symbol, price) => (await API.put(`/watchlist/${id}/symbols/${encodeURIComponent(symbol)}/alert`, {price})).data,
+    clearWatchlistAlert: async (id, symbol) => (await API.delete(`/watchlist/${id}/symbols/${encodeURIComponent(symbol)}/alert`)).data,
 };
