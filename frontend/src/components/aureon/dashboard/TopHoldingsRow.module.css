@@ -1,0 +1,48 @@
+.grid {
+    display: grid;
+    grid-template-columns: repeat(5, 1fr);
+    gap: 10px;
+}
+
+.card {
+    text-align: left;
+    cursor: pointer;
+    padding: 12px 14px;
+    border-radius: 10px;
+    background: rgba(255, 255, 255, 0.025);
+    border: 1px solid rgba(255, 255, 255, 0.06);
+    color: inherit;
+    transition: border-color 120ms var(--ease-std);
+}
+
+.card:hover {
+    border-color: rgba(255, 255, 255, 0.12);
+}
+
+.cardHeader {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 6px;
+}
+
+.ticker {
+    font-family: var(--font-mono);
+    font-size: 13px;
+    font-weight: 600;
+    color: var(--ink-00);
+    letter-spacing: 0.04em;
+}
+
+.value {
+    font-family: var(--font-mono);
+    font-size: 15px;
+    color: var(--ink-00);
+    font-weight: 500;
+}
+
+.dayPct {
+    font-family: var(--font-mono);
+    font-size: 11px;
+    margin-top: 2px;
+}

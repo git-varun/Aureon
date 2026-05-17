@@ -1,0 +1,126 @@
+.wrap {
+    border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+}
+
+.header {
+    display: grid;
+    grid-template-columns: 2.2fr 1.2fr 1.2fr 1.4fr 1.6fr 40px;
+    gap: 16px;
+    padding: 16px 18px;
+    width: 100%;
+    background: transparent;
+    border: none;
+    cursor: pointer;
+    color: inherit;
+    text-align: left;
+    align-items: center;
+    transition: background 80ms;
+}
+
+.header:hover {
+    background: rgba(255, 255, 255, 0.02);
+}
+
+.headerExpanded {
+    background: rgba(255, 255, 255, 0.015);
+}
+
+.nameGroup {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    min-width: 0;
+}
+
+.colorDot {
+    width: 10px;
+    height: 10px;
+    border-radius: 2px;
+    flex-shrink: 0;
+}
+
+.className {
+    font-family: var(--font-heading);
+    font-size: 16px;
+    font-weight: 600;
+    color: var(--ink-00);
+    letter-spacing: -0.01em;
+}
+
+.count {
+    font-size: 11px;
+    color: var(--ink-40);
+    flex-shrink: 0;
+}
+
+.colLabel {
+    font-size: 9.5px;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    color: var(--ink-40);
+    font-weight: 600;
+    margin-bottom: 4px;
+}
+
+.colValue {
+    font-family: var(--font-mono);
+    font-size: 15px;
+    font-weight: 500;
+    color: var(--ink-00);
+}
+
+.colValueMeta {
+    font-family: var(--font-mono);
+    font-size: 10.5px;
+    margin-top: 2px;
+}
+
+.chevronWrap {
+    display: flex;
+    justify-content: flex-end;
+}
+
+.chevron {
+    color: var(--ink-40);
+    transition: transform 200ms;
+}
+
+.chevronOpen {
+    transform: rotate(180deg);
+}
+
+.body {
+    background: rgba(0, 0, 0, 0.12);
+}
+
+.bodyHeader {
+    display: grid;
+    grid-template-columns: 1.8fr 0.7fr 1fr 0.8fr 0.8fr 0.9fr 0.6fr;
+    gap: 12px;
+    padding: 8px 18px 8px 46px;
+    font-size: 9.5px;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    color: var(--ink-40);
+    font-weight: 600;
+    border-top: 1px solid rgba(255, 255, 255, 0.04);
+    border-bottom: 1px solid rgba(255, 255, 255, 0.04);
+}
+
+.tierBadge {
+    font-size: 9.5px;
+    font-family: var(--font-mono);
+    font-weight: 600;
+    letter-spacing: 0.10em;
+    text-transform: uppercase;
+    padding: 2px 7px;
+    border-radius: 4px;
+    flex-shrink: 0;
+}
+
+.beta {
+    font-family: var(--font-mono);
+    font-size: 10px;
+    color: var(--ink-40);
+    margin-top: 3px;
+}

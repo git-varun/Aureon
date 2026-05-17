@@ -1,0 +1,35 @@
+.toast {
+    position: fixed;
+    bottom: 20px;
+    left: 50%;
+    transform: translateX(-50%);
+    display: flex;
+    align-items: center;
+    gap: 14px;
+    padding: 10px 14px;
+    border-radius: 10px;
+    z-index: 200;
+    background: rgba(22, 24, 28, 0.92);
+    border: 1px solid rgba(255, 255, 255, 0.10);
+    backdrop-filter: blur(40px);
+    box-shadow: 0 24px 64px rgba(0, 0, 0, 0.5);
+    animation: cardEnter 200ms var(--ease-decel);
+}
+
+.icon {
+    width: 22px;
+    height: 22px;
+    border-radius: 999px;
+    background: rgba(111, 174, 136, 0.2);
+    color: var(--sage-500);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 13px;
+    flex-shrink: 0;
+}
+
+.text {
+    font-size: 13px;
+    color: var(--ink-10);
+}

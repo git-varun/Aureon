@@ -1,0 +1,118 @@
+.header {
+    height: 60px;
+    display: flex;
+    align-items: center;
+    padding: 0 24px;
+    gap: 14px;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+    flex-shrink: 0;
+}
+
+.titleBlock {
+    min-width: 0;
+    flex-shrink: 0;
+    max-width: 220px;
+}
+
+.title {
+    font-family: var(--font-heading);
+    font-size: 18px;
+    font-weight: 600;
+    color: var(--ink-00);
+    letter-spacing: -0.01em;
+    line-height: 1.1;
+    white-space: nowrap;
+}
+
+.subtitle {
+    font-size: 11px;
+    color: var(--ink-40);
+    margin-top: 2px;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.searchWrap {
+    flex: 1;
+    display: flex;
+    justify-content: center;
+    min-width: 0;
+}
+
+.searchBar {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    width: 100%;
+    max-width: 380px;
+    height: 34px;
+    padding: 0 12px;
+    border-radius: 8px;
+    background: rgba(255, 255, 255, 0.03);
+    border: 1px solid rgba(255, 255, 255, 0.07);
+}
+
+.searchIcon {
+    color: var(--ink-40);
+    flex-shrink: 0;
+}
+
+.searchInput {
+    flex: 1;
+    background: transparent;
+    border: none;
+    outline: none;
+    color: var(--ink-10);
+    font-size: 13px;
+    font-family: var(--font-ui);
+    min-width: 0;
+}
+
+.searchKbd {
+    font-family: var(--font-mono);
+    font-size: 10px;
+    color: var(--ink-40);
+    padding: 2px 5px;
+    background: rgba(255, 255, 255, 0.04);
+    border-radius: 3px;
+    flex-shrink: 0;
+}
+
+.actions {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    flex-shrink: 0;
+}
+
+.divider {
+    width: 1px;
+    height: 18px;
+    background: rgba(255, 255, 255, 0.08);
+}
+
+.marketStatus {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    font-family: var(--font-mono);
+    font-size: 11px;
+    color: var(--ink-30);
+    white-space: nowrap;
+}
+
+.marketDot {
+    width: 6px;
+    height: 6px;
+    border-radius: 999px;
+}
+
+.marketDotOpen {
+    background: var(--sage-500);
+    box-shadow: 0 0 0 3px rgba(111, 174, 136, 0.16);
+}
+
+.marketDotClosed {
+    background: var(--ink-40);
+}

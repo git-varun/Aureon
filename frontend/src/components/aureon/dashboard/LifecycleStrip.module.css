@@ -1,0 +1,51 @@
+.strip {
+    display: grid;
+    gap: 8px;
+    margin-bottom: 20px;
+}
+
+.stage {
+    text-align: left;
+    cursor: pointer;
+    padding: 12px 14px;
+    border-radius: 8px;
+    background: rgba(255, 255, 255, 0.025);
+    border: 1px solid rgba(255, 255, 255, 0.06);
+    color: inherit;
+    transition: border-color 120ms var(--ease-std);
+}
+
+.stage:hover {
+    border-color: rgba(255, 255, 255, 0.12);
+}
+
+.stageLabel {
+    font-size: 9.5px;
+    letter-spacing: 0.14em;
+    text-transform: uppercase;
+    color: var(--ink-40);
+    font-weight: 600;
+}
+
+.stageLabelActive {
+    color: var(--aurum-500);
+}
+
+.stageValue {
+    margin-top: 6px;
+    display: flex;
+    align-items: baseline;
+    gap: 6px;
+}
+
+.stageNum {
+    font-family: var(--font-mono);
+    font-size: 20px;
+    color: var(--ink-00);
+    font-weight: 500;
+}
+
+.stageSub {
+    font-size: 11px;
+    color: var(--ink-40);
+}

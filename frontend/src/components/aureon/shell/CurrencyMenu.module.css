@@ -1,0 +1,127 @@
+.trigger {
+    display: flex;
+    align-items: center;
+    gap: 7px;
+    height: 30px;
+    padding: 0 10px;
+    border-radius: 6px;
+    cursor: pointer;
+    background: rgba(255, 255, 255, 0.03);
+    border: 1px solid rgba(255, 255, 255, 0.07);
+    color: var(--ink-10);
+    font-family: var(--font-mono);
+    font-size: 11.5px;
+    letter-spacing: 0.04em;
+    transition: background 120ms var(--ease-std), border-color 120ms var(--ease-std);
+}
+
+.triggerOpen {
+    background: rgba(201, 168, 106, 0.10);
+    border-color: rgba(201, 168, 106, 0.30);
+    color: var(--aurum-100);
+}
+
+.triggerSymbol {
+    opacity: 0.75;
+}
+
+.triggerCode {
+    font-weight: 600;
+}
+
+.chevron {
+    opacity: 0.5;
+    transition: transform 140ms var(--ease-std);
+}
+
+.chevronOpen {
+    transform: rotate(180deg);
+}
+
+.dropdown {
+    position: absolute;
+    top: calc(100% + 6px);
+    right: 0;
+    z-index: 300;
+    min-width: 240px;
+    padding: 6px;
+    border-radius: 10px;
+    background: rgba(18, 20, 24, 0.96);
+    border: 1px solid rgba(255, 255, 255, 0.10);
+    box-shadow: 0 24px 64px rgba(0, 0, 0, 0.55), 0 2px 6px rgba(0, 0, 0, 0.30);
+    backdrop-filter: blur(24px);
+    animation: cardEnter 160ms var(--ease-decel);
+}
+
+.dropdownLabel {
+    font-size: 9.5px;
+    letter-spacing: 0.16em;
+    text-transform: uppercase;
+    color: var(--ink-40);
+    font-weight: 600;
+    padding: 8px 10px 6px;
+}
+
+.option {
+    display: grid;
+    grid-template-columns: 22px 1fr auto;
+    gap: 10px;
+    align-items: center;
+    width: 100%;
+    padding: 8px 10px;
+    border-radius: 6px;
+    cursor: pointer;
+    background: transparent;
+    border: none;
+    text-align: left;
+    color: var(--ink-10);
+    transition: background 100ms;
+}
+
+.option:hover {
+    background: rgba(255, 255, 255, 0.04);
+}
+
+.optionActive {
+    background: rgba(201, 168, 106, 0.14);
+    color: var(--aurum-100);
+}
+
+.optionSymbol {
+    font-family: var(--font-mono);
+    font-size: 14px;
+    text-align: center;
+    opacity: 0.85;
+}
+
+.optionInfo {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+}
+
+.optionCode {
+    font-family: var(--font-mono);
+    font-size: 12px;
+    font-weight: 600;
+    letter-spacing: 0.04em;
+}
+
+.optionName {
+    font-size: 11px;
+    color: var(--ink-40);
+}
+
+.optionCheck {
+    font-size: 12px;
+    color: var(--aurum-100);
+}
+
+.footer {
+    font-size: 10.5px;
+    color: var(--ink-40);
+    padding: 8px 10px 4px;
+    border-top: 1px solid rgba(255, 255, 255, 0.06);
+    margin-top: 4px;
+    line-height: 1.5;
+}
