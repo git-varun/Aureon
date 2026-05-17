@@ -1,0 +1,180 @@
+.trigger {
+    height: 30px;
+    padding: 0 12px;
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    border-radius: 6px;
+    cursor: pointer;
+    background: rgba(255, 255, 255, 0.025);
+    border: 1px solid rgba(255, 255, 255, 0.07);
+    color: var(--ink-10);
+    font-size: 11.5px;
+    font-family: var(--font-ui);
+    position: relative;
+    overflow: hidden;
+}
+
+.triggerOpen {
+    background: rgba(255, 255, 255, 0.05);
+    border-color: rgba(255, 255, 255, 0.12);
+}
+
+.triggerRunning {
+    background: rgba(201, 168, 106, 0.08);
+    border-color: rgba(201, 168, 106, 0.28);
+    color: var(--aurum-100);
+}
+
+.spinner {
+    flex-shrink: 0;
+}
+
+.spinnerRunning {
+    animation: spin 1.4s linear infinite;
+}
+
+.chevron {
+    opacity: 0.5;
+    transition: transform 140ms var(--ease-std);
+}
+
+.chevronOpen {
+    transform: rotate(180deg);
+}
+
+.progressBar {
+    position: absolute;
+    left: 0;
+    bottom: 0;
+    height: 1.5px;
+    background: var(--aurum-100);
+    transition: width 90ms linear;
+}
+
+.dropdown {
+    position: absolute;
+    top: calc(100% + 6px);
+    right: 0;
+    z-index: 300;
+    width: 320px;
+    padding: 6px;
+    border-radius: 10px;
+    background: rgba(18, 20, 24, 0.96);
+    border: 1px solid rgba(255, 255, 255, 0.10);
+    box-shadow: 0 24px 64px rgba(0, 0, 0, 0.55);
+    backdrop-filter: blur(24px);
+    animation: cardEnter 160ms var(--ease-decel);
+}
+
+.dropdownHeader {
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+    padding: 8px 10px 6px;
+}
+
+.dropdownLabel {
+    font-size: 9.5px;
+    letter-spacing: 0.16em;
+    text-transform: uppercase;
+    color: var(--ink-40);
+    font-weight: 600;
+}
+
+.allJobsBtn {
+    background: none;
+    border: none;
+    color: var(--ink-40);
+    font-size: 10.5px;
+    cursor: pointer;
+    padding: 0;
+}
+
+.allJobsBtn:hover {
+    color: var(--ink-20);
+}
+
+.jobRow {
+    display: block;
+    width: 100%;
+    text-align: left;
+    padding: 9px 10px;
+    border-radius: 6px;
+    cursor: pointer;
+    background: transparent;
+    border: none;
+    margin-bottom: 2px;
+    position: relative;
+    overflow: hidden;
+    transition: background 80ms;
+}
+
+.jobRow:hover:not(:disabled) {
+    background: rgba(255, 255, 255, 0.04);
+}
+
+.jobRowRunning {
+    background: rgba(201, 168, 106, 0.08);
+    cursor: wait;
+}
+
+.jobMeta {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.jobDot {
+    width: 6px;
+    height: 6px;
+    border-radius: 999px;
+    flex-shrink: 0;
+}
+
+.jobDotIdle {
+    background: rgba(255, 255, 255, 0.20);
+}
+
+.jobDotRunning {
+    background: var(--aurum-100);
+    box-shadow: 0 0 0 3px rgba(201, 168, 106, 0.18);
+}
+
+.jobDotDone {
+    background: var(--sage-500);
+}
+
+.jobName {
+    flex: 1;
+    font-size: 12.5px;
+    color: var(--ink-00);
+    font-weight: 500;
+}
+
+.jobStatus {
+    font-family: var(--font-mono);
+    font-size: 10.5px;
+    color: var(--ink-40);
+}
+
+.jobStatusRunning {
+    color: var(--aurum-100);
+}
+
+.jobDesc {
+    font-size: 11px;
+    color: var(--ink-40);
+    margin-top: 3px;
+    padding-left: 14px;
+    line-height: 1.45;
+}
+
+.jobProgress {
+    position: absolute;
+    left: 0;
+    bottom: 0;
+    height: 1.5px;
+    background: var(--aurum-100);
+    transition: width 90ms linear;
+}

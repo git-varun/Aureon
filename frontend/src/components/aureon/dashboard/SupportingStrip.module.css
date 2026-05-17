@@ -1,0 +1,44 @@
+.strip {
+    margin-top: 20px;
+    display: grid;
+    grid-template-columns: 1fr 1fr 1fr;
+    gap: 12px;
+}
+
+.card {
+    text-align: left;
+    padding: 14px 16px;
+    border: 1px solid rgba(255, 255, 255, 0.06);
+    border-radius: 10px;
+    background: rgba(255, 255, 255, 0.02);
+    color: inherit;
+    transition: border-color 120ms var(--ease-std);
+}
+
+.card:not(:disabled):hover {
+    border-color: rgba(255, 255, 255, 0.12);
+}
+
+.card:disabled {
+    cursor: default;
+}
+
+.value {
+    font-family: var(--font-mono);
+    font-size: 22px;
+    font-weight: 500;
+    color: var(--ink-00);
+    margin-top: 6px;
+}
+
+.sub {
+    font-size: 11.5px;
+    color: var(--ink-20);
+    margin-top: 2px;
+}
+
+.foot {
+    font-size: 10.5px;
+    color: var(--ink-40);
+    margin-top: 8px;
+}

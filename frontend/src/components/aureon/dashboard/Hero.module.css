@@ -1,0 +1,106 @@
+.hero {
+    padding: 10px 0 22px;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+    margin-bottom: 22px;
+    display: grid;
+    grid-template-columns: minmax(0, 1.4fr) minmax(0, 1fr) auto;
+    gap: 32px;
+    align-items: center;
+}
+
+.netWorth {
+    font-family: var(--font-mono);
+    font-size: 60px;
+    font-weight: 500;
+    letter-spacing: -0.02em;
+    color: var(--ink-00);
+    line-height: 1;
+    margin-top: 6px;
+}
+
+.deltaRow {
+    margin-top: 8px;
+    display: flex;
+    align-items: baseline;
+    gap: 14px;
+    font-family: var(--font-mono);
+    font-size: 13px;
+}
+
+.periodBtns {
+    display: inline-flex;
+    gap: 0;
+    margin-left: 8px;
+}
+
+.periodBtn {
+    padding: 4px 10px;
+    font-size: 11px;
+    font-family: var(--font-mono);
+    background: transparent;
+    color: var(--ink-30);
+    border: none;
+    cursor: pointer;
+    border-radius: 4px;
+}
+
+.periodBtnActive {
+    background: rgba(201, 168, 106, 0.12);
+    color: var(--aurum-100);
+}
+
+.insightBlock {
+    padding-left: 32px;
+    border-left: 1px solid rgba(255, 255, 255, 0.06);
+}
+
+.insightText {
+    font-family: var(--font-heading);
+    font-size: 17px;
+    color: var(--ink-00);
+    line-height: 1.4;
+    letter-spacing: -0.005em;
+    margin-top: 8px;
+    max-width: 380px;
+}
+
+.insightMeta {
+    margin-top: 10px;
+    font-size: 11.5px;
+    color: var(--ink-30);
+}
+
+.donutBlock {
+    display: flex;
+    align-items: center;
+    gap: 14px;
+}
+
+.donutLegend {
+    display: grid;
+    gap: 4px;
+    font-size: 11px;
+}
+
+.legendRow {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    color: var(--ink-20);
+}
+
+.legendDot {
+    width: 8px;
+    height: 8px;
+    border-radius: 2px;
+    flex-shrink: 0;
+}
+
+.legendLabel {
+    flex: 1;
+}
+
+.legendPct {
+    font-family: var(--font-mono);
+    color: var(--ink-10);
+}

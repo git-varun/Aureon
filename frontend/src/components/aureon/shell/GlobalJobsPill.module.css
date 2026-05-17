@@ -1,0 +1,105 @@
+.pill {
+    display: inline-flex;
+    align-items: center;
+    gap: 7px;
+    height: 26px;
+    padding: 0 9px;
+    border-radius: 999px;
+    cursor: pointer;
+    background: rgba(201, 168, 106, 0.12);
+    border: 1px solid rgba(201, 168, 106, 0.28);
+    color: var(--aurum-100);
+    font-family: var(--font-mono);
+    font-size: 10.5px;
+    position: relative;
+    overflow: hidden;
+}
+
+.spinner {
+    animation: spin 1.4s linear infinite;
+    flex-shrink: 0;
+}
+
+.progressBar {
+    position: absolute;
+    left: 0;
+    bottom: 0;
+    height: 1.5px;
+    background: var(--aurum-100);
+    transition: width 90ms linear;
+}
+
+.dropdown {
+    position: absolute;
+    top: calc(100% + 6px);
+    right: 0;
+    z-index: 300;
+    width: 300px;
+    padding: 6px;
+    border-radius: 10px;
+    background: rgba(18, 20, 24, 0.96);
+    border: 1px solid rgba(255, 255, 255, 0.10);
+    box-shadow: 0 24px 64px rgba(0, 0, 0, 0.55);
+    backdrop-filter: blur(24px);
+    animation: cardEnter 160ms var(--ease-decel);
+}
+
+.dropdownLabel {
+    font-size: 9.5px;
+    letter-spacing: 0.16em;
+    text-transform: uppercase;
+    color: var(--ink-40);
+    font-weight: 600;
+    padding: 8px 10px 6px;
+}
+
+.jobRow {
+    padding: 8px 10px;
+    border-radius: 6px;
+    position: relative;
+    overflow: hidden;
+}
+
+.jobMeta {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.jobDot {
+    width: 6px;
+    height: 6px;
+    border-radius: 999px;
+    flex-shrink: 0;
+    background: var(--aurum-100);
+    box-shadow: 0 0 0 3px rgba(201, 168, 106, 0.18);
+}
+
+.jobName {
+    flex: 1;
+    font-size: 12.5px;
+    color: var(--ink-00);
+}
+
+.jobPct {
+    font-family: var(--font-mono);
+    font-size: 10.5px;
+    color: var(--aurum-100);
+}
+
+.jobScreen {
+    font-size: 10.5px;
+    color: var(--ink-40);
+    margin-top: 2px;
+    padding-left: 14px;
+    text-transform: capitalize;
+}
+
+.jobProgress {
+    position: absolute;
+    left: 0;
+    bottom: 0;
+    height: 1.5px;
+    background: var(--aurum-100);
+    transition: width 90ms linear;
+}

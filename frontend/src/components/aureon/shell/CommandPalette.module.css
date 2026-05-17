@@ -1,0 +1,124 @@
+.overlay {
+    position: fixed;
+    inset: 0;
+    z-index: 500;
+    background: rgba(0, 0, 0, 0.55);
+    backdrop-filter: blur(4px);
+    display: flex;
+    align-items: flex-start;
+    justify-content: center;
+    padding-top: 14vh;
+}
+
+.modal {
+    width: 100%;
+    max-width: 520px;
+    border-radius: 12px;
+    overflow: hidden;
+    background: rgba(18, 20, 24, 0.98);
+    border: 1px solid rgba(255, 255, 255, 0.12);
+    box-shadow: 0 32px 80px rgba(0, 0, 0, 0.65);
+    animation: cardEnter 160ms var(--ease-decel);
+}
+
+.inputRow {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 0 16px;
+    height: 50px;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.07);
+}
+
+.searchIcon {
+    color: var(--ink-40);
+    flex-shrink: 0;
+}
+
+.input {
+    flex: 1;
+    background: transparent;
+    border: none;
+    outline: none;
+    color: var(--ink-00);
+    font-size: 14px;
+    font-family: var(--font-ui);
+}
+
+.escKbd {
+    font-family: var(--font-mono);
+    font-size: 10px;
+    color: var(--ink-40);
+    padding: 2px 6px;
+    background: rgba(255, 255, 255, 0.05);
+    border-radius: 4px;
+}
+
+.list {
+    padding: 8px 0;
+    max-height: 360px;
+    overflow-y: auto;
+}
+
+.empty {
+    padding: 20px 16px;
+    font-size: 13px;
+    color: var(--ink-40);
+    text-align: center;
+}
+
+.listLabel {
+    font-size: 9.5px;
+    letter-spacing: 0.16em;
+    text-transform: uppercase;
+    color: var(--ink-40);
+    font-weight: 600;
+    padding: 4px 16px 6px;
+}
+
+.item {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    width: 100%;
+    text-align: left;
+    padding: 9px 16px;
+    background: transparent;
+    border: none;
+    border-left: 2px solid transparent;
+    cursor: pointer;
+    color: inherit;
+    transition: background 60ms;
+}
+
+.itemActive {
+    background: rgba(201, 168, 106, 0.10);
+    border-left-color: var(--aurum-500);
+}
+
+.itemContent {
+    flex: 1;
+    min-width: 0;
+}
+
+.itemLabel {
+    font-size: 13px;
+    color: var(--ink-00);
+    font-weight: 500;
+}
+
+.itemLabelActive {
+    color: var(--aurum-100);
+}
+
+.itemSub {
+    font-size: 11px;
+    color: var(--ink-40);
+    margin-top: 2px;
+}
+
+.enterHint {
+    font-family: var(--font-mono);
+    font-size: 10px;
+    color: var(--aurum-500);
+}

@@ -1,0 +1,51 @@
+.wrap {}
+
+.label {
+    font-size: 9.5px;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    color: var(--ink-40);
+    font-weight: 600;
+    margin-bottom: 6px;
+}
+
+.value {
+    font-family: var(--font-mono);
+    font-size: 16px;
+    font-weight: 600;
+    color: var(--ink-00);
+    margin-bottom: 4px;
+}
+
+.track {
+    height: 3px;
+    border-radius: 2px;
+    background: rgba(255, 255, 255, 0.06);
+    position: relative;
+    width: 100px;
+}
+
+.fill {
+    position: absolute;
+    left: 0;
+    top: 0;
+    height: 100%;
+    border-radius: 2px;
+}
+
+.targetMarker {
+    position: absolute;
+    top: -2px;
+    height: 7px;
+    width: 2px;
+    border-radius: 1px;
+    background: rgba(255, 255, 255, 0.35);
+}
+
+.meta {
+    font-family: var(--font-mono);
+    font-size: 10px;
+    color: var(--ink-40);
+    margin-top: 3px;
+    white-space: nowrap;
+}
