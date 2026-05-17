@@ -1,62 +1,80 @@
-/* Aureon shell — composes sidebar/topbar/router/pages.
- * Mounted at the root hash; #/legacy renders the legacy app instead. */
-import React from 'react';
+/* Aureon shell — composes sidebar/topbar/router/pages. */
+import React, {lazy, Suspense} from 'react';
+import {Routes, Route, Navigate} from 'react-router-dom';
 import {Toaster} from 'react-hot-toast';
 import {AppProvider} from './components/aureon/store';
-import {Sidebar, TopBar, Toast, useAureonRoute} from './components/aureon/Shell';
+import {V4Provider} from './contexts/V4Context';
+import {Sidebar, TopBar, Toast} from './components/aureon/Shell';
 import {useAureonData} from './hooks/useAureonData';
-import Dashboard from './pages/aureon/Dashboard';
-import Portfolio from './pages/aureon/Portfolio';
-import AssetsIndex from './pages/aureon/AssetsIndex';
-import AssetDetail from './pages/aureon/AssetDetail';
-import Signals from './pages/aureon/Signals';
-import Recommendations from './pages/aureon/Recommendations';
-import Activity from './pages/aureon/Activity';
-import Settings from './pages/aureon/Settings';
-import Notifications from './pages/aureon/Notifications';
-import Markets from './pages/aureon/Markets';
-import Terminal from './pages/aureon/Terminal';
-import Watchlist from './pages/aureon/Watchlist';
+import {apiService} from './api/apiService';
+import {useEffect, useState} from 'react';
 
-const WATCHLIST_COUNT = 13; // total symbols across all lists
+const Dashboard       = lazy(() => import('./pages/aureon/Dashboard'));
+const Portfolio       = lazy(() => import('./pages/aureon/Portfolio'));
+const AssetsIndex     = lazy(() => import('./pages/aureon/AssetsIndex'));
+const AssetDetail     = lazy(() => import('./pages/aureon/AssetDetail'));
+const Signals         = lazy(() => import('./pages/aureon/Signals'));
+const Recommendations = lazy(() => import('./pages/aureon/Recommendations'));
+const Activity        = lazy(() => import('./pages/aureon/Activity'));
+const Settings        = lazy(() => import('./pages/aureon/Settings'));
+const Notifications   = lazy(() => import('./pages/aureon/Notifications'));
+const Markets         = lazy(() => import('./pages/aureon/Markets'));
+const Terminal        = lazy(() => import('./pages/aureon/Terminal'));
+const Watchlist       = lazy(() => import('./pages/aureon/Watchlist'));
 
-function Body({route, go}) {
-    if (route.name === 'dashboard')         return <Dashboard go={go}/>;
-    if (route.name === 'portfolio')         return <Portfolio go={go}/>;
-    if (route.name === 'assets')            return route.params[1]
-        ? <AssetDetail ticker={route.params[1]} go={go}/>
-        : <AssetsIndex go={go}/>;
-    if (route.name === 'signals')           return <Signals go={go}/>;
-    if (route.name === 'recommendations')   return <Recommendations go={go}/>;
-    if (route.name === 'activity')          return <Activity go={go}/>;
-    if (route.name === 'settings')          return <Settings/>;
-    if (route.name === 'notifications')     return <Notifications/>;
-    if (route.name === 'markets')           return <Markets go={go}/>;
-    if (route.name === 'terminal')          return <Terminal go={go} sym={route.params[0]}/>;
-    if (route.name === 'watchlist')         return <Watchlist go={go}/>;
-    return <Dashboard go={go}/>;
+function useWatchlistCount() {
+    const [count, setCount] = useState(null);
+    useEffect(() => {
+        apiService.getWatchlists().then(lists => {
+            const total = (lists || []).reduce((s, l) => s + (l.symbols?.length || 0), 0);
+            setCount(total);
+        }).catch(() => {});
+    }, []);
+    return count;
 }
 
+const PageSkeleton = () => (
+    <div style={{flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--ink-40)', fontSize: 13}}>
+        Loading…
+    </div>
+);
+
 function AureonShellInner({onLogout, userName}) {
-    const {route, go} = useAureonRoute();
     const {holdings, signals, unreadCount} = useAureonData();
+    const watchlistCount = useWatchlistCount();
 
     return (
         <div style={{display: 'flex', height: '100vh', overflow: 'hidden', background: 'var(--canvas)', color: 'var(--ink-10)'}}>
             <Sidebar
-                route={route} go={go}
                 userName={userName} onLogout={onLogout}
                 portfolioCount={holdings.length || null}
                 signalCount={signals.length || null}
                 unreadCount={unreadCount}
-                watchlistCount={WATCHLIST_COUNT}
+                watchlistCount={watchlistCount}
             />
             <main style={{flex: 1, display: 'flex', flexDirection: 'column', minWidth: 0, overflow: 'hidden'}}>
-                <TopBar route={route}/>
-                <div style={{flex: 1, overflowY: 'auto', padding: '22px 28px 40px'}}
-                     key={route.name + (route.params[0] || '')}>
+                <TopBar/>
+                <div style={{flex: 1, overflowY: 'auto', padding: '22px 28px 40px'}}>
                     <div style={{maxWidth: 1280, width: '100%', margin: '0 auto'}}>
-                        <Body route={route} go={go}/>
+                        <Suspense fallback={<PageSkeleton/>}>
+                            <Routes>
+                                <Route index element={<Navigate to="/dashboard" replace/>}/>
+                                <Route path="dashboard" element={<Dashboard/>}/>
+                                <Route path="portfolio" element={<Portfolio/>}/>
+                                <Route path="assets" element={<AssetsIndex/>}/>
+                                <Route path="assets/:ticker" element={<AssetDetail/>}/>
+                                <Route path="signals" element={<Signals/>}/>
+                                <Route path="recommendations" element={<Recommendations/>}/>
+                                <Route path="activity" element={<Activity/>}/>
+                                <Route path="settings" element={<Settings/>}/>
+                                <Route path="notifications" element={<Notifications/>}/>
+                                <Route path="markets" element={<Markets/>}/>
+                                <Route path="terminal" element={<Terminal/>}/>
+                                <Route path="terminal/:sym" element={<Terminal/>}/>
+                                <Route path="watchlist" element={<Watchlist/>}/>
+                                <Route path="*" element={<Navigate to="/dashboard" replace/>}/>
+                            </Routes>
+                        </Suspense>
                     </div>
                 </div>
             </main>
@@ -67,15 +85,17 @@ function AureonShellInner({onLogout, userName}) {
 
 export default function AureonShell({onLogout, userName}) {
     return (
-        <AppProvider>
-            <AureonShellInner onLogout={onLogout} userName={userName}/>
-            <Toaster position="top-right" toastOptions={{
-                style: {
-                    background: '#16181c',
-                    color: '#E4E7ED',
-                    border: '1px solid rgba(255,255,255,0.10)'
-                }
-            }}/>
-        </AppProvider>
+        <V4Provider>
+            <AppProvider>
+                <AureonShellInner onLogout={onLogout} userName={userName}/>
+                <Toaster position="top-right" toastOptions={{
+                    style: {
+                        background: '#16181c',
+                        color: '#E4E7ED',
+                        border: '1px solid rgba(255,255,255,0.10)'
+                    }
+                }}/>
+            </AppProvider>
+        </V4Provider>
     );
 }

@@ -1,7 +1,8 @@
 import React, {useState, useEffect, useMemo} from 'react';
+import {useNavigate} from 'react-router-dom';
 import {Sparkline, Eyebrow, SectionHead} from '../../components/aureon/ui';
 import {apiService} from '../../api/apiService';
-import {genSeries, fmtINR, fmtUSD} from './marketData';
+import {fmtINR, fmtUSD} from './marketData';
 
 const REGIONS = [['IN', 'India'], ['US', 'United States'], ['EU', 'Europe'], ['AS', 'Asia'], ['ALL', 'All regions']];
 
@@ -28,7 +29,8 @@ function EmptyBlock({label}) {
     );
 }
 
-export default function Markets({go}) {
+export default function Markets() {
+    const navigate = useNavigate();
     const [region, setRegion] = useState('IN');
     const [data, setData] = useState({indices: [], sectors: [], movers: {gainers: [], losers: []}, themes: [], universe: []});
     const [loading, setLoading] = useState(true);
@@ -102,7 +104,7 @@ export default function Markets({go}) {
                                 <span style={{fontFamily: 'var(--font-mono)', fontSize: 12, color: idx.dayPct >= 0 ? 'var(--sage-500)' : 'var(--crimson-500)'}}>
                                     {idx.dayPct >= 0 ? '▲' : '▼'} {(Math.abs(idx.dayPct) * 100).toFixed(2)}%
                                 </span>
-                                <Sparkline data={genSeries(idx.sym, idx.value, 30, 0.012, idx.dayPct > 0 ? 0.001 : -0.001)} w={70} h={18} fill={false}/>
+                                <Sparkline data={idx.spark?.length ? idx.spark : []} w={70} h={18} fill={false}/>
                             </div>
                         </div>
                     ))}
@@ -164,7 +166,7 @@ export default function Markets({go}) {
                             <div>
                                 <div style={{fontSize: 10.5, color: 'var(--sage-500)', fontWeight: 600, letterSpacing: '0.10em', textTransform: 'uppercase', marginBottom: 6}}>Gainers</div>
                                 {data.movers.gainers.map(g => (
-                                    <button key={g.sym} onClick={() => go('terminal', g.sym)} style={{display: 'flex', alignItems: 'center', justifyContent: 'space-between', width: '100%', padding: '5px 0', background: 'none', border: 'none', color: 'inherit', cursor: 'pointer', textAlign: 'left'}}>
+                                    <button key={g.sym} onClick={() => navigate('/terminal/' + g.sym)} style={{display: 'flex', alignItems: 'center', justifyContent: 'space-between', width: '100%', padding: '5px 0', background: 'none', border: 'none', color: 'inherit', cursor: 'pointer', textAlign: 'left'}}>
                                         <span style={{fontFamily: 'var(--font-mono)', fontSize: 11.5, color: 'var(--ink-10)', fontWeight: 600}}>{g.sym}</span>
                                         <span style={{fontFamily: 'var(--font-mono)', fontSize: 11, color: 'var(--sage-500)'}}>+{(g.dayPct * 100).toFixed(2)}%</span>
                                     </button>
@@ -173,7 +175,7 @@ export default function Markets({go}) {
                             <div>
                                 <div style={{fontSize: 10.5, color: 'var(--crimson-500)', fontWeight: 600, letterSpacing: '0.10em', textTransform: 'uppercase', marginBottom: 6}}>Losers</div>
                                 {data.movers.losers.map(g => (
-                                    <button key={g.sym} onClick={() => go('terminal', g.sym)} style={{display: 'flex', alignItems: 'center', justifyContent: 'space-between', width: '100%', padding: '5px 0', background: 'none', border: 'none', color: 'inherit', cursor: 'pointer', textAlign: 'left'}}>
+                                    <button key={g.sym} onClick={() => navigate('/terminal/' + g.sym)} style={{display: 'flex', alignItems: 'center', justifyContent: 'space-between', width: '100%', padding: '5px 0', background: 'none', border: 'none', color: 'inherit', cursor: 'pointer', textAlign: 'left'}}>
                                         <span style={{fontFamily: 'var(--font-mono)', fontSize: 11.5, color: 'var(--ink-10)', fontWeight: 600}}>{g.sym}</span>
                                         <span style={{fontFamily: 'var(--font-mono)', fontSize: 11, color: 'var(--crimson-500)'}}>{(g.dayPct * 100).toFixed(2)}%</span>
                                     </button>
@@ -191,7 +193,7 @@ export default function Markets({go}) {
             {data.themes.length > 0 ? (
                 <div style={{display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 10, marginBottom: 18}}>
                     {data.themes.map(t => (
-                        <button key={t.id} onClick={() => go('terminal')} className="layer-1" style={{padding: '14px 16px', textAlign: 'left', cursor: 'pointer', color: 'inherit', background: 'rgba(255,255,255,0.025)', border: '1px solid rgba(255,255,255,0.06)'}}>
+                        <button key={t.id} onClick={() => navigate('/terminal')} className="layer-1" style={{padding: '14px 16px', textAlign: 'left', cursor: 'pointer', color: 'inherit', background: 'rgba(255,255,255,0.025)', border: '1px solid rgba(255,255,255,0.06)'}}>
                             <div style={{display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 6}}>
                                 <div style={{fontFamily: 'var(--font-heading)', fontSize: 13.5, fontWeight: 600, color: 'var(--ink-00)'}}>{t.name}</div>
                                 <span style={{fontFamily: 'var(--font-mono)', fontSize: 11, color: t.ret1m >= 0 ? 'var(--sage-500)' : 'var(--crimson-500)'}}>
@@ -219,7 +221,7 @@ export default function Markets({go}) {
                         <div>Symbol</div><div>Exch</div><div>Price</div><div>Day Δ</div><div>30d</div><div style={{textAlign: 'right'}}>M-cap</div>
                     </div>
                     {filteredUniverse.map(u => (
-                        <button key={u.sym} onClick={() => go('terminal', u.sym)} style={{
+                        <button key={u.sym} onClick={() => navigate('/terminal/' + u.sym)} style={{
                             display: 'grid', gridTemplateColumns: '1.4fr 0.7fr 1fr 0.8fr 1fr 0.7fr', gap: 12, padding: '12px 18px',
                             width: '100%', background: 'transparent', border: 'none',
                             borderBottom: '1px solid rgba(255,255,255,0.04)', cursor: 'pointer', color: 'inherit', textAlign: 'left', alignItems: 'center',
@@ -235,7 +237,7 @@ export default function Markets({go}) {
                             <span style={{fontFamily: 'var(--font-mono)', fontSize: 12, color: u.dayPct >= 0 ? 'var(--sage-500)' : 'var(--crimson-500)'}}>
                                 {u.dayPct >= 0 ? '▲' : '▼'} {(Math.abs(u.dayPct) * 100).toFixed(2)}%
                             </span>
-                            <Sparkline data={genSeries(u.sym, u.price, 30, 0.018, u.dayPct > 0 ? 0.001 : -0.001)} w={80} h={20}/>
+                            <Sparkline data={u.spark?.length ? u.spark : []} w={80} h={20}/>
                             <span style={{fontFamily: 'var(--font-mono)', fontSize: 11, color: 'var(--ink-30)', textAlign: 'right'}}>{u.mcap || '—'}</span>
                         </button>
                     ))}

@@ -1,13 +1,16 @@
 /* Aureon — Assets index (grouped by class). */
 import React, {useMemo} from 'react';
+import {useNavigate} from 'react-router-dom';
 import {useApp} from '../../components/aureon/store';
 import {Sparkline, Eyebrow, TierChip, MiniBar} from '../../components/aureon/ui';
 import {valueOf, plOf, plPctOf} from '../../components/aureon/utils';
 import {useAureonData} from '../../hooks/useAureonData';
+import {fmtMoney} from './marketData';
 
-export default function AssetsIndex({go}) {
+export default function AssetsIndex() {
+    const navigate = useNavigate();
     const {allRecs, active} = useApp();
-    const {holdings, classLabel, classTarget, netWorth, priceSeries, allocByClass} = useAureonData();
+    const {holdings, classLabel, classTarget, netWorth, allocByClass} = useAureonData();
 
     const grouped = useMemo(() => {
         const g = {};
@@ -39,7 +42,7 @@ export default function AssetsIndex({go}) {
                     letterSpacing: '-0.015em',
                     marginTop: 6
                 }}>
-                    {Object.keys(grouped).length} classes · ${Math.round(netWorth).toLocaleString()} under management
+                    {Object.keys(grouped).length} classes · {fmtMoney(netWorth, 'USD', {dp: 0})} under management
                 </div>
                 <div style={{fontSize: 12, color: 'var(--ink-30)', marginTop: 6, maxWidth: 680}}>
                     Active assets receive real-time signals and recommendations. Semi-active receive low-frequency
@@ -72,7 +75,7 @@ export default function AssetsIndex({go}) {
                                 }}>{classLabel[cls]}</h3>
                                 <TierChip tier={tier}/>
                                 <span style={{fontFamily: 'var(--font-mono)', fontSize: 12, color: 'var(--ink-30)'}}>
-                  ${Math.round(value).toLocaleString()} · {netWorth > 0 ? ((value / netWorth) * 100).toFixed(1) : '0.0'}% · target {((classTarget[cls] || 0) * 100).toFixed(0)}%
+                  {fmtMoney(value, 'USD', {dp: 0})} · {netWorth > 0 ? ((value / netWorth) * 100).toFixed(1) : '0.0'}% · target {((classTarget[cls] || 0) * 100).toFixed(0)}%
                 </span>
                             </div>
                             <div style={{display: 'flex', alignItems: 'center', gap: 14}}>
@@ -92,7 +95,7 @@ export default function AssetsIndex({go}) {
                             gap: 10
                         }}>
                             {items.map(h => (
-                                <button key={h.id || h.ticker} onClick={() => go('assets', h.class, h.ticker)} style={{
+                                <button key={h.id || h.ticker} onClick={() => navigate('/assets/' + h.ticker)} style={{
                                     textAlign: 'left',
                                     cursor: 'pointer',
                                     padding: '12px 14px',
@@ -147,7 +150,7 @@ export default function AssetsIndex({go}) {
                                                 fontSize: 16,
                                                 color: 'var(--ink-00)',
                                                 fontWeight: 500
-                                            }}>${Math.round(valueOf(h)).toLocaleString()}</div>
+                                            }}>{fmtMoney(valueOf(h), 'USD', {dp: 0})}</div>
                                             <div style={{
                                                 fontFamily: 'var(--font-mono)',
                                                 fontSize: 11,
@@ -158,7 +161,7 @@ export default function AssetsIndex({go}) {
                                             </div>
                                         </div>
                                         {h.tier !== 'passive' &&
-                                            <Sparkline data={priceSeries[h.ticker] || [h.cost, h.price]} w={70}
+                                            <Sparkline data={h.spark?.length ? h.spark : [h.cost, h.price]} w={70}
                                                        h={22}/>}
                                     </div>
                                 </button>

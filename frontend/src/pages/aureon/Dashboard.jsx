@@ -1,7 +1,8 @@
 /* Aureon — Dashboard page. */
 import React, {useMemo, useState} from 'react';
+import {useNavigate} from 'react-router-dom';
 import {useApp} from '../../components/aureon/store';
-import {Sparkline, Eyebrow, SectionHead, AllocDonut} from '../../components/aureon/ui';
+import {Sparkline, Eyebrow, SectionHead, AllocDonut, Empty} from '../../components/aureon/ui';
 import {
     DecisionUnit,
     PortfolioDecisionUnit,
@@ -10,8 +11,9 @@ import {
 } from '../../components/aureon/flow';
 import {valueOf} from '../../components/aureon/utils';
 import {useAureonData} from '../../hooks/useAureonData';
+import {fmtMoney} from './marketData';
 
-const Hero = ({netWorth, dayDelta, classLabel, allocByClass}) => (
+const Hero = ({netWorth, dayDelta, classLabel, allocByClass, drift, recsActiveCount, activityThisWeek}) => (
     <div style={{
         padding: '10px 0 22px',
         borderBottom: '1px solid rgba(255,255,255,0.05)',
@@ -32,10 +34,7 @@ const Hero = ({netWorth, dayDelta, classLabel, allocByClass}) => (
                 lineHeight: 1,
                 marginTop: 6
             }}>
-                ${Math.floor(netWorth).toLocaleString()}<span style={{
-                fontSize: 30,
-                color: 'var(--ink-30)'
-            }}>.{Math.round((netWorth % 1) * 100).toString().padStart(2, '0')}</span>
+                {fmtMoney(netWorth, 'USD')}
             </div>
             <div style={{
                 marginTop: 8,
@@ -45,8 +44,8 @@ const Hero = ({netWorth, dayDelta, classLabel, allocByClass}) => (
                 fontFamily: 'var(--font-mono)',
                 fontSize: 13
             }}>
-                <span style={{color: 'var(--sage-500)'}}>
-                    ▲ ${dayDelta.dollars.toLocaleString()} · +{(dayDelta.pct * 100).toFixed(2)}%
+                <span style={{color: dayDelta.dollars >= 0 ? 'var(--sage-500)' : 'var(--crimson-500)'}}>
+                    {dayDelta.dollars >= 0 ? '▲' : '▼'} {fmtMoney(Math.abs(dayDelta.dollars), 'USD', {dp: 0})} · {dayDelta.dollars >= 0 ? '+' : ''}{(dayDelta.pct * 100).toFixed(2)}%
                 </span>
                 <span style={{color: 'var(--ink-40)'}}>today</span>
                 <span style={{display: 'inline-flex', gap: 0, marginLeft: 8}}>
@@ -72,10 +71,12 @@ const Hero = ({netWorth, dayDelta, classLabel, allocByClass}) => (
                 marginTop: 8,
                 maxWidth: 380
             }}>
-                Tech allocation 6pp above target — portfolio rebalance ready with 79% confidence.
+                {drift
+                    ? `${classLabel[drift[0]] || drift[0]} ${Math.abs(drift[1]).toFixed(1)}pp ${drift[1] > 0 ? 'above' : 'below'} target`
+                    : 'Allocation on target — no action needed.'}
             </div>
             <div style={{marginTop: 10, fontSize: 11.5, color: 'var(--ink-30)'}}>
-                5 active recommendations · 9 actions logged this week
+                {recsActiveCount} active recommendation{recsActiveCount !== 1 ? 's' : ''} · {activityThisWeek} action{activityThisWeek !== 1 ? 's' : ''} this week
             </div>
         </div>
         <div style={{display: 'flex', alignItems: 'center', gap: 14}}>
@@ -109,19 +110,72 @@ const Hero = ({netWorth, dayDelta, classLabel, allocByClass}) => (
     </div>
 );
 
-const LifecycleStrip = ({go, signalCount}) => {
+const PortfolioProgress = () => {
+    const [open, setOpen] = useState(false);
+
+    return (
+        <section style={{marginBottom: 20}}>
+            <button
+                onClick={() => setOpen(o => !o)}
+                style={{
+                    display: 'flex', alignItems: 'center', gap: 18, width: '100%',
+                    padding: '14px 20px', cursor: 'pointer',
+                    background: 'rgba(255,255,255,0.025)', border: '1px solid rgba(255,255,255,0.06)',
+                    borderRadius: 10, color: 'inherit', textAlign: 'left',
+                    transition: 'background 120ms var(--ease-std)',
+                }}
+                onMouseEnter={e => { e.currentTarget.style.background = 'rgba(255,255,255,0.035)'; }}
+                onMouseLeave={e => { e.currentTarget.style.background = 'rgba(255,255,255,0.025)'; }}
+            >
+                <div style={{display: 'flex', alignItems: 'center', gap: 10}}>
+                    <span style={{
+                        width: 26, height: 26, borderRadius: 7, display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
+                        background: 'rgba(201,168,106,0.10)', border: '1px solid rgba(201,168,106,0.18)', color: 'var(--aurum-100)',
+                    }}>
+                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round"><polyline points="3 17 9 11 13 15 21 7"/><polyline points="14 7 21 7 21 14"/></svg>
+                    </span>
+                    <div>
+                        <div style={{fontFamily: 'var(--font-heading)', fontSize: 14, fontWeight: 600, color: 'var(--ink-00)', letterSpacing: '-0.005em'}}>Portfolio progress</div>
+                        <div style={{fontSize: 11.5, color: 'var(--ink-30)', marginTop: 2}}>Net worth trend · allocation evolution · vs benchmark</div>
+                    </div>
+                </div>
+                <div style={{flex: 1}}/>
+                <span style={{
+                    display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
+                    width: 24, height: 24, borderRadius: 6,
+                    background: 'rgba(255,255,255,0.04)', color: 'var(--ink-30)',
+                    transform: open ? 'rotate(180deg)' : 'rotate(0)', transition: 'transform 220ms var(--ease-std)',
+                }}>
+                    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="6 9 12 15 18 9"/></svg>
+                </span>
+            </button>
+
+            {open && (
+                <div style={{
+                    marginTop: 8, padding: '18px 20px',
+                    background: 'rgba(255,255,255,0.02)', border: '1px solid rgba(255,255,255,0.05)', borderRadius: 10,
+                }}>
+                    <Empty>Historical data unavailable — run the daily pipeline to populate trend data</Empty>
+                </div>
+            )}
+        </section>
+    );
+};
+
+const LifecycleStrip = ({signalCount, appliedToday}) => {
+    const navigate = useNavigate();
     const {active, applied} = useApp();
     const stages = [
         {k: 'Input', v: signalCount, sub: 'signals', route: 'signals'},
         {k: 'Interpretation', v: active.length + applied.length, sub: 'interpreted', route: 'recommendations'},
         {k: 'Decision', v: active.length, sub: 'ready', active: true, route: 'recommendations'},
         {k: 'Confirmation', v: 0, sub: 'pending', route: 'recommendations'},
-        {k: 'Outcome', v: applied.length, sub: 'applied today', route: 'activity'},
+        {k: 'Outcome', v: applied.length, sub: `${appliedToday} applied today`, route: 'activity'},
     ];
     return (
         <div style={{display: 'grid', gridTemplateColumns: `repeat(${stages.length},1fr)`, gap: 8, marginBottom: 20}}>
             {stages.map((s, i) => (
-                <button key={s.k} onClick={() => go(s.route)} className={s.active ? 'step-active' : ''} style={{
+                <button key={s.k} onClick={() => navigate('/' + s.route)} className={s.active ? 'step-active' : ''} style={{
                     textAlign: 'left', cursor: 'pointer', padding: '12px 14px', borderRadius: 8,
                     background: 'rgba(255,255,255,0.025)',
                     border: '1px solid ' + (s.active ? 'rgba(201,168,106,0.30)' : 'rgba(255,255,255,0.06)'),
@@ -148,12 +202,13 @@ const LifecycleStrip = ({go, signalCount}) => {
     );
 };
 
-const TopHoldingsRow = ({go, holdings, priceSeries}) => {
+const TopHoldingsRow = ({holdings}) => {
+    const navigate = useNavigate();
     const top = holdings.filter(h => h.tier !== 'passive').slice().sort((a, b) => valueOf(b) - valueOf(a)).slice(0, 5);
     return (
         <div style={{display: 'grid', gridTemplateColumns: 'repeat(5,1fr)', gap: 10}}>
             {top.map(h => (
-                <button key={h.id} onClick={() => go('assets', h.class, h.ticker)} style={{
+                <button key={h.id} onClick={() => navigate('/assets/' + h.ticker)} style={{
                     textAlign: 'left', cursor: 'pointer', padding: '12px 14px', borderRadius: 10,
                     background: 'rgba(255,255,255,0.025)', border: '1px solid rgba(255,255,255,0.06)', color: 'inherit',
                 }}>
@@ -170,14 +225,14 @@ const TopHoldingsRow = ({go, holdings, priceSeries}) => {
                             color: 'var(--ink-00)',
                             letterSpacing: '0.04em'
                         }}>{h.ticker}</span>
-                        <Sparkline data={priceSeries[h.ticker] || [h.cost, h.price]} w={56} h={18}/>
+                        <Sparkline data={h.spark?.length ? h.spark : [h.cost, h.price]} w={56} h={18}/>
                     </div>
                     <div style={{
                         fontFamily: 'var(--font-mono)',
                         fontSize: 15,
                         color: 'var(--ink-00)',
                         fontWeight: 500
-                    }}>${Math.round(valueOf(h)).toLocaleString()}</div>
+                    }}>{fmtMoney(valueOf(h), 'USD', {dp: 0})}</div>
                     <div style={{
                         fontFamily: 'var(--font-mono)',
                         fontSize: 11,
@@ -192,26 +247,24 @@ const TopHoldingsRow = ({go, holdings, priceSeries}) => {
     );
 };
 
-const SupportingStrip = ({go, signalCount}) => (
+const SupportingStrip = ({signalCount, signalsToday, drift, classLabel, marketPulse}) => {
+    const navigate = useNavigate();
+    const driftV = drift ? Math.abs(drift[1]).toFixed(1) + 'pp' : '—';
+    const driftSub = drift
+        ? (classLabel[drift[0]] || drift[0]) + (drift[1] > 0 ? ' overweight' : ' underweight')
+        : 'on target';
+    const pulseV = marketPulse != null
+        ? (marketPulse >= 0 ? '+' : '') + Number(marketPulse).toFixed(1)
+        : '—';
+    const cards = [
+        {t: 'Signals · inputs', v: signalCount, sub: `${signalsToday} new today`, foot: 'See Recommendations for decisions', route: 'signals'},
+        {t: 'Allocation drift', v: driftV, sub: driftSub, foot: drift ? 'Informed by rebalance rec' : 'Allocation on target', route: 'portfolio'},
+        {t: 'Market pulse', v: pulseV, sub: 'aggregate sentiment', foot: marketPulse != null ? 'Context only' : 'Run pipeline to update', route: null},
+    ];
+    return (
     <div style={{marginTop: 20, display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 12}}>
-        {[
-            {
-                t: 'Signals · inputs',
-                v: signalCount,
-                sub: '3 new today',
-                foot: 'See Recommendations for decisions',
-                route: 'signals'
-            },
-            {
-                t: 'Allocation drift',
-                v: '4.2pp',
-                sub: 'stocks overweight',
-                foot: 'Informed by rebalance rec',
-                route: 'portfolio'
-            },
-            {t: 'Market pulse', v: '+0.4', sub: 'aggregate sentiment', foot: 'Context only', route: null},
-        ].map(x => (
-            <button key={x.t} onClick={() => x.route && go(x.route)} disabled={!x.route} style={{
+        {cards.map(x => (
+            <button key={x.t} onClick={() => x.route && navigate('/' + x.route)} disabled={!x.route} style={{
                 textAlign: 'left', cursor: x.route ? 'pointer' : 'default',
                 padding: '14px 16px', border: '1px solid rgba(255,255,255,0.06)', borderRadius: 10,
                 background: 'rgba(255,255,255,0.02)', color: 'inherit',
@@ -229,7 +282,8 @@ const SupportingStrip = ({go, signalCount}) => (
             </button>
         ))}
     </div>
-);
+    );
+};
 
 const WiredDecisionUnit = ({rec, openModal}) => {
     const {active, apply} = useApp();
@@ -240,12 +294,34 @@ const WiredDecisionUnit = ({rec, openModal}) => {
     );
 };
 
-export default function Dashboard({go}) {
+export default function Dashboard() {
+    const navigate = useNavigate();
     const {allRecs, active, apply} = useApp();
-    const {holdings, signals, netWorth, dayDelta, classLabel, allocByClass, priceSeries, portfolioRec} = useAureonData();
+    const {holdings, signals, netWorth, dayDelta, classLabel, classTarget, allocByClass, portfolioRec, recsActive, recsApplied, activity, marketPulse} = useAureonData();
     const [modal, setModal] = useState(null);
     const recs = useMemo(() => allRecs.filter(r => active.includes(r.id)), [allRecs, active]);
     const dashRecs = recs.filter(r => r.confidence >= 50).slice(0, 3);
+
+    const todayISO = useMemo(() => new Date().toISOString().slice(0, 10), []);
+
+    const drift = useMemo(() => {
+        const entries = Object.entries(allocByClass)
+            .map(([k, v]) => [k, (v - (classTarget[k] ?? 0)) * 100])
+            .filter(([, v]) => Math.abs(v) > 0.01);
+        if (!entries.length) return null;
+        return entries.sort((a, b) => Math.abs(b[1]) - Math.abs(a[1]))[0];
+    }, [allocByClass, classTarget]);
+
+    const signalsToday = useMemo(() => signals.filter(s => s.ts >= todayISO).length, [signals, todayISO]);
+
+    const appliedToday = useMemo(() =>
+        activity.filter(a => a.kind !== 'dismissed' && a.ts >= todayISO).length,
+    [activity, todayISO]);
+
+    const activityThisWeek = useMemo(() => {
+        const weekAgo = new Date(Date.now() - 7 * 86400_000).toISOString().slice(0, 10);
+        return activity.filter(a => a.ts >= weekAgo).length;
+    }, [activity]);
 
     const openModal = (rec, onConfirm) => setModal({rec, onConfirm});
     const closeModal = () => setModal(null);
@@ -256,14 +332,16 @@ export default function Dashboard({go}) {
 
     return (
         <>
-            <Hero netWorth={netWorth} dayDelta={dayDelta} classLabel={classLabel} allocByClass={allocByClass}/>
-            <LifecycleStrip go={go} signalCount={signals.length}/>
+            <Hero netWorth={netWorth} dayDelta={dayDelta} classLabel={classLabel} allocByClass={allocByClass}
+                  drift={drift} recsActiveCount={recsActive.length} activityThisWeek={activityThisWeek}/>
+            <PortfolioProgress/>
+            <LifecycleStrip signalCount={signals.length} appliedToday={appliedToday}/>
 
             <SectionHead
                 eyebrow="Decisions · what should you do next"
                 title="Active recommendations"
                 meta={`${active.length} active · updated 3 min ago`}
-                action={<button className="du3-cta ghost" onClick={() => go('recommendations')}>Review all <span
+                action={<button className="du3-cta ghost" onClick={() => navigate('/recommendations')}>Review all <span
                     style={{marginLeft: 4}}>→</span></button>}
             />
 
@@ -289,12 +367,13 @@ export default function Dashboard({go}) {
                 eyebrow="Portfolio · holdings at a glance"
                 title="Top positions"
                 meta={`${holdings.filter(h => h.tier !== 'passive').length} active · ${holdings.filter(h => h.tier === 'passive').length} passive`}
-                action={<button className="du3-cta ghost" onClick={() => go('portfolio')}>Open portfolio <span
+                action={<button className="du3-cta ghost" onClick={() => navigate('/portfolio')}>Open portfolio <span
                     style={{marginLeft: 4}}>→</span></button>}
             />
-            <TopHoldingsRow go={go} holdings={holdings} priceSeries={priceSeries}/>
+            <TopHoldingsRow holdings={holdings}/>
 
-            <SupportingStrip go={go} signalCount={signals.length}/>
+            <SupportingStrip signalCount={signals.length} signalsToday={signalsToday}
+                             drift={drift} classLabel={classLabel} marketPulse={marketPulse}/>
             <div style={{height: 32}}/>
 
             {modal && <ActionConfirmationModal rec={modal.rec} onCancel={closeModal} onConfirm={confirmModal}/>}

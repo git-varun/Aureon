@@ -1,31 +1,18 @@
-/* Aureon data hook — hydrates from /api/aureon/state. */
-import {useEffect, useMemo, useState} from 'react';
+/* Aureon data hook — hydrates from /api/aureon/state via TanStack Query. */
+import {useMemo} from 'react';
+import {useQuery} from '@tanstack/react-query';
 import {apiService} from '../api/apiService';
 import {CLASS_LABEL, CLASS_TARGET, valueOf} from '../components/aureon/utils';
+
+export const AUREON_STATE_KEY = ['aureon-state'];
 
 const isNonEmpty = (x) => Array.isArray(x) ? x.length > 0 : !!x;
 
 export function useAureonData() {
-    const [api, setApi] = useState(null);
-    const [loading, setLoading] = useState(true);
-    const [error, setError] = useState(null);
-
-    useEffect(() => {
-        let cancelled = false;
-        (async () => {
-            try {
-                const res = await apiService.fetchAureonState();
-                if (!cancelled) setApi(res);
-            } catch (e) {
-                if (!cancelled) setError(e);
-            } finally {
-                if (!cancelled) setLoading(false);
-            }
-        })();
-        return () => {
-            cancelled = true;
-        };
-    }, []);
+    const {data: api, isLoading: loading, error} = useQuery({
+        queryKey: AUREON_STATE_KEY,
+        queryFn: () => apiService.fetchAureonState(),
+    });
 
     const hasApiHoldings = isNonEmpty(api?.holdings);
     const recsActiveApi = api?.recommendations?.active || [];
@@ -60,10 +47,9 @@ export function useAureonData() {
         recsActive: recsActiveApi,
         recsApplied: recsAppliedApi,
         portfolioRec: api?.portfolioRec ?? null,
-        priceSeries: api?.priceSeries ?? {},
-        assetExtras: api?.assetExtras ?? {},
         allocByClass,
         unreadCount: api?.unreadCount ?? 0,
+        marketPulse: api?.marketPulse ?? null,
         apiState: api,
     };
 }
