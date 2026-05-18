@@ -199,6 +199,13 @@ button {
     background: transparent
 }
 
+/* ---------- spin anim (used by RunMenu / GlobalJobsPill) ---------- */
+@keyframes spin {
+    to {
+        transform: rotate(360deg);
+    }
+}
+
 /* ---------- decision card anim ---------- */
 @keyframes cardEnter {
     from {

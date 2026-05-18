@@ -1,7 +1,6 @@
 import logging
 from typing import Dict, List
 
-from growwapi import GrowwAPI
 from pydantic import ValidationError
 
 from app.modules.portfolio.providers.credential_manager import CredentialManager
@@ -37,6 +36,7 @@ class GrowwSync(AssetSource):
             self.logger.warning("🚫 Groww Plugin Disabled: Missing keys.")
             return
         try:
+            from growwapi import GrowwAPI
             self.api = GrowwAPI(GrowwAPI.get_access_token(api_key=self.api_key, secret=self.api_secret))
             self.logger.info("✅ Groww Plugin: Authenticated")
         except Exception as e:

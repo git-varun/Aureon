@@ -1,5 +1,6 @@
 import logging
 from contextvars import ContextVar
+from pathlib import Path
 
 # 1. Create a Context Variable to hold the Correlation ID
 # Default is 'SYSTEM' for background cron jobs or startup tasks
@@ -17,7 +18,7 @@ class CorrelationIdFilter(logging.Filter):
 def setup_master_logger():
     """Configures the root logger for the entire application."""
     logger = logging.getLogger()
-    logger.setLevel(logging.INFO)
+    logger.setLevel(logging.DEBUG)
 
     # If handlers already exist (e.g., from hot-reloading), don't duplicate them
     if logger.handlers:
@@ -30,7 +31,9 @@ def setup_master_logger():
     )
 
     # 3. File-Stream Logging (api.log)
-    file_handler = logging.FileHandler("api.log", encoding="utf-8")
+    log_dir = Path(__file__).resolve().parents[3] / "logs"
+    log_dir.mkdir(exist_ok=True)
+    file_handler = logging.FileHandler(log_dir / "api.log", encoding="utf-8")
     file_handler.setFormatter(formatter)
     file_handler.addFilter(CorrelationIdFilter())
 

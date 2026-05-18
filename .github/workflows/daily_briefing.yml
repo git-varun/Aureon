@@ -15,7 +15,7 @@ env:
   FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
 
 jobs:
-  run-investment-os:
+  run-aureon:
     runs-on: ubuntu-latest
 
     steps:

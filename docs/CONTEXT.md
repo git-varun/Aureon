@@ -33,7 +33,9 @@ app/core/dependencies.py                               — get_current_user, req
 app/core/security.py                                   — JWT create/verify, password hash/verify
 app/modules/<name>/{models,schemas,services,routes}.py — per-module structure
 app/modules/portfolio/providers/credential_manager.py  — DB-first credential lookup
-app/tasks/{portfolio,signals,news,ai,pipeline}.py      — Celery tasks
+app/modules/market/engine.py                           — MarketEngine: DB-first universe/movers/sectors + yfinance indices; refresh_cache() writes all market/* keys
+app/tasks/market.py                                    — market.refresh_cache Celery task; wired into beat (every 15min, 09–16 weekdays) and pipeline orchestrator
+app/tasks/{portfolio,signals,news,ai,pipeline,market}.py — Celery tasks
 app/shared/exceptions.py                               — AppException hierarchy
 app/shared/quant.py                                    — QuantEngine (RSI, MACD, BB, VWAP, ATR, Z-score)
 ```
@@ -88,7 +90,7 @@ GROWW_EMAIL / GROWW_PASSWORD
 
 ## Module List
 
-`analytics` `assets` `aureon` `auth` `backtesting` `config` `news` `notification` `pipeline` `portfolio`
+`analytics` `assets` `aureon` `auth` `backtesting` `config` `market` `news` `notification` `pipeline` `portfolio`
 `recommendations` `signals` `transactions` `users`
 
 All registered in `app/main.py::register_models()` and `create_app()`.

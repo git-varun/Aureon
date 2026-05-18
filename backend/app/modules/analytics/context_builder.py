@@ -144,7 +144,7 @@ class PortfolioContextBuilder:
             lines += [
                 "--- Asset Info ---",
                 f"Name: {asset.name}",
-                f"Type: {asset.asset_type.value if asset.asset_type else 'N/A'}",
+                f"Type: {(asset.asset_type.value if hasattr(asset.asset_type, 'value') else str(asset.asset_type)) if asset.asset_type else 'N/A'}",
                 f"Exchange: {asset.exchange or 'N/A'}",
                 f"Current Price: {asset.current_price or 'N/A'}",
                 f"Previous Close: {asset.previous_close or 'N/A'}",

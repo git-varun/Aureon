@@ -217,8 +217,8 @@ def _link_news_assets(db: Session, symbol: str) -> None:
     from app.modules.portfolio.models import Asset
     from sqlalchemy import func
 
-    asset = db.query(Asset).filter(func.upper(Asset.symbol) == symbol.upper()).first()
-    if not asset:
+    assets = db.query(Asset).filter(Asset.symbol.ilike(f"{symbol}-%")).all()
+    if not assets:
         logger.debug("_link_news_assets: no asset found for symbol=%s — skipping junction write", symbol)
         return
 
@@ -232,10 +232,11 @@ def _link_news_assets(db: Session, symbol: str) -> None:
 
     linked = 0
     for article in recent_news:
-        existing = db.query(NewsAsset).filter_by(news_id=article.id, asset_id=asset.id).first()
-        if not existing:
-            db.add(NewsAsset(news_id=article.id, asset_id=asset.id))
-            linked += 1
+        for asset in assets:
+            existing = db.query(NewsAsset).filter_by(news_id=article.id, asset_id=asset.id).first()
+            if not existing:
+                db.add(NewsAsset(news_id=article.id, asset_id=asset.id))
+                linked += 1
 
     if linked:
         try:

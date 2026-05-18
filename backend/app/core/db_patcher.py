@@ -21,6 +21,8 @@ ENUM_CONVERSIONS = [
     "ALTER TABLE transactions ALTER COLUMN transaction_type TYPE VARCHAR(30) USING transaction_type::text",
     "DROP TYPE IF EXISTS assettype",
     "DROP TYPE IF EXISTS transactiontype",
+    # Ensure asset_metadata is jsonb (not json) so the GIN index can be created
+    "ALTER TABLE assets ALTER COLUMN asset_metadata TYPE JSONB USING asset_metadata::jsonb",
 ]
 
 # ---------------------------------------------------------------------------
@@ -66,6 +68,10 @@ PATCHES = [
     "ALTER TABLE signals ADD COLUMN IF NOT EXISTS signal_metadata JSONB DEFAULT '{}'::jsonb",
     "CREATE INDEX IF NOT EXISTS idx_signal_asset_id ON signals(asset_id)",
     "CREATE INDEX IF NOT EXISTS idx_signal_status ON signals(status, expires_at)",
+    # job_logs
+    "ALTER TABLE job_logs ALTER COLUMN task_id TYPE VARCHAR(512)",
+    # job_configs — tier column (user = editable cron, system = read-only)
+    "ALTER TABLE job_configs ADD COLUMN IF NOT EXISTS job_tier VARCHAR(16) DEFAULT 'user'",
 ]
 
 
@@ -113,6 +119,15 @@ ONE_TIME_MIGRATIONS: list[tuple[str, Union[str, Callable]]] = [
     (
         "backfill_transactions_kind",
         "UPDATE transactions SET kind = 'trade' WHERE kind IS NULL",
+    ),
+    (
+        "set_system_job_tiers",
+        """UPDATE job_configs
+           SET job_tier = 'system'
+           WHERE job_name IN (
+                              'aggregate_sentiment', 'seed_fundamentals', 'fetch_fx_rate',
+                              'compute_state', 'accrue_epf', 'bond_mtm', 'insurance_premium'
+               )""",
     ),
     (
         "backfill_assets_tier",

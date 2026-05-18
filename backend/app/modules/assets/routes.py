@@ -12,8 +12,10 @@ from app.core.dependencies import get_session, require_auth
 from app.modules.assets.schemas import (
     AssetDetailResponse,
     AssetListResponse,
+    AssetQuoteResponse,
     AssetResponse,
     ChartCandleResponse,
+    FundamentalsResponse,
     PriceHistoryEntry,
 )
 from app.modules.assets.services import AssetsService
@@ -44,7 +46,8 @@ def list_assets(
                 id=a.id,
                 symbol=a.symbol,
                 name=a.name,
-                type=a.asset_type.value if a.asset_type else "equity",
+                type=(a.asset_type.value if hasattr(a.asset_type, "value") else str(
+                    a.asset_type)) if a.asset_type else "equity",
                 exchange=a.exchange,
                 current_price=a.current_price,
                 previous_close=a.previous_close,
@@ -93,19 +96,59 @@ def get_price_history(
     ]
 
 
+@router.get("/{symbol}/quote", response_model=AssetQuoteResponse)
+def get_asset_quote(
+        symbol: str,
+        session: Session = Depends(get_session),
+        _user=Depends(require_auth),
+):
+    """Return the latest OHLCV candle and rolling 52-week high/low for a symbol."""
+    svc = AssetsService(session)
+    quote = svc.get_asset_quote(symbol.upper())
+    if not quote:
+        raise HTTPException(status_code=404, detail=f"Asset {symbol} not found")
+    return AssetQuoteResponse(**quote)
+
+
+@router.get("/{symbol}/fundamentals", response_model=FundamentalsResponse)
+def get_asset_fundamentals(
+        symbol: str,
+        refresh: bool = Query(False, description="Bypass cache and force a live yfinance fetch"),
+        session: Session = Depends(get_session),
+        _user=Depends(require_auth),
+):
+    """Return fundamental financial metrics.
+
+    Served from a 24-hour Redis cache by default.  Pass ?refresh=true to
+    force a fresh yfinance fetch and repopulate the cache.
+    """
+    from app.core.cache import cache
+    from app.shared.utils import cache_key
+
+    svc = AssetsService(session)
+
+    if refresh:
+        cache.delete(cache_key("fundamentals_v2", symbol.upper()))
+
+    data = svc.get_fundamentals(symbol.upper())
+    if not data:
+        raise HTTPException(status_code=404, detail=f"Asset {symbol} not found")
+    return FundamentalsResponse(**data)
+
+
 @router.get("/{symbol}/chart", response_model=List[ChartCandleResponse])
 def get_chart(
         symbol: str,
-        days: int = Query(365, ge=1, le=730, description="Number of days"),
+        days: int = Query(365, ge=1, le=1825, description="Number of days (max 1825 / 5Y)"),
         session: Session = Depends(get_session),
         _user=Depends(require_auth),
 ):
     """Return OHLCV + per-candle technical overlays for TradingView lightweight-charts."""
     svc = AssetsService(session)
-    asset = svc.get_asset(symbol.upper())
-    if not asset:
-        raise HTTPException(status_code=404, detail=f"Asset {symbol} not found")
-    return svc.get_chart_data(symbol.upper(), days=days)
+    data = svc.get_chart_data(symbol.upper(), days=days)
+    if not data:
+        raise HTTPException(status_code=404, detail=f"No chart data available for {symbol}")
+    return data
 
 
 @router.post("/price")

@@ -12,27 +12,16 @@ from app.core.db import SessionLocal
 from app.modules.signals.services import SignalService
 from app.modules.portfolio.models import Asset
 from app.modules.recommendations.materializer import materialize_from_signals
+from app.shared.utils import report_task_status
 
 logger = logging.getLogger("celery.signals")
 
 
 @celery_app.task(bind=True, name="signals.generate_all")
 def generate_signals_task(self, symbols: Optional[List[str]] = None):
-    """Generate composite signals for assets using all available providers.
-
-    This is the main signal generation task. It:
-    1. Triggers SignalService.generate_signals_batch()
-    2. Delegates all business logic to providers (technical, fundamental, on-chain)
-    3. Aggregates provider signals using majority voting
-    4. Persists composite signals to database
-
-    Args:
-        symbols: Optional list of specific symbols. If None, generates for all assets.
-
-    Returns:
-        Dict with {status, count, symbols}
-    """
+    """Generate composite signals for assets using all available providers."""
     session = None
+    task_id = getattr(self.request, "id", None)
     try:
         session = SessionLocal()
         service = SignalService(session)
@@ -47,6 +36,9 @@ def generate_signals_task(self, symbols: Optional[List[str]] = None):
         rec_counts = materialize_from_signals(session)
         logger.info(f"generate_signals_task: rec materialize {rec_counts}")
 
+        if task_id:
+            report_task_status(task_id, "SUCCESS")
+
         signal_ids = [s.id for s in generated_signals]
         return {
             "status": "success",
@@ -57,6 +49,8 @@ def generate_signals_task(self, symbols: Optional[List[str]] = None):
 
     except Exception as exc:
         logger.exception(f"generate_signals_task failed: {exc}")
+        if task_id:
+            report_task_status(task_id, "FAILED", error=str(exc))
         raise self.retry(exc=exc, countdown=60, max_retries=3)
 
     finally:
@@ -98,13 +92,17 @@ def generate_signal_for_symbol_task(self, symbol: str, asset_type: str = "equity
             f"action={signal.signal_type} confidence={signal.confidence:.2f}"
         )
 
+        rec_counts = materialize_from_signals(session)
+        logger.info(f"generate_signal_for_symbol_task: rec materialize {rec_counts}")
+
         return {
             "status": "success",
             "symbol": symbol,
             "signal_id": signal.id,
             "action": signal.signal_type.value,
             "confidence": signal.confidence,
-            "rationale": signal.rationale
+            "rationale": signal.rationale,
+            "recommendations": rec_counts,
         }
 
     except Exception as exc:

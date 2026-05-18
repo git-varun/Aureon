@@ -27,24 +27,14 @@ router = APIRouter(prefix="/api/signals", tags=["signals"])
 def get_signal(symbol: str, session: Session = Depends(get_session), _user=Depends(require_auth)):
     """Get the latest signal for an asset.
 
-    Returns the most recent composite signal generated for the symbol.
-
-    Args:
-        symbol: Asset symbol (e.g., RELIANCE, BTC, AAPL)
-
-    Returns:
-        Signal object with action, confidence, risk level, and rationale
-
-    Raises:
-        404: If no signal has been generated for this symbol yet
+    Returns the most recent composite signal, or null (200) when none exists.
+    Signals are generated only for portfolio assets during pipeline runs;
+    non-portfolio symbols will return null until a signal is generated via POST /generate/{symbol}.
     """
     service = SignalService(session)
     signal = service.get_signal(symbol)
     if not signal:
-        raise HTTPException(
-            status_code=404,
-            detail=f"No signal found for {symbol}. Please wait for signal generation."
-        )
+        return None
     return SignalResponse.model_validate(signal)
 
 

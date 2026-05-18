@@ -4,7 +4,9 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project Overview
 
-Investment OS is a personal portfolio management platform covering equities (Zerodha/Groww), crypto (Binance), and other asset classes. It has a FastAPI backend, React/Vite frontend, PostgreSQL database, Redis cache, and Celery task queue backed by RabbitMQ.
+Aureon is a personal portfolio management platform covering equities (Zerodha/Groww), crypto (Binance), and other asset
+classes. It has a FastAPI backend, React/Vite frontend, PostgreSQL database, Redis cache, and Celery task queue backed
+by RabbitMQ.
 
 ## Project layout
 

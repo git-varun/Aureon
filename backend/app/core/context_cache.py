@@ -1,9 +1,11 @@
 import logging
 import os
+from pathlib import Path
 
 from diskcache import Cache
 
-CACHE_DIR = "data/smart_cache"
+# Resolve absolute path: backend/app/core/ -> project root -> data/smart_cache
+CACHE_DIR = str(Path(__file__).resolve().parents[3] / "data" / "smart_cache")
 os.makedirs(CACHE_DIR, exist_ok=True)
 
 smart_cache = Cache(CACHE_DIR)

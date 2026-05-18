@@ -33,11 +33,25 @@ def _classify(asset_type: Optional[str]) -> str:
     return ASSET_TYPE_TO_CLASS.get(asset_type, "stocks")
 
 
-def _holding_payload(pos, a, ph_closes: list[float]) -> dict[str, Any]:
+def _holding_payload(pos, a, ph_closes: list[float], fx_rate: float = 83.50) -> dict[str, Any]:
+    """Build a holding dict with all monetary values normalised to USD.
+
+    Crypto prices are stored as USD; all other assets are stored as INR.
+    Dividing INR values by fx_rate (USD/INR) converts them to USD.
+    """
     qty = float(pos.quantity or 0)
     cost = float(pos.avg_buy_price or 0)
     price = float(a.current_price or 0)
     prev = float(a.previous_close or price)
+
+    is_crypto = (a.asset_type or "").lower() == "crypto"
+    if not is_crypto:
+        # INR → USD
+        price = price / fx_rate
+        prev = prev / fx_rate
+        cost = cost / fx_rate
+        ph_closes = [c / fx_rate for c in ph_closes]
+
     day_pct = ((price - prev) / prev) if prev else 0.0
     return {
         "id": a.symbol,
@@ -55,14 +69,18 @@ def _holding_payload(pos, a, ph_closes: list[float]) -> dict[str, Any]:
     }
 
 
-def build_aureon_state(session: Session) -> dict[str, Any]:
+def build_aureon_state(session: Session, user_id: Optional[int] = None) -> dict[str, Any]:
+    from app.core.cache import cache
     from app.modules.config.services import ConfigService
+    from app.modules.notification.models import Notification
     from app.modules.portfolio.models import Asset, PriceHistory, Transaction
     from app.modules.portfolio.services import PortfolioService
     from app.modules.recommendations.models import Recommendation
     from app.modules.recommendations.services import RecommendationService
     from app.modules.signals.models import Signal
+    from app.shared.utils import cache_key
 
+    fx_rate = float(cache.get(cache_key("fx", "usd_inr")) or 83.50)
     positions = PortfolioService(session).list_positions()
 
     asset_ids = [p.asset_id for p in positions]
@@ -87,10 +105,13 @@ def build_aureon_state(session: Session) -> dict[str, Any]:
         a = pos.asset
         if not a:
             continue
-        h = _holding_payload(pos, a, prices_by_aid.get(a.id, []))
+        h = _holding_payload(pos, a, prices_by_aid.get(a.id, []), fx_rate=fx_rate)
         value = h["qty"] * h["price"]
         net_worth += value
-        prev_value = h["qty"] * (a.previous_close or h["price"])
+        is_crypto = (a.asset_type or "").lower() == "crypto"
+        raw_prev = float(a.previous_close or a.current_price or 0)
+        prev_price = raw_prev if is_crypto else raw_prev / fx_rate
+        prev_value = h["qty"] * prev_price
         day_delta_dollars += (value - prev_value)
         alloc[h["class"]] = alloc.get(h["class"], 0.0) + value
         holdings.append(h)
@@ -148,9 +169,29 @@ def build_aureon_state(session: Session) -> dict[str, Any]:
     # Activity ledger — combines transactions + dismissed recs (most recent 50)
     activity = _build_activity(session)
 
+    # Portfolio-scoped recommendation (rebalance / allocation-level decisions)
+    portfolio_rec_row = (
+        session.query(Recommendation)
+        .filter(Recommendation.scope_kind == "portfolio", Recommendation.status == "active")
+        .order_by(Recommendation.created_at.desc())
+        .first()
+    )
+    from app.modules.recommendations.services import _to_dict as _rec_to_dict
+    portfolio_rec = _rec_to_dict(portfolio_rec_row) if portfolio_rec_row else None
+
+    # Unread notification count for sidebar badge
+    unread_q = session.query(Notification).filter(Notification.read == False)  # noqa: E712
+    if user_id is not None:
+        unread_q = unread_q.filter(Notification.user_id == user_id)
+    unread_count = unread_q.count()
+
+    # Market pulse — aggregate news sentiment (optional, null when cold)
+    market_pulse = cache.get(cache_key("news", "sentiment_aggregate"))
+
     return {
         "holdings": holdings,
         "netWorth": round(net_worth, 2),
+        "fxRate": fx_rate,
         "dayDelta": {"dollars": round(day_delta_dollars, 2), "pct": round(day_pct, 6)},
         "allocation": alloc,
         "classTarget": class_target,
@@ -161,6 +202,9 @@ def build_aureon_state(session: Session) -> dict[str, Any]:
         },
         "signals": signals_out,
         "activity": activity,
+        "portfolioRec": portfolio_rec,
+        "unreadCount": unread_count,
+        "marketPulse": market_pulse,
     }
 
 
@@ -283,13 +327,18 @@ def _prior_actions_for_asset(
 
 def build_asset_detail(session: Session, ticker: str) -> Optional[dict[str, Any]]:
     from app.modules.analytics.models import Fundamentals
+    from app.modules.assets.market_data import MarketDataService
     from app.modules.portfolio.models import Asset, PriceHistory, Position, Transaction
     from app.modules.recommendations.models import Recommendation
     from app.modules.signals.models import Signal
 
     asset = session.query(Asset).filter(Asset.symbol == ticker).first()
     if not asset:
-        return None
+        asset = session.query(Asset).filter(Asset.symbol == ticker + ".NS").first()
+    if not asset:
+        return _build_market_asset_detail(ticker)
+
+    # ── Portfolio asset path (full detail) ───────────────────────────────────
 
     pos = session.query(Position).filter(Position.asset_id == asset.id).first()
 
@@ -348,4 +397,36 @@ def build_asset_detail(session: Session, ticker: str) -> Optional[dict[str, Any]
              "impact_one_line": r.impact_one_line, "confidence": r.confidence}
             for r in recs
         ],
+    }
+
+
+def _build_market_asset_detail(ticker: str) -> Optional[dict[str, Any]]:
+    """Lightweight asset detail for non-portfolio symbols — built from MarketDataService.
+
+    Returns the same top-level shape as build_asset_detail so the FE can render
+    the asset panel consistently. Position, signals, and recommendations are empty
+    because the symbol is not held or analysed.
+    """
+    from app.modules.assets.market_data import MarketDataService
+
+    mds = MarketDataService()
+    quote = mds.get_quote(ticker)
+    if not quote:
+        return None
+
+    ohlcv = mds.get_ohlcv(ticker, days=60)
+    price_series = [c["close"] for c in ohlcv]
+
+    return {
+        "ticker": ticker,
+        "name": ticker,
+        "class": "stocks",
+        "tier": None,
+        "price": quote.get("close") or 0.0,
+        "priceSeries": price_series,
+        "priorActions": [],
+        "position": None,
+        "fundamentals": None,
+        "signals": [],
+        "recommendations": [],
     }

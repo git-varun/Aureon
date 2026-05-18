@@ -4,8 +4,9 @@ Data flow: Route / Task / Cron → AssetsService → Repositories / PriceProvide
 """
 
 import logging
+import math
 from datetime import datetime, timezone
-from typing import List, Optional
+from typing import Any, Dict, List, Optional
 
 import pandas as pd
 from sqlalchemy.orm import Session
@@ -118,7 +119,8 @@ class AssetsService:
             "id": asset.id,
             "symbol": asset.symbol,
             "name": asset.name,
-            "type": asset.asset_type.value if asset.asset_type else None,
+            "type": (asset.asset_type.value if hasattr(asset.asset_type, "value") else str(
+                asset.asset_type)) if asset.asset_type else None,
             "exchange": asset.exchange,
             "current_price": asset.current_price,
             "previous_close": asset.previous_close,
@@ -140,7 +142,16 @@ class AssetsService:
     # ── Chart data ───────────────────────────────────────────────────────
 
     def get_chart_data(self, symbol: str, days: int = 365) -> List[dict]:
-        """Return OHLCV candles with SMA/EMA/Bollinger overlays for TradingView."""
+        """Return OHLCV candles for TradingView.
+
+        Portfolio path: DB PriceHistory with full technical overlays (SMA/EMA/BB).
+        Market fallback: yfinance OHLCV via MarketDataService (no overlays, cached 1 h).
+        """
+        asset = self.get_asset(symbol)
+        if not asset:
+            from app.modules.assets.market_data import MarketDataService
+            return MarketDataService().get_ohlcv(symbol, days=days)
+
         prices = self.get_price_history(symbol, days=days)
         if not prices:
             return []
@@ -189,6 +200,149 @@ class AssetsService:
 
         logger.info("get_chart_data: %s — returned %d candles (filtered from %d prices)", symbol, len(result),
                     len(prices))
+        return result
+
+    # ── Quote & fundamentals ─────────────────────────────────────────────
+
+    def get_asset_quote(self, symbol: str) -> Optional[dict]:
+        """Return the latest trading day's OHLCV and rolling 52-week range.
+
+        Portfolio path: reads from PriceHistory (fast, no external API).
+        Market fallback: fetches from yfinance via MarketDataService (cached 5 min).
+        """
+        asset = self.get_asset(symbol)
+        if not asset:
+            from app.modules.assets.market_data import MarketDataService
+            return MarketDataService().get_quote(symbol)
+
+        history_365 = self.price_repo.get_last_n_days(asset.id, days=365)
+        if not history_365:
+            return {
+                "symbol": symbol,
+                "open": None, "high": None, "low": None, "close": None,
+                "volume": None,
+                "previous_close": float(asset.previous_close) if asset.previous_close is not None else None,
+                "high_52w": None, "low_52w": None,
+            }
+
+        latest = history_365[-1]
+        highs = [float(p.high) for p in history_365 if p.high is not None]
+        lows = [float(p.low) for p in history_365 if p.low is not None]
+
+        return {
+            "symbol": symbol,
+            "open": float(latest.open_price) if latest.open_price is not None else None,
+            "high": float(latest.high) if latest.high is not None else None,
+            "low": float(latest.low) if latest.low is not None else None,
+            "close": float(latest.close) if latest.close is not None else None,
+            "volume": int(latest.volume) if latest.volume is not None else None,
+            "previous_close": float(asset.previous_close) if asset.previous_close is not None else None,
+            "high_52w": max(highs) if highs else None,
+            "low_52w": min(lows) if lows else None,
+        }
+
+    def get_fundamentals(self, symbol: str) -> Optional[dict]:
+        """Return fundamental metrics — cache-first, then live yfinance.
+
+        Portfolio path: enriched with vol_30d computed from PriceHistory.
+        Market fallback: yfinance via MarketDataService (cached 24 h).
+        """
+        asset = self.get_asset(symbol)
+        if not asset:
+            from app.modules.assets.market_data import MarketDataService
+            return MarketDataService().get_fundamentals(symbol)
+
+        ck = cache_key("fundamentals_v2", symbol)
+        cached = cache.get(ck)
+        if cached:
+            return {**cached, "data_source": "cache"}
+
+        asset_type_str = (
+            asset.asset_type.value
+            if hasattr(asset.asset_type, "value")
+            else str(asset.asset_type)
+        ) if asset.asset_type else "equity"
+        yf_sym = normalize_yf_symbol(symbol, asset_type_str, asset.exchange or "NSE")
+
+        vol_30d = self._compute_vol_30d(asset.id)
+        raw = self._fetch_yf_fundamentals(yf_sym)
+
+        result: dict = {
+            "symbol": symbol,
+            "pe_ratio": raw.get("pe_ratio"),
+            "pb_ratio": raw.get("pb_ratio"),
+            "roe": raw.get("roe"),
+            "de_ratio": raw.get("de_ratio"),
+            "eps": raw.get("eps"),
+            "dividend_yield": raw.get("dividend_yield"),
+            "market_cap": raw.get("market_cap") or (
+                float(asset.market_cap) if asset.market_cap is not None else None
+            ),
+            "high_52w": raw.get("high_52w"),
+            "low_52w": raw.get("low_52w"),
+            "graham_number": raw.get("graham_number"),
+            "beta": raw.get("beta"),
+            "vol_30d": vol_30d,
+            "data_source": "live" if raw.get("pe_ratio") is not None else "partial",
+        }
+
+        cache.set(ck, result, ttl=86400)
+        logger.info("get_fundamentals: %s fetched and cached (source=%s)", symbol, result["data_source"])
+        return result
+
+    def _compute_vol_30d(self, asset_id: int) -> Optional[float]:
+        """Annualised 30-day realised volatility as a percentage (0–100 scale)."""
+        history = self.price_repo.get_last_n_days(asset_id, days=35)
+        if len(history) < 10:
+            return None
+        closes = pd.Series([float(p.close) for p in history if p.close is not None])
+        if closes.empty:
+            return None
+        log_ret = closes.pct_change().dropna()
+        if log_ret.empty:
+            return None
+        return round(float(log_ret.std() * (252 ** 0.5) * 100), 2)
+
+    def _fetch_yf_fundamentals(self, yf_symbol: str) -> Dict[str, Any]:
+        """Single yfinance Ticker.info fetch — extracts all fundamental fields.
+
+        Never raises.  Missing or non-finite values become None.
+        """
+        result: Dict[str, Any] = {}
+        try:
+            import yfinance as yf
+            info: Dict[str, Any] = yf.Ticker(yf_symbol).info or {}
+
+            def _safe(key: str) -> Optional[float]:
+                val = info.get(key)
+                try:
+                    f = float(val)
+                    return f if not math.isnan(f) and not math.isinf(f) else None
+                except (TypeError, ValueError):
+                    return None
+
+            result["pe_ratio"] = _safe("trailingPE")
+            result["pb_ratio"] = _safe("priceToBook")
+            result["roe"] = _safe("returnOnEquity")
+            result["de_ratio"] = _safe("debtToEquity")
+            result["eps"] = _safe("trailingEps")
+            result["dividend_yield"] = _safe("dividendYield")
+            result["market_cap"] = _safe("marketCap")
+            result["high_52w"] = _safe("fiftyTwoWeekHigh")
+            result["low_52w"] = _safe("fiftyTwoWeekLow")
+            result["beta"] = _safe("beta")
+
+            eps = result["eps"]
+            book_value = _safe("bookValue")
+            if eps is not None and book_value is not None and eps > 0 and book_value > 0:
+                try:
+                    result["graham_number"] = round(math.sqrt(22.5 * eps * book_value), 2)
+                except Exception:
+                    pass
+
+        except Exception as exc:
+            logger.warning("_fetch_yf_fundamentals: failed for %s: %s", yf_symbol, exc)
+
         return result
 
     # ── Price updates ────────────────────────────────────────────────────
@@ -248,10 +402,12 @@ class AssetsService:
                 continue
             yf_sym = normalize_yf_symbol(
                 asset.symbol,
-                asset.asset_type.value if asset.asset_type else "equity",
+                (asset.asset_type.value if hasattr(asset.asset_type, "value") else str(
+                    asset.asset_type)) if asset.asset_type else "equity",
                 asset.exchange or "NSE",
             )
-            price = price_svc.fetch(yf_sym, asset.asset_type.value if asset.asset_type else "equity")
+            price = price_svc.fetch(yf_sym, (asset.asset_type.value if hasattr(asset.asset_type, "value") else str(
+                asset.asset_type)) if asset.asset_type else "equity")
 
             if price > 0:
                 self.update_asset_price(asset, price)

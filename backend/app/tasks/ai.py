@@ -7,7 +7,7 @@ from app.core.cache import cache
 from app.core.celery_app import celery_app
 from app.core.db import SessionLocal
 from app.modules.portfolio.providers.credential_manager import CredentialManager
-from app.shared.utils import cache_key
+from app.shared.utils import cache_key, report_task_status
 
 logger = logging.getLogger("celery.ai")
 
@@ -22,11 +22,14 @@ _TTL_SINGLE = 7200  # 2 hours
 @celery_app.task(bind=True, name="ai.global_briefing", max_retries=2)
 def global_briefing_task(self):
     """Build a global portfolio briefing via the multi-provider AI chain and cache it."""
+    task_id = getattr(self.request, "id", None)
     ck = cache_key("ai", "briefing")
     try:
         cached = cache.get(ck)
         if cached:
             logger.info("global_briefing_task: cache hit")
+            if task_id:
+                report_task_status(task_id, "SUCCESS")
             return cached
 
         from app.modules.analytics.context_builder import PortfolioContextBuilder
@@ -52,10 +55,16 @@ def global_briefing_task(self):
 
         cache.set(ck, result, ttl=_TTL_GLOBAL)
         logger.info("global_briefing_task: completed and cached")
+
+        if task_id:
+            report_task_status(task_id, "SUCCESS")
+            
         return result
 
     except Exception as exc:
         logger.exception("global_briefing_task failed: %s", exc)
+        if task_id:
+            report_task_status(task_id, "FAILED", error=str(exc))
         raise self.retry(exc=exc, countdown=30)
 
 
@@ -110,6 +119,7 @@ def single_asset_briefing_task(self, symbol: str):
 @celery_app.task(bind=True, name="ai.news_sentiment", max_retries=1)
 def news_sentiment_task(self):
     """Score sentiment for News records that have no sentiment_score yet."""
+    task_id = getattr(self.request, "id", None)
     try:
         from app.modules.news.models import News
         from app.modules.analytics.ai_service import build_ai_service
@@ -126,6 +136,8 @@ def news_sentiment_task(self):
 
             if not unscoreds:
                 logger.info("news_sentiment_task: no unscored articles")
+                if task_id:
+                    report_task_status(task_id, "SUCCESS")
                 return {"status": "success", "processed": 0}
 
             articles = [
@@ -155,6 +167,10 @@ def news_sentiment_task(self):
 
             db.commit()
             logger.info("news_sentiment_task: scored %d articles", processed)
+
+            if task_id:
+                report_task_status(task_id, "SUCCESS")
+                
             return {"status": "success", "processed": processed}
 
         finally:
@@ -162,4 +178,6 @@ def news_sentiment_task(self):
 
     except Exception as exc:
         logger.exception("news_sentiment_task failed: %s", exc)
+        if task_id:
+            report_task_status(task_id, "FAILED", error=str(exc))
         raise self.retry(exc=exc, countdown=60)

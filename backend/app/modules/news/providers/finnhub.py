@@ -1,6 +1,7 @@
 """Finnhub news provider."""
 
 import logging
+from datetime import datetime, timedelta
 from typing import List
 
 import requests
@@ -38,7 +39,9 @@ class FinnhubNewsProvider(BaseNewsProvider):
             return []
 
         try:
-            params = {"token": self.api_key, "symbol": symbol}
+            to_date = datetime.now().strftime("%Y-%m-%d")
+            from_date = (datetime.now() - timedelta(days=30)).strftime("%Y-%m-%d")
+            params = {"token": self.api_key, "symbol": symbol, "from": from_date, "to": to_date}
             response = requests.get(
                 f"{self.base_url}/company-news",
                 params=params,

@@ -1,6 +1,6 @@
 import axios from 'axios';
 
-const API = axios.create({baseURL: 'http://localhost:8001/api', timeout: 60000});
+const API = axios.create({baseURL: '/api', timeout: 60000});
 
 // Add Authorization header if token exists
 API.interceptors.request.use((config) => {
@@ -125,7 +125,11 @@ export const apiService = {
     getAllocationTargets: async () => (await API.get('/config/allocation_targets')).data,
     upsertAllocationTarget: async (assetClass, payload) =>
         (await API.put(`/config/allocation_targets/${encodeURIComponent(assetClass)}`, payload)).data,
-    fetchChartData: async (symbol) => (await API.get(`/assets/${symbol}/chart`)).data,
+    fetchChartData: async (symbol, days = 365) => (await API.get(`/assets/${symbol}/chart`, {params: {days}})).data,
+    getAssetQuote: async (symbol) => (await API.get(`/assets/${symbol}/quote`)).data,
+    getAssetFundamentals: async (symbol, refresh = false) =>
+        (await API.get(`/assets/${symbol}/fundamentals`, {params: refresh ? {refresh: true} : {}})).data,
+    getAssetSignal: async (symbol) => (await API.get(`/signals/${symbol}`)).data,
     fetchNews: async () => (await API.get('/news')).data,
     refreshPrices: async () => (await API.post('/assets/price')).data,
     runGlobalAI: async () => (await API.post('/analytics/ai/global')).data,
@@ -158,7 +162,7 @@ export const apiService = {
         (await API.put(`/config/providers/${encodeURIComponent(providerName)}/keys`, {key_name: keyName, value})).data,
 
     // ── Jobs (refactored to /api/config/jobs) ──────────────────────────────
-    getJobs: async () => (await API.get('/config/jobs')).data,
+    getJobs: async () => (await API.get(`/config/jobs?t=${Date.now()}`)).data,
     updateJob: async (jobName, payload) => (await API.put(`/config/jobs/${jobName}`, payload)).data,
     runJob: async (jobName) => (await API.post(`/config/jobs/${jobName}/run`)).data,
     getJobLogs: async (jobName, limit = 20) =>
@@ -191,6 +195,7 @@ export const apiService = {
         const q = params.toString();
         return (await API.get(`/market/universe${q ? '?' + q : ''}`)).data;
     },
+    refreshMarket: async () => (await API.post('/market/refresh')).data,
 
     // ── Watchlist ────────────────────────────────────────────────────────────
     getWatchlists: async () => (await API.get('/watchlist/')).data,

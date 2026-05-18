@@ -16,7 +16,7 @@ def get_aureon_state(
         _user=Depends(get_current_user),
 ):
     """Composite cold-load for the Aureon UI."""
-    return build_aureon_state(session)
+    return build_aureon_state(session, user_id=getattr(_user, "id", None))
 
 
 @router.get("/assets/{ticker}")

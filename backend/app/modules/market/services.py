@@ -9,6 +9,8 @@ from __future__ import annotations
 
 from typing import Any
 
+from sqlalchemy.orm import Session
+
 from app.core.cache import cache
 from app.shared.utils import cache_key
 
@@ -112,6 +114,38 @@ def get_movers() -> dict[str, Any]:
 def get_themes() -> list[dict[str, Any]]:
     cached = cache.get(cache_key("market", "themes"))
     return cached if cached else _SEED_THEMES
+
+
+_DEFAULT_THEMES = [
+    {"theme_id": "rate-cut", "name": "Rate-cut beneficiaries", "desc": "Long-duration bonds + rate-sensitive sectors",
+     "symbols": ["GSEC-10Y", "HDFCBANK", "ICICIBANK", "SBIN"]},
+    {"theme_id": "capex", "name": "India capex cycle", "desc": "Infra, capital goods, cement plays",
+     "symbols": ["LT", "BHEL", "SIEMENS", "ABB"]},
+    {"theme_id": "ai-india", "name": "AI services exposure", "desc": "Indian IT vendors with AI revenue mix",
+     "symbols": ["TCS", "INFY", "WIPRO", "HCLTECH"]},
+    {"theme_id": "green-energy", "name": "Green energy transition", "desc": "Solar, EV ecosystem, transmission",
+     "symbols": ["ADANIGREEN", "TATAPOWER", "SUZLON"]},
+    {"theme_id": "el-nino", "name": "Monsoon-resilient FMCG", "desc": "Stable demand through weather variance",
+     "symbols": ["HINDUNILVR", "ITC", "DABUR", "MARICO"]},
+    {"theme_id": "small-cap", "name": "Small-cap quality", "desc": "ROE > 18%, debt-to-equity < 0.5", "symbols": []},
+]
+
+
+def seed_themes(db: Session) -> None:
+    """Idempotently insert default market themes (runs at startup)."""
+    import json
+    from app.modules.market.models import MarketTheme
+    for t in _DEFAULT_THEMES:
+        exists = db.query(MarketTheme).filter_by(theme_id=t["theme_id"]).first()
+        if not exists:
+            db.add(MarketTheme(
+                theme_id=t["theme_id"],
+                name=t["name"],
+                desc=t["desc"],
+                symbols=json.dumps(t["symbols"]),
+                ret1m=0.0,
+            ))
+    db.commit()
 
 
 def get_universe(region: str | None = None, search: str | None = None) -> list[dict[str, Any]]:

@@ -13,6 +13,7 @@ class AssetType(str, Enum):
     BOND = "bond"
     EPF = "epf"
     PPF = "ppf"
+    NPS = "nps"
     INSURANCE = "insurance"
     REAL_ESTATE = "real_estate"
 

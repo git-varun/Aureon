@@ -64,3 +64,36 @@ class ChartCandleResponse(BaseModel):
     ema20: Optional[float] = None
     bbu: Optional[float] = None
     bbl: Optional[float] = None
+
+
+class AssetQuoteResponse(BaseModel):
+    """Intraday quote — latest OHLCV plus rolling 52-week range."""
+
+    symbol: str
+    open: Optional[float] = None
+    high: Optional[float] = None
+    low: Optional[float] = None
+    close: Optional[float] = None
+    volume: Optional[int] = None
+    previous_close: Optional[float] = None
+    high_52w: Optional[float] = None
+    low_52w: Optional[float] = None
+
+
+class FundamentalsResponse(BaseModel):
+    """Fundamental financial metrics for an asset."""
+
+    symbol: str
+    pe_ratio: Optional[float] = None
+    pb_ratio: Optional[float] = None
+    roe: Optional[float] = None  # Return on equity (decimal, e.g. 0.18 = 18%)
+    de_ratio: Optional[float] = None  # Debt-to-equity
+    eps: Optional[float] = None
+    dividend_yield: Optional[float] = None
+    market_cap: Optional[float] = None
+    high_52w: Optional[float] = None
+    low_52w: Optional[float] = None
+    graham_number: Optional[float] = None
+    beta: Optional[float] = None
+    vol_30d: Optional[float] = None  # Annualised 30-day realised volatility (%)
+    data_source: str = "live"  # "live" | "cache" | "partial"

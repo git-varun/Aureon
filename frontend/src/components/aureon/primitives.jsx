@@ -189,7 +189,7 @@ export const EvaluatePanel = ({rec, conflicts, onBack, onConfirm, onResolveConfl
                 </div>
                 <div className="ev-block">
                     <h4>Confidence</h4>
-                    <ConfidenceIndicator score={rec.confidence} variant="full" recId={rec.id}/>
+                    <ConfidenceIndicator score={rec.confidence} variant="full" factors={rec.factors}/>
                 </div>
             </div>
             <div className="ev-block">

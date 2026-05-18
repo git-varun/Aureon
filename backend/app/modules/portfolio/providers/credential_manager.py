@@ -69,6 +69,15 @@ class CredentialManager:
             self.get_credential("custom_equity", "holdings_file"),
         )
 
+    def get_mf_credentials(self) -> tuple[Optional[str]]:
+        return (self.get_credential("mf", "holdings_json"),)
+
+    def get_epf_credentials(self) -> tuple[Optional[str]]:
+        return (self.get_credential("epf", "corpus_json"),)
+
+    def get_nps_credentials(self) -> tuple[Optional[str]]:
+        return (self.get_credential("nps", "corpus_json"),)
+
     # ── AI ───────────────────────────────────────────────────────────────────
 
     def is_provider_enabled(self, provider: str) -> bool:

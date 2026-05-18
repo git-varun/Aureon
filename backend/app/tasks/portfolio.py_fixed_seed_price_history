@@ -1,0 +1,96 @@
+@celery_app.task(bind=True, name="portfolio.seed_price_history", max_retries=1)
+def seed_price_history_task(self, symbol: Optional[str] = None, days: int = 365, force: bool = False):
+    """Seed real OHLCV price history for all assets (or one symbol).
+
+    Sources:
+    - Equity: yfinance ticker.history()
+    - Crypto (*-USD-*): yfinance using base pair (e.g. BTC-USD-SPOT → BTC-USD)
+    - Mutual Fund (*_MF): mfapi.in historical NAV
+    """
+    session = None
+    task_id = getattr(self.request, "id", None)
+    try:
+        from app.modules.portfolio.models import Asset, PriceHistory
+        from app.shared.constants import AssetType
+        from sqlalchemy import func
+
+        session = SessionLocal()
+        if symbol:
+            assets = session.query(Asset).filter(Asset.symbol == symbol).all()
+        else:
+            assets = session.query(Asset).filter(Asset.is_tradeable.is_(True)).all()
+
+        seeded = 0
+        skipped = 0
+        seen_yf_symbols: set = set()  # deduplicate crypto base pairs across compound symbols
+        for asset in assets:
+            try:
+                if not force and asset.last_seeded_at:
+                    age_days = (datetime.now(timezone.utc) - asset.last_seeded_at.replace(tzinfo=timezone.utc)).days
+                    if age_days < 7:
+                        skipped += 1
+                        continue
+
+                # For crypto, multiple compound symbols share the same yfinance base pair
+                # (BTC-USD-SPOT, BTC-USD-EARN-FLEX, BTC-USD-FUTURES-MARGIN → all BTC-USD).
+                # Fetch OHLCV once; each asset row still gets its own PriceHistory records.
+                if asset.asset_type == AssetType.CRYPTO:
+                    parts = asset.symbol.split("-")
+                    yf_key = f"{parts[0]}-{parts[1]}" if len(parts) >= 2 else asset.symbol
+                    if yf_key in seen_yf_symbols:
+                        logger.debug("seed_price_history: dedup crypto %s (yf_key=%s already seeded)",
+                                     asset.symbol, yf_key)
+                        skipped += 1
+                        continue
+                    seen_yf_symbols.add(yf_key)
+
+                rows = _fetch_ohlcv(asset, days)
+                if not rows:
+                    logger.warning("seed_price_history: no data for %s", asset.symbol)
+                    continue
+
+                for row in rows:
+                    date_val = row["date"]
+                    existing = session.query(PriceHistory).filter(
+                        PriceHistory.asset_id == asset.id,
+                        func.date(PriceHistory.date) == date_val.date() if hasattr(date_val, "date") else date_val,
+                    ).first()
+                    if existing:
+                        existing.open_price = row["open"]
+                        existing.high = row["high"]
+                        existing.low = row["low"]
+                        existing.close = row["close"]
+                        existing.volume = row["volume"]
+                    else:
+                        session.add(PriceHistory(
+                            asset_id=asset.id,
+                            date=date_val,
+                            open_price=row["open"],
+                            high=row["high"],
+                            low=row["low"],
+                            close=row["close"],
+                            volume=row["volume"],
+                        ))
+
+                asset.last_seeded_at = datetime.now(timezone.utc)
+                session.commit()
+                seeded += 1
+                logger.info("seed_price_history: seeded %d candles for %s", len(rows), asset.symbol)
+
+            except Exception as exc:
+                session.rollback()
+                logger.warning("seed_price_history: failed for %s: %s", asset.symbol, exc)
+
+        if task_id:
+            _report_task_status(task_id, "SUCCESS")
+
+        return {"status": "success", "seeded": seeded, "skipped": skipped}
+
+    except Exception as exc:
+        logger.exception("seed_price_history_task failed: %s", exc)
+        if task_id:
+            _report_task_status(task_id, "FAILED", error=str(exc))
+        raise self.retry(exc=exc, countdown=120)
+    finally:
+        if session:
+            session.close()

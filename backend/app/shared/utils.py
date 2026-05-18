@@ -48,6 +48,25 @@ def extract_crypto_base_coin(symbol: str) -> str:
     return symbol.split("-")[0].upper()
 
 
+def report_task_status(task_id: str, status: str, error: str = None):
+    """Helper to update JobLog status from within a Celery task.
+    Uses local imports to avoid circular dependencies.
+    """
+    from app.core.db import SessionLocal
+    from app.modules.config.services import ConfigService
+    from app.modules.config.models import JobStatus
+
+    db = SessionLocal()
+    try:
+        svc = ConfigService(db)
+        svc.update_job_log_status_by_task_id(task_id, JobStatus(status), error=error)
+    except Exception:
+        import logging
+        logging.getLogger("shared.utils").error("Failed to report task status for %s", task_id, exc_info=True)
+    finally:
+        db.close()
+
+
 def normalize_yf_symbol(symbol: str, asset_type: str, exchange: str = "NSE") -> str:
     """Convert internal symbol to yfinance format.
     NSE equities → SYMBOL.NS, BSE → SYMBOL.BO, crypto → SYMBOL-USD, others unchanged.

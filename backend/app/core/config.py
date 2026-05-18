@@ -7,7 +7,7 @@ from pathlib import Path
 from pydantic import field_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
-_ENV_FILE = Path(__file__).resolve().parent.parent.parent / ".env"
+_ENV_FILE = Path(__file__).resolve().parent.parent.parent.parent / ".env"
 
 logger = logging.getLogger("app.core.config")
 
@@ -72,7 +72,7 @@ class Settings(BaseSettings):
             )
         return normalized
 
-    model_config = SettingsConfigDict(extra='ignore')
+    model_config = SettingsConfigDict(extra='ignore', env_file=str(_ENV_FILE), env_file_encoding='utf-8')
 
 
 def _load_settings() -> Settings:

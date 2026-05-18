@@ -1,10 +1,11 @@
 """Celery tasks: fetch/store news and aggregate asset sentiment."""
 
 import logging
-from datetime import date, datetime, timedelta, timezone
+from datetime import datetime, timezone, timedelta
 
 from app.core.celery_app import celery_app
 from app.core.db import SessionLocal
+from app.shared.utils import report_task_status
 
 logger = logging.getLogger("celery.news")
 
@@ -13,18 +14,9 @@ logger = logging.getLogger("celery.news")
 def fetch_news_task(self, symbols=None):
     """
     Fetch news from all enabled providers and persist to database.
-
-    Single entry point for news fetching. Called by:
-    - Cron job: daily at 8 AM
-    - Manual trigger: via admin/scheduler
-
-    Args:
-        symbols: Optional list of ticker strings. When None, uses all
-                 portfolio symbols from Asset table.
-
-    Returns:
-        dict with status, symbols processed, and total new articles fetched.
     """
+    task_id = getattr(self.request, "id", None)
+    session = None
     try:
         from app.modules.news.services import NewsService
         from app.modules.portfolio.models import Asset
@@ -45,11 +37,12 @@ def fetch_news_task(self, symbols=None):
 
             if not raw_symbols:
                 logger.warning("fetch_news_task: no symbols to process")
-                session.close()
+                if task_id:
+                    report_task_status(task_id, "SUCCESS")
                 return {"status": "success", "symbols": [], "total_fetched": 0}
 
             # Resolve effective query symbol per asset:
-            # - crypto  → base coin (BTC-USD-EARN-FLEX → BTC), deduplicated
+            # - crypto  → base coin (deduplicated)
             # - equity  → symbol as-is
             seen_query_symbols: set = set()
             symbols_list = []  # (query_symbol, is_crypto)
@@ -57,7 +50,6 @@ def fetch_news_task(self, symbols=None):
                 if atype == AssetType.CRYPTO:
                     base = extract_crypto_base_coin(sym)
                     if base in seen_query_symbols:
-                        logger.debug("fetch_news_task: dedup crypto base=%s (from %s)", base, sym)
                         continue
                     seen_query_symbols.add(base)
                     symbols_list.append((base, True))
@@ -66,40 +58,21 @@ def fetch_news_task(self, symbols=None):
                         seen_query_symbols.add(sym)
                         symbols_list.append((sym, False))
 
-            logger.info("fetch_news_task: processing %d effective symbols (from %d assets)",
-                        len(symbols_list), len(raw_symbols))
-
             total_fetched = 0
-            failed_symbols = []
-
             for symbol, is_crypto in symbols_list:
                 try:
                     count = service.fetch_and_store(symbol, session, is_crypto=is_crypto)
                     total_fetched += count
-                    logger.info("fetch_news_task: symbol=%s fetched %d new articles", symbol, count)
+                except Exception:
+                    logger.error("fetch_news_task: failed for %s", symbol, exc_info=True)
 
-                except Exception as exc:
-                    logger.error(
-                        "fetch_news_task: symbol=%s failed: %s",
-                        symbol,
-                        exc,
-                    )
-                    failed_symbols.append(symbol)
-
-            logger.info(
-                "fetch_news_task: complete — processed %d symbols, "
-                "%d new articles, %d failed",
-                len(symbols_list),
-                total_fetched,
-                len(failed_symbols),
-            )
+            if task_id:
+                report_task_status(task_id, "SUCCESS")
 
             return {
                 "status": "success",
                 "symbols_processed": len(symbols_list),
-                "assets_total": len(raw_symbols),
                 "total_fetched": total_fetched,
-                "failed": failed_symbols,
             }
 
         finally:
@@ -107,7 +80,9 @@ def fetch_news_task(self, symbols=None):
 
     except Exception as exc:
         logger.exception("fetch_news_task failed: %s", exc)
-        raise self.retry(exc=exc, countdown=60)
+        if task_id:
+            report_task_status(task_id, "FAILED", error=str(exc))
+        raise self.retry(exc=exc, countdown=120)
 
 
 @celery_app.task(name="news.aggregate_sentiment")
@@ -156,7 +131,7 @@ def aggregate_sentiment_task():
 
                 scores_7d = [
                     n.sentiment_score for n in linked_news
-                    if n.published_at and n.published_at.replace(tzinfo=timezone.utc) >= cutoff_7d
+                    if n.published_at and n.published_at.astimezone(timezone.utc) >= cutoff_7d
                 ]
                 scores_30d = [n.sentiment_score for n in linked_news]
 

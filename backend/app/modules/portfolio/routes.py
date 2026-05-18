@@ -204,9 +204,21 @@ def get_allocation(session: Session = Depends(get_session), _user=Depends(requir
 
 
 @router.get("/transactions", response_model=list[TransactionResponse])
-def list_transactions(session: Session = Depends(get_session), _user=Depends(require_auth)):
-    """List all transactions."""
-    transactions = session.query(Transaction).order_by(Transaction.transaction_date.desc()).all()
+def list_transactions(
+        provider: Optional[str] = None,
+        asset: Optional[str] = None,
+        limit: int = 200,
+        session: Session = Depends(get_session),
+        _user=Depends(require_auth),
+):
+    """List transactions with optional filters: ?provider=groww&asset=INFY&limit=200."""
+    from app.modules.portfolio.models import Asset
+    q = session.query(Transaction).join(Transaction.asset)
+    if provider:
+        q = q.filter(Transaction.broker == provider)
+    if asset:
+        q = q.filter(Asset.symbol == asset.upper())
+    transactions = q.order_by(Transaction.transaction_date.desc()).limit(limit).all()
     return [
         TransactionResponse(
             id=t.id,
@@ -216,7 +228,7 @@ def list_transactions(session: Session = Depends(get_session), _user=Depends(req
             price=t.price,
             total_value=t.total_value,
             transaction_date=t.transaction_date,
-            broker=t.broker
+            broker=t.broker,
         )
         for t in transactions
     ]

@@ -2,7 +2,10 @@ import React, {useEffect, useState, useCallback} from 'react';
 import {toast} from 'react-hot-toast';
 import {apiService} from '../../api/apiService';
 
-const PROVIDER_TYPE_LABELS = {broker: 'Broker', ai: 'AI Model', notifier: 'Notifier', price: 'Price Feed'};
+const PROVIDER_TYPE_LABELS = {
+    broker: 'Broker', ai: 'AI Model', notification: 'Notifier',
+    price: 'Price Feed', news: 'News', valuation: 'Valuation', config: 'Config',
+};
 const KEY_LABELS = {
     api_key: 'API Key', api_secret: 'API Secret', access_token: 'Access Token',
     bot_token: 'Bot Token', chat_id: 'Chat ID', holdings_json: 'Holdings JSON',

@@ -8,7 +8,7 @@ from app.modules.notification.models import Notification
 from app.modules.notification.schemas import NotificationCreate, NotificationResponse
 from app.modules.notification.services import NotificationService
 
-router = APIRouter(prefix="/notifications", tags=["notifications"])
+router = APIRouter(prefix="/api/notifications", tags=["notifications"])
 
 
 @router.get("/", response_model=List[NotificationResponse])
@@ -29,3 +29,11 @@ def mark_as_read(notification_id: int, db: Session = Depends(get_session), _user
     service = NotificationService(db)
     service.mark_as_read(notification_id)
     return {"message": "Notification marked as read"}
+
+
+@router.put("/mark-all-read")
+def mark_all_read(ids: List[int], db: Session = Depends(get_session), _user=Depends(require_auth)):
+    service = NotificationService(db)
+    for notification_id in ids:
+        service.mark_as_read(notification_id)
+    return {"message": f"{len(ids)} notifications marked as read"}
