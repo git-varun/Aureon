@@ -199,7 +199,8 @@ class SignalService:
                 continue
 
             # Determine asset type
-            asset_type = asset.asset_type.value if asset.asset_type else "equity"
+            asset_type = (asset.asset_type.value if hasattr(asset.asset_type, "value") else str(
+                asset.asset_type)) if asset.asset_type else "equity"
 
             if asset_type not in eligible_types:
                 logger.debug("generate_signals_batch: skipping %s (type=%s not in eligible set)",

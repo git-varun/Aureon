@@ -1,7 +1,7 @@
 """Pipeline orchestrator: dispatches Celery tasks for the investment OS pipeline."""
 
 import logging
-import sys
+import uuid
 from typing import Optional
 
 from sqlalchemy.orm import Session
@@ -15,24 +15,28 @@ logger = logging.getLogger("pipeline.orchestrator")
 class PipelineOrchestrator:
     """Dispatch fire-and-forget Celery tasks for each pipeline stage."""
 
-    def _log_start(self, db: Session, job_name: str, task_id: Optional[str] = None):
-        """Log job start to JobLog. Returns log entry id or None on failure."""
+    def _dispatch(self, db: Session, job_name: str, task_fn, *args, **kwargs) -> Optional[str]:
+        """Pre-assign a task ID, log job start, then dispatch. Returns task_id or None on error."""
+        task_id = str(uuid.uuid4())
         try:
             svc = ConfigService(db)
-            log = svc.log_job_start(job_name, task_id=task_id)
-            return log.id
+            svc.log_job_start(job_name, task_id=task_id)
         except Exception as exc:
             logger.error("Failed to log job start for %s: %s", job_name, exc)
-            return None
 
-    def _log_end(self, db: Session, log_id: Optional[int], status: JobStatus, error: Optional[str] = None):
-        """Log job end to JobLog. Silently skips if log_id is None."""
-        if log_id is None:
-            return
         try:
-            ConfigService(db).log_job_end(log_id, status, error=error)
+            task_fn.apply_async(args=args, kwargs=kwargs, task_id=task_id)
+            logger.info("Dispatched %s task_id=%s", job_name, task_id)
+            return task_id
         except Exception as exc:
-            logger.error("Failed to log job end for log_id=%s: %s", log_id, exc)
+            logger.exception("Failed to dispatch %s: %s", job_name, exc)
+            try:
+                ConfigService(db).update_job_log_status_by_task_id(
+                    task_id, JobStatus.FAILED, error=str(exc)
+                )
+            except Exception:
+                pass
+            return None
 
     def run_daily_pipeline(self, db: Session) -> dict:
         """
@@ -57,168 +61,78 @@ class PipelineOrchestrator:
 
         steps = []
 
-        try:
-            # Step 1: Refresh prices
-            result = refresh_prices_task.delay()
-            log_id = self._log_start(db, "refresh_prices", task_id=result.id)
-            self._log_end(db, log_id, JobStatus.RUNNING)
-            steps.append({"step_name": "refresh_prices", "task_id": result.id})
-            logger.info("Dispatched refresh_prices_task: %s", result.id)
-        except Exception as exc:
-            logger.exception("Failed to dispatch refresh_prices_task: %s", exc)
-            log_id = self._log_start(db, "refresh_prices")
-            self._log_end(db, log_id, JobStatus.FAILED, error=str(exc))
+        tid = self._dispatch(db, "refresh_prices", refresh_prices_task)
+        if tid:
+            steps.append({"step_name": "refresh_prices", "task_id": tid})
 
-        # Step 2: Enrich technicals per asset
         try:
-            assets = db.query(Asset).all()
-            symbols = [a.symbol for a in assets]
+            symbols = [a.symbol for a in db.query(Asset).all()]
         except Exception as exc:
             logger.exception("Failed to query assets for technicals enrichment: %s", exc)
             symbols = []
 
         for symbol in symbols:
-            try:
-                result = enrich_technicals_task.delay(symbol)
-                log_id = self._log_start(db, "enrich_technicals", task_id=result.id)
-                self._log_end(db, log_id, JobStatus.RUNNING)
-                steps.append({"step_name": "enrich_technicals", "task_id": result.id})
-                logger.info("Dispatched enrich_technicals_task(%s): %s", symbol, result.id)
-            except Exception as exc:
-                logger.exception("Failed to dispatch enrich_technicals_task(%s): %s", symbol, exc)
-                log_id = self._log_start(db, "enrich_technicals")
-                self._log_end(db, log_id, JobStatus.FAILED, error=str(exc))
+            tid = self._dispatch(db, "enrich_technicals", enrich_technicals_task, symbol)
+            if tid:
+                steps.append({"step_name": "enrich_technicals", "task_id": tid})
 
-        # Step 3: Generate signals
-        try:
-            result = generate_signals_task.delay()
-            log_id = self._log_start(db, "generate_signals", task_id=result.id)
-            self._log_end(db, log_id, JobStatus.RUNNING)
-            steps.append({"step_name": "generate_signals", "task_id": result.id})
-            logger.info("Dispatched generate_signals_task: %s", result.id)
-        except Exception as exc:
-            logger.exception("Failed to dispatch generate_signals_task: %s", exc)
-            log_id = self._log_start(db, "generate_signals")
-            self._log_end(db, log_id, JobStatus.FAILED, error=str(exc))
+        tid = self._dispatch(db, "generate_signals", generate_signals_task)
+        if tid:
+            steps.append({"step_name": "generate_signals", "task_id": tid})
 
-        # Step 4: Fetch news
-        try:
-            result = fetch_news_task.delay()
-            log_id = self._log_start(db, "fetch_news", task_id=result.id)
-            self._log_end(db, log_id, JobStatus.RUNNING)
-            steps.append({"step_name": "fetch_news", "task_id": result.id})
-            logger.info("Dispatched fetch_news_task: %s", result.id)
-        except Exception as exc:
-            logger.exception("Failed to dispatch fetch_news_task: %s", exc)
-            log_id = self._log_start(db, "fetch_news")
-            self._log_end(db, log_id, JobStatus.FAILED, error=str(exc))
+        tid = self._dispatch(db, "fetch_news", fetch_news_task)
+        if tid:
+            steps.append({"step_name": "fetch_news", "task_id": tid})
 
-        # Step 5: News sentiment
-        try:
-            result = news_sentiment_task.delay()
-            log_id = self._log_start(db, "news_sentiment", task_id=result.id)
-            self._log_end(db, log_id, JobStatus.RUNNING)
-            steps.append({"step_name": "news_sentiment", "task_id": result.id})
-            logger.info("Dispatched news_sentiment_task: %s", result.id)
-        except Exception as exc:
-            logger.exception("Failed to dispatch news_sentiment_task: %s", exc)
-            log_id = self._log_start(db, "news_sentiment")
-            self._log_end(db, log_id, JobStatus.FAILED, error=str(exc))
+        tid = self._dispatch(db, "news_sentiment", news_sentiment_task)
+        if tid:
+            steps.append({"step_name": "news_sentiment", "task_id": tid})
 
-        # Step 6: Global briefing
-        try:
-            result = global_briefing_task.delay()
-            log_id = self._log_start(db, "daily_briefing", task_id=result.id)
-            self._log_end(db, log_id, JobStatus.RUNNING)
-            steps.append({"step_name": "daily_briefing", "task_id": result.id})
-            logger.info("Dispatched global_briefing_task: %s", result.id)
-        except Exception as exc:
-            logger.exception("Failed to dispatch global_briefing_task: %s", exc)
-            log_id = self._log_start(db, "daily_briefing")
-            self._log_end(db, log_id, JobStatus.FAILED, error=str(exc))
+        tid = self._dispatch(db, "daily_briefing", global_briefing_task)
+        if tid:
+            steps.append({"step_name": "daily_briefing", "task_id": tid})
 
-        return {
-            "status": "dispatched",
-            "steps": steps,
-            "asset_count": len(symbols),
-        }
+        from app.tasks.market import market_refresh_task
+        tid = self._dispatch(db, "refresh_market", market_refresh_task)
+        if tid:
+            steps.append({"step_name": "refresh_market", "task_id": tid})
+
+        return {"status": "dispatched", "steps": steps, "asset_count": len(symbols)}
 
     def run_price_refresh(self, db: Session) -> dict:
-        """
-        Dispatch only the price refresh task.
-
-        Returns:
-            {"status": "dispatched", "task_id": str}
-        """
+        """Dispatch only the price refresh task."""
         from app.tasks.portfolio import refresh_prices_task
 
-        try:
-            result = refresh_prices_task.delay()
-            log_id = self._log_start(db, "refresh_prices", task_id=result.id)
-            self._log_end(db, log_id, JobStatus.RUNNING)
-            logger.info("Dispatched refresh_prices_task: %s", result.id)
-            return {"status": "dispatched", "task_id": result.id}
-        except Exception as exc:
-            logger.exception("Failed to dispatch refresh_prices_task: %s", exc)
-            log_id = self._log_start(db, "refresh_prices")
-            self._log_end(db, log_id, JobStatus.FAILED, error=str(exc))
-            return {"status": "error", "error": str(exc)}
+        tid = self._dispatch(db, "refresh_prices", refresh_prices_task)
+        if tid:
+            return {"status": "dispatched", "task_id": tid}
+        return {"status": "error", "error": "dispatch failed"}
 
     def run_signals_pipeline(self, db: Session) -> dict:
-        """
-        Dispatch steps 1-3 of the pipeline: prices → technicals → signals.
-
-        Returns:
-            {"status": "dispatched", "steps": [...]}
-        """
+        """Dispatch steps 1-3 of the pipeline: prices → technicals → signals."""
         from app.tasks.portfolio import refresh_prices_task, enrich_technicals_task
         from app.tasks.signals import generate_signals_task
         from app.modules.portfolio.models import Asset
 
         steps = []
 
-        # Step 1: Refresh prices
-        try:
-            result = refresh_prices_task.delay()
-            log_id = self._log_start(db, "refresh_prices", task_id=result.id)
-            self._log_end(db, log_id, JobStatus.RUNNING)
-            steps.append({"step_name": "refresh_prices", "task_id": result.id})
-            logger.info("Dispatched refresh_prices_task: %s", result.id)
-        except Exception as exc:
-            logger.exception("Failed to dispatch refresh_prices_task: %s", exc)
-            log_id = self._log_start(db, "refresh_prices")
-            self._log_end(db, log_id, JobStatus.FAILED, error=str(exc))
+        tid = self._dispatch(db, "refresh_prices", refresh_prices_task)
+        if tid:
+            steps.append({"step_name": "refresh_prices", "task_id": tid})
 
-        # Step 2: Enrich technicals per asset
         try:
-            assets = db.query(Asset).all()
-            symbols = [a.symbol for a in assets]
+            symbols = [a.symbol for a in db.query(Asset).all()]
         except Exception as exc:
             logger.exception("Failed to query assets for technicals enrichment: %s", exc)
             symbols = []
 
         for symbol in symbols:
-            try:
-                result = enrich_technicals_task.delay(symbol)
-                log_id = self._log_start(db, "enrich_technicals", task_id=result.id)
-                self._log_end(db, log_id, JobStatus.RUNNING)
-                steps.append({"step_name": "enrich_technicals", "task_id": result.id})
-                logger.info("Dispatched enrich_technicals_task(%s): %s", symbol, result.id)
-            except Exception as exc:
-                logger.exception("Failed to dispatch enrich_technicals_task(%s): %s", symbol, exc)
-                log_id = self._log_start(db, "enrich_technicals")
-                self._log_end(db, log_id, JobStatus.FAILED, error=str(exc))
+            tid = self._dispatch(db, "enrich_technicals", enrich_technicals_task, symbol)
+            if tid:
+                steps.append({"step_name": "enrich_technicals", "task_id": tid})
 
-        # Step 3: Generate signals
-        try:
-            result = generate_signals_task.delay()
-            log_id = self._log_start(db, "generate_signals", task_id=result.id)
-            self._log_end(db, log_id, JobStatus.RUNNING)
-            steps.append({"step_name": "generate_signals", "task_id": result.id})
-            logger.info("Dispatched generate_signals_task: %s", result.id)
-        except Exception as exc:
-            logger.exception("Failed to dispatch generate_signals_task: %s", exc)
-            log_id = self._log_start(db, "generate_signals")
-            self._log_end(db, log_id, JobStatus.FAILED, error=str(exc))
+        tid = self._dispatch(db, "generate_signals", generate_signals_task)
+        if tid:
+            steps.append({"step_name": "generate_signals", "task_id": tid})
 
         return {"status": "dispatched", "steps": steps}

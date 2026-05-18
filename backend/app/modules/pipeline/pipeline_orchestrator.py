@@ -10,6 +10,8 @@ This is the high-level PortfolioOrchestrator (moved from core/orchestration.py).
 """
 
 import logging
+import os
+from pathlib import Path
 from typing import List, Dict, Tuple
 
 from services.portfolio_service import PortfolioService
@@ -262,7 +264,7 @@ class PipelineOrchestrator:
     def startup_check(self):
         """Minimal startup: ensure data directory exists."""
         self.logger.info("⚙️ Booting OS...")
-        os.makedirs("data", exist_ok=True)
+        os.makedirs(Path(__file__).resolve().parents[4] / "data", exist_ok=True)
 
     # ==========================================
     # STAGE 1: INGESTION (Pure fetch, no DB)

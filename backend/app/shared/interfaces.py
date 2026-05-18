@@ -144,6 +144,35 @@ class SignalProvider(ABC):
         pass
 
 
+class MarketDataProvider(ABC):
+    """Provider contract for market-wide data (indices, universe, sectors, movers, FX)."""
+
+    @property
+    @abstractmethod
+    def provider_name(self) -> str:
+        pass
+
+    @abstractmethod
+    def fetch_indices(self) -> List[Dict[str, Any]]:
+        """Return list of index snapshots: {sym, region, value, dayPct}."""
+
+    @abstractmethod
+    def fetch_universe(self) -> List[Dict[str, Any]]:
+        """Return tradable universe: {sym, name, ex, region, class, sector, price, dayPct, mcap}."""
+
+    @abstractmethod
+    def fetch_sectors(self) -> List[Dict[str, Any]]:
+        """Return sector breakdown: {name, wt, dayPct}."""
+
+    @abstractmethod
+    def fetch_movers(self, universe: List[Dict[str, Any]]) -> Dict[str, Any]:
+        """Return {gainers: [...], losers: [...]} from the given universe list."""
+
+    @abstractmethod
+    def fetch_fx_rate(self, pair: str) -> Optional[float]:
+        """Return the FX rate for a pair string (e.g. 'USD_INR'), or None on failure."""
+
+
 class ValuationProvider(ABC):
     """Stateless valuation calculator for illiquid assets. No DB access — receives all data as args."""
 

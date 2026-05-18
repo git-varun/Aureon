@@ -8,6 +8,13 @@ from app.modules.market import services
 router = APIRouter(prefix="/api/market", tags=["market"])
 
 
+@router.post("/refresh")
+def trigger_market_refresh(_user=Depends(require_auth)):
+    from app.tasks.market import market_refresh_task
+    task = market_refresh_task.delay()
+    return {"status": "queued", "task_id": task.id}
+
+
 @router.get("/indices")
 def market_indices(_user=Depends(require_auth)):
     return services.get_indices()

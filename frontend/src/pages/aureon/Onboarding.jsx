@@ -1,4 +1,5 @@
 import React, {useState} from 'react';
+import {fmtINR} from './marketData';
 
 const STEPS = ['Welcome', 'Link accounts', 'Set goals', 'Review'];
 
@@ -11,11 +12,6 @@ const PROVIDERS = [
     {id: 'mfcentral', name: 'MF Central',      kind: 'Aggregator', scope: 'CAS · folios',             logo: 'M', color: '#C9A86A'},
 ];
 
-const fmtINR = (n) => {
-    if (n >= 1e7) return '₹' + (n / 1e7).toFixed(1) + ' Cr';
-    if (n >= 1e5) return '₹' + (n / 1e5).toFixed(1) + ' L';
-    return '₹' + n.toLocaleString('en-IN');
-};
 
 function StepBar({step}) {
     return (

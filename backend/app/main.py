@@ -31,6 +31,7 @@ from app.modules.market.routes import router as market_router
 from app.modules.signals.routes import router as signals_router
 from app.modules.users.routes import router as users_router
 from app.modules.watchlist.routes import router as watchlist_router
+from app.modules.health.routes import router as health_router
 from app.shared.exceptions import AppException, NotFoundError, ConflictError, ValidationError, DataFetchError
 
 setup_master_logger()
@@ -48,6 +49,7 @@ def register_models() -> None:
     from app.modules.signals import models as _signals  # noqa: F401
     from app.modules.users import models as _users  # noqa: F401
     from app.modules.watchlist import models as _watchlist  # noqa: F401
+    from app.modules.market import models as _market  # noqa: F401
     # auth/models imports User from users — no separate import needed
 
 
@@ -56,8 +58,23 @@ async def lifespan(app: FastAPI):
     """Application lifecycle: startup → shutdown."""
     logger.info("Application starting...")
     register_models()
-    Base.metadata.create_all(bind=engine)
-    logger.info("Database tables created/verified")
+
+    # Retry logic for DB connection to handle startup race conditions/DNS lag
+    import time
+    from sqlalchemy.exc import OperationalError
+    max_retries = 5
+    for i in range(max_retries):
+        try:
+            Base.metadata.create_all(bind=engine)
+            logger.info("Database tables created/verified")
+            break
+        except OperationalError as e:
+            if i == max_retries - 1:
+                logger.error("Could not connect to database after %d retries. Last error: %s", max_retries, e)
+                raise
+            logger.warning("Database connection failed (attempt %d/%d), retrying in 2s... Error: %s", i + 1,
+                           max_retries, e)
+            time.sleep(2)
 
     from app.core.db_patcher import run_patches
     run_patches(engine)
@@ -66,8 +83,10 @@ async def lifespan(app: FastAPI):
     # Seed default config (idempotent)
     from app.core.db import SessionLocal
     from app.modules.config.services import ConfigService
+    from app.modules.market.services import seed_themes
     with SessionLocal() as db:
         ConfigService.seed_defaults(db)
+        seed_themes(db)
 
     yield
     logger.info("Application shutting down...")
@@ -134,11 +153,7 @@ def create_app() -> FastAPI:
     app.include_router(aureon_router)  # Aureon composite endpoints
     app.include_router(market_router)  # Market data — indices, sectors, movers, themes, universe
     app.include_router(watchlist_router)  # Per-user watchlists
-
-    # ── Health ────────────────────────────────────────────────────────────
-    @app.get("/health")
-    async def health_check():
-        return {"status": "healthy", "version": settings.api_version}
+    app.include_router(health_router)
 
     return app
 

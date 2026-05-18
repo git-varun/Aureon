@@ -4,10 +4,18 @@ import {apiService} from '../../api/apiService';
 
 const JOB_LABELS = {
     sync_portfolio: {label: 'Portfolio Sync', desc: 'Sync all broker holdings from APIs'},
-    refresh_prices:  {label: 'Price Refresh', desc: 'Fetch live prices and update portfolio values'},
-    fetch_news:      {label: 'News Scraper', desc: 'Scrape headlines and run AI sentiment analysis'},
-    daily_briefing:  {label: 'AI Briefing', desc: 'Generate alpha briefing and send alerts'},
-    run_signals:     {label: 'Signal Generation', desc: 'Generate trading signals across holdings'},
+    refresh_prices: {label: 'Price Refresh', desc: 'Fetch live prices and update portfolio values'},
+    fetch_news: {label: 'News Scraper', desc: 'Scrape headlines and run AI sentiment analysis'},
+    daily_briefing: {label: 'AI Briefing', desc: 'Generate alpha briefing and send alerts'},
+    run_signals: {label: 'Signal Generation', desc: 'Generate trading signals across holdings'},
+    seed_price_history: {label: 'Price History Seed', desc: 'Backfill 1-year OHLCV price history'},
+    aggregate_sentiment: {label: 'Sentiment Roll-up', desc: 'Aggregate news sentiment across portfolio'},
+    seed_fundamentals: {label: 'Fundamentals Seed', desc: 'Refresh PE, EPS, and balance sheet data'},
+    fetch_fx_rate: {label: 'FX Rate Fetch', desc: 'Update USD/INR and other FX rates'},
+    compute_state: {label: 'State Compute', desc: 'Recompute portfolio positions and values'},
+    accrue_epf: {label: 'EPF Accrual', desc: 'Credit monthly EPF interest'},
+    bond_mtm: {label: 'Bond MTM', desc: 'Mark-to-market bond positions'},
+    insurance_premium: {label: 'Insurance Premium', desc: 'Log weekly insurance premium deductions'},
 };
 
 const fmt = (iso) => {
@@ -17,14 +25,16 @@ const fmt = (iso) => {
 };
 
 const STATUS = {
-    success:   {color: 'var(--sage-500)',    label: 'Success'},
-    failed:    {color: 'var(--crimson-500)', label: 'Failed'},
-    running:   {color: 'var(--dusk-500)',    label: 'Running'},
+    SUCCESS: {color: 'var(--sage-500)', label: 'Success'},
+    FAILED: {color: 'var(--crimson-500)', label: 'Failed'},
+    RUNNING: {color: 'var(--dusk-500)', label: 'Running'},
+    PENDING: {color: 'var(--dusk-500)', label: 'Pending'},
     never_run: {color: 'var(--ink-40)',      label: 'Never run'},
 };
 
 function JobRow({job, onUpdate, onRun}) {
     const {label, desc} = JOB_LABELS[job.job_name] ?? {label: job.job_name, desc: ''};
+    const isSystem = job.job_tier === 'system';
     const [cronEdit, setCronEdit] = useState(job.cron_schedule);
     const [enabled, setEnabled] = useState(Boolean(job.enabled));
     const [saving, setSaving] = useState(false);
@@ -32,20 +42,35 @@ function JobRow({job, onUpdate, onRun}) {
     const [showLogs, setShowLogs] = useState(false);
     const [logs, setLogs] = useState([]);
 
-    const dirty = cronEdit !== job.cron_schedule || enabled !== Boolean(job.enabled);
+    useEffect(() => {
+        setCronEdit(job.cron_schedule);
+        setEnabled(Boolean(job.enabled));
+    }, [job.cron_schedule, job.enabled]);
+
+    // System jobs: only dirty when enabled toggle changes (cron is read-only)
+    const dirty = isSystem
+        ? enabled !== Boolean(job.enabled)
+        : cronEdit !== job.cron_schedule || enabled !== Boolean(job.enabled);
     const status = STATUS[job.last_status] ?? STATUS.never_run;
     const tone = !enabled ? 'var(--ink-40)' : status.color;
 
     const handleSave = async () => {
         setSaving(true);
-        try { await onUpdate(job.job_name, cronEdit, enabled); }
+        try {
+            await onUpdate(job.job_name, isSystem ? undefined : cronEdit, enabled);
+        }
         finally { setSaving(false); }
     };
 
     const handleRun = async () => {
+        if (running) return;
         setRunning(true);
-        try { await onRun(job.job_name); }
-        finally { setTimeout(() => setRunning(false), 2000); }
+        try {
+            await onRun(job.job_name);
+        } finally {
+            // Keep the 'running' state briefly for visual feedback
+            setTimeout(() => setRunning(false), 2000);
+        }
     };
 
     const handleToggleLogs = async () => {
@@ -103,18 +128,20 @@ function JobRow({job, onUpdate, onRun}) {
 
             {dirty && (
                 <div style={{padding: '0 18px 14px', display: 'flex', alignItems: 'center', gap: 10}}>
-                    <input
-                        value={cronEdit}
-                        onChange={e => setCronEdit(e.target.value)}
-                        style={{
-                            padding: '7px 12px', borderRadius: 7, width: 180,
-                            background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.07)',
-                            color: 'var(--ink-10)', fontFamily: 'var(--font-mono)', fontSize: 12, outline: 'none',
-                        }}
-                        placeholder="cron expression"
-                    />
+                    {!isSystem && (
+                        <input
+                            value={cronEdit}
+                            onChange={e => setCronEdit(e.target.value)}
+                            style={{
+                                padding: '7px 12px', borderRadius: 7, width: 180,
+                                background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.07)',
+                                color: 'var(--ink-10)', fontFamily: 'var(--font-mono)', fontSize: 12, outline: 'none',
+                            }}
+                            placeholder="cron expression"
+                        />
+                    )}
                     <button onClick={handleSave} disabled={saving} className="du3-cta primary" style={{height: 34}}>
-                        {saving ? 'Saving…' : 'Save schedule'}
+                        {saving ? 'Saving…' : 'Save'}
                     </button>
                 </div>
             )}
@@ -132,7 +159,7 @@ function JobRow({job, onUpdate, onRun}) {
                     }}>
                         {logs.length === 0
                             ? 'No logs yet.'
-                            : logs.map((l, i) => `▸ ${fmt(l.ran_at)}  ${l.status}${l.duration_ms ? `  ${l.duration_ms}ms` : ''}${l.message ? `  ${l.message}` : ''}`).join('\n')}
+                            : logs.map(l => `▸ ${fmt(l.started_at)}  ${l.status}${l.duration_ms ? `  ${l.duration_ms}ms` : ''}${l.error_message ? `  ${l.error_message}` : ''}`).join('\n')}
                     </pre>
                 </div>
             )}
@@ -143,21 +170,32 @@ function JobRow({job, onUpdate, onRun}) {
 export default function JobConfig() {
     const [jobs, setJobs] = useState([]);
     const [loading, setLoading] = useState(true);
+    const [refreshing, setRefreshing] = useState(false);
 
-    const load = useCallback(async () => {
-        setLoading(true);
-        try { setJobs((await apiService.getJobs()).jobs); }
-        catch { toast.error('Failed to load job configs.'); }
-        finally { setLoading(false); }
+    const load = useCallback(async (isRefresh = false) => {
+        if (isRefresh) setRefreshing(true);
+        else setLoading(true);
+
+        try {
+            const res = await apiService.getJobs();
+            setJobs(res.jobs);
+        } catch {
+            toast.error('Failed to load job configs.');
+        } finally {
+            setLoading(false);
+            setRefreshing(false);
+        }
     }, []);
 
     useEffect(() => { load(); }, [load]);
 
     const handleUpdate = async (jobName, cronSchedule, enabled) => {
         try {
-            const res = await apiService.updateJob(jobName, {cron_schedule: cronSchedule, enabled});
+            const payload = {enabled};
+            if (cronSchedule !== undefined) payload.cron_schedule = cronSchedule;
+            const res = await apiService.updateJob(jobName, payload);
             setJobs(res.jobs);
-            toast.success(`Schedule updated for '${jobName}'.`);
+            toast.success(`Updated '${jobName}'.`);
         } catch (e) {
             toast.error(e?.response?.data?.detail || 'Invalid cron expression.');
         }
@@ -167,31 +205,107 @@ export default function JobConfig() {
         try {
             await apiService.runJob(jobName);
             toast.success(`Job '${jobName}' triggered.`);
-            setTimeout(load, 1500);
+            // Refresh sooner and maybe again a bit later to catch log updates
+            setTimeout(() => load(true), 1000);
+            setTimeout(() => load(true), 3000);
         } catch (e) {
             toast.error(e?.response?.data?.detail || `Failed to trigger '${jobName}'.`);
         }
     };
 
+    const userJobs = jobs.filter(j => j.job_tier !== 'system');
+    const systemJobs = jobs.filter(j => j.job_tier === 'system');
     const enabledCount = jobs.filter(j => j.enabled).length;
 
+    const colHead = (
+        <div style={{
+            display: 'grid',
+            gridTemplateColumns: '1.4fr 0.8fr 1fr 1fr auto auto auto',
+            gap: 14,
+            padding: '10px 18px',
+            fontSize: 10.5,
+            letterSpacing: '0.12em',
+            textTransform: 'uppercase',
+            color: 'var(--ink-30)',
+            fontWeight: 600,
+            borderBottom: '1px solid rgba(255,255,255,0.06)'
+        }}>
+            <span>Job</span><span>Schedule</span><span>Last run</span><span>Next run</span>
+            <span/><span>Enabled</span><span/>
+        </div>
+    );
+
     return (
-        <section className="layer-1" style={{padding: 0, overflow: 'hidden'}}>
-            <div style={{display: 'grid', gridTemplateColumns: '1.4fr 0.8fr 1fr 1fr auto auto auto', gap: 14, padding: '12px 18px', fontSize: 10.5, letterSpacing: '0.12em', textTransform: 'uppercase', color: 'var(--ink-30)', fontWeight: 600, borderBottom: '1px solid rgba(255,255,255,0.06)'}}>
-                <span>Job</span><span>Schedule</span><span>Last run</span><span>Next run</span>
-                <span/><span>Enabled</span><span/>
-            </div>
+        <section className="layer-1" style={{padding: 0, overflow: 'hidden', position: 'relative'}}>
+            <style>{`
+                @keyframes pulse-fast {
+                    0% { opacity: 0.4; }
+                    50% { opacity: 1; }
+                    100% { opacity: 0.4; }
+                }
+            `}</style>
+            {refreshing && (
+                <div style={{
+                    position: 'absolute',
+                    top: 0,
+                    left: 0,
+                    right: 0,
+                    height: 2,
+                    background: 'var(--aurum-500)',
+                    zIndex: 10,
+                    animation: 'pulse-fast 1.5s infinite'
+                }}/>
+            )}
             {loading ? (
                 <div style={{padding: 40, textAlign: 'center', color: 'var(--ink-40)', fontSize: 13}}>Loading jobs…</div>
-            ) : (
-                jobs.map(job => (
+            ) : (<>
+                {/* User-tier: editable schedule */}
+                <div style={{
+                    padding: '10px 18px 6px',
+                    fontSize: 10.5,
+                    letterSpacing: '0.12em',
+                    textTransform: 'uppercase',
+                    color: 'var(--aurum-500)',
+                    fontWeight: 700
+                }}>
+                    Scheduled Jobs
+                </div>
+                {colHead}
+                {userJobs.map(job => (
                     <JobRow key={job.job_name} job={job} onUpdate={handleUpdate} onRun={handleRun}/>
-                ))
-            )}
+                ))}
+
+                {/* System-tier: read-only cron, run-only */}
+                <div style={{
+                    padding: '14px 18px 6px',
+                    fontSize: 10.5,
+                    letterSpacing: '0.12em',
+                    textTransform: 'uppercase',
+                    color: 'var(--ink-30)',
+                    fontWeight: 700,
+                    borderTop: '1px solid rgba(255,255,255,0.06)',
+                    marginTop: 4
+                }}>
+                    System Jobs
+                    <span style={{
+                        marginLeft: 8,
+                        fontSize: 10,
+                        fontWeight: 400,
+                        textTransform: 'none',
+                        color: 'var(--ink-40)'
+                    }}>— cron managed by system</span>
+                </div>
+                {colHead}
+                {systemJobs.map(job => (
+                    <JobRow key={job.job_name} job={job} onUpdate={handleUpdate} onRun={handleRun}/>
+                ))}
+            </>)}
             {!loading && (
                 <div style={{padding: '10px 18px', fontSize: 11.5, color: 'var(--ink-40)', borderTop: '1px solid rgba(255,255,255,0.04)', display: 'flex', justifyContent: 'space-between', alignItems: 'center'}}>
                     <span>{enabledCount} of {jobs.length} jobs enabled</span>
-                    <button onClick={load} className="du3-cta ghost">Refresh</button>
+                    <button onClick={() => load(true)} disabled={refreshing} className="du3-cta ghost">
+                        {refreshing ? 'Refreshing…' : 'Refresh'}
+                    </button>
                 </div>
             )}
         </section>

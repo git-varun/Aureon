@@ -6,7 +6,6 @@ from app.core.dependencies import get_session, require_auth
 from app.modules.config.services import ConfigService
 from app.modules.config.schemas import (
     AllocationTargetUpsert,
-    AllocationTargetsListResponse,
     ProvidersListResponse,
     ProviderKeyResponse,
     JobsListResponse,
@@ -80,6 +79,11 @@ def update_job(
 ):
     """Update job schedule and enable/disable status."""
     svc = ConfigService(db)
+    job = svc.get_job(job_name)
+    if not job:
+        raise HTTPException(status_code=404, detail=f"Job {job_name} not found")
+    if (job.job_tier or "user") == "system" and payload.cron_schedule is not None:
+        raise HTTPException(status_code=403, detail="Cron schedule is read-only for system jobs")
     result = svc.update_job(
         job_name,
         enabled=payload.enabled,
@@ -104,33 +108,33 @@ def run_job(
 
     log = svc.log_job_start(job_name)
     try:
-        task_id = svc.dispatch_job(job_name)
+        task_id = svc.dispatch_job(job_name, log_id=log.id)
     except Exception as e:
         svc.log_job_end(log.id, JobStatus.FAILED, error=str(e))
         raise HTTPException(status_code=500, detail=f"Failed to dispatch {job_name}: {e}")
 
-    svc.log_job_end(log.id, JobStatus.RUNNING, error=None)
     svc.mark_job_ran(job_name)
     return {"status": "triggered", "job_name": job_name, "task_id": task_id}
 
 
 # ── Allocation Targets ────────────────────────────────────────────────────────
 
-@router.get("/allocation_targets", response_model=AllocationTargetsListResponse)
+@router.get("/allocation_targets")
 def list_allocation_targets(db: Session = Depends(get_session), _user=Depends(require_auth)):
-    """Per-class target allocation (Aureon)."""
+    """Per-class target allocation as flat map: { asset_class: target_pct }."""
     svc = ConfigService(db)
-    return {"targets": svc.list_allocation_targets()}
+    targets = svc.list_allocation_targets()
+    return {t.asset_class: t.target_pct for t in targets}
 
 
-@router.put("/allocation_targets/{asset_class}", response_model=AllocationTargetsListResponse)
+@router.put("/allocation_targets/{asset_class}")
 def upsert_allocation_target(
         asset_class: str,
         payload: AllocationTargetUpsert,
         db: Session = Depends(get_session),
         _user=Depends(require_auth),
 ):
-    """Create or update target for an asset class. Pcts are 0..1."""
+    """Create or update target for an asset class. Pcts are 0..1. Returns updated flat map."""
     svc = ConfigService(db)
     svc.upsert_allocation_target(
         asset_class,
@@ -139,7 +143,8 @@ def upsert_allocation_target(
         band_high_pct=payload.band_high_pct,
         notes=payload.notes,
     )
-    return {"targets": svc.list_allocation_targets()}
+    targets = svc.list_allocation_targets()
+    return {t.asset_class: t.target_pct for t in targets}
 
 
 @router.get("/jobs/{job_name}/logs", response_model=JobLogsResponse)

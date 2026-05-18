@@ -59,12 +59,17 @@ class CacheManager:
             pass
 
     def clear_pattern(self, pattern: str):
-        """Delete all keys matching pattern."""
+        """Delete all keys matching pattern using batched pipeline to avoid blocking."""
         if self.client is None:
             return
         try:
-            for key in self.client.scan_iter(match=pattern):
-                self.client.delete(key)
+            cursor = 0
+            while True:
+                cursor, keys = self.client.scan(cursor, match=pattern, count=100)
+                if keys:
+                    self.client.unlink(*keys)  # async server-side delete
+                if cursor == 0:
+                    break
         except Exception:
             pass
 

@@ -20,6 +20,9 @@ _DEFAULT_PROVIDERS = [
     {"provider_name": "binance", "provider_type": "broker", "key_names": '["api_key","api_secret"]'},
     {"provider_name": "coinbase", "provider_type": "broker", "key_names": '["api_key","api_secret","api_passphrase"]'},
     {"provider_name": "custom_equity", "provider_type": "broker", "key_names": '["holdings_json"]'},
+    {"provider_name": "mf", "provider_type": "broker", "key_names": '["holdings_json"]'},
+    {"provider_name": "epf", "provider_type": "broker", "key_names": '["corpus_json"]'},
+    {"provider_name": "nps", "provider_type": "broker", "key_names": '["corpus_json"]'},
 
     # AI
     {"provider_name": "gemini", "provider_type": "ai", "key_names": '["api_key"]'},
@@ -64,12 +67,21 @@ _DEFAULT_ALLOCATION_TARGETS = [
 ]
 
 _DEFAULT_JOBS = [
-    {"job_name": "sync_portfolio", "cron_expression": "0 9 * * 1-5", "enabled": True},
-    {"job_name": "refresh_prices", "cron_expression": "*/15 9-15 * * 1-5", "enabled": True},
-    {"job_name": "fetch_news", "cron_expression": "0 8 * * *", "enabled": True},
-    {"job_name": "daily_briefing", "cron_expression": "0 7 * * *", "enabled": True},
-    {"job_name": "run_signals", "cron_expression": "30 9 * * 1-5", "enabled": False},
-    {"job_name": "seed_price_history", "cron_expression": "0 2 * * 0", "enabled": True},
+    # User-tier: editable cron, full controls
+    {"job_name": "sync_portfolio", "cron_expression": "0 9 * * 1-5", "enabled": True, "job_tier": "user"},
+    {"job_name": "refresh_prices", "cron_expression": "*/15 9-15 * * 1-5", "enabled": True, "job_tier": "user"},
+    {"job_name": "fetch_news", "cron_expression": "0 8 * * *", "enabled": True, "job_tier": "user"},
+    {"job_name": "daily_briefing", "cron_expression": "0 7 * * *", "enabled": True, "job_tier": "user"},
+    {"job_name": "run_signals", "cron_expression": "30 9 * * 1-5", "enabled": False, "job_tier": "user"},
+    {"job_name": "seed_price_history", "cron_expression": "0 2 * * 0", "enabled": True, "job_tier": "user"},
+    # System-tier: read-only cron, run-only
+    {"job_name": "aggregate_sentiment", "cron_expression": "0 22 * * *", "enabled": True, "job_tier": "system"},
+    {"job_name": "seed_fundamentals", "cron_expression": "0 3 * * 0", "enabled": True, "job_tier": "system"},
+    {"job_name": "fetch_fx_rate", "cron_expression": "0 */4 * * *", "enabled": True, "job_tier": "system"},
+    {"job_name": "compute_state", "cron_expression": "*/15 9-15 * * 1-5", "enabled": True, "job_tier": "system"},
+    {"job_name": "accrue_epf", "cron_expression": "0 6 1 * *", "enabled": True, "job_tier": "system"},
+    {"job_name": "bond_mtm", "cron_expression": "30 9 * * 1-5", "enabled": True, "job_tier": "system"},
+    {"job_name": "insurance_premium", "cron_expression": "0 8 * * 1", "enabled": True, "job_tier": "system"},
 ]
 
 
@@ -136,27 +148,6 @@ def _validate_key(provider: ProviderConfig, key_name: str):
             allowed_keys,
         )
         raise ValueError(f"Invalid key: {key_name}")
-
-
-def set_provider_key(self, provider_name: str, key_name: str, value: str) -> bool:
-    logger.info("set_provider_key: provider=%s key=%s", provider_name, key_name)
-
-    provider = self.get_provider(provider_name)
-    if not provider:
-        logger.error("Provider not found: %s", provider_name)
-        return False
-
-    _validate_key(provider, key_name)  # ✅ NEW enforcement
-
-    keys = _safe_json_load(provider.encrypted_keys, {})
-
-    keys[key_name] = _encrypt(value) if value else ""
-    provider.encrypted_keys = json.dumps(keys)
-
-    provider.enabled = True  # ✅ preserved behavior
-    self.db.commit()
-
-    return True
 
 
 # ── ConfigService ─────────────────────────────────────────────────────────────
@@ -292,7 +283,6 @@ class ConfigService:
             logger.warning("mark_job_ran: job=%s not found", job_name)
 
     def _job_to_dict(self, j: JobConfig) -> dict:
-        # Get last log status
         last_log = (
             self.db.query(JobLog)
             .filter_by(job_name=j.job_name)
@@ -306,6 +296,7 @@ class ConfigService:
             "job_name": j.job_name,
             "enabled": j.enabled,
             "cron_schedule": j.cron_expression,
+            "job_tier": j.job_tier or "user",
             "last_status": last_status,
             "last_run_at": j.last_run_at.isoformat() if j.last_run_at else None,
             "next_run_at": j.next_run_at.isoformat() if j.next_run_at else None,
@@ -320,17 +311,52 @@ class ConfigService:
         self.db.refresh(log)
         return log
 
-    def log_job_end(self, log_id: int, status: JobStatus, error: Optional[str] = None) -> type[JobLog] | None:
+    def attach_task_id(self, log_id: int, task_id: Optional[str]) -> None:
+        """Store task_id on an open log entry without closing it."""
+        log = self.db.query(JobLog).filter_by(id=log_id).first()
+        if log and task_id:
+            log.task_id = task_id
+            self.db.commit()
+
+    def log_job_end(self, log_id: int, status: JobStatus, error: Optional[str] = None, task_id: Optional[str] = None) -> \
+    type[JobLog] | None:
         log = self.db.query(JobLog).filter_by(id=log_id).first()
         if log:
             log.status = status
             log.error_message = error
             log.ended_at = datetime.now(timezone.utc)
+            if task_id:
+                log.task_id = task_id
             if log.started_at:
                 delta = log.ended_at - log.started_at
                 log.duration_ms = int(delta.total_seconds() * 1000)
             self.db.commit()
         return log
+
+    def update_job_log_status_by_task_id(self, task_id: str, status: JobStatus, error: Optional[str] = None) -> bool:
+        """Find a JobLog by task_id and update its status. Handles comma-separated multi-tasks."""
+        from sqlalchemy import or_
+        log = self.db.query(JobLog).filter(
+            or_(
+                JobLog.task_id == task_id,
+                JobLog.task_id.like(f"%{task_id}%")
+            )
+        ).order_by(JobLog.started_at.desc()).first()
+
+        if log:
+            log.status = status
+            if error:
+                log.error_message = error
+            log.ended_at = datetime.now(timezone.utc)
+            if log.started_at:
+                delta = log.ended_at - log.started_at
+                log.duration_ms = int(delta.total_seconds() * 1000)
+            self.db.commit()
+            logger.info("update_job_log_status_by_task_id: updated log_id=%d to %s", log.id, status)
+            return True
+
+        logger.warning("update_job_log_status_by_task_id: no log found for task_id=%s", task_id)
+        return False
 
     def get_job_logs(self, job_name: str, limit: int = 50) -> List[dict]:
         logs = (
@@ -354,8 +380,20 @@ class ConfigService:
             for l in logs
         ]
 
-    def dispatch_job(self, job_name: str) -> Optional[str]:
-        """Dispatch the named job to Celery and return task_id(s)."""
+    def dispatch_job(self, job_name: str, log_id: Optional[int] = None) -> Optional[str]:
+        """Dispatch the named job to Celery and return task_id(s).
+
+        Pre-assigns task IDs before dispatch so that the JobLog row is populated
+        before the task runs — required for eager mode (task_always_eager=True)
+        where .apply_async() executes the task synchronously inline.
+        """
+        import uuid
+
+        def _pre_assign(tid: str) -> str:
+            """Attach task_id to the open log entry before firing."""
+            if log_id is not None:
+                self.attach_task_id(log_id, tid)
+            return tid
 
         if job_name == "sync_portfolio":
             from app.modules.portfolio.providers.factory import SUPPORTED_BROKERS
@@ -364,41 +402,63 @@ class ConfigService:
             enabled = self.db.query(ProviderConfig).filter_by(
                 provider_type="broker", enabled=True
             ).all()
-
             brokers = [
-                p.provider_name
-                for p in enabled
-                if p.provider_name in SUPPORTED_BROKERS  # ✅ FIX: typo removed
+                p.provider_name for p in enabled
+                if p.provider_name in SUPPORTED_BROKERS and _broker_has_keys(p)
             ]
 
             if not brokers:
                 logger.warning("No enabled brokers for sync_portfolio")
                 return None
 
-            task_ids = [sync_portfolio_task.delay(broker=b).id for b in brokers]
-            return ",".join(task_ids)
+            broker_ids = [(b, str(uuid.uuid4())) for b in brokers]
+            _pre_assign(",".join(tid for _, tid in broker_ids))
+            for broker, tid in broker_ids:
+                sync_portfolio_task.apply_async(kwargs={"broker": broker}, task_id=tid)
+            return ",".join(tid for _, tid in broker_ids)
+
+        task_id = _pre_assign(str(uuid.uuid4()))
 
         if job_name == "refresh_prices":
             from app.tasks.portfolio import refresh_prices_task
-            return refresh_prices_task.delay().id
-
-        if job_name == "fetch_news":
+            refresh_prices_task.apply_async(task_id=task_id)
+        elif job_name == "fetch_news":
             from app.tasks.news import fetch_news_task
-            return fetch_news_task.delay().id
-
-        if job_name == "daily_briefing":
+            fetch_news_task.apply_async(task_id=task_id)
+        elif job_name == "daily_briefing":
             from app.tasks.ai import global_briefing_task
-            return global_briefing_task.delay().id
-
-        if job_name == "run_signals":
+            global_briefing_task.apply_async(task_id=task_id)
+        elif job_name == "run_signals":
             from app.tasks.signals import generate_signals_task
-            return generate_signals_task.delay().id
-
-        if job_name == "seed_price_history":
+            generate_signals_task.apply_async(task_id=task_id)
+        elif job_name == "seed_price_history":
             from app.tasks.portfolio import seed_price_history_task
-            return seed_price_history_task.delay().id
+            seed_price_history_task.apply_async(task_id=task_id)
+        elif job_name == "aggregate_sentiment":
+            from app.tasks.news import aggregate_sentiment_task
+            aggregate_sentiment_task.apply_async(task_id=task_id)
+        elif job_name == "seed_fundamentals":
+            from app.tasks.portfolio import seed_fundamentals_task
+            seed_fundamentals_task.apply_async(task_id=task_id)
+        elif job_name == "fetch_fx_rate":
+            from app.tasks.portfolio import fetch_fx_rate_task
+            fetch_fx_rate_task.apply_async(task_id=task_id)
+        elif job_name == "compute_state":
+            from app.tasks.portfolio import compute_state_task
+            compute_state_task.apply_async(task_id=task_id)
+        elif job_name == "accrue_epf":
+            from app.tasks.fixed_return import accrue_epf_task
+            accrue_epf_task.apply_async(task_id=task_id)
+        elif job_name == "bond_mtm":
+            from app.tasks.fixed_return import bond_mtm_task
+            bond_mtm_task.apply_async(task_id=task_id)
+        elif job_name == "insurance_premium":
+            from app.tasks.fixed_return import insurance_premium_task
+            insurance_premium_task.apply_async(task_id=task_id)
+        else:
+            raise ValueError(f"Unknown job: {job_name}")
 
-        raise ValueError(f"Unknown job: {job_name}")
+        return task_id
 
     # ── Seed ───────────────────────────────────────────────────────────────
 
@@ -414,6 +474,8 @@ class ConfigService:
             exists = db.query(JobConfig).filter_by(job_name=j["job_name"]).first()
             if not exists:
                 db.add(JobConfig(**j))
+            elif not exists.job_tier:
+                exists.job_tier = j.get("job_tier", "user")
 
         for t in _DEFAULT_ALLOCATION_TARGETS:
             exists = db.query(AllocationTarget).filter_by(asset_class=t["asset_class"]).first()
@@ -452,6 +514,12 @@ class ConfigService:
         self.db.commit()
         self.db.refresh(row)
         return _alloc_target_to_dict(row)
+
+
+def _broker_has_keys(provider: ProviderConfig) -> bool:
+    """Return True only if the broker has at least one non-empty API key stored."""
+    encrypted = _safe_json_load(provider.encrypted_keys, {})
+    return any(bool(v) for v in encrypted.values())
 
 
 def _alloc_target_to_dict(r: AllocationTarget) -> dict:

@@ -1,7 +1,7 @@
 """Config module schemas for providers, jobs, and job logs."""
 from datetime import datetime
 from typing import Optional, Dict, List
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict, Field, model_validator
 
 
 # ── Provider Schemas ──────────────────────────────────────────────────────
@@ -55,6 +55,7 @@ class JobConfigResponse(BaseModel):
     job_name: str
     enabled: bool
     cron_schedule: str
+    job_tier: str = "user"
     last_status: Optional[str] = None
     last_run_at: Optional[datetime] = None
     next_run_at: Optional[datetime] = None
@@ -66,6 +67,13 @@ class JobUpdateRequest(BaseModel):
     """Update job configuration."""
     enabled: Optional[bool] = None
     cron_schedule: Optional[str] = Field(None, description="Cron expression (e.g., '0 9 * * *')")
+    schedule: Optional[str] = Field(None, description="Alias for cron_schedule (FE compat)")
+
+    @model_validator(mode="after")
+    def resolve_cron_schedule(self) -> "JobUpdateRequest":
+        if self.cron_schedule is None and self.schedule is not None:
+            self.cron_schedule = self.schedule
+        return self
 
 
 class JobRunResponse(BaseModel):
@@ -104,11 +112,16 @@ class AllocationTargetOut(BaseModel):
 
 
 class AllocationTargetUpsert(BaseModel):
-    target_pct: float = Field(..., ge=0, le=1)
+    target_pct: Optional[float] = Field(None, ge=0, le=1)
+    target: Optional[float] = Field(None, ge=0, le=1, description="Alias for target_pct (FE compat)")
     band_low_pct: Optional[float] = Field(None, ge=0, le=1)
     band_high_pct: Optional[float] = Field(None, ge=0, le=1)
     notes: Optional[str] = None
 
-
-class AllocationTargetsListResponse(BaseModel):
-    targets: List[AllocationTargetOut]
+    @model_validator(mode="after")
+    def resolve_target_pct(self) -> "AllocationTargetUpsert":
+        if self.target_pct is None and self.target is not None:
+            self.target_pct = self.target
+        if self.target_pct is None:
+            raise ValueError("Either target_pct or target must be provided")
+        return self

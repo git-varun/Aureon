@@ -10,24 +10,23 @@ from app.core.cache import cache
 from app.core.celery_app import celery_app
 from app.core.db import SessionLocal
 from app.modules.portfolio.services import PortfolioService
-from app.shared.utils import cache_key
+from app.shared.utils import cache_key, report_task_status
 
 logger = logging.getLogger("celery.portfolio")
 
 
 @celery_app.task(bind=True, name="portfolio.sync")
+
 def sync_portfolio_task(self, broker: str, force_refresh: bool = True, dry_run: bool = False):
     """Sync portfolio holdings from broker via real provider factory.
 
     Returns a structured result with stage, counts, and any errors so that
     AsyncResult polling surfaces meaningful progress.
     """
+    task_id = getattr(self.request, "id", None)
     logger.info(
         "[sync:%s] task started task_id=%s force_refresh=%s dry_run=%s.",
-        broker,
-        getattr(self.request, "id", None),
-        force_refresh,
-        dry_run,
+        broker, task_id, force_refresh, dry_run,
     )
 
     errors = []
@@ -41,10 +40,12 @@ def sync_portfolio_task(self, broker: str, force_refresh: bool = True, dry_run: 
         cred_session = SessionLocal()
         provider = get_broker_provider(broker, session=cred_session)
         logger.info("[sync:%s] provider resolved -> %s", broker, provider.provider_name)
-    except ValueError as exc:
-        logger.error("[sync:%s] unsupported broker: %s", broker, exc)
+    except Exception as exc:
+        logger.error("[sync:%s] failed to resolve provider: %s", broker, exc)
         if cred_session:
             cred_session.close()
+        if task_id:
+            report_task_status(task_id, "FAILED", error=str(exc))
         return {"status": "error", "broker": broker, "stage": "resolve", "errors": [str(exc)]}
 
     # ── Stage 2: credential validation ──────────────────────────────────────
@@ -55,6 +56,8 @@ def sync_portfolio_task(self, broker: str, force_refresh: bool = True, dry_run: 
         logger.error("[sync:%s] credential validation failed: %s", broker, exc)
         if cred_session:
             cred_session.close()
+        if task_id:
+            report_task_status(task_id, "FAILED", error=str(exc))
         return {"status": "error", "broker": broker, "stage": "validation", "errors": [str(exc)]}
 
     # ── dry_run: credential check only, skip fetch + persist ────────────────
@@ -87,6 +90,8 @@ def sync_portfolio_task(self, broker: str, force_refresh: bool = True, dry_run: 
     except Exception as exc:
         logger.exception("[sync:%s] persistence failed: %s", broker, exc)
         errors.append(str(exc))
+        if task_id:
+            report_task_status(task_id, "FAILED", error=str(exc))
         raise self.retry(exc=exc, countdown=60, max_retries=3)
     finally:
         if service_session is not None:
@@ -101,6 +106,9 @@ def sync_portfolio_task(self, broker: str, force_refresh: bool = True, dry_run: 
         {"status": "success", "broker": broker, "timestamp": datetime.now(timezone.utc).isoformat()},
         ttl=3600,
     )
+
+    if task_id:
+        report_task_status(task_id, "SUCCESS")
 
     logger.info(
         "[sync:%s] completed holdings=%d upserted=%d errors=%d",
@@ -126,6 +134,7 @@ def refresh_prices_task(self, symbol: Optional[str] = None):
     Thin Celery wrapper — all business logic lives in AssetsService.refresh_prices().
     """
     session = None
+    task_id = getattr(self.request, "id", None)
     try:
         logger.info("refresh_prices_task: symbol=%s", symbol or "all")
         from app.modules.assets.services import AssetsService
@@ -133,9 +142,15 @@ def refresh_prices_task(self, symbol: Optional[str] = None):
         result = AssetsService(session).refresh_prices(symbol=symbol)
         logger.info("refresh_prices_task: %s", result)
         compute_state_task.delay()
+
+        if task_id:
+            report_task_status(task_id, "SUCCESS")
+        
         return result
     except Exception as exc:
         logger.exception("refresh_prices_task failed: %s", exc)
+        if task_id:
+            report_task_status(task_id, "FAILED", error=str(exc))
         raise self.retry(exc=exc, countdown=30, max_retries=2)
     finally:
         if session is not None:
@@ -222,6 +237,7 @@ def seed_price_history_task(self, symbol: Optional[str] = None, days: int = 365,
     - Mutual Fund (*_MF): mfapi.in historical NAV
     """
     session = None
+    task_id = getattr(self.request, "id", None)
     try:
         from app.modules.portfolio.models import Asset, PriceHistory
         from app.shared.constants import AssetType
@@ -294,10 +310,15 @@ def seed_price_history_task(self, symbol: Optional[str] = None, days: int = 365,
                 session.rollback()
                 logger.warning("seed_price_history: failed for %s: %s", asset.symbol, exc)
 
+        if task_id:
+            report_task_status(task_id, "SUCCESS")
+
         return {"status": "success", "seeded": seeded, "skipped": skipped}
 
     except Exception as exc:
         logger.exception("seed_price_history_task failed: %s", exc)
+        if task_id:
+            report_task_status(task_id, "FAILED", error=str(exc))
         raise self.retry(exc=exc, countdown=120)
     finally:
         if session:
@@ -384,13 +405,9 @@ def _yfinance_ohlcv(yf_symbol: str, days: int) -> list:
 
 @celery_app.task(bind=True, name="portfolio.seed_fundamentals", max_retries=1)
 def seed_fundamentals_task(self, symbol: Optional[str] = None):
-    """Fetch and cache fundamental data for portfolio assets from yfinance.
-
-    Stores results in Redis (24h TTL) for fast access by /api/state, and
-    upserts pe_ratio / eps into the Fundamentals DB table.
-    Skips mutual funds and assets with no yfinance coverage.
-    """
+    """Fetch and cache fundamental data for portfolio assets from yfinance."""
     session = None
+    task_id = getattr(self.request, "id", None)
     try:
         import math
         import yfinance as yf
@@ -478,10 +495,15 @@ def seed_fundamentals_task(self, symbol: Optional[str] = None):
                 session.rollback()
                 logger.warning("seed_fundamentals: failed for %s: %s", asset.symbol, exc)
 
+        if task_id:
+            report_task_status(task_id, "SUCCESS")
+
         return {"status": "success", "updated": updated}
 
     except Exception as exc:
         logger.exception("seed_fundamentals_task failed: %s", exc)
+        if task_id:
+            report_task_status(task_id, "FAILED", error=str(exc))
         raise self.retry(exc=exc, countdown=300)
     finally:
         if session:
@@ -513,7 +535,7 @@ def compute_state_task():
 @celery_app.task(name="portfolio.fetch_fx_rate")
 def fetch_fx_rate_task():
     try:
-        resp = httpx.get("https://api.frankfurter.app/latest?from=USD&to=INR", timeout=10)
+        resp = httpx.get("https://api.frankfurter.dev/v1/latest?from=USD&to=INR", timeout=10, follow_redirects=True)
         resp.raise_for_status()
         rate = float(resp.json()["rates"]["INR"])
         cache.set(cache_key("fx", "usd_inr"), rate, ttl=14400)

@@ -11,7 +11,8 @@ from sqlalchemy.orm import Session
 from app.shared.interfaces import AssetSource
 from app.modules.portfolio.providers.credential_manager import CredentialManager
 
-SUPPORTED_BROKERS: frozenset = frozenset({"zerodha", "groww", "binance", "coinbase", "custom_equity"})
+SUPPORTED_BROKERS: frozenset = frozenset(
+    {"zerodha", "groww", "binance", "coinbase", "custom_equity", "mf", "epf", "nps"})
 
 
 def get_broker_provider(broker: str, session: Optional[Session] = None) -> AssetSource:
@@ -48,6 +49,15 @@ def get_broker_provider(broker: str, session: Optional[Session] = None) -> Asset
     if key == "custom_equity":
         from app.modules.portfolio.providers.custom_equity import CustomEquitySync
         return CustomEquitySync(cred_manager=cred_manager)
+    if key == "mf":
+        from app.modules.portfolio.providers.mf import MutualFundSync
+        return MutualFundSync(cred_manager=cred_manager)
+    if key == "epf":
+        from app.modules.portfolio.providers.epf import EPFSync
+        return EPFSync(cred_manager=cred_manager)
+    if key == "nps":
+        from app.modules.portfolio.providers.nps import NPSSync
+        return NPSSync(cred_manager=cred_manager)
     # binance
     from app.modules.portfolio.providers.binance import BinanceIntelligenceClient
     return BinanceIntelligenceClient(cred_manager=cred_manager)

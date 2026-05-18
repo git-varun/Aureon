@@ -1,5 +1,5 @@
 :root {
-    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
+    font-family: var(--font-ui, Inter, sans-serif);
 }
 
 html, body, #root {
@@ -8,7 +8,7 @@ html, body, #root {
     width: 100vw;
     height: 100vh;
     overflow: hidden;
-    background-color: #0B0E14;
+    background-color: #0B0D10;
 }
 
 * {
@@ -22,7 +22,7 @@ html, body, #root {
 }
 
 ::-webkit-scrollbar-track {
-    background: #0B0E14;
+    background: #0B0D10;
 }
 
 ::-webkit-scrollbar-thumb {

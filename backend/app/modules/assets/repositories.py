@@ -17,7 +17,10 @@ class AssetRepository:
         self.db = db
 
     def get_by_symbol(self, symbol: str) -> Optional[Asset]:
-        return self.db.query(Asset).filter(Asset.symbol == symbol).first()
+        asset = self.db.query(Asset).filter(Asset.symbol == symbol).first()
+        if not asset and not symbol.endswith(".NS"):
+            asset = self.db.query(Asset).filter(Asset.symbol == symbol + ".NS").first()
+        return asset
 
     def get_by_type(self, asset_type: AssetType) -> List[Asset]:
         return self.db.query(Asset).filter(Asset.asset_type == asset_type).all()

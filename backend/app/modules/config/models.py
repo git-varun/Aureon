@@ -37,6 +37,7 @@ class JobConfig(Base):
     cron_expression = Column(String(64), nullable=False)
     last_run_at = Column(DateTime(timezone=True), nullable=True)
     next_run_at = Column(DateTime(timezone=True), nullable=True)
+    job_tier = Column(String(16), default='user')  # 'user' = editable cron, 'system' = read-only
     config = Column(Text, default="{}")  # JSON blob for extra per-job config
     created_at = Column(DateTime(timezone=True), server_default=func.now())
     updated_at = Column(DateTime(timezone=True), onupdate=func.now())
@@ -67,7 +68,7 @@ class JobLog(Base):
     id = Column(Integer, primary_key=True, index=True)
     job_name = Column(String(64), nullable=False, index=True)
     status = Column(Enum(JobStatus), default=JobStatus.PENDING, nullable=False)
-    task_id = Column(String(128), nullable=True)
+    task_id = Column(String(512), nullable=True)
     error_message = Column(Text, nullable=True)
     started_at = Column(DateTime(timezone=True), server_default=func.now())
     ended_at = Column(DateTime(timezone=True), nullable=True)
