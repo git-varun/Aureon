@@ -38,8 +38,11 @@ class PositionRepository:
     def __init__(self, db: Session):
         self.db = db
 
-    def find_by_asset(self, asset_id: int) -> Optional[Position]:
-        return self.db.query(Position).filter(Position.asset_id == asset_id).first()
+    def find_by_asset(self, asset_id: int, user_id: Optional[int] = None) -> Optional[Position]:
+        q = self.db.query(Position).filter(Position.asset_id == asset_id)
+        if user_id is not None:
+            q = q.filter(Position.user_id == user_id)
+        return q.first()
 
     def create(self, asset_id: int, quantity: float, avg_buy_price: float) -> Position:
         current_value = quantity * avg_buy_price

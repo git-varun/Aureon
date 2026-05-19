@@ -3,6 +3,7 @@
 from datetime import datetime
 
 from sqlalchemy import Column, DateTime, Enum, Float, ForeignKey, Index, Integer, JSON, String, Text
+from sqlalchemy.orm import relationship
 
 from app.core.db import Base
 from app.shared.constants import SignalType, TimeFrame
@@ -29,6 +30,8 @@ class Signal(Base):
     risk_level = Column(String(20), nullable=True)  # low, medium, high
     entry_price = Column(Float, nullable=True)
     exit_price = Column(Float, nullable=True)
+
+    user_id = Column(Integer, ForeignKey("users.id"), nullable=True, index=True)
 
     # Phase 1 additions
     asset_id = Column(Integer, ForeignKey("assets.id"), nullable=True)

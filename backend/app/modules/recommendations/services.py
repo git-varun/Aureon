@@ -41,22 +41,27 @@ def _to_dict(r: Recommendation) -> dict[str, Any]:
 class RecommendationService:
 
     @staticmethod
-    def list(session: Session, status: Optional[str] = None) -> list[dict[str, Any]]:
+    def list(session: Session, user_id: Optional[int] = None, status: Optional[str] = None) -> list[dict[str, Any]]:
         q = session.query(Recommendation)
+        if user_id is not None:
+            q = q.filter(Recommendation.user_id == user_id)
         if status:
             q = q.filter(Recommendation.status == status)
         return [_to_dict(r) for r in q.order_by(Recommendation.created_at.desc()).all()]
 
     @staticmethod
-    def get_by_ext_id(session: Session, ext_id: str) -> Recommendation:
-        rec = session.query(Recommendation).filter(Recommendation.ext_id == ext_id).first()
+    def get_by_ext_id(session: Session, ext_id: str, user_id: Optional[int] = None) -> Recommendation:
+        q = session.query(Recommendation).filter(Recommendation.ext_id == ext_id)
+        if user_id is not None:
+            q = q.filter(Recommendation.user_id == user_id)
+        rec = q.first()
         if not rec:
             raise NotFoundError(f"recommendation {ext_id!r} not found")
         return rec
 
     @staticmethod
-    def apply(session: Session, ext_id: str) -> dict[str, Any]:
-        rec = RecommendationService.get_by_ext_id(session, ext_id)
+    def apply(session: Session, ext_id: str, user_id: Optional[int] = None) -> dict[str, Any]:
+        rec = RecommendationService.get_by_ext_id(session, ext_id, user_id=user_id)
         if rec.status == "applied":
             return _to_dict(rec)
         # Block if any conflicting rec is still active
@@ -72,8 +77,8 @@ class RecommendationService:
         return _to_dict(rec)
 
     @staticmethod
-    def dismiss(session: Session, ext_id: str, reason: Optional[str] = None) -> dict[str, Any]:
-        rec = RecommendationService.get_by_ext_id(session, ext_id)
+    def dismiss(session: Session, ext_id: str, reason: Optional[str] = None, user_id: Optional[int] = None) -> dict[str, Any]:
+        rec = RecommendationService.get_by_ext_id(session, ext_id, user_id=user_id)
         rec.status = "dismissed"
         rec.dismissed_at = datetime.utcnow()
         rec.applied_at = None
@@ -83,8 +88,8 @@ class RecommendationService:
         return _to_dict(rec)
 
     @staticmethod
-    def undo(session: Session, ext_id: str) -> dict[str, Any]:
-        rec = RecommendationService.get_by_ext_id(session, ext_id)
+    def undo(session: Session, ext_id: str, user_id: Optional[int] = None) -> dict[str, Any]:
+        rec = RecommendationService.get_by_ext_id(session, ext_id, user_id=user_id)
         rec.status = "active"
         rec.applied_at = None
         rec.dismissed_at = None
@@ -94,7 +99,7 @@ class RecommendationService:
         return _to_dict(rec)
 
     @staticmethod
-    def seed(session: Session, fixtures: list[dict[str, Any]]) -> tuple[int, int]:
+    def seed(session: Session, fixtures: list[dict[str, Any]], user_id: Optional[int] = None) -> tuple[int, int]:
         """Idempotent seed by ext_id. Returns (inserted, skipped)."""
         existing = {
             r.ext_id for r in session.query(Recommendation.ext_id).all()
@@ -103,7 +108,10 @@ class RecommendationService:
         for f in fixtures:
             if f["ext_id"] in existing:
                 continue
-            session.add(Recommendation(**f))
+            rec = Recommendation(**f)
+            if user_id is not None:
+                rec.user_id = user_id
+            session.add(rec)
             inserted += 1
         session.commit()
         return inserted, len(fixtures) - inserted

@@ -81,7 +81,7 @@ def build_aureon_state(session: Session, user_id: Optional[int] = None) -> dict[
     from app.shared.utils import cache_key
 
     fx_rate = float(cache.get(cache_key("fx", "usd_inr")) or 83.50)
-    positions = PortfolioService(session).list_positions()
+    positions = PortfolioService(session).list_positions(user_id=user_id)
 
     asset_ids = [p.asset_id for p in positions]
     cutoff = datetime.now(timezone.utc) - timedelta(days=60)
@@ -124,8 +124,8 @@ def build_aureon_state(session: Session, user_id: Optional[int] = None) -> dict[
     targets = ConfigService(session).list_allocation_targets()
     class_target = {t["asset_class"]: t["target_pct"] for t in targets}
 
-    # Recommendations
-    recs_all = RecommendationService.list(session)
+    # Recommendations — scoped to this user
+    recs_all = RecommendationService.list(session, user_id=user_id)
     recs_active = [r for r in recs_all if r["status"] == "active"]
     recs_applied = [r for r in recs_all if r["status"] == "applied"]
     recs_dismissed = [r for r in recs_all if r["status"] == "dismissed"]
@@ -144,11 +144,12 @@ def build_aureon_state(session: Session, user_id: Optional[int] = None) -> dict[
         "neutral": "macro",
     }
 
-    # Signals — latest 20
+    # Signals — latest 20 for this user
+    signals_q = session.query(Signal).order_by(Signal.created_at.desc())
+    if user_id is not None:
+        signals_q = signals_q.filter(Signal.user_id == user_id)
     signals_out = []
-    for s in (
-            session.query(Signal).order_by(Signal.created_at.desc()).limit(20).all()
-    ):
+    for s in signals_q.limit(20).all():
         sig_ext_id = f"sg-{s.id}"
         raw_type = s.signal_type.value if s.signal_type and hasattr(s.signal_type, "value") else "neutral"
         meta = s.signal_metadata or {}
@@ -167,15 +168,16 @@ def build_aureon_state(session: Session, user_id: Optional[int] = None) -> dict[
         })
 
     # Activity ledger — combines transactions + dismissed recs (most recent 50)
-    activity = _build_activity(session)
+    activity = _build_activity(session, user_id=user_id)
 
     # Portfolio-scoped recommendation (rebalance / allocation-level decisions)
-    portfolio_rec_row = (
+    port_rec_q = (
         session.query(Recommendation)
         .filter(Recommendation.scope_kind == "portfolio", Recommendation.status == "active")
-        .order_by(Recommendation.created_at.desc())
-        .first()
     )
+    if user_id is not None:
+        port_rec_q = port_rec_q.filter(Recommendation.user_id == user_id)
+    portfolio_rec_row = port_rec_q.order_by(Recommendation.created_at.desc()).first()
     from app.modules.recommendations.services import _to_dict as _rec_to_dict
     portfolio_rec = _rec_to_dict(portfolio_rec_row) if portfolio_rec_row else None
 
@@ -208,20 +210,20 @@ def build_aureon_state(session: Session, user_id: Optional[int] = None) -> dict[
     }
 
 
-def _build_activity(session: Session) -> list[dict[str, Any]]:
+def _build_activity(session: Session, user_id: Optional[int] = None) -> list[dict[str, Any]]:
     from app.modules.portfolio.models import Asset, Transaction
     from app.modules.recommendations.models import Recommendation
 
     out: list[dict[str, Any]] = []
 
-    txn_rows = (
+    txn_q = (
         session.query(Transaction, Asset.symbol)
         .outerjoin(Asset, Asset.id == Transaction.asset_id)
         .order_by(Transaction.transaction_date.desc())
-        .limit(40)
-        .all()
     )
-    for t, sym in txn_rows:
+    if user_id is not None:
+        txn_q = txn_q.filter(Transaction.user_id == user_id)
+    for t, sym in txn_q.limit(40).all():
         out.append({
             "id": f"t-{t.id}",
             "ts": t.transaction_date.strftime("%Y-%m-%d %H:%M") if t.transaction_date else "",
@@ -233,13 +235,14 @@ def _build_activity(session: Session) -> list[dict[str, Any]]:
             "realized": t.realized_impact,
         })
 
-    dismissed = (
+    dismissed_q = (
         session.query(Recommendation)
         .filter(Recommendation.status == "dismissed")
         .order_by(Recommendation.dismissed_at.desc())
-        .limit(20)
-        .all()
     )
+    if user_id is not None:
+        dismissed_q = dismissed_q.filter(Recommendation.user_id == user_id)
+    dismissed = dismissed_q.limit(20).all()
     for r in dismissed:
         out.append({
             "id": f"d-{r.id}",
@@ -325,7 +328,7 @@ def _prior_actions_for_asset(
     return out
 
 
-def build_asset_detail(session: Session, ticker: str) -> Optional[dict[str, Any]]:
+def build_asset_detail(session: Session, ticker: str, user_id: Optional[int] = None) -> Optional[dict[str, Any]]:
     from app.modules.analytics.models import Fundamentals
     from app.modules.assets.market_data import MarketDataService
     from app.modules.portfolio.models import Asset, PriceHistory, Position, Transaction
@@ -340,7 +343,10 @@ def build_asset_detail(session: Session, ticker: str) -> Optional[dict[str, Any]
 
     # ── Portfolio asset path (full detail) ───────────────────────────────────
 
-    pos = session.query(Position).filter(Position.asset_id == asset.id).first()
+    pos_q = session.query(Position).filter(Position.asset_id == asset.id)
+    if user_id is not None:
+        pos_q = pos_q.filter(Position.user_id == user_id)
+    pos = pos_q.first()
 
     cutoff = datetime.now(timezone.utc) - timedelta(days=60)
     ph_rows = (
@@ -361,11 +367,10 @@ def build_asset_detail(session: Session, ticker: str) -> Optional[dict[str, Any]
         .limit(10)
         .all()
     )
-    recs = (
-        session.query(Recommendation)
-        .filter(Recommendation.scope_ref == ticker, Recommendation.status == "active")
-        .all()
-    )
+    recs_q = session.query(Recommendation).filter(Recommendation.scope_ref == ticker, Recommendation.status == "active")
+    if user_id is not None:
+        recs_q = recs_q.filter(Recommendation.user_id == user_id)
+    recs = recs_q.all()
 
     return {
         "ticker": asset.symbol,

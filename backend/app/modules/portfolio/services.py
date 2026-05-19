@@ -71,7 +71,7 @@ class PortfolioService:
         logger.info("list_assets: returned %d assets (filter_type=%s)", len(assets), asset_type)
         return assets
 
-    def create_position(self, data: PositionCreate | dict) -> Position:
+    def create_position(self, data: PositionCreate | dict, user_id: Optional[int] = None) -> Position:
         if isinstance(data, dict):
             data = PositionCreate(**data)
         pos_data = data.dict()
@@ -85,6 +85,8 @@ class PortfolioService:
         )
 
         pos = Position(**pos_data)
+        if user_id is not None:
+            pos.user_id = user_id
         self.session.add(pos)
         self.session.commit()
         logger.info("create_position: id=%s asset_id=%s qty=%.4f committed", pos.id, pos.asset_id, pos.quantity)
@@ -99,13 +101,15 @@ class PortfolioService:
             logger.debug("get_position: id=%s not found", position_id)
         return pos
 
-    def list_positions(self, asset_id: Optional[int] = None) -> List[Position]:
-        logger.debug("list_positions: filter_asset_id=%s", asset_id)
+    def list_positions(self, asset_id: Optional[int] = None, user_id: Optional[int] = None) -> List[Position]:
+        logger.debug("list_positions: filter_asset_id=%s user_id=%s", asset_id, user_id)
         query = self.session.query(Position)
         if asset_id:
             query = query.filter(Position.asset_id == asset_id)
+        if user_id is not None:
+            query = query.filter(Position.user_id == user_id)
         positions = query.all()
-        logger.info("list_positions: returned %d positions (filter_asset_id=%s)", len(positions), asset_id)
+        logger.info("list_positions: returned %d positions (filter_asset_id=%s user_id=%s)", len(positions), asset_id, user_id)
         return positions
 
     def _normalize_asset_type(self, raw_type: str, symbol: str) -> AssetType:
@@ -125,8 +129,8 @@ class PortfolioService:
             return provider_name.upper()
         return "NSE"
 
-    def _update_or_create_position(self, asset: Asset, qty: float, avg_buy_price: float) -> Position:
-        existing = self.position_repo.find_by_asset(asset.id)
+    def _update_or_create_position(self, asset: Asset, qty: float, avg_buy_price: float, user_id: Optional[int] = None) -> Position:
+        existing = self.position_repo.find_by_asset(asset.id, user_id=user_id)
         if existing:
             cost_basis = qty * avg_buy_price
             existing.quantity = qty
@@ -144,9 +148,9 @@ class PortfolioService:
             "asset_id": asset.id,
             "quantity": qty,
             "avg_buy_price": avg_buy_price,
-        })
+        }, user_id=user_id)
 
-    def sync_portfolio(self, provider: AssetSource, force_refresh: bool = True, dry_run: bool = False) -> dict:
+    def sync_portfolio(self, provider: AssetSource, force_refresh: bool = True, dry_run: bool = False, user_id: Optional[int] = None) -> dict:
         logger.info(
             "sync_portfolio: provider=%s force_refresh=%s dry_run=%s",
             provider.provider_name,
@@ -182,7 +186,7 @@ class PortfolioService:
                     "exchange": exchange,
                     "sub_type": holding.sub_type or holding.type,
                 })
-                self._update_or_create_position(asset, holding.qty, holding.avg_buy_price)
+                self._update_or_create_position(asset, holding.qty, holding.avg_buy_price, user_id=user_id)
                 updated_assets += 1
             except Exception as exc:
                 logger.exception("sync_portfolio: failed to persist holding %s: %s", holding.symbol, exc)
@@ -274,9 +278,9 @@ class PortfolioService:
         logger.info("update_manual_valuation: asset_id=%s new_value=%.2f committed", asset_id, new_value)
         return pos
 
-    def get_portfolio_by_type(self) -> dict:
+    def get_portfolio_by_type(self, user_id: Optional[int] = None) -> dict:
         """Return allocation breakdown by asset type."""
-        positions = self.list_positions()
+        positions = self.list_positions(user_id=user_id)
         allocation: dict = {}
         total = sum(p.current_value or 0.0 for p in positions)
 
@@ -292,7 +296,8 @@ class PortfolioService:
         return {"total_value": total, "by_type": allocation}
 
     def record_transaction(self, asset_id: int, trans_type: TransactionType,
-                           quantity: float, price: float, date: datetime, broker: str = None) -> Transaction:
+                           quantity: float, price: float, date: datetime, broker: str = None,
+                           user_id: Optional[int] = None) -> Transaction:
         total_value = quantity * price
         logger.info(
             "record_transaction: asset_id=%s type=%s qty=%.4f price=%.4f total=%.2f broker=%s",
@@ -306,7 +311,8 @@ class PortfolioService:
             price=price,
             transaction_date=date,
             total_value=total_value,
-            broker=broker
+            broker=broker,
+            user_id=user_id,
         )
         self.session.add(trans)
         self.session.commit()
@@ -356,9 +362,9 @@ class PortfolioService:
         logger.debug("save_price_history: committed asset_id=%s date=%s close=%.4f", asset_id, date.date(), close)
         return price
 
-    def get_portfolio_summary(self) -> PortfolioResponse:
-        logger.info("get_portfolio_summary: loading all positions")
-        positions = self.list_positions()
+    def get_portfolio_summary(self, user_id: Optional[int] = None) -> PortfolioResponse:
+        logger.info("get_portfolio_summary: loading positions user_id=%s", user_id)
+        positions = self.list_positions(user_id=user_id)
 
         total_value = sum(p.current_value for p in positions)
         total_invested = sum(p.quantity * p.avg_buy_price for p in positions)

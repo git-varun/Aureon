@@ -2,7 +2,7 @@
 
 from datetime import datetime
 
-from sqlalchemy import Column, DateTime, Float, Index, Integer, JSON, String, Text
+from sqlalchemy import Column, DateTime, Float, ForeignKey, Index, Integer, JSON, String, Text
 from sqlalchemy.orm import validates
 
 from app.core.db import Base
@@ -22,6 +22,7 @@ class Recommendation(Base):
 
     id = Column(Integer, primary_key=True)
     ext_id = Column(String(60), unique=True, nullable=False, index=True)  # stable id used by FE / fixtures
+    user_id = Column(Integer, ForeignKey("users.id"), nullable=True, index=True)
 
     status = Column(String(20), default="active", nullable=False)  # active|applied|dismissed
     strength = Column(String(20), nullable=False)  # recommended|consider|conflict|hold
