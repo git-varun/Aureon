@@ -5,8 +5,7 @@ from typing import Optional
 from fastapi import APIRouter, Depends
 from sqlalchemy.orm import Session
 
-from app.core.dependencies import get_session
-from app.core.dependencies import get_current_user
+from app.core.dependencies import get_session, require_auth
 
 from .schemas import RecommendationDismissIn, SeedResult
 from .services import DEFAULT_FIXTURES, RecommendationService
@@ -18,18 +17,18 @@ router = APIRouter(prefix="/api/aureon/recommendations", tags=["recommendations"
 def list_recommendations(
         status: Optional[str] = None,
         session: Session = Depends(get_session),
-        _user=Depends(get_current_user),
+        current_user=Depends(require_auth),
 ):
-    return {"items": RecommendationService.list(session, status=status)}
+    return {"items": RecommendationService.list(session, user_id=current_user.id, status=status)}
 
 
 @router.post("/{ext_id}/apply")
 def apply_recommendation(
         ext_id: str,
         session: Session = Depends(get_session),
-        _user=Depends(get_current_user),
+        current_user=Depends(require_auth),
 ):
-    return RecommendationService.apply(session, ext_id)
+    return RecommendationService.apply(session, ext_id, user_id=current_user.id)
 
 
 @router.post("/{ext_id}/dismiss")
@@ -37,24 +36,24 @@ def dismiss_recommendation(
         ext_id: str,
         body: RecommendationDismissIn = RecommendationDismissIn(),
         session: Session = Depends(get_session),
-        _user=Depends(get_current_user),
+        current_user=Depends(require_auth),
 ):
-    return RecommendationService.dismiss(session, ext_id, reason=body.reason)
+    return RecommendationService.dismiss(session, ext_id, reason=body.reason, user_id=current_user.id)
 
 
 @router.post("/{ext_id}/undo")
 def undo_recommendation(
         ext_id: str,
         session: Session = Depends(get_session),
-        _user=Depends(get_current_user),
+        current_user=Depends(require_auth),
 ):
-    return RecommendationService.undo(session, ext_id)
+    return RecommendationService.undo(session, ext_id, user_id=current_user.id)
 
 
 @router.post("/seed", response_model=SeedResult)
 def seed_recommendations(
         session: Session = Depends(get_session),
-        _user=Depends(get_current_user),
+        current_user=Depends(require_auth),
 ):
-    inserted, skipped = RecommendationService.seed(session, DEFAULT_FIXTURES)
+    inserted, skipped = RecommendationService.seed(session, DEFAULT_FIXTURES, user_id=current_user.id)
     return SeedResult(inserted=inserted, skipped=skipped)

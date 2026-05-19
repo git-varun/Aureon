@@ -17,7 +17,7 @@ logger = logging.getLogger("celery.portfolio")
 
 @celery_app.task(bind=True, name="portfolio.sync")
 
-def sync_portfolio_task(self, broker: str, force_refresh: bool = True, dry_run: bool = False):
+def sync_portfolio_task(self, broker: str, force_refresh: bool = True, dry_run: bool = False, user_id: Optional[int] = None):
     """Sync portfolio holdings from broker via real provider factory.
 
     Returns a structured result with stage, counts, and any errors so that
@@ -72,7 +72,7 @@ def sync_portfolio_task(self, broker: str, force_refresh: bool = True, dry_run: 
     try:
         service_session = SessionLocal()
         service = PortfolioService(service_session)
-        result = service.sync_portfolio(provider, force_refresh=force_refresh, dry_run=dry_run)
+        result = service.sync_portfolio(provider, force_refresh=force_refresh, dry_run=dry_run, user_id=user_id)
         holdings_count = result.get("holdings_count", 0)
         updated_assets = result.get("updated_assets", 0)
         errors = result.get("errors", [])

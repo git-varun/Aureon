@@ -57,6 +57,12 @@ PATCHES = [
     "ALTER TABLE transactions ADD COLUMN IF NOT EXISTS realized_impact VARCHAR(80)",
     "CREATE INDEX IF NOT EXISTS idx_transaction_kind ON transactions(kind)",
     "CREATE INDEX IF NOT EXISTS idx_transaction_rec ON transactions(recommendation_id)",
+    # signals — user ownership
+    "ALTER TABLE signals ADD COLUMN IF NOT EXISTS user_id INTEGER REFERENCES users(id)",
+    "CREATE INDEX IF NOT EXISTS idx_signal_user ON signals(user_id)",
+    # recommendations — user ownership
+    "ALTER TABLE recommendations ADD COLUMN IF NOT EXISTS user_id INTEGER REFERENCES users(id)",
+    "CREATE INDEX IF NOT EXISTS idx_rec_user ON recommendations(user_id)",
     # provider_configs — add config column for non-credential settings (e.g. signal_eligibility)
     "ALTER TABLE provider_configs ADD COLUMN IF NOT EXISTS config TEXT DEFAULT '{}'",
     # signals
@@ -114,6 +120,22 @@ ONE_TIME_MIGRATIONS: list[tuple[str, Union[str, Callable]]] = [
     (
         "backfill_transactions_user_id",
         "UPDATE transactions SET user_id = (SELECT id FROM users ORDER BY id LIMIT 1) WHERE user_id IS NULL",
+    ),
+    (
+        "backfill_signals_user_id",
+        "UPDATE signals SET user_id = (SELECT id FROM users ORDER BY id LIMIT 1) WHERE user_id IS NULL",
+    ),
+    (
+        "backfill_recommendations_user_id",
+        "UPDATE recommendations SET user_id = (SELECT id FROM users ORDER BY id LIMIT 1) WHERE user_id IS NULL",
+    ),
+    (
+        "enforce_positions_user_id_notnull",
+        "ALTER TABLE positions ALTER COLUMN user_id SET NOT NULL",
+    ),
+    (
+        "enforce_transactions_user_id_notnull",
+        "ALTER TABLE transactions ALTER COLUMN user_id SET NOT NULL",
     ),
     ("backfill_news_assets", _backfill_news_assets),
     (

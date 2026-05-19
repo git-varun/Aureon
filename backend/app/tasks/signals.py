@@ -18,7 +18,7 @@ logger = logging.getLogger("celery.signals")
 
 
 @celery_app.task(bind=True, name="signals.generate_all")
-def generate_signals_task(self, symbols: Optional[List[str]] = None):
+def generate_signals_task(self, symbols: Optional[List[str]] = None, user_id: Optional[int] = None):
     """Generate composite signals for assets using all available providers."""
     session = None
     task_id = getattr(self.request, "id", None)
@@ -27,13 +27,13 @@ def generate_signals_task(self, symbols: Optional[List[str]] = None):
         service = SignalService(session)
 
         # Delegate all signal generation to service
-        generated_signals = service.generate_signals_batch(symbols=symbols)
+        generated_signals = service.generate_signals_batch(symbols=symbols, user_id=user_id)
 
         logger.info(
             f"generate_signals_task: completed with {len(generated_signals)} signals generated"
         )
 
-        rec_counts = materialize_from_signals(session)
+        rec_counts = materialize_from_signals(session, user_id=user_id)
         logger.info(f"generate_signals_task: rec materialize {rec_counts}")
 
         if task_id:
@@ -59,7 +59,7 @@ def generate_signals_task(self, symbols: Optional[List[str]] = None):
 
 
 @celery_app.task(bind=True, name="signals.generate_for_symbol")
-def generate_signal_for_symbol_task(self, symbol: str, asset_type: str = "equity"):
+def generate_signal_for_symbol_task(self, symbol: str, asset_type: str = "equity", user_id: Optional[int] = None):
     """Generate a composite signal for a specific symbol.
 
     Generates signals using all available providers and aggregates using majority voting.
@@ -77,7 +77,7 @@ def generate_signal_for_symbol_task(self, symbol: str, asset_type: str = "equity
         service = SignalService(session)
 
         # Delegate signal generation to service
-        signal = service.generate_signal_for_symbol(symbol, asset_type)
+        signal = service.generate_signal_for_symbol(symbol, asset_type, user_id=user_id)
 
         if not signal:
             logger.warning(f"generate_signal_for_symbol_task: no signal generated for {symbol}")
@@ -92,7 +92,7 @@ def generate_signal_for_symbol_task(self, symbol: str, asset_type: str = "equity
             f"action={signal.signal_type} confidence={signal.confidence:.2f}"
         )
 
-        rec_counts = materialize_from_signals(session)
+        rec_counts = materialize_from_signals(session, user_id=user_id)
         logger.info(f"generate_signal_for_symbol_task: rec materialize {rec_counts}")
 
         return {

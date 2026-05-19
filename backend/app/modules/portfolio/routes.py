@@ -6,7 +6,7 @@ from typing import Optional
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
 
-from app.core.dependencies import get_current_user, get_session, require_auth
+from app.core.dependencies import get_session, require_auth
 from app.core.cache import get_cache
 from app.modules.portfolio.services import PortfolioService
 from app.modules.portfolio.schemas import (
@@ -23,7 +23,7 @@ router = APIRouter(prefix="/api/portfolio", tags=["portfolio"])
 
 
 @router.get("/state")
-def get_legacy_state(_user=Depends(get_current_user), session: Session = Depends(get_session)):
+def get_legacy_state(current_user=Depends(require_auth), session: Session = Depends(get_session)):
     """Composite portfolio state for the legacy UI (Terminal / Ledger / Analytics / GlobalAI)."""
     from app.core.cache import cache
     from app.modules.portfolio.state_builder import build_state_payload
@@ -36,10 +36,10 @@ def get_legacy_state(_user=Depends(get_current_user), session: Session = Depends
 
 
 @router.get("", response_model=PortfolioResponse)
-def get_portfolio(session: Session = Depends(get_session), _user=Depends(require_auth)):
+def get_portfolio(session: Session = Depends(get_session), current_user=Depends(require_auth)):
     """Get full portfolio summary: value, PnL, positions."""
     service = PortfolioService(session)
-    return service.get_portfolio_summary()
+    return service.get_portfolio_summary(user_id=current_user.id)
 
 
 @router.get("/assets", response_model=list[AssetResponse])
@@ -61,10 +61,10 @@ def get_asset(symbol: str, session: Session = Depends(get_session), _user=Depend
 
 
 @router.get("/positions", response_model=list[PositionResponse])
-def list_positions(session: Session = Depends(get_session), _user=Depends(require_auth)):
+def list_positions(session: Session = Depends(get_session), current_user=Depends(require_auth)):
     """List all positions."""
     service = PortfolioService(session)
-    positions = service.list_positions()
+    positions = service.list_positions(user_id=current_user.id)
     return [
         PositionResponse(
             id=p.id,
@@ -100,7 +100,7 @@ def get_position(position_id: int, session: Session = Depends(get_session), _use
 
 
 @router.post("/sync")
-def sync_portfolio(req: PortfolioSyncRequest, session: Session = Depends(get_session), _user=Depends(require_auth)):
+def sync_portfolio(req: PortfolioSyncRequest, session: Session = Depends(get_session), current_user=Depends(require_auth)):
     """Enqueue portfolio sync from broker (async Celery task).
 
     Pass dry_run=true to validate credentials without writing to the DB.
@@ -109,6 +109,7 @@ def sync_portfolio(req: PortfolioSyncRequest, session: Session = Depends(get_ses
         broker=req.broker,
         force_refresh=req.force_refresh,
         dry_run=req.dry_run,
+        user_id=current_user.id,
     )
     return {
         "status": "enqueued",
@@ -135,7 +136,7 @@ def get_sync_status(task_id: str, _user=Depends(require_auth)):
 def create_manual_asset(
         req: ManualAssetCreate,
         session: Session = Depends(get_session),
-        _user=Depends(require_auth),
+        current_user=Depends(require_auth),
 ):
     """Create an illiquid asset (bond, EPF, PPF, insurance, real estate) + initial position."""
     from app.modules.portfolio.schemas import AssetCreate
@@ -156,7 +157,7 @@ def create_manual_asset(
         "avg_buy_price": req.initial_value,
         "current_value": req.initial_value,
         "purchase_date": req.purchase_date,
-    })
+    }, user_id=current_user.id)
 
     return PositionResponse(
         id=pos.id,
@@ -197,10 +198,10 @@ def update_manual_valuation(
 
 
 @router.get("/allocation", response_model=AllocationResponse)
-def get_allocation(session: Session = Depends(get_session), _user=Depends(require_auth)):
+def get_allocation(session: Session = Depends(get_session), current_user=Depends(require_auth)):
     """Portfolio allocation breakdown by asset type."""
     service = PortfolioService(session)
-    return service.get_portfolio_by_type()
+    return service.get_portfolio_by_type(user_id=current_user.id)
 
 
 @router.get("/transactions", response_model=list[TransactionResponse])
@@ -209,11 +210,12 @@ def list_transactions(
         asset: Optional[str] = None,
         limit: int = 200,
         session: Session = Depends(get_session),
-        _user=Depends(require_auth),
+        current_user=Depends(require_auth),
 ):
     """List transactions with optional filters: ?provider=groww&asset=INFY&limit=200."""
     from app.modules.portfolio.models import Asset
     q = session.query(Transaction).join(Transaction.asset)
+    q = q.filter(Transaction.user_id == current_user.id)
     if provider:
         q = q.filter(Transaction.broker == provider)
     if asset:

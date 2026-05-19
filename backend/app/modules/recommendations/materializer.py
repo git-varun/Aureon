@@ -7,7 +7,7 @@ upsert by stable ext_id. Idempotent — safe to call after every signal batch.
 from __future__ import annotations
 
 from datetime import datetime
-from typing import Any, Iterable
+from typing import Any, Iterable, Optional
 
 from sqlalchemy.orm import Session
 
@@ -33,14 +33,16 @@ def _ext_id(symbol: str, action: str) -> str:
     return f"sg-{symbol.lower()}-{action.lower()}"
 
 
-def _latest_actionable_per_symbol(session: Session) -> dict[str, Signal]:
-    """Latest actionable signal per symbol (status='active')."""
-    rows: Iterable[Signal] = (
+def _latest_actionable_per_symbol(session: Session, user_id: Optional[int] = None) -> dict[str, Signal]:
+    """Latest actionable signal per symbol (status='active'), optionally filtered by user."""
+    q = (
         session.query(Signal)
         .filter(Signal.status == "active")
         .order_by(Signal.symbol, Signal.created_at.desc())
-        .all()
     )
+    if user_id is not None:
+        q = q.filter(Signal.user_id == user_id)
+    rows: Iterable[Signal] = q.all()
     seen: dict[str, Signal] = {}
     for s in rows:
         if s.symbol in seen:
@@ -51,12 +53,12 @@ def _latest_actionable_per_symbol(session: Session) -> dict[str, Signal]:
     return seen
 
 
-def materialize_from_signals(session: Session, threshold: int = CONFIDENCE_THRESHOLD) -> dict[str, int]:
-    """Upsert one Recommendation per (symbol, action) for signals above threshold.
+def materialize_from_signals(session: Session, threshold: int = CONFIDENCE_THRESHOLD, user_id: Optional[int] = None) -> dict[str, int]:
+    """Upsert one Recommendation per (user, symbol, action) for signals above threshold.
 
     Returns counts: {created, updated, skipped}.
     """
-    latest = _latest_actionable_per_symbol(session)
+    latest = _latest_actionable_per_symbol(session, user_id=user_id)
     created = updated = skipped = 0
 
     for symbol, sig in latest.items():
@@ -66,10 +68,16 @@ def materialize_from_signals(session: Session, threshold: int = CONFIDENCE_THRES
             continue
 
         action = _ACTION_BY_SIGNAL[sig.signal_type]
-        ext_id = _ext_id(symbol, action)
+        # Include user_id in ext_id to avoid collisions across users
+        user_suffix = f"-u{user_id}" if user_id is not None else ""
+        ext_id = _ext_id(symbol, action) + user_suffix
         signal_ext = f"sg-{sig.id}"
 
-        rec = session.query(Recommendation).filter(Recommendation.ext_id == ext_id).first()
+        rec_q = session.query(Recommendation).filter(Recommendation.ext_id == ext_id)
+        if user_id is not None:
+            rec_q = rec_q.filter(Recommendation.user_id == user_id)
+        rec = rec_q.first()
+
         payload: dict[str, Any] = {
             "strength": _strength(conf_pct),
             "action": action,
@@ -84,7 +92,10 @@ def materialize_from_signals(session: Session, threshold: int = CONFIDENCE_THRES
         }
 
         if rec is None:
-            session.add(Recommendation(ext_id=ext_id, status="active", **payload))
+            new_rec = Recommendation(ext_id=ext_id, status="active", **payload)
+            if user_id is not None:
+                new_rec.user_id = user_id
+            session.add(new_rec)
             created += 1
         else:
             # Re-activate from dismissed/applied if a fresh signal is firing.

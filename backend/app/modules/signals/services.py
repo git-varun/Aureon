@@ -47,20 +47,15 @@ class SignalService:
         self.on_chain_provider = OnChainSignalProvider(session)
         logger.debug("SignalService initialised with session id=%s", id(session))
 
-    def create_signal(self, data: SignalCreate) -> Signal:
-        """Create and persist a signal in the database.
-
-        Args:
-            data: SignalCreate schema with signal details
-
-        Returns:
-            Persisted Signal ORM object
-        """
+    def create_signal(self, data: SignalCreate, user_id: Optional[int] = None) -> Signal:
+        """Create and persist a signal in the database."""
         logger.debug(
-            "create_signal: symbol=%s type=%s timeframe=%s confidence=%.2f risk=%s",
-            data.symbol, data.signal_type, data.timeframe, data.confidence, data.risk_level
+            "create_signal: symbol=%s type=%s timeframe=%s confidence=%.2f risk=%s user_id=%s",
+            data.symbol, data.signal_type, data.timeframe, data.confidence, data.risk_level, user_id
         )
         signal = Signal(**data.dict())
+        if user_id is not None:
+            signal.user_id = user_id
         self.session.add(signal)
         self.session.commit()
         self.session.refresh(signal)
@@ -102,7 +97,7 @@ class SignalService:
         logger.info("get_signals_for_symbols: found %d/%d signals", len(results), len(symbols))
         return results
 
-    def generate_signal_for_symbol(self, symbol: str, asset_type: str = "equity") -> Optional[Signal]:
+    def generate_signal_for_symbol(self, symbol: str, asset_type: str = "equity", user_id: Optional[int] = None) -> Optional[Signal]:
         """Generate a composite signal for a single symbol using all available providers.
 
         Uses majority voting to aggregate signals from:
@@ -163,14 +158,14 @@ class SignalService:
             exit_price=None
         )
 
-        signal = self.create_signal(signal_create)
+        signal = self.create_signal(signal_create, user_id=user_id)
         logger.info(
             f"generate_signal_for_symbol: {symbol} composite signal created: "
             f"action={composite_signal['action']} confidence={composite_signal['confidence']:.2f}"
         )
         return signal
 
-    def generate_signals_batch(self, symbols: Optional[List[str]] = None) -> List[Signal]:
+    def generate_signals_batch(self, symbols: Optional[List[str]] = None, user_id: Optional[int] = None) -> List[Signal]:
         """Generate signals for multiple symbols.
 
         Args:
@@ -208,7 +203,7 @@ class SignalService:
                 continue
 
             # Generate composite signal using providers
-            signal = self.generate_signal_for_symbol(symbol, asset_type)
+            signal = self.generate_signal_for_symbol(symbol, asset_type, user_id=user_id)
             if signal:
                 generated_signals.append(signal)
 
