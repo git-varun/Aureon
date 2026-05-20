@@ -3,7 +3,7 @@ from fastapi import APIRouter, Depends
 from sqlalchemy.orm import Session
 
 from app.core.dependencies import get_session, require_auth
-from app.core.security import verify_password, hash_password
+from app.modules.auth.services import verify_password, hash_password
 from app.modules.users.services import UserService
 from app.modules.users.schemas import UserProfileResponse, UserProfileUpdate, UserPasswordUpdate
 from app.shared.exceptions import ValidationError

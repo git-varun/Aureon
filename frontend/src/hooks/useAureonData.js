@@ -9,7 +9,7 @@ export const AUREON_STATE_KEY = ['aureon-state'];
 const isNonEmpty = (x) => Array.isArray(x) ? x.length > 0 : !!x;
 
 export function useAureonData() {
-    const {data: api, isLoading: loading, error} = useQuery({
+    const {data: api, isLoading: loading, error, dataUpdatedAt} = useQuery({
         queryKey: AUREON_STATE_KEY,
         queryFn: () => apiService.fetchAureonState(),
     });
@@ -18,7 +18,13 @@ export function useAureonData() {
     const recsActiveApi = api?.recommendations?.active || [];
     const recsAppliedApi = api?.recommendations?.applied || [];
 
-    const holdings = useMemo(() => hasApiHoldings ? api.holdings : [], [hasApiHoldings, api?.holdings]);
+    const holdings = useMemo(() => {
+        if (!hasApiHoldings) return [];
+        return api.holdings.map(h => ({
+            ...h,
+            ticker: h.ticker?.toUpperCase().replace(/\.NS$/i, '') ?? h.ticker,
+        }));
+    }, [hasApiHoldings, api?.holdings]);
     const signals = useMemo(() => isNonEmpty(api?.signals) ? api.signals : [], [api?.signals]);
     const netWorth = api?.netWorth ?? 0;
 
@@ -51,5 +57,6 @@ export function useAureonData() {
         unreadCount: api?.unreadCount ?? 0,
         marketPulse: api?.marketPulse ?? null,
         apiState: api,
+        dataUpdatedAt,
     };
 }

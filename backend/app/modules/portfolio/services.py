@@ -92,13 +92,16 @@ class PortfolioService:
         logger.info("create_position: id=%s asset_id=%s qty=%.4f committed", pos.id, pos.asset_id, pos.quantity)
         return pos
 
-    def get_position(self, position_id: int) -> Optional[Position]:
-        logger.debug("get_position: id=%s", position_id)
-        pos = self.session.query(Position).filter(Position.id == position_id).first()
+    def get_position(self, position_id: int, user_id: Optional[int] = None) -> Optional[Position]:
+        logger.debug("get_position: id=%s user_id=%s", position_id, user_id)
+        query = self.session.query(Position).filter(Position.id == position_id)
+        if user_id is not None:
+            query = query.filter(Position.user_id == user_id)
+        pos = query.first()
         if pos:
             logger.debug("get_position: id=%s found asset_id=%s qty=%.4f", position_id, pos.asset_id, pos.quantity)
         else:
-            logger.debug("get_position: id=%s not found", position_id)
+            logger.debug("get_position: id=%s not found (user_id=%s)", position_id, user_id)
         return pos
 
     def list_positions(self, asset_id: Optional[int] = None, user_id: Optional[int] = None) -> List[Position]:

@@ -2,7 +2,8 @@ import React, {useState, useEffect, useMemo, useRef} from 'react';
 import {useNavigate} from 'react-router-dom';
 import {Sparkline, Eyebrow, SectionHead} from '../../components/aureon/ui';
 import {apiService} from '../../api/apiService';
-import {fmtINR, fmtUSD} from './marketData';
+import {useFmtMoney} from '../../hooks/useFmtMoney';
+import {useApp} from '../../components/aureon/store';
 
 /* ---------- Asset class labels for search grouping ---------- */
 const _W_CLASS_LABEL = {
@@ -213,12 +214,17 @@ const WatchlistSearchBar = ({ onAdd, listSymbols, universe }) => {
 };
 
 export default function Watchlist() {
+    const fmt = useFmtMoney();
     const navigate = useNavigate();
+    const {setToast} = useApp();
     const [lists, setLists] = useState([]);
     const [activeId, setActiveId] = useState(null);
     const [universeLookup, setUniverseLookup] = useState({});
     const [loading, setLoading] = useState(true);
     const [creating, setCreating] = useState(false);
+    const [creatingInline, setCreatingInline] = useState(false);
+    const [newListName, setNewListName] = useState('');
+    const _cancelInline = useRef(false);
     const [adding, setAdding] = useState(false); // in-flight guard for addSymbol
     const [alertDraft, setAlertDraft] = useState({});
 
@@ -251,15 +257,25 @@ export default function Watchlist() {
             });
     }, [list, universeLookup]);
 
-    const createList = async () => {
-        const name = (prompt('Name for new watchlist:') || '').trim();
+    const createList = () => {
+        _cancelInline.current = false;
+        setNewListName('');
+        setCreatingInline(true);
+    };
+
+    const submitNewList = async () => {
+        if (_cancelInline.current) return;
+        const name = newListName.trim();
+        setCreatingInline(false);
+        setNewListName('');
         if (!name) return;
         setCreating(true);
         try {
             const created = await apiService.createWatchlist(name);
             setLists(ls => [...ls, created]);
             setActiveId(created.id);
-        } catch {
+        } catch (err) {
+            setToast({text: err.message || 'Failed to create watchlist'});
         } finally {
             setCreating(false);
         }
@@ -272,8 +288,9 @@ export default function Watchlist() {
         try {
             const updated = await apiService.addWatchlistSymbol(activeId, sym);
             setLists(ls => ls.map(l => l.id === activeId ? updated : l));
-        } catch {}
-        finally { setAdding(false); }
+        } catch (err) {
+            setToast({text: err.message || 'Failed to add symbol'});
+        } finally { setAdding(false); }
     };
 
     const removeItem = async (sym) => {
@@ -281,7 +298,9 @@ export default function Watchlist() {
         try {
             const updated = await apiService.removeWatchlistSymbol(activeId, sym);
             setLists(ls => ls.map(l => l.id === activeId ? updated : l));
-        } catch {}
+        } catch (err) {
+            setToast({text: err.message || 'Failed to remove symbol'});
+        }
     };
 
     const commitAlert = async (sym, raw) => {
@@ -295,10 +314,12 @@ export default function Watchlist() {
                 updated = await apiService.setWatchlistAlert(activeId, sym, price);
             }
             setLists(ls => ls.map(l => l.id === activeId ? updated : l));
-        } catch {}
+        } catch (err) {
+            setToast({text: err.message || 'Failed to update alert'});
+        }
     };
 
-    const fmtPrice = (u) => u.region === 'IN' ? fmtINR(u.price) : fmtUSD(u.price);
+    const fmtPrice = (u) => u.region === 'IN' ? fmt(u.price, 'INR') : fmt(u.price, 'USD');
 
     if (loading) return (
         <div style={{padding: '64px 20px', textAlign: 'center', color: 'var(--ink-40)', fontSize: 13}}>
@@ -327,13 +348,34 @@ export default function Watchlist() {
                         fontWeight: activeId === l.id ? 500 : 400,
                     }}>{l.name} · {l.symbols.length}</button>
                 ))}
-                <button onClick={createList} disabled={creating} className="du3-cta ghost" style={{
-                    padding: '6px 12px', fontSize: 12, borderRadius: 6, cursor: 'pointer',
-                    background: 'rgba(255,255,255,0.025)',
-                    color: 'var(--ink-30)',
-                    border: '1px solid rgba(255,255,255,0.06)',
-                    fontWeight: 400,
-                }}>+ New list</button>
+                {creatingInline ? (
+                    <input
+                        autoFocus
+                        value={newListName}
+                        onChange={e => setNewListName(e.target.value)}
+                        onKeyDown={e => {
+                            if (e.key === 'Enter') submitNewList();
+                            if (e.key === 'Escape') { _cancelInline.current = true; setCreatingInline(false); setNewListName(''); }
+                        }}
+                        onBlur={submitNewList}
+                        placeholder="List name…"
+                        style={{
+                            padding: '5px 10px', fontSize: 12, borderRadius: 6,
+                            background: 'rgba(255,255,255,0.06)',
+                            color: 'var(--ink-10)',
+                            border: '1px solid rgba(201,168,106,0.40)',
+                            outline: 'none', width: 140,
+                        }}
+                    />
+                ) : (
+                    <button onClick={createList} disabled={creating} className="du3-cta ghost" style={{
+                        padding: '6px 12px', fontSize: 12, borderRadius: 6, cursor: 'pointer',
+                        background: 'rgba(255,255,255,0.025)',
+                        color: 'var(--ink-30)',
+                        border: '1px solid rgba(255,255,255,0.06)',
+                        fontWeight: 400,
+                    }}>+ New list</button>
+                )}
             </div>
 
             {/* No lists at all */}
@@ -425,7 +467,7 @@ export default function Watchlist() {
                                         textAlign: 'left',
                                     }}
                                 >
-                                    {u.alertPrice != null ? `≥ ${u.region === 'IN' ? fmtINR(u.alertPrice) : fmtUSD(u.alertPrice)}` : '+ alert'}
+                                    {u.alertPrice != null ? `≥ ${u.region === 'IN' ? fmt(u.alertPrice, 'INR') : fmt(u.alertPrice, 'USD')}` : '+ alert'}
                                 </button>
                             )}
                             <button onClick={() => removeItem(u.sym)} className="du3-cta ghost" style={{padding: '0 10px', fontSize: 11}}>−</button>

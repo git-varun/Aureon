@@ -1,5 +1,8 @@
 import axios from 'axios';
 
+/* SECURITY NOTE: tokens are stored in localStorage, making them readable by any
+   JS running on this origin (XSS risk). For a production financial app migrate to
+   httpOnly session cookies + CSRF tokens so tokens are never JS-accessible. */
 const API = axios.create({baseURL: '/api', timeout: 60000});
 
 // Add Authorization header if token exists
@@ -45,6 +48,7 @@ API.interceptors.response.use(
             const res = await API.post('/auth/refresh', {refresh_token});
             const newToken = res.data.access_token;
             localStorage.setItem('access_token', newToken);
+            if (res.data.refresh_token) localStorage.setItem('refresh_token', res.data.refresh_token);
             _refreshQueue.forEach(({resolve}) => resolve(newToken));
             _refreshQueue = [];
             original.headers.Authorization = `Bearer ${newToken}`;
@@ -66,24 +70,97 @@ export const apiService = {
     // ── Authentication ─────────────────────────────────────────────────────────
     register: async (email, password, first_name = '', last_name = '') => {
         try {
-            const res = await API.post('/auth/register', {
-                email,
-                password,
-                first_name,
-                last_name,
-            });
+            const res = await API.post('/auth/register', {email, password, first_name, last_name});
             return res.data;
         } catch (err) {
             throw new Error(err.response?.data?.message || err.response?.data?.detail || 'Registration failed');
         }
     },
 
-    login: async (email, password) => {
+    // Step 1: validate password, triggers email OTP
+    loginPassword: async (email, password) => {
         try {
             const res = await API.post('/auth/login', {email, password});
-            return res.data;
+            return res.data; // { status: "otp_required" }
         } catch (err) {
             throw new Error(err.response?.data?.message || err.response?.data?.detail || 'Login failed');
+        }
+    },
+
+    // Step 2: verify OTP sent after password validation
+    loginVerifyOtp: async (email, code) => {
+        try {
+            const res = await API.post('/auth/login/verify', {email, code});
+            return res.data;
+        } catch (err) {
+            throw new Error(err.response?.data?.message || err.response?.data?.detail || 'Verification failed');
+        }
+    },
+
+    // Magic link
+    magicSend: async (email) => {
+        try {
+            const res = await API.post('/auth/magic/send', {email});
+            return res.data;
+        } catch (err) {
+            throw new Error(err.response?.data?.message || err.response?.data?.detail || 'Failed to send magic link');
+        }
+    },
+
+    magicVerify: async (token) => {
+        try {
+            const res = await API.post('/auth/magic/verify', {token});
+            return res.data;
+        } catch (err) {
+            throw new Error(err.response?.data?.message || err.response?.data?.detail || 'Invalid or expired link');
+        }
+    },
+
+    // Email OTP (standalone)
+    emailOtpSend: async (email) => {
+        try {
+            const res = await API.post('/auth/otp/email/send', {email});
+            return res.data;
+        } catch (err) {
+            throw new Error(err.response?.data?.message || err.response?.data?.detail || 'Failed to send code');
+        }
+    },
+
+    emailOtpVerify: async (email, code) => {
+        try {
+            const res = await API.post('/auth/otp/email/verify', {email, code});
+            return res.data;
+        } catch (err) {
+            throw new Error(err.response?.data?.message || err.response?.data?.detail || 'Verification failed');
+        }
+    },
+
+    // Phone OTP
+    phoneOtpSend: async (phone) => {
+        try {
+            const res = await API.post('/auth/otp/phone/send', {phone});
+            return res.data;
+        } catch (err) {
+            throw new Error(err.response?.data?.message || err.response?.data?.detail || 'Failed to send SMS');
+        }
+    },
+
+    phoneOtpVerify: async (phone, code) => {
+        try {
+            const res = await API.post('/auth/otp/phone/verify', {phone, code});
+            return res.data;
+        } catch (err) {
+            throw new Error(err.response?.data?.message || err.response?.data?.detail || 'Verification failed');
+        }
+    },
+
+    // Google OAuth
+    googleAuth: async (id_token) => {
+        try {
+            const res = await API.post('/auth/google', {id_token});
+            return res.data;
+        } catch (err) {
+            throw new Error(err.response?.data?.message || err.response?.data?.detail || 'Google sign-in failed');
         }
     },
 
@@ -105,9 +182,6 @@ export const apiService = {
             throw new Error(err.response?.data?.message || 'Token refresh failed');
         }
     },
-
-    // ── Portfolio ──────────────────────────────────────────────────────────
-    fetchState: async () => (await API.get(`/portfolio/state?t=${Date.now()}`)).data,
 
     // ── Aureon ─────────────────────────────────────────────────────────────
     fetchAureonState: async () => (await API.get(`/aureon/state?t=${Date.now()}`)).data,
@@ -136,7 +210,7 @@ export const apiService = {
     getAITake: async (symbol) => (await API.get(`/analytics/ai/single/${symbol}`)).data,
     runSingleAI: async (symbol) => (await API.post(`/analytics/ai/single/${symbol}`)).data,
     analyzeNewsBatch: async () => (await API.post('/analytics/ai/news/batch')).data,
-    syncBrokers: async () => (await API.post('/portfolio/sync')).data,
+    syncBrokers: async (broker = 'zerodha') => (await API.post('/portfolio/sync', { broker })).data,
     hardRefresh: async () => {
         try {
             return (await API.post('/pipeline/run')).data;

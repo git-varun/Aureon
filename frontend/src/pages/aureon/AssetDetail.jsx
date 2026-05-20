@@ -8,14 +8,17 @@ import {apiService} from '../../api/apiService';
 import {valueOf, plOf, plPctOf} from '../../components/aureon/utils';
 import {useAureonData} from '../../hooks/useAureonData';
 import {useV4} from '../../contexts/V4Context';
-import {fmtMoney} from './marketData';
+import {useFmtMoney} from '../../hooks/useFmtMoney';
 
 const _fmtTime = (ts) => {
     const d = new Date(ts);
     return d.toLocaleTimeString('en-US', {hour: '2-digit', minute: '2-digit'});
 };
 
+const PERIOD_DAYS = {'1D': 1, '1W': 7, '1M': 30, '3M': 90, '1Y': 365, 'ALL': 1825};
+
 export default function AssetDetail() {
+    const fmt = useFmtMoney();
     const {ticker} = useParams();
     const navigate = useNavigate();
     const {allRecs, active, apply} = useApp();
@@ -24,7 +27,10 @@ export default function AssetDetail() {
     const aiRuns = (v4?.aiRuns && v4.aiRuns[ticker]) || [];
     const [modal, setModal] = useState(null);
     const [apiAsset, setApiAsset] = useState(null);
-    const h = holdings.find(x => x.ticker === ticker || x.ticker === ticker + '.NS' || x.ticker?.replace(/\.NS$/i, '') === ticker);
+    const [period, setPeriod] = useState('1M');
+    const [chartSeries, setChartSeries] = useState(null);
+    const h = holdings.find(x => x.ticker === ticker);
+    const currency = h?.region === 'IN' ? 'INR' : 'USD';
 
     useEffect(() => {
         let cancelled = false;
@@ -34,11 +40,20 @@ export default function AssetDetail() {
         return () => { cancelled = true; };
     }, [ticker]);
 
+    useEffect(() => {
+        let cancelled = false;
+        setChartSeries(null);
+        apiService.fetchChartData(ticker, PERIOD_DAYS[period] ?? 30)
+            .then(d => { if (!cancelled) setChartSeries(d?.length ? d : null); })
+            .catch(() => {});
+        return () => { cancelled = true; };
+    }, [ticker, period]);
+
     if (holdingsLoading && !h) return <div style={{padding: 40, color: 'var(--ink-30)'}}>Loading…</div>;
     if (!h) return <div style={{padding: 40, color: 'var(--ink-30)'}}>Asset not found. <button
         onClick={() => navigate('/assets')} className="du3-cta ghost">Back to assets</button></div>;
 
-    const series = apiAsset?.priceSeries?.length ? apiAsset.priceSeries : h.spark;
+    const series = chartSeries ?? (apiAsset?.priceSeries?.length ? apiAsset.priceSeries : h.spark);
     const v = valueOf(h), pl = plOf(h), plPct = plPctOf(h);
     const wt = netWorth > 0 ? v / netWorth : 0;
     const rec = allRecs.find(r => r.scope?.kind === 'asset' && r.scope.ref === ticker && active.includes(r.id));
@@ -139,7 +154,7 @@ export default function AssetDetail() {
                         lineHeight: 1,
                         letterSpacing: '-0.015em'
                     }}>
-                        ${h.price.toLocaleString(undefined, {minimumFractionDigits: 2, maximumFractionDigits: 2})}
+                        {fmt(h.price, currency, {dp: 2})}
                     </div>
                     <div style={{
                         fontFamily: 'var(--font-mono)',
@@ -161,17 +176,17 @@ export default function AssetDetail() {
                         marginBottom: 6
                     }}>
                         <div>
-                            <Eyebrow>Price · 60-day</Eyebrow>
+                            <Eyebrow>Price · {period}</Eyebrow>
                             <div style={{fontSize: 12, color: 'var(--ink-30)', marginTop: 4}}>Markers show prior
                                 recommendations applied to this asset
                             </div>
                         </div>
                         <div style={{display: 'flex', gap: 0}}>
-                            {['1D', '1W', '1M', '3M', '1Y', 'ALL'].map((p, i) => (
-                                <button key={p} style={{
+                            {['1D', '1W', '1M', '3M', '1Y', 'ALL'].map((p) => (
+                                <button key={p} onClick={() => setPeriod(p)} style={{
                                     padding: '4px 10px', fontSize: 11, fontFamily: 'var(--font-mono)',
-                                    background: i === 2 ? 'rgba(201,168,106,0.12)' : 'transparent',
-                                    color: i === 2 ? 'var(--aurum-100)' : 'var(--ink-30)',
+                                    background: p === period ? 'rgba(201,168,106,0.12)' : 'transparent',
+                                    color: p === period ? 'var(--aurum-100)' : 'var(--ink-30)',
                                     border: 'none', cursor: 'pointer', borderRadius: 4,
                                 }}>{p}</button>
                             ))}
@@ -322,9 +337,9 @@ export default function AssetDetail() {
                 <div style={{display: 'grid', gridTemplateColumns: 'repeat(5, 1fr)', gap: 24, marginTop: 12}}>
                     {[
                         ['Quantity', h.qty.toLocaleString(undefined, {maximumFractionDigits: 4})],
-                        ['Avg cost', fmtMoney(h.cost, 'USD', {dp: 2})],
-                        ['Value', fmtMoney(v, 'USD', {dp: 0})],
-                        ['Unreal P/L', (pl >= 0 ? '+' : '−') + fmtMoney(Math.abs(pl), 'USD', {dp: 0}) + ' · ' + (plPct >= 0 ? '+' : '−') + (Math.abs(plPct) * 100).toFixed(1) + '%'],
+                        ['Avg cost', fmt(h.cost, currency, {dp: 2})],
+                        ['Value', fmt(v, currency, {dp: 0})],
+                        ['Unreal P/L', (pl >= 0 ? '+' : '−') + fmt(Math.abs(pl), currency, {dp: 0}) + ' · ' + (plPct >= 0 ? '+' : '−') + (Math.abs(plPct) * 100).toFixed(1) + '%'],
                         ['Weight', (wt * 100).toFixed(2) + '%'],
                     ].map(([k, val], i) => (
                         <div key={k}>
