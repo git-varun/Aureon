@@ -3,7 +3,7 @@
 from datetime import datetime, timedelta, timezone
 from typing import Optional
 
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy.orm import Session
 
 from app.core.dependencies import get_session, require_auth
@@ -22,18 +22,6 @@ from app.shared.exceptions import NotFoundError
 router = APIRouter(prefix="/api/portfolio", tags=["portfolio"])
 
 
-@router.get("/state")
-def get_legacy_state(current_user=Depends(require_auth), session: Session = Depends(get_session)):
-    """Composite portfolio state for the legacy UI (Terminal / Ledger / Analytics / GlobalAI)."""
-    from app.core.cache import cache
-    from app.modules.portfolio.state_builder import build_state_payload
-    from app.shared.utils import cache_key as _cache_key
-
-    cached = cache.get(_cache_key("state", "computed"))
-    if cached:
-        return cached
-    return build_state_payload(session, cache, _cache_key)
-
 
 @router.get("", response_model=PortfolioResponse)
 def get_portfolio(session: Session = Depends(get_session), current_user=Depends(require_auth)):
@@ -43,11 +31,15 @@ def get_portfolio(session: Session = Depends(get_session), current_user=Depends(
 
 
 @router.get("/assets", response_model=list[AssetResponse])
-def list_assets(session: Session = Depends(get_session), _user=Depends(require_auth)):
-    """List all assets in portfolio."""
+def list_assets(
+        limit: int = Query(200, ge=1, le=1000),
+        session: Session = Depends(get_session),
+        _user=Depends(require_auth),
+):
+    """List assets in portfolio."""
     service = PortfolioService(session)
     assets = service.list_assets()
-    return [AssetResponse.from_orm(a) for a in assets]
+    return [AssetResponse.from_orm(a) for a in assets[:limit]]
 
 
 @router.get("/assets/{symbol}", response_model=AssetResponse)
@@ -81,10 +73,10 @@ def list_positions(session: Session = Depends(get_session), current_user=Depends
 
 
 @router.get("/positions/{position_id}", response_model=PositionResponse)
-def get_position(position_id: int, session: Session = Depends(get_session), _user=Depends(require_auth)):
+def get_position(position_id: int, session: Session = Depends(get_session), current_user=Depends(require_auth)):
     """Get position by ID."""
     service = PortfolioService(session)
-    pos = service.get_position(position_id)
+    pos = service.get_position(position_id, user_id=current_user.id)
     if not pos:
         raise HTTPException(status_code=404, detail=f"Position {position_id} not found")
     return PositionResponse(
@@ -176,13 +168,20 @@ def update_manual_valuation(
         symbol: str,
         req: ManualValuationUpdate,
         session: Session = Depends(get_session),
-        _user=Depends(require_auth),
+        current_user=Depends(require_auth),
 ):
     """Update the current value of a manually-valued illiquid asset."""
     service = PortfolioService(session)
     asset = service.get_asset(symbol)
     if not asset:
         raise HTTPException(status_code=404, detail=f"Asset {symbol} not found")
+
+    owned = session.query(Position).filter(
+        Position.asset_id == asset.id,
+        Position.user_id == current_user.id,
+    ).first()
+    if not owned:
+        raise HTTPException(status_code=403, detail="Not authorised to update this asset")
 
     pos = service.update_manual_valuation(asset.id, req.new_value, req.notes)
     return PositionResponse(

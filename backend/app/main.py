@@ -1,5 +1,6 @@
 """FastAPI application factory and startup."""
 
+import asyncio
 import logging
 import sys
 import uuid
@@ -9,6 +10,8 @@ from pathlib import Path
 from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
+from slowapi import _rate_limit_exceeded_handler
+from slowapi.errors import RateLimitExceeded
 
 PROJECT_ROOT = Path(__file__).resolve().parent.parent
 if str(PROJECT_ROOT) not in sys.path:
@@ -16,6 +19,7 @@ if str(PROJECT_ROOT) not in sys.path:
 
 from app.core.config import settings
 from app.core.db import engine, Base
+from app.core.limiter import limiter
 from app.core.logger import correlation_id_var, setup_master_logger
 from app.modules.analytics.routes import router as analytics_router
 from app.modules.assets.routes import router as assets_router
@@ -37,7 +41,6 @@ from app.shared.exceptions import AppException, NotFoundError, ConflictError, Va
 setup_master_logger()
 logger = logging.getLogger("app")
 
-
 def register_models() -> None:
     """Import all models so SQLAlchemy metadata includes every table exactly once."""
     from app.modules.analytics import models as _analytics  # noqa: F401
@@ -53,20 +56,43 @@ def register_models() -> None:
     # auth/models imports User from users — no separate import needed
 
 
+def _run_migrations() -> None:
+    """Run all pending Alembic migrations programmatically.
+
+    Falls back to create_all if the alembic/versions/ directory is empty
+    (i.e., before the baseline revision is generated).
+    """
+    from pathlib import Path as _Path
+    versions_dir = _Path(__file__).resolve().parent.parent / "alembic" / "versions"
+    has_migrations = any(versions_dir.glob("*.py"))
+
+    if has_migrations:
+        from alembic import command
+        from alembic.config import Config as AlembicConfig
+        alembic_cfg = AlembicConfig(str(_Path(__file__).resolve().parent.parent / "alembic.ini"))
+        command.upgrade(alembic_cfg, "head")
+    else:
+        # Bootstrap path: no revisions yet — use create_all so the app can start.
+        # Run `alembic revision --autogenerate -m "baseline"` then `alembic stamp head`
+        # on an existing install to switch to the migration-managed path.
+        logger.warning("No Alembic revisions found — falling back to create_all. "
+                       "Generate a baseline revision and stamp existing installs.")
+        Base.metadata.create_all(bind=engine)
+
+
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     """Application lifecycle: startup → shutdown."""
     logger.info("Application starting...")
     register_models()
 
-    # Retry logic for DB connection to handle startup race conditions/DNS lag
-    import time
+    # Run Alembic migrations (retry loop handles startup race conditions/DNS lag)
     from sqlalchemy.exc import OperationalError
     max_retries = 5
     for i in range(max_retries):
         try:
-            Base.metadata.create_all(bind=engine)
-            logger.info("Database tables created/verified")
+            _run_migrations()
+            logger.info("Database migrations applied")
             break
         except OperationalError as e:
             if i == max_retries - 1:
@@ -74,7 +100,7 @@ async def lifespan(app: FastAPI):
                 raise
             logger.warning("Database connection failed (attempt %d/%d), retrying in 2s... Error: %s", i + 1,
                            max_retries, e)
-            time.sleep(2)
+            await asyncio.sleep(2)
 
     from app.core.db_patcher import run_patches
     run_patches(engine)
@@ -97,18 +123,22 @@ def create_app() -> FastAPI:
     app = FastAPI(
         title=settings.api_title,
         version=settings.api_version,
-        docs_url=settings.api_docs_url,
-        redoc_url=settings.api_redoc_url,
+        docs_url="/docs" if settings.enable_api_docs else None,
+        redoc_url="/redoc" if settings.enable_api_docs else None,
         lifespan=lifespan,
     )
+
+    # Rate limiting
+    app.state.limiter = limiter
+    app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
 
     # CORS
     app.add_middleware(
         CORSMiddleware,
         allow_origins=settings.cors_origins,
         allow_credentials=True,
-        allow_methods=["GET", "POST", "PUT", "DELETE"],
-        allow_headers=["*"],
+        allow_methods=["GET", "POST", "PUT", "PATCH", "DELETE"],
+        allow_headers=["Authorization", "Content-Type", "X-Correlation-ID"],
     )
 
     # Correlation ID

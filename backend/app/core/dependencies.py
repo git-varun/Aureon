@@ -1,6 +1,6 @@
 """FastAPI dependency injection factories."""
 
-from typing import Any, Generator, Optional
+from typing import Any, Generator
 
 from fastapi import Depends, HTTPException, status
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
@@ -9,7 +9,7 @@ from sqlalchemy.orm import Session
 from app.core.db import get_session as _get_session
 from app.core.cache import get_cache as _get_cache
 
-_bearer = HTTPBearer(auto_error=False)
+_bearer = HTTPBearer(auto_error=True)
 
 
 def get_session() -> Generator[Any, None, None]:
@@ -23,15 +23,10 @@ def get_cache():
 
 
 def get_current_user(
-        credentials: Optional[HTTPAuthorizationCredentials] = Depends(_bearer),
+        credentials: HTTPAuthorizationCredentials = Depends(_bearer),
         db: Session = Depends(get_session),
 ):
-    """Optional auth guard — returns the User ORM object if a valid JWT is provided.
-    Raises 401 only when credentials are present but invalid.
-    Returns None when no credentials are provided (unauthenticated single-user mode).
-    """
-    if not credentials:
-        return None
+    """Auth guard — returns the User ORM object for a valid JWT; raises 401 otherwise."""
     from app.core.config import settings
     from app.modules.users.models import User
     import jwt
@@ -51,7 +46,5 @@ def get_current_user(
 
 
 def require_auth(user=Depends(get_current_user)):
-    """Strict auth guard — raises 401 if no valid token present."""
-    if user is None:
-        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Authentication required")
+    """Strict auth guard — alias for get_current_user; kept for named clarity at call sites."""
     return user
