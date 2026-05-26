@@ -1,13 +1,13 @@
 import React, {useState} from 'react';
 import {Sparkline} from '../ui';
 import {valueOf, plOf} from '../utils';
-import {fmtMoney} from '../../../pages/aureon/marketData';
+import {useFmtMoney} from '../../../hooks/useFmtMoney';
 import {AllocBar} from './AllocBar';
 import {HoldingSubRow} from './HoldingSubRow';
 import s from './ClassRow.module.css';
 
 const CLASS_LABEL = {
-    stocks: 'Equity', crypto: 'Crypto', funds: 'Fund / ETF',
+    stocks: 'Equity', crypto: 'Crypto', funds: 'Mutual Funds',
     bonds: 'Bond', real_estate: 'Real estate', retirement: 'Retirement', insurance: 'Insurance',
 };
 
@@ -27,6 +27,7 @@ const TIER_STYLES = {
 
 export const ClassRow = ({cls, items, alloc, target, color}) => {
     const [expanded, setExpanded] = useState(false);
+    const fmt = useFmtMoney();
     const value = items.reduce((sum, h) => sum + valueOf(h), 0);
     const pl    = items.reduce((sum, h) => sum + plOf(h), 0);
     const avgDayPct = value > 0
@@ -60,7 +61,7 @@ export const ClassRow = ({cls, items, alloc, target, color}) => {
 
                 <div>
                     <div className={s.colLabel}>Value</div>
-                    <div className={s.colValue}>{fmtMoney(value, 'USD', {dp: 0})}</div>
+                    <div className={s.colValue}>{fmt(value, 'USD', {dp: 0})}</div>
                     <div className={s.colValueMeta} style={{color: avgDayPct >= 0 ? 'var(--sage-500)' : 'var(--crimson-500)'}}>
                         {avgDayPct >= 0 ? '▲' : '▼'} {(Math.abs(avgDayPct) * 100).toFixed(2)}% today
                     </div>
@@ -69,8 +70,17 @@ export const ClassRow = ({cls, items, alloc, target, color}) => {
                 <div>
                     <div className={s.colLabel}>Unrealized P/L</div>
                     <div className={s.colValue} style={{color: pl >= 0 ? 'var(--sage-500)' : 'var(--crimson-500)'}}>
-                        {pl >= 0 ? '+' : '−'}{fmtMoney(Math.abs(pl), 'USD', {dp: 0})}
+                        {pl >= 0 ? '+' : '−'}{fmt(Math.abs(pl), 'USD', {dp: 0})}
                     </div>
+                    {(() => {
+                        const cost = items.reduce((sum, h) => sum + (h.cost * h.qty || 0), 0);
+                        const pct = cost > 0 ? Math.min(1, Math.abs(pl) / cost) : 0;
+                        return (
+                            <div style={{height: 4, borderRadius: 999, marginTop: 5, background: 'rgba(255,255,255,0.04)', overflow: 'hidden'}}>
+                                <div style={{width: `${pct * 100}%`, height: '100%', background: pl >= 0 ? 'var(--sage-500)' : 'var(--crimson-500)', opacity: 0.85}}/>
+                            </div>
+                        );
+                    })()}
                 </div>
 
                 <AllocBar actual={alloc} target={target}/>

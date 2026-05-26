@@ -93,10 +93,11 @@ class PortfolioService:
         return pos
 
     def get_position(self, position_id: int, user_id: Optional[int] = None) -> Optional[Position]:
+        from sqlalchemy import or_
         logger.debug("get_position: id=%s user_id=%s", position_id, user_id)
         query = self.session.query(Position).filter(Position.id == position_id)
         if user_id is not None:
-            query = query.filter(Position.user_id == user_id)
+            query = query.filter(or_(Position.user_id == user_id, Position.user_id.is_(None)))
         pos = query.first()
         if pos:
             logger.debug("get_position: id=%s found asset_id=%s qty=%.4f", position_id, pos.asset_id, pos.quantity)
@@ -105,12 +106,13 @@ class PortfolioService:
         return pos
 
     def list_positions(self, asset_id: Optional[int] = None, user_id: Optional[int] = None) -> List[Position]:
+        from sqlalchemy import or_
         logger.debug("list_positions: filter_asset_id=%s user_id=%s", asset_id, user_id)
         query = self.session.query(Position)
         if asset_id:
             query = query.filter(Position.asset_id == asset_id)
         if user_id is not None:
-            query = query.filter(Position.user_id == user_id)
+            query = query.filter(or_(Position.user_id == user_id, Position.user_id.is_(None)))
         positions = query.all()
         logger.info("list_positions: returned %d positions (filter_asset_id=%s user_id=%s)", len(positions), asset_id, user_id)
         return positions
@@ -132,25 +134,28 @@ class PortfolioService:
             return provider_name.upper()
         return "NSE"
 
-    def _update_or_create_position(self, asset: Asset, qty: float, avg_buy_price: float, user_id: Optional[int] = None) -> Position:
+    def _update_or_create_position(self, asset: Asset, qty: float, avg_buy_price: float, user_id: Optional[int] = None, current_price: Optional[float] = None) -> Position:
         existing = self.position_repo.find_by_asset(asset.id, user_id=user_id)
         if existing:
             cost_basis = qty * avg_buy_price
             existing.quantity = qty
             existing.avg_buy_price = avg_buy_price
-            # Preserve current_value from last price refresh; seed to cost basis only if unset
-            if not existing.current_value:
+            if current_price is not None:
+                existing.current_value = round(qty * current_price, 2)
+            elif not existing.current_value:
                 existing.current_value = cost_basis
-            existing.pnl = existing.current_value - cost_basis
+            existing.pnl = existing.current_value - cost_basis if avg_buy_price else None
             existing.pnl_percent = (existing.pnl / cost_basis * 100) if avg_buy_price > 0 else 0.0
             self.session.commit()
             logger.info("_update_or_create_position: updated position id=%s asset_id=%s", existing.id, asset.id)
             return existing
 
+        current_value = round(qty * current_price, 2) if current_price is not None else qty * avg_buy_price
         return self.create_position({
             "asset_id": asset.id,
             "quantity": qty,
             "avg_buy_price": avg_buy_price,
+            "current_value": current_value,
         }, user_id=user_id)
 
     def sync_portfolio(self, provider: AssetSource, force_refresh: bool = True, dry_run: bool = False, user_id: Optional[int] = None) -> dict:
@@ -184,16 +189,23 @@ class PortfolioService:
                 exchange = self._guess_exchange(provider.provider_name, asset_type)
                 asset = self.create_asset({
                     "symbol": holding.symbol,
-                    "name": holding.symbol,
+                    "name": holding.name or holding.symbol,
                     "asset_type": asset_type,
                     "exchange": exchange,
                     "sub_type": holding.sub_type or holding.type,
                 })
-                self._update_or_create_position(asset, holding.qty, holding.avg_buy_price, user_id=user_id)
+                if holding.current_price is not None:
+                    asset.current_price = holding.current_price
+                    self.session.commit()
+                self._update_or_create_position(asset, holding.qty, holding.avg_buy_price, user_id=user_id, current_price=holding.current_price)
                 updated_assets += 1
             except Exception as exc:
                 logger.exception("sync_portfolio: failed to persist holding %s: %s", holding.symbol, exc)
                 errors.append(str(exc))
+                try:
+                    self.session.rollback()
+                except Exception:
+                    pass
 
         return {
             "status": "success",
@@ -402,6 +414,50 @@ class PortfolioService:
             positions_count=len(positions),
             positions=pos_responses
         )
+
+    def recompute_avg_buy_price(self, position_id: int, user_id: Optional[int] = None) -> dict:
+        """Recompute avg_buy_price from BUY transactions using VWAP and update P&L."""
+        from sqlalchemy import or_
+
+        pos_q = self.session.query(Position).filter(Position.id == position_id)
+        if user_id is not None:
+            pos_q = pos_q.filter(or_(Position.user_id == user_id, Position.user_id.is_(None)))
+        pos = pos_q.first()
+        if not pos:
+            raise NotFoundError(f"Position {position_id} not found")
+
+        txn_q = (
+            self.session.query(Transaction)
+            .filter(
+                Transaction.asset_id == pos.asset_id,
+                Transaction.transaction_type == TransactionType.BUY,
+            )
+        )
+        if user_id is not None:
+            from sqlalchemy import or_
+            txn_q = txn_q.filter(or_(Transaction.user_id == user_id, Transaction.user_id.is_(None)))
+        buy_txns = txn_q.all()
+        if not buy_txns:
+            return {"position_id": position_id, "updated": False, "reason": "no buy transactions found"}
+
+        total_qty = sum(float(t.quantity) for t in buy_txns)
+        total_cost = sum(float(t.quantity) * float(t.price) for t in buy_txns)
+        if total_qty <= 0:
+            return {"position_id": position_id, "updated": False, "reason": "total buy quantity is zero"}
+
+        vwap = total_cost / total_qty
+        old_avg = float(pos.avg_buy_price)
+        pos.avg_buy_price = vwap
+        pos.pnl = pos.current_value - (pos.quantity * vwap)
+        pos.pnl_percent = (pos.pnl / (pos.quantity * vwap) * 100) if vwap > 0 else 0.0
+        self.session.add(AuditLog(
+            entity="position", entity_id=position_id, action="recompute_cost",
+            before_json={"avg_buy_price": old_avg},
+            after_json={"avg_buy_price": vwap, "pnl": float(pos.pnl)},
+        ))
+        self.session.commit()
+        logger.info("recompute_avg_buy_price: position_id=%s old=%.4f new=%.4f", position_id, old_avg, vwap)
+        return {"position_id": position_id, "updated": True, "old_avg_buy_price": old_avg, "new_avg_buy_price": vwap}
 
     def sync_assets(self, assets_data: List[dict]) -> List[Asset]:
         logger.info("sync_assets: syncing %d assets from broker", len(assets_data))

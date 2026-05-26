@@ -8,11 +8,13 @@ from pydantic import BaseModel, Field
 
 class AssetPayload(BaseModel):
     symbol: str
+    name: Optional[str] = None
     qty: float
     source: str
     type: str
     sub_type: Optional[str] = None
     avg_buy_price: float = 0.0
+    current_price: Optional[float] = None
     unrealized_pnl: float = 0.0
     positions: Optional[List[Dict[str, Any]]] = Field(default_factory=list)
 
