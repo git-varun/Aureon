@@ -187,6 +187,8 @@ export const apiService = {
     fetchAureonState: async () => (await API.get(`/aureon/state?t=${Date.now()}`)).data,
     fetchAureonAsset: async (ticker) => (await API.get(`/aureon/assets/${encodeURIComponent(ticker)}`)).data,
     fetchAureonActivity: async () => (await API.get('/aureon/activity')).data,
+    fetchPortfolioHistory: async (days = 60) => (await API.get(`/aureon/portfolio/history?days=${days}`)).data,
+    generateSignals: async () => (await API.post('/aureon/signals/generate')).data,
     listRecommendations: async (status) => {
         const q = status ? `?status=${encodeURIComponent(status)}` : '';
         return (await API.get(`/aureon/recommendations${q}`)).data;
@@ -207,10 +209,21 @@ export const apiService = {
     fetchNews: async () => (await API.get('/news')).data,
     refreshPrices: async () => (await API.post('/assets/price')).data,
     runGlobalAI: async () => (await API.post('/analytics/ai/global')).data,
+    fetchBriefingHistory: async (limit = 30) => (await API.get(`/analytics/ai/briefings?limit=${limit}`)).data,
     getAITake: async (symbol) => (await API.get(`/analytics/ai/single/${symbol}`)).data,
     runSingleAI: async (symbol) => (await API.post(`/analytics/ai/single/${symbol}`)).data,
     analyzeNewsBatch: async () => (await API.post('/analytics/ai/news/batch')).data,
     syncBrokers: async (broker = 'zerodha') => (await API.post('/portfolio/sync', { broker })).data,
+    getSyncStatus: async () => (await API.get('/portfolio/sync/status')).data,
+    exportPortfolioCSV: async () => {
+        const res = await API.get('/portfolio/export/csv', {responseType: 'blob'});
+        const url = URL.createObjectURL(res.data);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = `aureon_portfolio_${new Date().toISOString().slice(0, 10)}.csv`;
+        a.click();
+        URL.revokeObjectURL(url);
+    },
     hardRefresh: async () => {
         try {
             return (await API.post('/pipeline/run')).data;
@@ -250,6 +263,24 @@ export const apiService = {
         params.append('limit', limit);
         return (await API.get(`/portfolio/transactions?${params}`)).data;
     },
+    importTransactions: async (file, dryRun = true, broker = null) => {
+        const form = new FormData();
+        form.append('file', file);
+        const params = new URLSearchParams({dry_run: dryRun});
+        if (broker) params.append('broker', broker);
+        return (await API.post(`/portfolio/transactions/import?${params}`, form, {
+            headers: {'Content-Type': 'multipart/form-data'},
+        })).data;
+    },
+    importCAS: async (file, dryRun = true, password = null) => {
+        const form = new FormData();
+        form.append('file', file);
+        const params = new URLSearchParams({dry_run: dryRun});
+        if (password) params.append('password', password);
+        return (await API.post(`/portfolio/cas/upload?${params}`, form, {
+            headers: {'Content-Type': 'multipart/form-data'},
+        })).data;
+    },
 
     // ── Notifications ───────────────────────────────────────────────────────
     getNotifications: async () => (await API.get('/notifications/')).data,
@@ -262,12 +293,25 @@ export const apiService = {
     getMarketSectors: async () => (await API.get('/market/sectors')).data,
     getMarketMovers: async () => (await API.get('/market/movers')).data,
     getMarketThemes: async () => (await API.get('/market/themes')).data,
-    getMarketUniverse: async ({region, search} = {}) => {
+    getMarketTheme: async (themeId) => (await API.get(`/market/themes/${themeId}`)).data,
+    getThemesForSymbol: async (symbol) => (await API.get(`/market/themes-for/${encodeURIComponent(symbol)}`)).data,
+    getThemeAITake: async (themeId) => (await API.get(`/analytics/ai/theme/${themeId}`)).data,
+    runThemeAI: async (themeId) => (await API.post(`/analytics/ai/theme/${themeId}`)).data,
+    chatThemeAI: async (themeId, message) => (await API.post(`/analytics/ai/theme/${themeId}/chat`, {message})).data,
+    getMarketSectorDetail: async (name) => (await API.get(`/market/sectors/${encodeURIComponent(name)}`)).data,
+    searchGlobalSymbol: async (q) => (await API.get('/market/search', {params: {q}})).data,
+
+    getMarketUniverse: async ({region, search, live = false} = {}) => {
         const params = new URLSearchParams();
         if (region) params.append('region', region);
         if (search) params.append('search', search);
+        if (live) params.append('live', 'true');
         const q = params.toString();
         return (await API.get(`/market/universe${q ? '?' + q : ''}`)).data;
+    },
+    searchAssets: async (query) => {
+        if (!query || !query.trim()) return {data: [], total: 0};
+        return (await API.get('/assets', {params: {search: query.trim()}})).data;
     },
     refreshMarket: async () => (await API.post('/market/refresh')).data,
 
@@ -280,4 +324,12 @@ export const apiService = {
     removeWatchlistSymbol: async (id, symbol) => (await API.delete(`/watchlist/${id}/symbols/${encodeURIComponent(symbol)}`)).data,
     setWatchlistAlert: async (id, symbol, price) => (await API.put(`/watchlist/${id}/symbols/${encodeURIComponent(symbol)}/alert`, {price})).data,
     clearWatchlistAlert: async (id, symbol) => (await API.delete(`/watchlist/${id}/symbols/${encodeURIComponent(symbol)}/alert`)).data,
+
+    generateSignalForSymbol: async (symbol, assetClass = 'equity') => {
+        const assetType = assetClass === 'crypto' ? 'crypto' : 'equity';
+        return (await API.post(`/signals/generate/${symbol}?asset_type=${assetType}`)).data;
+    },
+
+    askAboutContext: async (contextType, contextId, question) =>
+        (await API.post('/aureon/ask', {context_type: contextType, context_id: contextId, question})).data,
 };

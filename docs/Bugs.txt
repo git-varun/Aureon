@@ -1,0 +1,51 @@
+aureon_worker       | [2026-05-25 07:37:11,725: INFO/ForkPoolWorker-1] compute_technicals: not yet implemented
+aureon_worker       | [2026-05-25 07:37:11,726: INFO/ForkPoolWorker-1] Task signals.compute_technicals[f658d4de-258e-4d59-92c6-115393016cd7] succeeded in 0.0035383720005484065s: {'status': 'not_implemented'}
+
+aureon_worker       | [2026-05-25 07:38:07,574: INFO/ForkPoolWorker-1] refresh_watchlist_prices: not yet implemented
+aureon_worker       | [2026-05-25 07:38:07,574: INFO/ForkPoolWorker-1] Task portfolio.refresh_watchlist[6df67c00-f2e9-4be1-b503-c3151ec3ad0d] succeeded in 0.0030979720004324918s: {'status': 'not_implemented'}
+
+aureon_worker       | [2026-05-25 07:38:19,527: INFO/ForkPoolWorker-1] notify_daily_summary: not yet implemented
+aureon_worker       | [2026-05-25 07:38:19,527: INFO/ForkPoolWorker-1] Task notification.daily_summary[3db9a44f-b995-4c1d-976e-721743924f69] succeeded in 0.0031735729999127216s: {'status': 'not_implemented'}
+
+aureon_worker       | [2026-05-25 07:38:59,636: INFO/MainProcess] Task news.aggregate_sentiment[7e762696-005e-43e1-8574-6d54c8132bb0] received
+aureon_worker       | [2026-05-25 07:38:59,644: INFO/ForkPoolWorker-1] aggregate_sentiment_task: no linked news_assets rows found
+aureon_worker       | [2026-05-25 07:38:59,645: INFO/ForkPoolWorker-1] Task news.aggregate_sentiment[7e762696-005e-43e1-8574-6d54c8132bb0] succeeded in 0.008346504999281024s: {'status': 'success', 'snapshots': 0}
+
+aureon_worker       | [2026-05-25 07:39:43,420: INFO/MainProcess] Task portfolio.compute_state[138e8349-442b-4985-9269-72dd0c1caae5] received
+aureon_worker       | [2026-05-25 07:39:43,425: INFO/ForkPoolWorker-1] list_positions: returned 41 positions (filter_asset_id=None user_id=None)
+aureon_worker       | [2026-05-25 07:39:43,524: INFO/ForkPoolWorker-1] compute_state_task: cached 41 assets total_value=495203.55
+aureon_worker       | [2026-05-25 07:39:43,525: INFO/ForkPoolWorker-1] Task portfolio.compute_state[138e8349-442b-4985-9269-72dd0c1caae5] succeeded in 0.10424247499940975s: {'status': 'success', 'assets': 41}
+
+aureon_worker       | [2026-05-25 07:40:23,876: INFO/MainProcess] Task portfolio.bond_mtm[88b1101b-da81-4bc0-b4ba-e389c8d848b0] received
+aureon_worker       | [2026-05-25 07:40:23,883: INFO/ForkPoolWorker-1] Task portfolio.bond_mtm[88b1101b-da81-4bc0-b4ba-e389c8d848b0] succeeded in 0.007401740999739559s: {'status': 'success', 'updated': 0}
+
+aureon_worker       | [2026-05-25 07:40:40,821: INFO/MainProcess] Task portfolio.accrue_epf[03ebd724-c747-49ad-a39d-507f79f6afd9] received
+aureon_worker       | [2026-05-25 07:40:40,828: INFO/ForkPoolWorker-1] Task portfolio.accrue_epf[03ebd724-c747-49ad-a39d-507f79f6afd9] succeeded in 0.006301462999545038s: {'status': 'success', 'credited': 0}
+
+aureon_worker       | [2026-05-25 07:41:05,068: INFO/MainProcess] Task market.seed_universe[5280fe49-034a-421b-a989-4a1b19c9358a] received
+aureon_worker       | [2026-05-25 07:41:05,073: INFO/ForkPoolWorker-1] seed_market_universe: not yet implemented
+aureon_worker       | [2026-05-25 07:41:05,074: INFO/ForkPoolWorker-1] Task market.seed_universe[5280fe49-034a-421b-a989-4a1b19c9358a] succeeded in 0.0054765590002716635s: {'status': 'not_implemented'}
+
+error:{
+{context_type: "signal", context_id: "sg-40", question: "check news sentiments"}
+context_id
+:
+"sg-40"
+context_type
+:
+"signal"
+question
+:
+"check news sentiments"
+
+{"detail":"Signal sg-40 not found"}
+}
+Market and Terminals show have global symbol access. Should not be limited to portfolio symbols.
+
+Sector Heatmap should redirect to a page with that sector info on the theme screen.
+
+NFTITY SENEX these tabs should detail of these as assets in the terminal.
+
+Theme screen is not integrated yet. Required Backend services.
+
+Add features to support input as excel or pdf, csv. to provide transaction histroty data.
