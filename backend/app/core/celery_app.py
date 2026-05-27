@@ -35,9 +35,16 @@ _TASK_JOB_MAP = {
     "portfolio.fetch_fx_rate": "fetch_fx_rate",
     "portfolio.compute_state": "compute_state",
     "portfolio.accrue_epf": "accrue_epf",
+    "portfolio.accrue_eps": "accrue_eps",
+    "portfolio.sync_nps": "sync_nps",
     "portfolio.bond_mtm": "bond_mtm",
     "portfolio.insurance_premium": "insurance_premium",
     "market.refresh_cache": "refresh_market",
+    "signals.compute_technicals": "compute_technicals",
+    "signals.clean_stale": "clean_stale_signals",
+    "notification.daily_summary": "notify_daily_summary",
+    "market.seed_universe": "seed_market_universe",
+    "portfolio.refresh_watchlist": "refresh_watchlist_prices",
 }
 
 
@@ -152,6 +159,8 @@ celery_app.conf.update(
         "signals.generate_for_symbol": {"queue": "pipeline-queue"},
         "portfolio.sync": {"queue": "pipeline-queue"},
         "portfolio.accrue_epf": {"queue": "price-queue"},
+        "portfolio.accrue_eps": {"queue": "price-queue"},
+        "portfolio.sync_nps": {"queue": "price-queue"},
         "portfolio.bond_mtm": {"queue": "price-queue"},
         "portfolio.insurance_premium": {"queue": "price-queue"},
         "market.refresh_cache": {"queue": "price-queue"},
@@ -162,6 +171,7 @@ celery_app.conf.update(
         "app.tasks.news",
         "app.tasks.ai",
         "app.tasks.pipeline",
+        "app.tasks.notification",
         "app.tasks.fixed_return",
         "app.tasks.market",
     ],
@@ -210,6 +220,14 @@ celery_app.conf.update(
             "task": "portfolio.accrue_epf",
             "schedule": crontab(hour=6, minute=0, day_of_month=1),
         },
+        "accrue-eps": {
+            "task": "portfolio.accrue_eps",
+            "schedule": crontab(hour=6, minute=10, day_of_month=1),
+        },
+        "sync-nps": {
+            "task": "portfolio.sync_nps",
+            "schedule": crontab(hour=7, minute=0, day_of_week="sun"),
+        },
         "bond-mtm": {
             "task": "portfolio.bond_mtm",
             "schedule": crontab(hour=9, minute=30, day_of_week="mon-fri"),
@@ -221,6 +239,26 @@ celery_app.conf.update(
         "market-refresh": {
             "task": "market.refresh_cache",
             "schedule": crontab(minute="*/15", hour="9-16", day_of_week="mon-fri"),
+        },
+        "compute-technicals": {
+            "task": "signals.compute_technicals",
+            "schedule": crontab(hour=16, minute=0, day_of_week="mon-fri"),
+        },
+        "notify-daily-summary": {
+            "task": "notification.daily_summary",
+            "schedule": crontab(hour=19, minute=0, day_of_week="mon-fri"),
+        },
+        "clean-stale-signals": {
+            "task": "signals.clean_stale",
+            "schedule": crontab(hour=2, minute=0),
+        },
+        "seed-market-universe": {
+            "task": "market.seed_universe",
+            "schedule": crontab(hour=8, minute=0, day_of_week="mon-fri"),
+        },
+        "refresh-watchlist-prices": {
+            "task": "portfolio.refresh_watchlist",
+            "schedule": crontab(minute="*/30", hour="9-16", day_of_week="mon-fri"),
         },
     },
 )
