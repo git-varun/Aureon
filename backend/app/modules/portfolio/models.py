@@ -220,12 +220,13 @@ class AssetValuation(Base):
 
 
 class AccrualLedger(Base):
-    """Interest / contribution credits for EPF, PPF, and bond coupons."""
+    """Interest / contribution credits for EPF, PPF, EPS, and bond coupons."""
 
     __tablename__ = "accrual_ledger"
 
     id = Column(Integer, primary_key=True)
     asset_id = Column(Integer, ForeignKey("assets.id"), nullable=False)
+    user_id = Column(Integer, ForeignKey("users.id"), nullable=True)
     accrual_type = Column(String(30), nullable=False)  # 'interest'/'contribution'/'employer_contribution'/'coupon'
     period_start = Column(Date, nullable=False)
     period_end = Column(Date, nullable=False)
