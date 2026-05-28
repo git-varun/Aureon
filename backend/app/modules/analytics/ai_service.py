@@ -23,6 +23,17 @@ logger = logging.getLogger("analytics.ai")
 # Prompts
 # ---------------------------------------------------------------------------
 
+_QA_PROMPT = """\
+You are Aureon, a professional investment AI assistant. Answer the following question concisely and specifically, \
+based only on the provided context. Be direct and practical. Maximum 3 paragraphs.
+
+Context:
+{context}
+
+Question: {question}
+
+Answer:"""
+
 _GLOBAL_BRIEFING_PROMPT = """\
 Role: Elite Multi-Strategy Portfolio Manager.
 Objective: Perform 3-tier analysis (Macro, Fundamental, Technical) on the ENTIRE portfolio.
@@ -82,6 +93,20 @@ Respond with ONLY valid JSON (no markdown, no extra text) using exactly these ke
 
 Asset context:
 {context}
+"""
+
+_CURATE_THEME_PROMPT = """\
+You are a quantitative analyst. Select the best 8–12 symbols for the theme described below.
+
+Theme: {description}
+
+Available symbols (JSON list of objects with sym, sector, mcap):
+{universe}
+
+{signals_section}
+
+Return ONLY valid JSON with key "symbols": a ranked list of ticker strings (most relevant first).
+No explanation, no markdown, just JSON.
 """
 
 _NEWS_SENTIMENT_PROMPT = """\
@@ -236,6 +261,41 @@ class GeminiAIService(AIModel):
         text = self._generate(prompt)
         return _parse_json(text)
 
+    def _generate_text(self, prompt: str) -> str | None:
+        """Generate plain-text response (no JSON constraint)."""
+        available = _tracker.available_keys(_GEMINI_MODELS)
+        if not available:
+            raise RuntimeError("All Gemini models are currently rate-limited")
+        last_exc: Exception | None = None
+        for model in available:
+            try:
+                response = self._client.models.generate_content(model=model, contents=prompt)
+                return response.text
+            except Exception as exc:
+                last_exc = exc
+        raise RuntimeError(f"All Gemini models exhausted. Last error: {last_exc}")
+
+    def answer_question(self, context: str, question: str) -> str:
+        prompt = _QA_PROMPT.format(context=context, question=question)
+        text = self._generate_text(prompt)
+        return text or "Unable to generate a response at this time."
+
+    def curate_theme_constituents(self, description: str, universe: list, signals: dict) -> list:
+        signals_section = (
+            "Signal summary (RSI trend / momentum label per symbol):\n" +
+            "\n".join(f"  {sym}: {info}" for sym, info in signals.items())
+            if signals
+            else "Signal data unavailable — curate based on sector and fundamentals only."
+        )
+        prompt = _CURATE_THEME_PROMPT.format(
+            description=description,
+            universe=json.dumps(universe[:80]),
+            signals_section=signals_section,
+        )
+        text = self._generate(prompt)
+        result = _parse_json(text)
+        return result.get("symbols", [])
+
 
 # ---------------------------------------------------------------------------
 # Groq provider (OpenAI-compatible REST, no extra package required)
@@ -321,6 +381,27 @@ class GroqAIService(AIModel):
         text = self._generate(prompt)
         return _parse_json(text)
 
+    def answer_question(self, context: str, question: str) -> str:
+        prompt = _QA_PROMPT.format(context=context, question=question)
+        text = self._generate(prompt)
+        return text or "Unable to generate a response at this time."
+
+    def curate_theme_constituents(self, description: str, universe: list, signals: dict) -> list:
+        signals_section = (
+            "Signal summary (RSI trend / momentum label per symbol):\n" +
+            "\n".join(f"  {sym}: {info}" for sym, info in signals.items())
+            if signals
+            else "Signal data unavailable — curate based on sector and fundamentals only."
+        )
+        prompt = _CURATE_THEME_PROMPT.format(
+            description=description,
+            universe=json.dumps(universe[:80]),
+            signals_section=signals_section,
+        )
+        text = self._generate(prompt)
+        result = _parse_json(text)
+        return result.get("symbols", [])
+
 
 # ---------------------------------------------------------------------------
 # Multi-provider orchestrator
@@ -361,6 +442,25 @@ class MultiProviderAIService(AIModel):
     def analyze_news_batch(self, articles: List[dict]) -> Dict[str, Any]:
         logger.info("analyze_news_batch: article_count=%d", len(articles))
         return self._run("analyze_news_batch", articles=articles)
+
+    def curate_theme_constituents(self, description: str, universe: list, signals: dict) -> list:
+        result = self._run("curate_theme_constituents", description=description, universe=universe, signals=signals)
+        if isinstance(result, list):
+            return result
+        return result.get("symbols", []) if isinstance(result, dict) else []
+
+    def answer_question(self, context: str, question: str) -> str:
+        last_exc: Exception | None = None
+        for provider in self._providers:
+            name = type(provider).__name__
+            try:
+                result = provider.answer_question(context=context, question=question)
+                logger.info("MultiProviderAIService: answer_question succeeded via %s", name)
+                return result
+            except Exception as exc:
+                logger.warning("MultiProviderAIService: answer_question failed on %s — %s", name, exc)
+                last_exc = exc
+        return f"Unable to generate response: {last_exc}"
 
 
 # ---------------------------------------------------------------------------

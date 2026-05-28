@@ -1,5 +1,5 @@
 import React from 'react';
-import TradingViewChart from '../../TradingViewChart';
+import TradingViewChart from './TradingViewChart';
 
 export function ChartTab({sym, assetClass}) {
     return (

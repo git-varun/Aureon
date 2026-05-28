@@ -15,7 +15,7 @@ class Asset(Base):
     __tablename__ = "assets"
 
     id = Column(Integer, primary_key=True)
-    symbol = Column(String(60), unique=True, nullable=False, index=True)
+    symbol = Column(String(120), unique=True, nullable=False, index=True)
     name = Column(String(255), nullable=False)
     asset_type = Column(String(30), nullable=False)
     sub_type = Column(String(50), nullable=True)

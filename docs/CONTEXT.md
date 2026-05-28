@@ -12,7 +12,7 @@ Aggregates equities (Zerodha/Groww), crypto (Binance), MF across brokers into on
 | Cache         | Redis db0 (optional)   | no-op fallback if unavailable        |
 | Queue         | RabbitMQ + Celery      | eager fallback if broker absent      |
 | Celery result | Redis db1              | separate from cache                  |
-| Frontend      | React + Vite           | port 5173, proxies `/api/*` to 8001  |
+| Frontend      | React + Vite           | port 3000, proxies `/api/*` to 8001  |
 | Auth          | JWT HS256              | 60 min access, 30 day refresh        |
 | AI            | Gemini → Groq fallback | multi-model, 429-aware rotation      |
 | Timezone      | Asia/Kolkata (IST)     | stored UTC, displayed IST            |

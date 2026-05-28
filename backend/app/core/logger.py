@@ -1,4 +1,5 @@
 import logging
+import logging.handlers
 from contextvars import ContextVar
 from pathlib import Path
 
@@ -32,22 +33,32 @@ def setup_master_logger():
 
     # 3. File-Stream Logging (api.log)
     log_dir = Path(__file__).resolve().parents[3] / "logs"
-    log_dir.mkdir(exist_ok=True)
-    file_handler = logging.FileHandler(log_dir / "api.log", encoding="utf-8")
-    file_handler.setFormatter(formatter)
-    file_handler.addFilter(CorrelationIdFilter())
+    file_handler = None
+    try:
+        log_dir.mkdir(parents=True, exist_ok=True)
+        file_handler = logging.handlers.RotatingFileHandler(
+            log_dir / "api.log", maxBytes=50_000_000, backupCount=5, encoding="utf-8"
+        )
+        file_handler.setFormatter(formatter)
+        file_handler.addFilter(CorrelationIdFilter())
+    except PermissionError:
+        # Keep the app running even when filesystem logging is unavailable.
+        file_handler = None
 
     # 4. Console Logging
     console_handler = logging.StreamHandler()
     console_handler.setFormatter(formatter)
     console_handler.addFilter(CorrelationIdFilter())
 
-    logger.addHandler(file_handler)
+    if file_handler is not None:
+        logger.addHandler(file_handler)
     logger.addHandler(console_handler)
 
     # 5. Mute noisy 3rd party libraries
     logging.getLogger("yfinance").setLevel(logging.CRITICAL)
     logging.getLogger("urllib3").setLevel(logging.WARNING)
     logging.getLogger("httpx").setLevel(logging.WARNING)
+    logging.getLogger("amqp").setLevel(logging.WARNING)
+    logging.getLogger("kombu").setLevel(logging.WARNING)
 
     return logger

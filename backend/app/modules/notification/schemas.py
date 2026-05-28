@@ -11,7 +11,7 @@ class NotificationBase(BaseModel):
 
 
 class NotificationCreate(NotificationBase):
-    user_id: int
+    pass
 
 
 class NotificationResponse(BaseModel):

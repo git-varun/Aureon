@@ -60,6 +60,13 @@ def sync_portfolio_task(self, broker: str, force_refresh: bool = True, dry_run: 
             report_task_status(task_id, "FAILED", error=str(exc))
         return {"status": "error", "broker": broker, "stage": "validation", "errors": [str(exc)]}
 
+    # ── Guard: user_id is required to write positions ───────────────────────
+    if user_id is None:
+        logger.error("[sync:%s] user_id is required but was not provided", broker)
+        if cred_session:
+            cred_session.close()
+        return {"status": "error", "broker": broker, "stage": "auth", "errors": ["user_id is required to sync portfolio"]}
+
     # ── dry_run: credential check only, skip fetch + persist ────────────────
     if dry_run:
         logger.info("[sync:%s] dry_run=true -> stopping after credential validation.", broker)
@@ -512,20 +519,83 @@ def seed_fundamentals_task(self, symbol: Optional[str] = None):
 
 @celery_app.task(name="portfolio.compute_state")
 def compute_state_task():
-    """Pre-compute /api/state and write to Redis. Run after every price refresh."""
-    from app.modules.portfolio.state_builder import build_state_payload
+    """Pre-compute /api/aureon/state per user and write to Redis.
+
+    Iterates all users with at least one position and caches their state
+    under cache_key("aureon", "state", str(user_id)). The /api/aureon/state
+    endpoint reads this key on cache-hit, falling back to live computation.
+    """
+    from app.modules.aureon.services import build_aureon_state
+    from app.modules.portfolio.models import Position
+    from app.shared.utils import cache_key as _ck
 
     session = None
     try:
         session = SessionLocal()
-        result = build_state_payload(session, cache, cache_key)
-        cache.set(cache_key("state", "computed"), result, ttl=1200)
-        asset_count = len(result.get("assets", []))
-        total_value = result.get("total_value_inr", 0)
-        logger.info("compute_state_task: cached %d assets total_value=%.2f", asset_count, total_value)
-        return {"status": "success", "assets": asset_count}
+        # Fetch distinct user_ids that have at least one position.
+        user_ids = [
+            uid for (uid,) in
+            session.query(Position.user_id).filter(Position.user_id.isnot(None)).distinct().all()
+        ]
+        if not user_ids:
+            logger.info("compute_state_task: no users with positions, skipping")
+            return {"status": "success", "users": 0}
+
+        total_assets = 0
+        for uid in user_ids:
+            try:
+                result = build_aureon_state(session, user_id=uid)
+                cache.set(_ck("aureon", "state", str(uid)), result, ttl=1200)
+                total_assets += len(result.get("holdings", []))
+                logger.info("compute_state_task: cached state for user_id=%d", uid)
+            except Exception as exc:
+                logger.exception("compute_state_task: failed for user_id=%d: %s", uid, exc)
+                session.rollback()
+
+        return {"status": "success", "users": len(user_ids), "assets": total_assets}
     except Exception as exc:
         logger.exception("compute_state_task failed: %s", exc)
+        raise
+    finally:
+        if session:
+            session.close()
+
+
+@celery_app.task(name="portfolio.refresh_watchlist", bind=True)
+def refresh_watchlist_prices_task(self):
+    """Verify all watchlisted symbols have a current price in the Asset table.
+
+    Asset.current_price is kept fresh by refresh_prices_task. This task checks
+    that every watchlisted symbol is priced and logs any that are missing,
+    so operators can detect stale symbols before users notice.
+    """
+    from app.modules.portfolio.models import Asset
+    from app.modules.watchlist.models import WatchlistSymbol
+
+    session = None
+    try:
+        session = SessionLocal()
+        symbols = {
+            row.symbol for row in session.query(WatchlistSymbol.symbol).distinct().all()
+        }
+        if not symbols:
+            logger.info("refresh_watchlist_prices: no watchlist symbols found")
+            return {"status": "success", "symbols": 0}
+
+        assets = (
+            session.query(Asset)
+            .filter(Asset.symbol.in_(symbols), Asset.current_price.isnot(None))
+            .all()
+        )
+        priced = {a.symbol for a in assets}
+        missing = symbols - priced
+        if missing:
+            logger.warning("refresh_watchlist_prices: %d symbols have no price: %s", len(missing), sorted(missing))
+
+        logger.info("refresh_watchlist_prices: %d/%d symbols priced", len(priced), len(symbols))
+        return {"status": "success", "symbols": len(priced), "missing": sorted(missing)}
+    except Exception as exc:
+        logger.exception("refresh_watchlist_prices failed: %s", exc)
         raise
     finally:
         if session:

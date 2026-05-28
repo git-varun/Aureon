@@ -24,7 +24,7 @@ const SUBTITLE_MAP = {
     activity: 'Ledger of applied decisions and contributions',
     settings: 'Profile, providers, jobs',
     notifications: 'Alerts and updates',
-    markets: 'India primary · global secondary',
+    markets: 'Live indices · sectors · movers · universe',
     terminal: 'Search · power view · discovery',
     watchlist: 'Lists · price alerts · AI takes',
 };
@@ -57,7 +57,7 @@ export const TopBar = () => {
 
     const routeName = pathname.split('/')[1] || 'dashboard';
     const screenForRunMenu = useMemo(() => {
-        if (['dashboard', 'portfolio', 'watchlist', 'signals'].includes(routeName)) return routeName;
+        if (['dashboard', 'portfolio', 'watchlist', 'signals', 'markets', 'terminal'].includes(routeName)) return routeName;
         if (pathname.startsWith('/assets/')) return 'assets';
         return null;
     }, [routeName, pathname]);

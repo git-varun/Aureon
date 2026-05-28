@@ -11,7 +11,7 @@ const RISK_COLOR = {
     LOW: 'var(--sage-500)', MEDIUM: 'var(--aurum-100)', HIGH: 'var(--crimson-500)',
 };
 
-export function TechnicalTab({signal, sym}) {
+export function TechnicalTab({signal, sym, onGenerateSignal}) {
     if (signal === null) return <TabSkeleton/>;
 
     if (!signal) {
@@ -20,9 +20,22 @@ export function TechnicalTab({signal, sym}) {
                 <div style={{color: 'var(--ink-30)', fontSize: 13, marginBottom: 10}}>
                     No signal generated for {sym} yet.
                 </div>
-                <div style={{fontSize: 12, color: 'var(--ink-40)'}}>
-                    Trigger <span style={{fontFamily: 'var(--font-mono)'}}>POST /api/signals/generate/{sym}</span> or run the pipeline.
-                </div>
+                {onGenerateSignal ? (
+                    <button onClick={onGenerateSignal} style={{
+                        marginTop: 12,
+                        padding: '7px 18px',
+                        borderRadius: 7,
+                        border: '1px solid rgba(255,255,255,0.12)',
+                        background: 'rgba(255,255,255,0.04)',
+                        color: 'var(--ink-10)',
+                        fontSize: 12.5,
+                        cursor: 'pointer',
+                    }}>Generate signal</button>
+                ) : (
+                    <div style={{fontSize: 12, color: 'var(--ink-40)'}}>
+                        Trigger <span style={{fontFamily: 'var(--font-mono)'}}>POST /api/signals/generate/{sym}</span> or run the pipeline.
+                    </div>
+                )}
             </div>
         );
     }

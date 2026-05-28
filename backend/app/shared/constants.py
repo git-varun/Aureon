@@ -12,6 +12,7 @@ class AssetType(str, Enum):
     COMMODITY = "commodity"
     BOND = "bond"
     EPF = "epf"
+    EPS = "eps"
     PPF = "ppf"
     NPS = "nps"
     INSURANCE = "insurance"
@@ -96,7 +97,7 @@ class AssetTier(str, Enum):
 
     ACTIVE = "active"  # equity, crypto — daily decisions
     SEMI = "semi"  # mutual_fund, bond — periodic rebalancing
-    PASSIVE = "passive"  # epf, ppf, insurance, real_estate, commodity — illiquid
+    PASSIVE = "passive"  # epf, eps, ppf, nps, insurance, real_estate, commodity — illiquid
 
 
 class SignalStatus(str, Enum):

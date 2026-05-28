@@ -21,13 +21,13 @@ def get_notifications(db: Session = Depends(get_session), _user=Depends(require_
 def create_notification(notification: NotificationCreate, db: Session = Depends(get_session),
                         _user=Depends(require_auth)):
     service = NotificationService(db)
-    return service.create_notification(notification.dict())
+    return service.create_notification({**notification.dict(), "user_id": _user.id})
 
 
 @router.put("/{notification_id}/read")
 def mark_as_read(notification_id: int, db: Session = Depends(get_session), _user=Depends(require_auth)):
     service = NotificationService(db)
-    service.mark_as_read(notification_id)
+    service.mark_as_read(notification_id, user_id=_user.id)
     return {"message": "Notification marked as read"}
 
 
@@ -35,5 +35,5 @@ def mark_as_read(notification_id: int, db: Session = Depends(get_session), _user
 def mark_all_read(ids: List[int], db: Session = Depends(get_session), _user=Depends(require_auth)):
     service = NotificationService(db)
     for notification_id in ids:
-        service.mark_as_read(notification_id)
+        service.mark_as_read(notification_id, user_id=_user.id)
     return {"message": f"{len(ids)} notifications marked as read"}

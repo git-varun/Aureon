@@ -63,7 +63,11 @@ export function ConfidenceBar({value}) {
 
 export function SparklineChart({series, dayPct}) {
     const w = 320, h = 100;
-    if (!series?.length || series.length < 2) return <div style={{width: w, height: h}}/>;
+    if (!series?.length || series.length < 2) return (
+        <div style={{width: '100%', aspectRatio: '16/5', minHeight: 80, display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--ink-40)', fontSize: 12}}>
+            No chart data
+        </div>
+    );
     const min = Math.min(...series), max = Math.max(...series);
     const r = max - min || 1;
     const pts = series.map((v, i) => [
@@ -74,9 +78,12 @@ export function SparklineChart({series, dayPct}) {
     const fill = line + ` L ${w} ${h} L 0 ${h} Z`;
     const color = dayPct >= 0 ? 'var(--sage-500)' : 'var(--crimson-500)';
     return (
-        <svg width={w} height={h} viewBox={`0 0 ${w} ${h}`} style={{display: 'block', width: '100%'}}>
-            <path d={fill} fill={color} opacity="0.08"/>
-            <path d={line} fill="none" stroke={color} strokeWidth="1.4" strokeLinecap="round" strokeLinejoin="round"/>
-        </svg>
+        <div style={{width: '100%', aspectRatio: '16/5', minHeight: 80}}>
+            <svg viewBox={`0 0 ${w} ${h}`} preserveAspectRatio="none"
+                 style={{display: 'block', width: '100%', height: '100%'}}>
+                <path d={fill} fill={color} opacity="0.08"/>
+                <path d={line} fill="none" stroke={color} strokeWidth="1.4" strokeLinecap="round" strokeLinejoin="round"/>
+            </svg>
+        </div>
     );
 }

@@ -1,6 +1,6 @@
 /* Aureon — formatter utilities shared across Markets, Terminal, Watchlist, etc. */
 
-const FX_PER_INR = { INR: 1, USD: 1 / 83.2, EUR: 1 / 90.6, GBP: 1 / 105.4, AED: 1 / 22.65, JPY: 1.78 };
+export const FX_PER_INR = { INR: 1, USD: 1 / 83.2, EUR: 1 / 90.6, GBP: 1 / 105.4, AED: 1 / 22.65, JPY: 1.78 };
 
 export const CURRENCY_META = {
     INR: { code: 'INR', symbol: '₹',   name: 'Indian Rupee',   locale: 'en-IN', dp: 2 },
@@ -18,12 +18,16 @@ export const getActiveCurrency = () => {
     return SUPPORTED_CURRENCIES.includes(c) ? c : 'INR';
 };
 
-const getRate = (from, to) => FX_PER_INR[to] / FX_PER_INR[from];
+const _rate = (from, to, rates) => {
+    const r = rates || FX_PER_INR;
+    return r[to] / r[from];
+};
 
-export const fmtMoney = (n, sourceCcy = 'INR', opts = {}) => {
-    const toCcy = getActiveCurrency();
-    const converted = n * getRate(sourceCcy, toCcy);
-    const m = CURRENCY_META[toCcy];
+/* Pure formatter — accepts explicit toCcy and live rates. Used by useFmtMoney hook. */
+export const fmtMoneyWith = (n, sourceCcy = 'INR', toCcy = 'INR', rates = null, opts = {}) => {
+    if (n == null || !isFinite(n)) return '—';
+    const converted = n * _rate(sourceCcy, toCcy, rates);
+    const m = CURRENCY_META[toCcy] || CURRENCY_META.INR;
     const sign = converted < 0 ? '−' : '';
     const a = Math.abs(converted);
     const dp = opts.dp ?? m.dp;
@@ -46,5 +50,9 @@ export const fmtMoney = (n, sourceCcy = 'INR', opts = {}) => {
     return sign + m.symbol + a.toLocaleString(m.locale, { minimumFractionDigits: dp, maximumFractionDigits: dp });
 };
 
-export const fmtINR = (n, opts = {}) => fmtMoney(n, 'INR', opts);
-export const fmtUSD = (n, opts = {}) => fmtMoney(n, 'USD', opts);
+/* Non-reactive fallback — reads window global. Use useFmtMoney() hook in components. */
+export const fmtMoney = (n, sourceCcy = 'INR', opts = {}) =>
+    fmtMoneyWith(n, sourceCcy, getActiveCurrency(), null, opts);
+
+export const fmtINR = (n, opts = {}) => fmtMoneyWith(n, 'INR', getActiveCurrency(), null, opts);
+export const fmtUSD = (n, opts = {}) => fmtMoneyWith(n, 'USD', getActiveCurrency(), null, opts);

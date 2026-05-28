@@ -1,9 +1,9 @@
 import React, {useState, useEffect, useMemo, useRef} from 'react';
 import {useNavigate} from 'react-router-dom';
-import {Sparkline, Eyebrow, SectionHead} from '../../components/aureon/ui';
-import {apiService} from '../../api/apiService';
-import {useFmtMoney} from '../../hooks/useFmtMoney';
-import {useApp} from '../../components/aureon/store';
+import {Sparkline, Eyebrow, SectionHead} from '@/components/aureon/ui';
+import {apiService} from '@/api/apiService';
+import {useFmtMoney} from '@/hooks/useFmtMoney';
+import {useApp} from '@/components/aureon/store';
 
 /* ---------- Asset class labels for search grouping ---------- */
 const _W_CLASS_LABEL = {
@@ -14,24 +14,7 @@ const _W_CLASS_LABEL = {
     retirement: 'Retirement schemes',
 };
 const _W_CLASS_ORDER = ['stocks', 'funds', 'bonds', 'crypto', 'retirement'];
-
-const _searchUniverse = (q, universe) => {
-    const query = q.trim().toUpperCase();
-    if (!query) return [];
-    const out = [];
-    for (const u of universe) {
-        const sym = (u.sym || u.symbol || '').toUpperCase();
-        const name = (u.name || '').toUpperCase();
-        let score = -1, exact = false;
-        if (sym === query)              { score = 100; exact = true; }
-        else if (sym.startsWith(query)) score = 80;
-        else if (sym.includes(query))   score = 60;
-        else if (name.startsWith(query))score = 50;
-        else if (name.includes(query))  score = 30;
-        if (score >= 0) out.push({ u, score, exact });
-    }
-    return out.sort((a, b) => b.score - a.score);
-};
+const _TYPE_TO_CLASS = {equity: 'stocks', fund: 'funds', bond: 'bonds', crypto: 'crypto', retirement: 'retirement'};
 
 const SearchRow = ({ r, active, already, onPick }) => {
     const u = r.u;
@@ -77,13 +60,34 @@ const SearchRow = ({ r, active, already, onPick }) => {
     );
 };
 
-const WatchlistSearchBar = ({ onAdd, listSymbols, universe }) => {
+const WatchlistSearchBar = ({ onAdd, listSymbols }) => {
     const [q, setQ] = useState('');
     const [focused, setFocused] = useState(false);
     const [activeIdx, setActiveIdx] = useState(0);
+    const [apiResults, setApiResults] = useState([]);
     const ref = useRef(null);
 
-    const results = useMemo(() => _searchUniverse(q, universe).slice(0, 24), [q, universe]);
+    useEffect(() => {
+        if (!q.trim()) { setApiResults([]); return; }
+        const tid = setTimeout(async () => {
+            try {
+                const res = await apiService.searchAssets(q);
+                setApiResults(
+                    (res.data || []).map(a => ({
+                        u: {sym: a.symbol, name: a.name, class: _TYPE_TO_CLASS[a.type] || a.type, exchange: a.exchange, ex: a.exchange},
+                        score: a.symbol.toUpperCase() === q.trim().toUpperCase() ? 100 : 60,
+                        exact: a.symbol.toUpperCase() === q.trim().toUpperCase(),
+                    }))
+                );
+            } catch (err) {
+                console.warn('Watchlist search error:', err?.response?.data || err?.message);
+                setApiResults([]);
+            }
+        }, 300);
+        return () => clearTimeout(tid);
+    }, [q]);
+
+    const results = apiResults.slice(0, 24);
     const open = focused && q.trim().length > 0;
 
     const exact = results.find(r => r.exact);
@@ -219,43 +223,48 @@ export default function Watchlist() {
     const {setToast} = useApp();
     const [lists, setLists] = useState([]);
     const [activeId, setActiveId] = useState(null);
-    const [universeLookup, setUniverseLookup] = useState({});
     const [loading, setLoading] = useState(true);
     const [creating, setCreating] = useState(false);
     const [creatingInline, setCreatingInline] = useState(false);
     const [newListName, setNewListName] = useState('');
     const _cancelInline = useRef(false);
-    const [adding, setAdding] = useState(false); // in-flight guard for addSymbol
+    const _submittingList = useRef(false);
+    const _cancelRename = useRef(false);
+    const _submittingRename = useRef(false);
+    const [renamingList, setRenamingList] = useState(false);
+    const [renameListName, setRenameListName] = useState('');
+    const [adding, setAdding] = useState(false);
     const [alertDraft, setAlertDraft] = useState({});
 
     useEffect(() => {
-        Promise.allSettled([
-            apiService.getWatchlists(),
-            apiService.getMarketUniverse(),
-        ]).then(([wlR, univR]) => {
-            const wls = wlR.status === 'fulfilled' ? wlR.value : [];
-            setLists(wls);
-            if (wls.length > 0) setActiveId(wls[0].id);
-            if (univR.status === 'fulfilled') {
-                const lookup = {};
-                univR.value.forEach(u => { lookup[u.sym] = u; });
-                setUniverseLookup(lookup);
-            }
-        }).finally(() => setLoading(false));
+        apiService.getWatchlists()
+            .then(wls => {
+                setLists(wls);
+                if (wls.length > 0) setActiveId(wls[0].id);
+            })
+            .catch(() => {})
+            .finally(() => setLoading(false));
     }, []);
 
     const list = lists.find(l => l.id === activeId) || null;
 
-    const universeArray = useMemo(() => Object.values(universeLookup), [universeLookup]);
-
     const enriched = useMemo(() => {
         if (!list) return [];
-        return list.symbols
-            .map(s => {
-                const u = universeLookup[s.symbol] || universeLookup[s.symbol.toUpperCase()];
-                return u ? {...u, alertPrice: s.alertPrice} : {sym: s.symbol, alertPrice: s.alertPrice, _missing: true};
-            });
-    }, [list, universeLookup]);
+        return list.symbols.map(s => ({
+            sym: s.symbol,
+            name: s.name,
+            ex: s.exchange,
+            price: s.currentPrice,
+            previousClose: s.previousClose,
+            dayPct: s.currentPrice && s.previousClose
+                ? (s.currentPrice - s.previousClose) / s.previousClose
+                : null,
+            spark: s.spark || [],
+            region: s.currency === 'INR' ? 'IN' : 'US',
+            alertPrice: s.alertPrice,
+            _missing: !s.name,
+        }));
+    }, [list]);
 
     const createList = () => {
         _cancelInline.current = false;
@@ -265,10 +274,12 @@ export default function Watchlist() {
 
     const submitNewList = async () => {
         if (_cancelInline.current) return;
+        if (_submittingList.current) return;
+        _submittingList.current = true;
         const name = newListName.trim();
         setCreatingInline(false);
         setNewListName('');
-        if (!name) return;
+        if (!name) { _submittingList.current = false; return; }
         setCreating(true);
         try {
             const created = await apiService.createWatchlist(name);
@@ -278,6 +289,38 @@ export default function Watchlist() {
             setToast({text: err.message || 'Failed to create watchlist'});
         } finally {
             setCreating(false);
+            _submittingList.current = false;
+        }
+    };
+
+    const deleteList = async () => {
+        if (!activeId || !list) return;
+        if (!window.confirm(`Delete watchlist "${list.name}"? This cannot be undone.`)) return;
+        try {
+            await apiService.deleteWatchlist(activeId);
+            const remaining = lists.filter(l => l.id !== activeId);
+            setLists(remaining);
+            setActiveId(remaining.length > 0 ? remaining[0].id : null);
+        } catch (err) {
+            setToast({text: err.message || 'Failed to delete watchlist'});
+        }
+    };
+
+    const submitRename = async () => {
+        if (_cancelRename.current) return;
+        if (_submittingRename.current) return;
+        _submittingRename.current = true;
+        const name = renameListName.trim();
+        setRenamingList(false);
+        setRenameListName('');
+        if (!name || name === list?.name) { _submittingRename.current = false; return; }
+        try {
+            const updated = await apiService.renameWatchlist(activeId, name);
+            setLists(ls => ls.map(l => l.id === activeId ? updated : l));
+        } catch (err) {
+            setToast({text: err.response?.data?.detail || err.message || 'Failed to rename watchlist'});
+        } finally {
+            _submittingRename.current = false;
         }
     };
 
@@ -289,7 +332,7 @@ export default function Watchlist() {
             const updated = await apiService.addWatchlistSymbol(activeId, sym);
             setLists(ls => ls.map(l => l.id === activeId ? updated : l));
         } catch (err) {
-            setToast({text: err.message || 'Failed to add symbol'});
+            setToast({text: err.response?.data?.detail || err.message || 'Failed to add symbol'});
         } finally { setAdding(false); }
     };
 
@@ -329,12 +372,49 @@ export default function Watchlist() {
 
     const alertCount = list?.symbols.filter(s => s.alertPrice != null).length || 0;
 
+    const sectionAction = list ? (
+        <div style={{display: 'flex', gap: 6, alignItems: 'center'}}>
+            {renamingList ? (
+                <input
+                    autoFocus
+                    value={renameListName}
+                    onChange={e => setRenameListName(e.target.value)}
+                    onKeyDown={e => {
+                        if (e.key === 'Enter') submitRename();
+                        if (e.key === 'Escape') { _cancelRename.current = true; setRenamingList(false); setRenameListName(''); }
+                    }}
+                    onBlur={submitRename}
+                    placeholder={list.name}
+                    style={{
+                        padding: '4px 10px', fontSize: 12, borderRadius: 6,
+                        background: 'rgba(255,255,255,0.06)',
+                        color: 'var(--ink-10)',
+                        border: '1px solid rgba(201,168,106,0.40)',
+                        outline: 'none', width: 160,
+                    }}
+                />
+            ) : (
+                <button
+                    onClick={() => { _cancelRename.current = false; setRenameListName(list.name); setRenamingList(true); }}
+                    className="du3-cta ghost"
+                    style={{padding: '4px 10px', fontSize: 11}}
+                >Rename</button>
+            )}
+            <button
+                onClick={deleteList}
+                className="du3-cta ghost"
+                style={{padding: '4px 10px', fontSize: 11, color: 'var(--crimson-500)', borderColor: 'rgba(220,80,80,0.25)'}}
+            >Delete</button>
+        </div>
+    ) : null;
+
     return (
         <>
             <SectionHead
                 eyebrow="Watchlist"
                 title={list?.name || 'My watchlists'}
                 meta={list ? `${enriched.length} symbols · ${alertCount} alerts armed` : `${lists.length} lists`}
+                action={sectionAction}
             />
 
             {/* List tabs */}
@@ -390,7 +470,6 @@ export default function Watchlist() {
             {/* Add symbol to active list — inline search with grouped results */}
             {list && (
                 <WatchlistSearchBar
-                    universe={universeArray}
                     listSymbols={list.symbols.map(s => s.symbol)}
                     onAdd={(sym) => addSymbol(sym)}
                 />
@@ -430,8 +509,8 @@ export default function Watchlist() {
                             </button>
                             <span style={{fontSize: 10.5, letterSpacing: '0.10em', textTransform: 'uppercase', color: 'var(--ink-30)', fontWeight: 600}}>{u._missing ? '—' : u.ex}</span>
                             <span style={{fontFamily: 'var(--font-mono)', fontSize: 13, color: 'var(--ink-10)'}}>{u._missing ? '—' : fmtPrice(u)}</span>
-                            <span style={{fontFamily: 'var(--font-mono)', fontSize: 12, color: u._missing ? 'var(--ink-40)' : (u.dayPct >= 0 ? 'var(--sage-500)' : 'var(--crimson-500)')}}>
-                                {u._missing ? '—' : `${u.dayPct >= 0 ? '▲' : '▼'} ${(Math.abs(u.dayPct) * 100).toFixed(2)}%`}
+                            <span style={{fontFamily: 'var(--font-mono)', fontSize: 12, color: (u._missing || u.dayPct == null) ? 'var(--ink-40)' : (u.dayPct >= 0 ? 'var(--sage-500)' : 'var(--crimson-500)')}}>
+                                {(u._missing || u.dayPct == null) ? '—' : `${u.dayPct >= 0 ? '▲' : '▼'} ${(Math.abs(u.dayPct) * 100).toFixed(2)}%`}
                             </span>
                             {u._missing ? (
                                 <span/>
@@ -439,36 +518,46 @@ export default function Watchlist() {
                                 <Sparkline data={u.spark?.length ? u.spark : []} w={90} h={22}/>
                             )}
                             {alertDraft[u.sym] !== undefined ? (
-                                <input
-                                    autoFocus
-                                    value={alertDraft[u.sym]}
-                                    onChange={e => setAlertDraft(d => ({...d, [u.sym]: e.target.value}))}
-                                    onKeyDown={e => {
-                                        if (e.key === 'Enter') commitAlert(u.sym, alertDraft[u.sym]);
-                                        if (e.key === 'Escape') setAlertDraft(d => {const n={...d}; delete n[u.sym]; return n;});
-                                    }}
-                                    onBlur={() => commitAlert(u.sym, alertDraft[u.sym])}
-                                    placeholder="price…"
-                                    style={{
-                                        height: 28, width: '100%', padding: '0 8px', fontSize: 12,
-                                        borderRadius: 5, background: 'rgba(255,255,255,0.06)',
-                                        border: '1px solid rgba(201,168,106,0.40)',
-                                        color: 'var(--ink-00)', outline: 'none',
-                                        fontFamily: 'var(--font-mono)',
-                                    }}
-                                />
+                                <div className="alert-actions" style={{display: 'flex', alignItems: 'center', gap: 4}}>
+                                    <input
+                                        autoFocus
+                                        value={alertDraft[u.sym]}
+                                        onChange={e => setAlertDraft(d => ({...d, [u.sym]: e.target.value}))}
+                                        onKeyDown={e => {
+                                            if (e.key === 'Enter') commitAlert(u.sym, alertDraft[u.sym]);
+                                            if (e.key === 'Escape') setAlertDraft(d => {const n={...d}; delete n[u.sym]; return n;});
+                                        }}
+                                        onBlur={e => { if (!e.relatedTarget?.closest('.alert-actions')) commitAlert(u.sym, alertDraft[u.sym]); }}
+                                        placeholder="price…"
+                                        style={{
+                                            height: 26, width: 80, padding: '0 8px', fontSize: 12,
+                                            borderRadius: 5, background: 'rgba(255,255,255,0.06)',
+                                            border: '1px solid rgba(201,168,106,0.40)',
+                                            color: 'var(--ink-00)', outline: 'none',
+                                            fontFamily: 'var(--font-mono)',
+                                        }}
+                                    />
+                                    <button onClick={() => commitAlert(u.sym, alertDraft[u.sym])} className="du3-cta" style={{padding: '0 8px', height: 26, fontSize: 11}}>Set</button>
+                                    <button onClick={() => setAlertDraft(d => {const n={...d}; delete n[u.sym]; return n;})} className="du3-cta ghost" style={{padding: '0 6px', height: 26, fontSize: 11}}>✕</button>
+                                </div>
+                            ) : u.alertPrice != null ? (
+                                <span style={{display: 'inline-flex', alignItems: 'center', gap: 6, fontFamily: 'var(--font-mono)', fontSize: 11, color: 'var(--aurum-100)'}}>
+                                    <span style={{width: 6, height: 6, borderRadius: 999, background: 'var(--aurum-500)', boxShadow: '0 0 0 3px rgba(201,168,106,0.16)'}}/>
+                                    <button
+                                        onClick={() => setAlertDraft(d => ({...d, [u.sym]: String(u.alertPrice)}))}
+                                        style={{background: 'none', border: 'none', color: 'var(--aurum-100)', cursor: 'pointer', padding: 0, fontFamily: 'var(--font-mono)', fontSize: 11}}
+                                    >{u.alertPrice >= (u.price || 0) ? '≥' : '≤'} {u.region === 'IN' ? fmt(u.alertPrice, 'INR', {dp: 0}) : fmt(u.alertPrice, 'USD', {dp: 0})}</button>
+                                    <button
+                                        onClick={() => commitAlert(u.sym, '')}
+                                        style={{background: 'none', border: 'none', color: 'var(--ink-40)', cursor: 'pointer', padding: 0, fontSize: 13, lineHeight: 1}}
+                                    >×</button>
+                                </span>
                             ) : (
                                 <button
-                                    onClick={() => setAlertDraft(d => ({...d, [u.sym]: u.alertPrice != null ? String(u.alertPrice) : ''}))}
-                                    style={{
-                                        background: 'none', border: 'none', cursor: 'pointer', padding: 0,
-                                        fontFamily: 'var(--font-mono)', fontSize: 11,
-                                        color: u.alertPrice != null ? 'var(--aurum-100)' : 'var(--ink-40)',
-                                        textAlign: 'left',
-                                    }}
-                                >
-                                    {u.alertPrice != null ? `≥ ${u.region === 'IN' ? fmt(u.alertPrice, 'INR') : fmt(u.alertPrice, 'USD')}` : '+ alert'}
-                                </button>
+                                    onClick={() => setAlertDraft(d => ({...d, [u.sym]: ''}))}
+                                    className="du3-cta ghost"
+                                    style={{padding: '0 10px', fontSize: 11}}
+                                >+ alert</button>
                             )}
                             <button onClick={() => removeItem(u.sym)} className="du3-cta ghost" style={{padding: '0 10px', fontSize: 11}}>−</button>
                         </div>

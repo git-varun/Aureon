@@ -40,6 +40,17 @@ def update_current_user_profile(
     return user
 
 
+@router.delete("/me")
+def delete_current_user(
+        current_user=Depends(require_auth),
+        db: Session = Depends(get_session)
+):
+    """Permanently delete the authenticated user's account."""
+    service = UserService(db)
+    service.delete_user(current_user.id)
+    return {"status": "account_deleted"}
+
+
 @router.post("/me/password")
 def change_password(
         payload: UserPasswordUpdate,

@@ -15,6 +15,12 @@
     align-self: flex-start;
 }
 
+@media (max-width: 767px) {
+    .sidebar {
+        display: none;
+    }
+}
+
 .logoBtn {
     background: none;
     border: none;
@@ -112,14 +118,6 @@
     flex: 1;
 }
 
-.footer {
-    display: flex;
-    flex-direction: column;
-    gap: 2px;
-    padding-top: 10px;
-    border-top: 1px solid rgba(255, 255, 255, 0.06);
-}
-
 .userBtn {
     margin-top: 8px;
     padding: 10px 8px;
@@ -169,4 +167,35 @@
 .userSignout {
     font-size: 10.5px;
     color: var(--ink-40);
+}
+
+.userMenu {
+    position: absolute;
+    bottom: calc(100% + 6px);
+    left: 0;
+    right: 0;
+    background: var(--layer-1, #141618);
+    border: 1px solid rgba(255, 255, 255, 0.08);
+    border-radius: 10px;
+    padding: 6px;
+    z-index: 100;
+    box-shadow: 0 8px 24px rgba(0,0,0,0.4);
+}
+
+.userMenuItem {
+    display: block;
+    width: 100%;
+    text-align: left;
+    padding: 7px 10px;
+    border-radius: 6px;
+    border: none;
+    background: transparent;
+    color: var(--ink-10);
+    font-size: 12.5px;
+    cursor: pointer;
+    transition: background 100ms;
+}
+
+.userMenuItem:hover {
+    background: rgba(255, 255, 255, 0.05);
 }

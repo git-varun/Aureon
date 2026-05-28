@@ -1,6 +1,6 @@
 import React from 'react';
 import {Eyebrow, AllocDonut} from '../ui';
-import {fmtMoney} from '../../../pages/aureon/marketData';
+import {useFmtMoney} from '../../../hooks/useFmtMoney';
 import s from './Hero.module.css';
 
 const CLASS_COLORS = {
@@ -8,14 +8,16 @@ const CLASS_COLORS = {
     crypto: '#D4A257', real_estate: '#6FAE88', retirement: '#8A909B', insurance: '#4B4F57',
 };
 
-export const Hero = ({netWorth, dayDelta, classLabel, allocByClass, drift, recsActiveCount, activityThisWeek}) => (
+export const Hero = ({netWorth, dayDelta, classLabel, allocByClass, drift, recsActiveCount, activityThisWeek}) => {
+    const fmt = useFmtMoney();
+    return (
     <div className={s.hero}>
         <div>
             <Eyebrow>Net worth · all accounts</Eyebrow>
-            <div className={s.netWorth}>{fmtMoney(netWorth, 'USD')}</div>
+            <div className={s.netWorth}>{fmt(netWorth, 'USD')}</div>
             <div className={s.deltaRow}>
                 <span style={{color: dayDelta.dollars >= 0 ? 'var(--sage-500)' : 'var(--crimson-500)'}}>
-                    {dayDelta.dollars >= 0 ? '▲' : '▼'} {fmtMoney(Math.abs(dayDelta.dollars), 'USD', {dp: 0})} · {dayDelta.dollars >= 0 ? '+' : ''}{(dayDelta.pct * 100).toFixed(2)}%
+                    {dayDelta.dollars >= 0 ? '▲' : '▼'} {fmt(Math.abs(dayDelta.dollars), 'USD', {dp: 0})} · {dayDelta.dollars >= 0 ? '+' : ''}{(dayDelta.pct * 100).toFixed(2)}%
                 </span>
                 <span style={{color: 'var(--ink-40)'}}>today</span>
                 <span className={s.periodBtns}>
@@ -51,4 +53,5 @@ export const Hero = ({netWorth, dayDelta, classLabel, allocByClass, drift, recsA
             </div>
         </div>
     </div>
-);
+    );
+};

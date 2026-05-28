@@ -240,6 +240,7 @@ export const apiService = {
     updateCurrentUserProfile: async (payload) => (await API.put('/users/me', payload)).data,
     changeUserPassword: async (currentPassword, newPassword) =>
         (await API.post('/users/me/password', {current_password: currentPassword, new_password: newPassword})).data,
+    deleteAccount: async () => (await API.delete('/users/me')).data,
 
     // ── Providers (refactored to /api/config/providers) ──────────────────────
     getProviders: async () => (await API.get('/config/providers')).data,
@@ -256,6 +257,9 @@ export const apiService = {
         (await API.get(`/config/jobs/${jobName}/logs?limit=${limit}`)).data,
 
     // ── Transactions ────────────────────────────────────────────────────────
+    createTransaction: async (payload) => {
+        return (await API.post('/portfolio/transactions', payload)).data;
+    },
     getTransactions: async ({ provider, asset, limit = 200 } = {}) => {
         const params = new URLSearchParams();
         if (provider) params.append('provider', provider);
@@ -281,6 +285,22 @@ export const apiService = {
             headers: {'Content-Type': 'multipart/form-data'},
         })).data;
     },
+    importNPS: async (file, dryRun = true) => {
+        const form = new FormData();
+        form.append('file', file);
+        const params = new URLSearchParams({dry_run: dryRun});
+        return (await API.post(`/portfolio/nps/upload?${params}`, form, {
+            headers: {'Content-Type': 'multipart/form-data'},
+        })).data;
+    },
+    importEPF: async (file, dryRun = true) => {
+        const form = new FormData();
+        form.append('file', file);
+        const params = new URLSearchParams({dry_run: dryRun});
+        return (await API.post(`/portfolio/epf/upload?${params}`, form, {
+            headers: {'Content-Type': 'multipart/form-data'},
+        })).data;
+    },
 
     // ── Notifications ───────────────────────────────────────────────────────
     getNotifications: async () => (await API.get('/notifications/')).data,
@@ -294,6 +314,12 @@ export const apiService = {
     getMarketMovers: async () => (await API.get('/market/movers')).data,
     getMarketThemes: async () => (await API.get('/market/themes')).data,
     getMarketTheme: async (themeId) => (await API.get(`/market/themes/${themeId}`)).data,
+    getThemeSignals: async (themeId) => (await API.get(`/market/themes/${themeId}/signals`)).data,
+    getThemeNav: async (themeId, days = 365) => (await API.get(`/market/themes/${themeId}/nav?days=${days}`)).data,
+    forkTheme: async (themeId, name) => (await API.post(`/market/themes/${themeId}/fork`, {name})).data,
+    updateTheme: async (themeId, payload) => (await API.put(`/market/themes/${themeId}`, payload)).data,
+    deleteTheme: async (themeId) => (await API.delete(`/market/themes/${themeId}`)).data,
+    triggerBackfill: async (symbol) => (await API.post(`/market/symbols/${encodeURIComponent(symbol)}/backfill`)).data,
     getThemesForSymbol: async (symbol) => (await API.get(`/market/themes-for/${encodeURIComponent(symbol)}`)).data,
     getThemeAITake: async (themeId) => (await API.get(`/analytics/ai/theme/${themeId}`)).data,
     runThemeAI: async (themeId) => (await API.post(`/analytics/ai/theme/${themeId}`)).data,
@@ -332,4 +358,9 @@ export const apiService = {
 
     askAboutContext: async (contextType, contextId, question) =>
         (await API.post('/aureon/ask', {context_type: contextType, context_id: contextId, question})).data,
+
+    // ── Manual (illiquid) assets ─────────────────────────────────────────────
+    createManualAsset: async (payload) => (await API.post('/portfolio/manual-assets', payload)).data,
+    updateManualValuation: async (symbol, newValue, notes) =>
+        (await API.put(`/portfolio/manual-assets/${encodeURIComponent(symbol)}/valuation`, {new_value: newValue, notes})).data,
 };

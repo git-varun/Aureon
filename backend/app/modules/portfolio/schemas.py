@@ -62,6 +62,7 @@ class PositionCreate(PositionBase):
     """Create position."""
 
     asset_id: int
+    current_value: Optional[float] = None
     purchase_date: Optional[datetime] = None
 
 
@@ -96,6 +97,18 @@ class PortfolioResponse(BaseModel):
     pnl_percent: float
     positions_count: int
     positions: List[PositionResponse]
+
+
+class TransactionCreate(BaseModel):
+    """Manual transaction creation."""
+
+    symbol: str
+    transaction_type: TransactionType
+    quantity: float
+    price: float
+    transaction_date: datetime
+    broker: Optional[str] = "manual"
+    notes: Optional[str] = None
 
 
 class TransactionResponse(BaseModel):

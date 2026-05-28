@@ -42,18 +42,20 @@ class RecommendationService:
 
     @staticmethod
     def list(session: Session, user_id: Optional[int] = None, status: Optional[str] = None) -> list[dict[str, Any]]:
+        from sqlalchemy import or_
         q = session.query(Recommendation)
         if user_id is not None:
-            q = q.filter(Recommendation.user_id == user_id)
+            q = q.filter(or_(Recommendation.user_id == user_id, Recommendation.user_id.is_(None)))
         if status:
             q = q.filter(Recommendation.status == status)
         return [_to_dict(r) for r in q.order_by(Recommendation.created_at.desc()).all()]
 
     @staticmethod
     def get_by_ext_id(session: Session, ext_id: str, user_id: Optional[int] = None) -> Recommendation:
+        from sqlalchemy import or_
         q = session.query(Recommendation).filter(Recommendation.ext_id == ext_id)
         if user_id is not None:
-            q = q.filter(Recommendation.user_id == user_id)
+            q = q.filter(or_(Recommendation.user_id == user_id, Recommendation.user_id.is_(None)))
         rec = q.first()
         if not rec:
             raise NotFoundError(f"recommendation {ext_id!r} not found")

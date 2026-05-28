@@ -30,10 +30,10 @@ def get_signal(symbol: str, session: Session = Depends(get_session), current_use
     Returns the most recent composite signal, or null (200) when none exists.
     """
     from app.modules.signals.models import Signal
-    from sqlalchemy import desc
+    from sqlalchemy import desc, or_
     signal = (
         session.query(Signal)
-        .filter(Signal.symbol == symbol, Signal.user_id == current_user.id)
+        .filter(Signal.symbol == symbol, or_(Signal.user_id == current_user.id, Signal.user_id.is_(None)))
         .order_by(desc(Signal.created_at))
         .first()
     )
@@ -49,13 +49,15 @@ def list_signals(
         current_user=Depends(require_auth)
 ):
     """List the most recent signals for the authenticated user."""
-    from sqlalchemy import func, desc
+    from sqlalchemy import func, desc, or_
     from app.modules.signals.models import Signal
+
+    uid_filter = or_(Signal.user_id == current_user.id, Signal.user_id.is_(None))
 
     # Get the latest signal per symbol for this user
     subquery = (
         session.query(Signal.symbol, func.max(Signal.created_at).label("max_date"))
-        .filter(Signal.user_id == current_user.id)
+        .filter(uid_filter)
         .group_by(Signal.symbol)
         .order_by(desc(func.max(Signal.created_at)))
         .limit(limit)
@@ -65,7 +67,7 @@ def list_signals(
     signals = session.query(Signal).join(
         subquery,
         (Signal.symbol == subquery.c.symbol) & (Signal.created_at == subquery.c.max_date)
-    ).filter(Signal.user_id == current_user.id).all()
+    ).filter(uid_filter).all()
 
     return [SignalResponse.from_orm(s) for s in signals]
 

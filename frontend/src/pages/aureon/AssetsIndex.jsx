@@ -1,14 +1,15 @@
 /* Aureon — Assets index (grouped by class). */
 import React, {useMemo} from 'react';
 import {useNavigate} from 'react-router-dom';
-import {useApp} from '../../components/aureon/store';
-import {Sparkline, Eyebrow, TierChip, MiniBar} from '../../components/aureon/ui';
-import {valueOf, plOf, plPctOf} from '../../components/aureon/utils';
-import {useAureonData} from '../../hooks/useAureonData';
-import {fmtMoney} from './marketData';
+import {useApp} from '@/components/aureon/store';
+import {Sparkline, Eyebrow, TierChip, MiniBar} from '@/components/aureon/ui';
+import {valueOf, plOf, plPctOf} from '@/components/aureon/utils';
+import {useAureonData} from '@/hooks/useAureonData';
+import {useFmtMoney} from '@/hooks/useFmtMoney';
 
 export default function AssetsIndex() {
     const navigate = useNavigate();
+    const fmt = useFmtMoney();
     const {allRecs, active} = useApp();
     const {holdings, classLabel, classTarget, netWorth, allocByClass} = useAureonData();
 
@@ -42,7 +43,7 @@ export default function AssetsIndex() {
                     letterSpacing: '-0.015em',
                     marginTop: 6
                 }}>
-                    {Object.keys(grouped).length} classes · {fmtMoney(netWorth, 'USD', {dp: 0})} under management
+                    {Object.keys(grouped).length} classes · {fmt(netWorth, 'USD', {dp: 0})} under management
                 </div>
                 <div style={{fontSize: 12, color: 'var(--ink-30)', marginTop: 6, maxWidth: 680}}>
                     Active assets receive real-time signals and recommendations. Semi-active receive low-frequency
@@ -75,7 +76,7 @@ export default function AssetsIndex() {
                                 }}>{classLabel[cls]}</h3>
                                 <TierChip tier={tier}/>
                                 <span style={{fontFamily: 'var(--font-mono)', fontSize: 12, color: 'var(--ink-30)'}}>
-                  {fmtMoney(value, 'USD', {dp: 0})} · {netWorth > 0 ? ((value / netWorth) * 100).toFixed(1) : '0.0'}% · target {((classTarget[cls] || 0) * 100).toFixed(0)}%
+                  {fmt(value, 'USD', {dp: 0})} · {netWorth > 0 ? ((value / netWorth) * 100).toFixed(1) : '0.0'}% · target {((classTarget[cls] || 0) * 100).toFixed(0)}%
                 </span>
                             </div>
                             <div style={{display: 'flex', alignItems: 'center', gap: 14}}>
@@ -150,7 +151,7 @@ export default function AssetsIndex() {
                                                 fontSize: 16,
                                                 color: 'var(--ink-00)',
                                                 fontWeight: 500
-                                            }}>{fmtMoney(valueOf(h), 'USD', {dp: 0})}</div>
+                                            }}>{fmt(valueOf(h), 'USD', {dp: 0})}</div>
                                             <div style={{
                                                 fontFamily: 'var(--font-mono)',
                                                 fontSize: 11,

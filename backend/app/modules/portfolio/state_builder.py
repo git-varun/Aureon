@@ -23,7 +23,7 @@ def _safe_float(v, default=None):
         return default
 
 
-def build_state_payload(session: Session, cache, cache_key_fn: Callable) -> dict:
+def build_state_payload(session: Session, cache, cache_key_fn: Callable, user_id: int | None = None) -> dict:
     """Assemble the /api/state response payload.
 
     Single source of truth — called by both the endpoint (cache-miss fallback)
@@ -49,7 +49,7 @@ def build_state_payload(session: Session, cache, cache_key_fn: Callable) -> dict
         }
 
     fx_rate = cache.get(cache_key_fn("fx", "usd_inr")) or 83.50
-    positions = PortfolioService(session).list_positions()
+    positions = PortfolioService(session).list_positions(user_id=user_id)
 
     if not positions:
         return {

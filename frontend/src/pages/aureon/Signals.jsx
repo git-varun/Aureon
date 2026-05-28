@@ -1,9 +1,10 @@
 /* Aureon — Signals page. */
 import React, {useMemo, useState} from 'react';
 import {useNavigate} from 'react-router-dom';
-import {useApp} from '../../components/aureon/store';
-import {Eyebrow} from '../../components/aureon/ui';
-import {useAureonData} from '../../hooks/useAureonData';
+import {useApp} from '@/components/aureon/store';
+import {Eyebrow} from '@/components/aureon/ui';
+import {useAureonData} from '@/hooks/useAureonData';
+import {apiService} from '@/api/apiService';
 
 const inferDirection = (s) => {
     const txt = (s.text || '').toLowerCase();
@@ -73,6 +74,104 @@ const DetailFact = ({k, v}) => (
     </div>
 );
 
+const SignalAskPanel = ({signalId}) => {
+    const [open, setOpen] = useState(false);
+    const [input, setInput] = useState('');
+    const [loading, setLoading] = useState(false);
+    const [messages, setMessages] = useState([]);
+
+    const send = async () => {
+        if (!input.trim() || loading) return;
+        const q = input.trim();
+        setInput('');
+        setMessages(m => [...m, {role: 'user', text: q}]);
+        setLoading(true);
+        try {
+            const res = await apiService.askAboutContext('signal', String(signalId), q);
+            setMessages(m => [...m, {role: 'assistant', text: res.answer}]);
+        } catch {
+            setMessages(m => [...m, {role: 'assistant', text: 'Unable to get a response right now.'}]);
+        } finally {
+            setLoading(false);
+        }
+    };
+
+    return (
+        <div style={{borderTop: '1px dashed rgba(255,255,255,0.08)', marginTop: 8}}>
+            <style>{`@keyframes aureonPulse{0%,100%{opacity:1}50%{opacity:0.35}}`}</style>
+            <button onClick={() => setOpen(o => !o)} style={{
+                display: 'flex', alignItems: 'center', gap: 8, width: '100%', height: 36, padding: '0 4px',
+                background: 'none', border: 'none', cursor: 'pointer', textAlign: 'left',
+            }}>
+                <span style={{color: 'var(--aurum-500)', fontSize: 13, lineHeight: 1}}>✦</span>
+                <span style={{fontSize: 12.5, color: 'var(--ink-30)', fontFamily: 'var(--font-ui)', flex: 1}}>Ask about this signal</span>
+                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="var(--ink-40)" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"
+                     style={{transform: open ? 'rotate(180deg)' : 'rotate(0deg)', transition: 'transform 160ms'}}>
+                    <polyline points="6 9 12 15 18 9"/>
+                </svg>
+            </button>
+            {open && (
+                <div style={{paddingBottom: 14}}>
+                    {(messages.length > 0 || loading) && (
+                        <div style={{display: 'flex', flexDirection: 'column', gap: 8, marginBottom: 10}}>
+                            {messages.map((m, i) => (
+                                <div key={i} style={{display: 'flex', justifyContent: m.role === 'user' ? 'flex-end' : 'flex-start'}}>
+                                    <div style={{
+                                        maxWidth: '80%',
+                                        padding: m.role === 'user' ? '8px 12px' : '10px 14px',
+                                        borderRadius: m.role === 'user' ? '10px 10px 2px 10px' : '10px 10px 10px 2px',
+                                        background: m.role === 'user' ? 'rgba(255,255,255,0.06)' : 'rgba(201,168,106,0.07)',
+                                        borderLeft: m.role === 'assistant' ? '2px solid rgba(201,168,106,0.25)' : 'none',
+                                        fontSize: 13, color: 'var(--ink-10)', lineHeight: 1.55,
+                                    }}>{m.text}</div>
+                                </div>
+                            ))}
+                            {loading && (
+                                <div style={{display: 'flex', justifyContent: 'flex-start'}}>
+                                    <div style={{
+                                        padding: '10px 14px', borderRadius: '10px 10px 10px 2px',
+                                        background: 'rgba(201,168,106,0.07)', borderLeft: '2px solid rgba(201,168,106,0.25)',
+                                        fontSize: 15, color: 'var(--ink-40)',
+                                        animation: 'aureonPulse 1.2s ease-in-out infinite',
+                                    }}>…</div>
+                                </div>
+                            )}
+                        </div>
+                    )}
+                    <div style={{position: 'relative'}}>
+                        <input
+                            value={input}
+                            onChange={e => setInput(e.target.value)}
+                            onKeyDown={e => e.key === 'Enter' && send()}
+                            placeholder="Ask about this signal…"
+                            style={{
+                                width: '100%', padding: '8px 44px 8px 12px', borderRadius: 8, boxSizing: 'border-box',
+                                background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.10)',
+                                color: 'var(--ink-10)', fontSize: 13, fontFamily: 'var(--font-ui)', outline: 'none',
+                            }}
+                        />
+                        <button
+                            onClick={send}
+                            disabled={!input.trim() || loading}
+                            style={{
+                                position: 'absolute', right: 6, top: '50%', transform: 'translateY(-50%)',
+                                width: 28, height: 28, borderRadius: 6, border: 'none',
+                                cursor: input.trim() && !loading ? 'pointer' : 'default',
+                                background: input.trim() && !loading ? 'rgba(201,168,106,0.14)' : 'rgba(255,255,255,0.04)',
+                                color: input.trim() && !loading ? 'var(--aurum-100)' : 'var(--ink-40)',
+                                display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
+                            }}>
+                            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                                <line x1="5" y1="12" x2="19" y2="12"/><polyline points="12 5 19 12 12 19"/>
+                            </svg>
+                        </button>
+                    </div>
+                </div>
+            )}
+        </div>
+    );
+};
+
 const SignalCard = ({s}) => {
     const navigate = useNavigate();
     const [open, setOpen] = useState(false);
@@ -94,7 +193,7 @@ const SignalCard = ({s}) => {
                 }}>{(s.asset || 'PORT').slice(0, 4)}</div>
                 <div style={{minWidth: 0}}>
                     <div style={{display: 'flex', alignItems: 'baseline', gap: 8}}>
-                        <span style={{fontFamily: 'var(--font-mono)', fontSize: 13, fontWeight: 600, color: 'var(--ink-00)', letterSpacing: '0.04em'}}>{s.asset}</span>
+                        <span style={{fontFamily: 'var(--font-mono)', fontSize: 13, fontWeight: 600, color: 'var(--ink-00)', letterSpacing: '0.04em'}}>{s.asset ?? 'PORT'}</span>
                         <span style={{fontSize: 10.5, letterSpacing: '0.10em', textTransform: 'uppercase', color: 'var(--ink-30)', fontWeight: 600}}>{s.kind}</span>
                     </div>
                     <div style={{display: 'flex', alignItems: 'center', gap: 8, marginTop: 3, fontSize: 11, color: 'var(--ink-40)'}}>
@@ -140,6 +239,7 @@ const SignalCard = ({s}) => {
                     </div>
                 </div>
             )}
+            {s.id && <SignalAskPanel signalId={s.id}/>}
         </article>
     );
 };
@@ -169,7 +269,7 @@ export default function Signals() {
 
     const grouped = useMemo(() => {
         const g = {};
-        filtered.forEach(s => { (g[s.asset] = g[s.asset] || []).push(s); });
+        filtered.forEach(s => { const key = s.asset ?? 'Portfolio'; (g[key] = g[key] || []).push(s); });
         return Object.entries(g);
     }, [filtered]);
 
@@ -178,18 +278,6 @@ export default function Signals() {
 
     return (
         <>
-            <div style={{
-                padding: '12px 16px', marginBottom: 18, borderRadius: 10,
-                background: 'rgba(212,162,87,0.06)', border: '1px solid rgba(212,162,87,0.20)',
-                fontSize: 12.5, color: 'var(--ink-10)', display: 'flex', alignItems: 'center', gap: 10,
-            }}>
-                <span style={{color: 'var(--dusk-500)'}}>⚠</span>
-                <span>
-                    <b style={{color: 'var(--ink-00)', fontWeight: 500}}>Signals are inputs.</b>{' '}
-                    See <button onClick={() => navigate('/recommendations')} className="du3-cta ghost" style={{padding: '0 4px', height: 'auto', fontSize: 12.5}}>Recommendations</button> for decisions.
-                </span>
-            </div>
-
             {/* Stats + filters */}
             <div style={{display: 'flex', gap: 32, alignItems: 'flex-end', paddingBottom: 18, marginBottom: 20, borderBottom: '1px solid rgba(255,255,255,0.05)', flexWrap: 'wrap'}}>
                 <div>

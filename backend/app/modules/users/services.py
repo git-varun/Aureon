@@ -1,10 +1,12 @@
 """Users services."""
 import logging
-
-from sqlalchemy.orm import Session
-from app.modules.users.models import User
-from app.shared.exceptions import NotFoundError
 from typing import Optional
+
+from sqlalchemy.exc import IntegrityError
+from sqlalchemy.orm import Session
+
+from app.modules.users.models import User
+from app.shared.exceptions import ConflictError, NotFoundError
 
 logger = logging.getLogger("users.service")
 
@@ -50,7 +52,13 @@ class UserService:
                 display = "***" if key in ("password_hash", "password", "token") else repr(value)
                 logger.debug("update_user: user_id=%s field=%s → %s", user_id, key, display)
                 setattr(user, key, value)
-        self.db.commit()
+        try:
+            self.db.commit()
+        except IntegrityError as exc:
+            self.db.rollback()
+            if "phone" in str(exc.orig).lower():
+                raise ConflictError("Phone number is already associated with another account.") from exc
+            raise ConflictError("Update conflict: a unique field value is already taken.") from exc
         self.db.refresh(user)
         logger.info("update_user: committed user_id=%s", user_id)
         return user

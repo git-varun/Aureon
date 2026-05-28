@@ -1,6 +1,7 @@
 import json
 
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Body, Depends, HTTPException
+from pydantic import BaseModel
 from sqlalchemy.orm import Session
 
 from app.core.cache import cache
@@ -95,6 +96,122 @@ def ai_single_briefing(symbol: str, db: Session = Depends(get_session), _user=De
         return {"status": "cached", "data": result}
 
     return {"status": "processing"}
+
+
+@router.get("/ai/briefings")
+def ai_briefing_history(
+    limit: int = 30,
+    db: Session = Depends(get_session),
+    current_user=Depends(require_auth),
+):
+    """Return the last N global AIBriefing rows for the authenticated user."""
+    from app.modules.analytics.models import AIBriefing
+
+    rows = (
+        db.query(AIBriefing)
+        .filter(AIBriefing.briefing_type == "global")
+        .order_by(AIBriefing.created_at.desc())
+        .limit(max(1, min(limit, 100)))
+        .all()
+    )
+    result = []
+    for row in rows:
+        try:
+            content = json.loads(row.content) if row.content else {}
+        except Exception:
+            content = {}
+        fp = content.get("future_projections") or {}
+        result.append({
+            "id": row.id,
+            "created_at": row.created_at.isoformat() if row.created_at else None,
+            # Global briefing keys (prompt returns market_vibe, macro_analysis, etc.)
+            "summary":            content.get("market_vibe"),
+            "macro_analysis":     content.get("macro_analysis"),
+            "short_term_trend":   fp.get("estimated_30d_trend"),
+            "risk_level":         fp.get("portfolio_risk_level"),
+            "key_catalyst":       fp.get("catalyst_watch"),
+            "confidence":         content.get("confidence_score"),
+            "global_score":       content.get("global_score"),
+            "recommended_action": None,  # per-asset; use directives array instead
+            "directives":         content.get("directives", []),
+        })
+    return result
+
+
+@router.get("/ai/theme/{theme_id}")
+def ai_theme_take(theme_id: str, _user=Depends(require_auth)):
+    """Return cached AI take for a theme."""
+    ck = cache_key("ai", "theme", theme_id)
+    cached = cache.get(ck)
+    if cached:
+        return {"status": "cached", "data": cached}
+    return {"status": "no_data", "data": None}
+
+
+@router.post("/ai/theme/{theme_id}")
+def ai_theme_revaluate(theme_id: str, db: Session = Depends(get_session), _user=Depends(require_auth)):
+    """Generate or refresh an AI take for a market theme."""
+    from app.modules.market.services import get_theme_detail
+    from app.modules.analytics.ai_service import build_ai_service
+    from app.modules.portfolio.providers.credential_manager import CredentialManager
+
+    ck = cache_key("ai", "theme", theme_id)
+    theme = get_theme_detail(theme_id)
+    if not theme:
+        from fastapi import HTTPException
+        raise HTTPException(status_code=404, detail="Theme not found")
+
+    try:
+        ai = build_ai_service(CredentialManager(db))
+        ctx = (
+            f"Investment theme: {theme['name']}\n"
+            f"Description: {theme.get('desc', '')}\n"
+            f"1-month return: {theme.get('ret1m', 0) * 100:.1f}%\n"
+            f"Constituents: {', '.join(c['sym'] for c in theme.get('constituents', []))}\n"
+        )
+        result = ai.analyze_single_asset(ctx)
+        if result:
+            cache.set(ck, result, ttl=7200)
+            return {"status": "cached", "data": result}
+    except Exception as exc:
+        raise HTTPException(status_code=503, detail=f"AI service unavailable: {exc}")
+
+    return {"status": "processing"}
+
+
+class ThemeChatRequest(BaseModel):
+    message: str = ""
+
+
+@router.post("/ai/theme/{theme_id}/chat")
+def ai_theme_chat(theme_id: str, body: ThemeChatRequest = Body(default=ThemeChatRequest()), db: Session = Depends(get_session), _user=Depends(require_auth)):
+    """Answer a free-form question about a theme."""
+    from app.modules.market.services import get_theme_detail
+    from app.modules.analytics.ai_service import build_ai_service
+    from app.modules.portfolio.providers.credential_manager import CredentialManager
+
+    message = body.message.strip()
+    if not message:
+        return {"reply": "Please ask a question."}
+
+    theme = get_theme_detail(theme_id)
+    if not theme:
+        raise HTTPException(status_code=404, detail="Theme not found")
+
+    try:
+        ai = build_ai_service(CredentialManager(db))
+        ctx = (
+            f"You are Aureon, a concise AI wealth advisor. Respond in 2-3 sentences max.\n"
+            f"Investment theme: {theme['name']}\nDescription: {theme.get('desc', '')}\n"
+            f"1-month return: {theme.get('ret1m', 0) * 100:.1f}%\n"
+            f"Constituents: {', '.join(c['sym'] for c in theme.get('constituents', []))}\n"
+            f"User question: {message}"
+        )
+        result = ai.analyze_single_asset(ctx)
+        reply = (result or {}).get("take") or (result or {}).get("summary") or "Unable to generate a response at this time."
+        return {"reply": reply}
+    except Exception as exc:
+        raise HTTPException(status_code=503, detail=f"AI service unavailable: {exc}")
 
 
 @router.post("/ai/news/batch")

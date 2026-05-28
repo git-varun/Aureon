@@ -39,9 +39,10 @@ class PositionRepository:
         self.db = db
 
     def find_by_asset(self, asset_id: int, user_id: Optional[int] = None) -> Optional[Position]:
+        from sqlalchemy import or_
         q = self.db.query(Position).filter(Position.asset_id == asset_id)
         if user_id is not None:
-            q = q.filter(Position.user_id == user_id)
+            q = q.filter(or_(Position.user_id == user_id, Position.user_id.is_(None)))
         return q.first()
 
     def create(self, asset_id: int, quantity: float, avg_buy_price: float) -> Position:

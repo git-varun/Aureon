@@ -1,7 +1,9 @@
 /* Aureon v4 — Currency layer + Jobs layer context. */
 import React, { createContext, useContext, useState, useEffect } from 'react';
+import { useQueryClient } from '@tanstack/react-query';
 import { apiService } from '../api/apiService';
-import { SUPPORTED_CURRENCIES } from '../pages/aureon/marketData';
+import { SUPPORTED_CURRENCIES, FX_PER_INR } from '../pages/aureon/marketData';
+import { AUREON_STATE_KEY } from '../hooks/useAureonData';
 
 const V4Context = createContext(null);
 export const useV4 = () => useContext(V4Context);
@@ -30,6 +32,14 @@ export const V4_JOB_DEFS = {
     watchlist: [
         { id: 'j-prices',    name: 'Refresh prices',           desc: 'Last close for watchlist symbols',           duration: 1400 },
         { id: 'j-alerts',    name: 'Re-evaluate alerts',       desc: 'Check armed thresholds against latest',      duration: 1200 },
+    ],
+    markets: [
+        { id: 'j-market-data', name: 'Refresh market data',   desc: 'Pull indices, sectors, movers, and universe', duration: 2200 },
+        { id: 'j-themes',    name: 'Refresh themes',           desc: 'Recompute curated discovery themes',          duration: 1800 },
+    ],
+    terminal: [
+        { id: 'j-market-data', name: 'Populate universe',     desc: 'Pull asset universe from connected providers', duration: 2200 },
+        { id: 'j-ai',        name: 'Run AI analysis',          desc: 'On-demand AI take for the selected asset',    duration: 2600 },
     ],
 };
 
@@ -67,30 +77,15 @@ const _parseAIResponse = (runId, ts, resp) => {
     };
 };
 
-/* ---------- AI take synthesizer — fallback when API fails ---------- */
-const _AI_PHRASES_POS = [
-    'Earnings momentum and operating leverage support a constructive setup; consensus revisions are tracking higher.',
-    'Cash flow conversion is improving sequentially; valuation premium is justified by re-rating odds.',
-    'Order book visibility is firming; margin glide path is intact through the next two quarters.',
-];
-const _AI_PHRASES_NEU = [
-    'Mixed signal: tape strength offset by stretched positioning; size discipline matters more than direction here.',
-    'Catalysts are balanced over the next 4–6 weeks; await the next print before adding.',
-];
-const _AI_PHRASES_NEG = [
-    'Negative revision pressure persists; downside skew dominates over a 1-month window.',
-    'Demand softness is not yet priced; trim into rallies.',
-];
-const _AI_TONES = [
-    { tone: 'Constructive', color: 'var(--sage-500)',    bg: 'rgba(111,174,136,0.10)',  border: 'rgba(111,174,136,0.28)',  bag: _AI_PHRASES_POS },
-    { tone: 'Neutral',      color: 'var(--aurum-100)',   bg: 'rgba(201,168,106,0.10)',  border: 'rgba(201,168,106,0.28)',  bag: _AI_PHRASES_NEU },
-    { tone: 'Cautious',     color: 'var(--crimson-500)', bg: 'rgba(201,82,82,0.10)',    border: 'rgba(201,82,82,0.28)',    bag: _AI_PHRASES_NEG },
-];
-const _synthesizeFallback = (ticker) => {
-    const t = _AI_TONES[Math.floor(Math.random() * _AI_TONES.length)];
-    const phrase = t.bag[Math.floor(Math.random() * t.bag.length)];
-    return { tone: t.tone, color: t.color, bg: t.bg, border: t.border, text: phrase, confidence: 0.58 + Math.random() * 0.32 };
-};
+/* Explicit error state shown when the AI API call fails. */
+const _aiErrorFallback = () => ({
+    tone: 'Unavailable',
+    color: 'var(--ink-40)',
+    bg: 'rgba(255,255,255,0.04)',
+    border: 'rgba(255,255,255,0.10)',
+    text: 'AI analysis is temporarily unavailable. Retry using the Run AI job.',
+    confidence: null,
+});
 
 /* ============================================================
    V4Provider — currency state + jobs state
@@ -101,10 +96,25 @@ export const V4Provider = ({ children }) => {
         return SUPPORTED_CURRENCIES.includes(c) ? c : 'INR';
     });
 
+    /* Live FX rates fetched from open.er-api.com (base: INR). Falls back to
+       static constants when the fetch fails or is pending. */
+    const [fxRates, setFxRates] = useState(null);
+
     useEffect(() => {
         window.__aureonCurrency = currency;
         try { localStorage.setItem('aureon.currency', currency); } catch (_) {}
     }, [currency]);
+
+    useEffect(() => {
+        fetch('https://open.er-api.com/v6/latest/INR')
+            .then(r => r.json())
+            .then(data => {
+                if (data?.result === 'success' && data?.rates) {
+                    setFxRates(data.rates);
+                }
+            })
+            .catch(() => {}); // fall back to static FX_PER_INR constants
+    }, []);
 
     const setCurrency = (c) => {
         if (SUPPORTED_CURRENCIES.includes(c)) setCurrencyState(c);
@@ -113,6 +123,22 @@ export const V4Provider = ({ children }) => {
     const [running, setRunning] = useState([]);
     const [jobHistory, setJobHistory] = useState({});
     const [aiRuns, setAiRuns] = useState({});
+    const queryClient = useQueryClient();
+
+    /* Map job IDs to the real API call that backs them. */
+    const _jobApiCall = (jobId, ticker) => {
+        switch (jobId) {
+            case 'j-prices':   return apiService.refreshPrices();
+            case 'j-briefing': return apiService.runGlobalAI();
+            case 'j-providers':return apiService.syncBrokers();
+            case 'j-signals':  return apiService.generateSignals();
+            case 'j-news':     return apiService.analyzeNewsBatch();
+            case 'j-analytics':return apiService.refreshPrices(); // prices are the base for all analytics
+            case 'j-alerts':   return apiService.refreshPrices(); // re-evaluates price-based thresholds
+            case 'j-ai':       return Promise.resolve(null); // handled separately below with polling
+            default:           return Promise.resolve(null);
+        }
+    };
 
     const runJob = ({ jobId, name, screen, ticker, durationMs }) => {
         const runId = 'r-' + Date.now().toString(36) + Math.random().toString(36).slice(2, 5);
@@ -120,13 +146,27 @@ export const V4Provider = ({ children }) => {
         const startedAt = Date.now();
         setRunning(rs => [...rs, { runId, jobId, name, screen, ticker, startedAt, durationMs: dur }]);
 
-        setTimeout(() => {
-            setRunning(rs => rs.filter(r => r.runId !== runId));
-            setJobHistory(h => ({ ...h, [jobId]: { last: Date.now(), status: 'ok' } }));
-        }, dur);
+        // Race the API call against a minimum display timer so the spinner always
+        // shows for at least `dur` ms, but doesn't block on slow calls.
+        const timer = new Promise(res => setTimeout(res, dur));
+        const apiCall = _jobApiCall(jobId, ticker);
+
+        Promise.all([timer, apiCall])
+            .catch(() => {}) // API errors are non-fatal — job still finishes
+            .finally(() => {
+                setRunning(rs => rs.filter(r => r.runId !== runId));
+                setJobHistory(h => ({ ...h, [jobId]: { last: Date.now(), status: 'ok' } }));
+                // Refresh the primary data feed so the UI reflects the outcome.
+                if (jobId !== 'j-ai') {
+                    queryClient.invalidateQueries({ queryKey: AUREON_STATE_KEY });
+                }
+            });
 
         if (jobId === 'j-ai' && ticker) {
+            let pollCancelled = false;
+
             const _commitTake = (resp) => {
+                if (pollCancelled) return;
                 const take = _parseAIResponse(runId, Date.now(), resp);
                 setAiRuns(a => {
                     const prev = a[ticker] || [];
@@ -134,18 +174,23 @@ export const V4Provider = ({ children }) => {
                     return { ...a, [ticker]: [...updated, take] };
                 });
             };
+
             const _placeholder = _parseAIResponse(runId, Date.now(), { status: 'processing' });
             setAiRuns(a => ({ ...a, [ticker]: [...(a[ticker] || []), _placeholder] }));
+
             apiService.runSingleAI(ticker)
                 .then(resp => {
+                    if (pollCancelled) return;
                     if (resp?.status === 'cached' && resp?.data) {
                         _commitTake(resp);
                     } else {
                         const _poll = (attempt) => {
-                            if (attempt > 5) return;
+                            if (attempt > 5 || pollCancelled) return;
                             setTimeout(() => {
+                                if (pollCancelled) return;
                                 apiService.getAITake(ticker)
                                     .then(r => {
+                                        if (pollCancelled) return;
                                         if (r?.status === 'cached' && r?.data) _commitTake(r);
                                         else _poll(attempt + 1);
                                     })
@@ -156,18 +201,19 @@ export const V4Provider = ({ children }) => {
                     }
                 })
                 .catch(() => {
-                    const take = _synthesizeFallback(ticker);
+                    pollCancelled = true;
+                    const errorTake = _aiErrorFallback();
                     setAiRuns(a => {
                         const prev = a[ticker] || [];
                         const updated = prev.filter(r => r.id !== runId);
-                        return { ...a, [ticker]: [...updated, { id: runId, ts: Date.now(), ...take }] };
+                        return { ...a, [ticker]: [...updated, { id: runId, ts: Date.now(), ...errorTake }] };
                     });
                 });
         }
     };
 
     return (
-        <V4Context.Provider value={{ currency, setCurrency, running, jobHistory, runJob, aiRuns }}>
+        <V4Context.Provider value={{ currency, setCurrency, fxRates: fxRates || FX_PER_INR, running, jobHistory, runJob, aiRuns }}>
             {children}
         </V4Context.Provider>
     );

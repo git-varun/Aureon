@@ -31,11 +31,20 @@ const LABEL_STYLE = {
     textTransform: 'uppercase', fontWeight: 600, marginBottom: 5,
 };
 
+// Coerce any error shape (string, object, array) to an array of strings
+function extractErrors(raw) {
+    if (!raw) return ['Unknown error'];
+    if (typeof raw === 'string') return [raw];
+    if (Array.isArray(raw)) return raw.map(e => (typeof e === 'string' ? e : JSON.stringify(e)));
+    if (typeof raw === 'object' && raw.message) return [raw.message];
+    return [JSON.stringify(raw)];
+}
+
 function ErrorBox({errors}) {
     if (!errors.length) return null;
     return (
         <div style={{background: 'rgba(209,107,107,0.08)', border: '1px solid rgba(209,107,107,0.25)', borderRadius: 8, padding: '10px 14px', marginBottom: 12}}>
-            {errors.map((e, i) => <div key={i} style={{fontSize: 11.5, color: 'var(--crimson-400)', marginBottom: 2}}>{e}</div>)}
+            {errors.map((e, i) => <div key={i} style={{fontSize: 11.5, color: 'var(--crimson-400)', marginBottom: 2}}>{String(e)}</div>)}
         </div>
     );
 }
@@ -69,7 +78,7 @@ function TransactionsTab({onClose, onCommitted}) {
             setErrors(res.errors || []);
             if (res.detected_broker && res.detected_broker !== 'generic') setDetectedBroker(res.detected_broker);
         } catch (err) {
-            setErrors([err?.response?.data?.detail || 'Failed to parse file']);
+            setErrors(extractErrors(err?.response?.data?.detail || err?.message || 'Failed to parse file'));
         } finally { setLoading(false); }
     };
 
@@ -81,7 +90,7 @@ function TransactionsTab({onClose, onCommitted}) {
             setCommitted(res.committed);
             onCommitted?.();
         } catch (err) {
-            setErrors([err?.response?.data?.detail || 'Commit failed']);
+            setErrors(extractErrors(err?.response?.data?.detail || err?.message || 'Commit failed'));
         } finally { setLoading(false); }
     };
 
@@ -163,8 +172,7 @@ function CASTab({onClose, onCommitted}) {
             const res = await apiService.importCAS(file, true, password || null);
             setParsed({summary: res.summary, holdings: res.holdings || []});
         } catch (err) {
-            const detail = err?.response?.data?.detail;
-            setErrors([typeof detail === 'string' ? detail : 'Failed to parse CAS PDF']);
+            setErrors(extractErrors(err?.response?.data?.detail || err?.message || 'Failed to parse CAS PDF'));
         } finally { setLoading(false); }
     };
 
@@ -176,8 +184,7 @@ function CASTab({onClose, onCommitted}) {
             setCommitted(res.summary);
             onCommitted?.();
         } catch (err) {
-            const detail = err?.response?.data?.detail;
-            setErrors([typeof detail === 'string' ? detail : 'Commit failed']);
+            setErrors(extractErrors(err?.response?.data?.detail || err?.message || 'Commit failed'));
         } finally { setLoading(false); }
     };
 
@@ -252,6 +259,203 @@ function CASTab({onClose, onCommitted}) {
     );
 }
 
+function NPSTab({onClose, onCommitted}) {
+    const fileRef = useRef(null);
+    const [parsed, setParsed] = useState(null);
+    const [errors, setErrors] = useState([]);
+    const [loading, setLoading] = useState(false);
+    const [committed, setCommitted] = useState(null);
+
+    const handleFile = async (e) => {
+        const file = e.target.files[0];
+        if (!file) return;
+        setLoading(true); setParsed(null); setErrors([]);
+        try {
+            const res = await apiService.importNPS(file, true);
+            setParsed({summary: res.summary, holdings: res.holdings || []});
+        } catch (err) {
+            setErrors(extractErrors(err?.response?.data?.detail || err?.message || 'Failed to parse NPS PDF'));
+        } finally { setLoading(false); }
+    };
+
+    const handleCommit = async () => {
+        if (!fileRef.current?.files[0]) return;
+        setLoading(true);
+        try {
+            const res = await apiService.importNPS(fileRef.current.files[0], false);
+            if (res.errors?.length > 0 || res.updated_assets === 0) {
+                setErrors(res.errors?.length > 0 ? res.errors : ['No assets were synced']);
+                return;
+            }
+            setCommitted(res.summary);
+            onCommitted?.();
+        } catch (err) {
+            setErrors(extractErrors(err?.response?.data?.detail || err?.message || 'Commit failed'));
+        } finally { setLoading(false); }
+    };
+
+    if (committed !== null) return (
+        <DoneScreen
+            count={`₹${Number(committed.total_value_inr || 0).toLocaleString('en-IN')}`}
+            label={`NPS synced · Tier I ₹${Number(committed.tier1_value_inr || 0).toLocaleString('en-IN')} · Tier II ₹${Number(committed.tier2_value_inr || 0).toLocaleString('en-IN')}`}
+            onClose={onClose}
+        />
+    );
+
+    return (
+        <>
+            <div style={{fontSize: 11, color: 'var(--ink-50)', marginBottom: 12}}>
+                Protean CRA "Statement of Holding for NPS" PDF · Download from cra.nps-proteantech.in
+            </div>
+            <div style={{padding: '8px 12px', background: 'rgba(201,168,106,0.06)', border: '1px solid rgba(201,168,106,0.15)', borderRadius: 7, marginBottom: 12, fontSize: 11, color: 'var(--aurum-100)', lineHeight: 1.6}}>
+                Cost basis is not available in this statement — avg buy price will be 0. Download a Transaction Statement if you need returns / XIRR.
+            </div>
+            <input ref={fileRef} type="file" accept=".pdf" onChange={handleFile}
+                style={{marginBottom: 10, color: 'var(--ink-20)', fontSize: 12}} />
+            {loading && <div style={{color: 'var(--ink-40)', fontSize: 12, marginBottom: 10}}>Parsing…</div>}
+            <ErrorBox errors={errors} />
+            {parsed && (
+                <>
+                    <div style={{display: 'flex', gap: 16, flexWrap: 'wrap', padding: '10px 14px', background: 'rgba(255,255,255,0.03)', borderRadius: 8, marginBottom: 12, fontSize: 11.5}}>
+                        {parsed.summary.pran && <span style={{color: 'var(--ink-20)'}}><span style={{color: 'var(--ink-40)'}}>PRAN </span>{parsed.summary.pran}</span>}
+                        {parsed.summary.pan && <span style={{color: 'var(--ink-20)'}}><span style={{color: 'var(--ink-40)'}}>PAN </span>{parsed.summary.pan}</span>}
+                        {parsed.summary.statement_date && <span style={{color: 'var(--ink-20)'}}><span style={{color: 'var(--ink-40)'}}>Date </span>{parsed.summary.statement_date}</span>}
+                        <span style={{color: 'var(--ink-20)'}}><span style={{color: 'var(--ink-40)'}}>Tier I </span>₹{Number(parsed.summary.tier1_value_inr || 0).toLocaleString('en-IN')}</span>
+                        <span style={{color: 'var(--ink-20)'}}><span style={{color: 'var(--ink-40)'}}>Tier II </span>₹{Number(parsed.summary.tier2_value_inr || 0).toLocaleString('en-IN')}</span>
+                        <span style={{color: 'var(--sage-500)', fontFamily: 'var(--font-mono)', fontWeight: 600}}>₹{Number(parsed.summary.total_value_inr || 0).toLocaleString('en-IN')}</span>
+                    </div>
+                    {parsed.holdings.length > 0 && (
+                        <>
+                            <div style={{fontSize: 11, color: 'var(--ink-40)', marginBottom: 6}}>{parsed.holdings.length} schemes found</div>
+                            <div style={{overflowY: 'auto', flex: 1, marginBottom: 14}}>
+                                <table style={{width: '100%', borderCollapse: 'collapse', fontSize: 11.5, fontFamily: 'var(--font-mono)'}}>
+                                    <thead>
+                                        <tr style={{borderBottom: '1px solid rgba(255,255,255,0.07)', color: 'var(--ink-40)', textAlign: 'left'}}>
+                                            {['Tier', 'Scheme', 'Fund Manager', 'Units', 'NAV', 'Value'].map(h => <th key={h} style={{padding: '4px 8px', fontWeight: 600}}>{h}</th>)}
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        {parsed.holdings.map((h, i) => (
+                                            <tr key={i} style={{borderBottom: '1px solid rgba(255,255,255,0.03)', color: 'var(--ink-10)'}}>
+                                                <td style={{padding: '4px 8px', color: 'var(--ink-40)', fontSize: 10.5}}>{h.tier}</td>
+                                                <td style={{padding: '4px 8px', fontWeight: 600}}>{h.scheme_type}</td>
+                                                <td style={{padding: '4px 8px', maxWidth: 180, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', color: 'var(--ink-30)', fontSize: 10.5}} title={h.fund_manager}>{h.fund_manager}</td>
+                                                <td style={{padding: '4px 8px'}}>{Number(h.total_units).toLocaleString('en-IN', {maximumFractionDigits: 4})}</td>
+                                                <td style={{padding: '4px 8px'}}>₹{Number(h.nav || 0).toLocaleString('en-IN', {maximumFractionDigits: 4})}</td>
+                                                <td style={{padding: '4px 8px', color: 'var(--sage-500)'}}>₹{Number(h.current_value || 0).toLocaleString('en-IN', {maximumFractionDigits: 2})}</td>
+                                            </tr>
+                                        ))}
+                                    </tbody>
+                                </table>
+                            </div>
+                        </>
+                    )}
+                    <button onClick={handleCommit} disabled={loading} style={{width: '100%', padding: '10px 0', borderRadius: 8, background: 'var(--aurum-100)', border: 'none', color: '#000', fontWeight: 700, fontSize: 13, cursor: 'pointer'}}>
+                        Sync NPS holdings to portfolio
+                    </button>
+                </>
+            )}
+        </>
+    );
+}
+
+function EPFTab({onClose, onCommitted}) {
+    const fileRef = useRef(null);
+    const [parsed, setParsed] = useState(null);
+    const [errors, setErrors] = useState([]);
+    const [loading, setLoading] = useState(false);
+    const [committed, setCommitted] = useState(null);
+
+    const handleFile = async (e) => {
+        const file = e.target.files[0];
+        if (!file) return;
+        setLoading(true); setParsed(null); setErrors([]);
+        try {
+            const res = await apiService.importEPF(file, true);
+            setParsed({summary: res.summary, transactions: res.transactions || []});
+        } catch (err) {
+            setErrors(extractErrors(err?.response?.data?.detail || err?.message || 'Failed to parse EPF passbook PDF'));
+        } finally { setLoading(false); }
+    };
+
+    const handleCommit = async () => {
+        if (!fileRef.current?.files[0]) return;
+        setLoading(true);
+        try {
+            const res = await apiService.importEPF(fileRef.current.files[0], false);
+            if (res.errors?.length > 0 && !res.committed_transactions) {
+                setErrors(res.errors);
+                return;
+            }
+            setCommitted(res.summary);
+            onCommitted?.();
+        } catch (err) {
+            setErrors(extractErrors(err?.response?.data?.detail || err?.message || 'Commit failed'));
+        } finally { setLoading(false); }
+    };
+
+    if (committed !== null) return (
+        <DoneScreen
+            count={`₹${Number(committed.total_corpus_inr || 0).toLocaleString('en-IN')}`}
+            label={`EPF synced · EPF ₹${Number(committed.total_epf_inr || 0).toLocaleString('en-IN')} · EPS ₹${Number(committed.closing_pension_inr || 0).toLocaleString('en-IN')} · ${committed.regular_contributions} contributions imported`}
+            onClose={onClose}
+        />
+    );
+
+    return (
+        <>
+            <div style={{fontSize: 11, color: 'var(--ink-50)', marginBottom: 12}}>
+                EPFO Member Passbook PDF (annual financial year statement) · Download from passbook.epfindia.gov.in
+            </div>
+            <input ref={fileRef} type="file" accept=".pdf" onChange={handleFile}
+                style={{marginBottom: 10, color: 'var(--ink-20)', fontSize: 12}} />
+            {loading && <div style={{color: 'var(--ink-40)', fontSize: 12, marginBottom: 10}}>Parsing…</div>}
+            <ErrorBox errors={errors} />
+            {parsed && (
+                <>
+                    <div style={{display: 'flex', gap: 16, flexWrap: 'wrap', padding: '10px 14px', background: 'rgba(255,255,255,0.03)', borderRadius: 8, marginBottom: 12, fontSize: 11.5}}>
+                        {parsed.summary.uan && <span style={{color: 'var(--ink-20)'}}><span style={{color: 'var(--ink-40)'}}>UAN </span>{parsed.summary.uan}</span>}
+                        {parsed.summary.financial_year && <span style={{color: 'var(--ink-20)'}}><span style={{color: 'var(--ink-40)'}}>FY </span>{parsed.summary.financial_year}</span>}
+                        {parsed.summary.closing_date && <span style={{color: 'var(--ink-20)'}}><span style={{color: 'var(--ink-40)'}}>As of </span>{parsed.summary.closing_date}</span>}
+                        <span style={{color: 'var(--ink-20)'}}><span style={{color: 'var(--ink-40)'}}>EPF </span>₹{Number(parsed.summary.total_epf_inr || 0).toLocaleString('en-IN')}</span>
+                        <span style={{color: 'var(--ink-20)'}}><span style={{color: 'var(--ink-40)'}}>EPS </span>₹{Number(parsed.summary.closing_pension_inr || 0).toLocaleString('en-IN')}</span>
+                        <span style={{color: 'var(--sage-500)', fontFamily: 'var(--font-mono)', fontWeight: 600}}>₹{Number(parsed.summary.total_corpus_inr || 0).toLocaleString('en-IN')}</span>
+                    </div>
+                    {parsed.transactions.length > 0 && (
+                        <>
+                            <div style={{fontSize: 11, color: 'var(--ink-40)', marginBottom: 6}}>{parsed.transactions.length} transactions found · {parsed.summary.regular_contributions} regular contributions</div>
+                            <div style={{overflowY: 'auto', flex: 1, marginBottom: 14}}>
+                                <table style={{width: '100%', borderCollapse: 'collapse', fontSize: 11.5, fontFamily: 'var(--font-mono)'}}>
+                                    <thead>
+                                        <tr style={{borderBottom: '1px solid rgba(255,255,255,0.07)', color: 'var(--ink-40)', textAlign: 'left'}}>
+                                            {['Month', 'Date', 'Employee', 'Employer', 'EPS', 'Particulars'].map(h => <th key={h} style={{padding: '4px 8px', fontWeight: 600}}>{h}</th>)}
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        {parsed.transactions.map((t, i) => (
+                                            <tr key={i} style={{borderBottom: '1px solid rgba(255,255,255,0.03)', color: 'var(--ink-10)'}}>
+                                                <td style={{padding: '4px 8px', color: 'var(--ink-40)', fontSize: 10.5}}>{t.wage_month}</td>
+                                                <td style={{padding: '4px 8px', fontSize: 10.5}}>{t.date}</td>
+                                                <td style={{padding: '4px 8px', color: 'var(--sage-500)'}}>₹{Number(t.employee_contribution || 0).toLocaleString('en-IN')}</td>
+                                                <td style={{padding: '4px 8px'}}>₹{Number(t.employer_contribution || 0).toLocaleString('en-IN')}</td>
+                                                <td style={{padding: '4px 8px', color: 'var(--ink-40)'}}>₹{Number(t.pension_contribution || 0).toLocaleString('en-IN')}</td>
+                                                <td style={{padding: '4px 8px', maxWidth: 180, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', color: 'var(--ink-40)', fontSize: 10.5}} title={t.particulars}>{t.particulars}</td>
+                                            </tr>
+                                        ))}
+                                    </tbody>
+                                </table>
+                            </div>
+                        </>
+                    )}
+                    <button onClick={handleCommit} disabled={loading} style={{width: '100%', padding: '10px 0', borderRadius: 8, background: 'var(--aurum-100)', border: 'none', color: '#000', fontWeight: 700, fontSize: 13, cursor: 'pointer'}}>
+                        Sync EPF + EPS to portfolio ({parsed.transactions.length} transactions)
+                    </button>
+                </>
+            )}
+        </>
+    );
+}
+
 function ImportModal({onClose, onCommitted}) {
     const [tab, setTab] = useState('transactions');
 
@@ -265,11 +469,13 @@ function ImportModal({onClose, onCommitted}) {
                 <div style={{display: 'flex', gap: 4, padding: 4, borderRadius: 8, background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.06)', marginBottom: 18, alignSelf: 'flex-start'}}>
                     <button style={TAB_STYLE(tab === 'transactions')} onClick={() => setTab('transactions')}>Transactions</button>
                     <button style={TAB_STYLE(tab === 'cas')} onClick={() => setTab('cas')}>CAS / Holdings</button>
+                    <button style={TAB_STYLE(tab === 'nps')} onClick={() => setTab('nps')}>NPS Holding</button>
+                    <button style={TAB_STYLE(tab === 'epf')} onClick={() => setTab('epf')}>EPF Passbook</button>
                 </div>
-                {tab === 'transactions'
-                    ? <TransactionsTab onClose={onClose} onCommitted={onCommitted} />
-                    : <CASTab onClose={onClose} onCommitted={onCommitted} />
-                }
+                {tab === 'transactions' && <TransactionsTab onClose={onClose} onCommitted={onCommitted} />}
+                {tab === 'cas' && <CASTab onClose={onClose} onCommitted={onCommitted} />}
+                {tab === 'nps' && <NPSTab onClose={onClose} onCommitted={onCommitted} />}
+                {tab === 'epf' && <EPFTab onClose={onClose} onCommitted={onCommitted} />}
             </div>
         </div>
     );
@@ -300,11 +506,16 @@ export default function Activity() {
         applied: activity.filter(a => a.kind === 'applied').length,
         dismissed: activity.filter(a => a.kind === 'dismissed').length,
         contribution: activity.filter(a => a.kind === 'contribution').length,
+        trade: activity.filter(a => a.kind === 'trade').length,
     };
+
+    // Support both "YYYY-MM-DD · HH:MM" and "YYYY-MM-DD HH:MM" timestamp formats
+    const tsDatePart = (ts) => ts.includes('·') ? ts.split('·')[0].trim() : ts.split(' ')[0].trim();
+    const tsTimePart = (ts) => ts.includes('·') ? (ts.split('·')[1]?.trim() || ts) : (ts.split(' ').slice(1).join(' ') || ts);
 
     const groups = {};
     filtered.forEach(a => {
-        const day = a.ts.split('·')[0].trim();
+        const day = tsDatePart(a.ts);
         (groups[day] = groups[day] || []).push(a);
     });
 
@@ -356,6 +567,14 @@ export default function Activity() {
                         marginTop: 6
                     }}>{counts.contribution}</div>
                 </div>
+                <div><Eyebrow>Trades</Eyebrow>
+                    <div style={{
+                        fontFamily: 'var(--font-mono)',
+                        fontSize: 22,
+                        color: 'var(--aurum-100)',
+                        marginTop: 6
+                    }}>{counts.trade}</div>
+                </div>
                 <div style={{flex: 1}}/>
                 <button onClick={() => setShowImport(true)} style={{
                     display: 'flex', alignItems: 'center', gap: 6,
@@ -376,7 +595,7 @@ export default function Activity() {
                     background: 'rgba(255,255,255,0.03)',
                     border: '1px solid rgba(255,255,255,0.06)'
                 }}>
-                    {[['all', 'All'], ['applied', 'Applied'], ['dismissed', 'Dismissed'], ['contribution', 'Contributions']].map(([k, l]) => (
+                    {[['all', 'All'], ['applied', 'Applied'], ['dismissed', 'Dismissed'], ['contribution', 'Contributions'], ['trade', 'Trades']].map(([k, l]) => (
                         <button key={k} onClick={() => setKind(k)} style={{
                             padding: '5px 12px',
                             fontSize: 11.5,
@@ -442,7 +661,7 @@ export default function Activity() {
                                             <span style={{fontFamily: 'var(--font-mono)', color: 'var(--ink-00)', fontWeight: 600, letterSpacing: '0.04em'}}>{a.asset}</span>
                                             <span style={{fontSize: 11.5, color: 'var(--ink-20)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap'}}>{a.detail}</span>
                                         </div>
-                                        <div style={{fontFamily: 'var(--font-mono)', fontSize: 10.5, color: 'var(--ink-40)', marginTop: 2}}>{a.ts.split('·')[1]?.trim() || a.ts}</div>
+                                        <div style={{fontFamily: 'var(--font-mono)', fontSize: 10.5, color: 'var(--ink-40)', marginTop: 2}}>{tsTimePart(a.ts)}</div>
                                     </div>
                                     <div style={{display: 'flex', alignItems: 'center', gap: 10, flexShrink: 0}}>
                                         {a.realized && (
