@@ -128,6 +128,8 @@ __pypackages__/
 
 # Celery stuff
 celerybeat-schedule
+celerybeat-schedule-shm
+celerybeat-schedule-wal
 celerybeat.pid
 
 # SageMath parsed files
@@ -135,7 +137,13 @@ celerybeat.pid
 
 # Environments
 .env
+.env.test
 env/
+
+# Playwright
+frontend/tests/.auth/
+frontend/playwright-report/
+frontend/test-results/
 venv/
 ENV/
 env.bak/

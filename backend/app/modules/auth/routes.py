@@ -22,7 +22,8 @@ from app.modules.auth.schemas import (
     OtpSentResponse,
     PasswordOtpPendingResponse,
 )
-from app.shared.exceptions import AppException
+from app.core.config import settings
+from app.shared.exceptions import AppException, ValidationError
 
 router = APIRouter(prefix="/api/auth", tags=["auth"])
 
@@ -103,8 +104,7 @@ def logout(payload: LogoutRequest, db: Session = Depends(get_session)):
 def magic_send(request: Request, payload: MagicSendRequest, db: Session = Depends(get_session)):
     """Send a magic sign-in link to the given email."""
     try:
-        base_url = str(request.base_url).rstrip("/")
-        services.magic_send(payload.email, db, base_url=base_url)
+        services.magic_send(payload.email, db)
         return OtpSentResponse()
     except AppException:
         raise
@@ -167,6 +167,17 @@ def phone_otp_verify(request: Request, payload: PhoneOtpVerifyRequest, db: Sessi
         return _token_resp(access, refresh, user_id, is_new)
     except AppException:
         raise
+
+
+# ── Dev-only direct login (no OTP) ─────────────────────────────────────────
+
+@router.post("/dev-login")
+def dev_login(payload: LoginRequest, db: Session = Depends(get_session)):
+    """Return tokens directly without OTP — only available when ENABLE_API_DOCS=true."""
+    if not settings.enable_api_docs:
+        raise ValidationError("Not available in production")
+    access, refresh, user_id = services.dev_login(payload.email, payload.password, db)
+    return _token_resp(access, refresh, user_id)
 
 
 # ── Google OAuth ───────────────────────────────────────────────────────────

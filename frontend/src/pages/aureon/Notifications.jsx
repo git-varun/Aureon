@@ -1,5 +1,6 @@
 import React, {useEffect, useState} from 'react';
-import {apiService} from '../../api/apiService';
+import {Eyebrow} from '@/components/aureon/ui';
+import {apiService} from '@/api/apiService';
 
 const relativeTime = (ts) => {
     const diff = Date.now() - new Date(ts).getTime();
@@ -72,8 +73,8 @@ export default function Notifications() {
 
     const load = async () => {
         try {
-            const data = await apiService.getNotifications();
-            setNotifications(data || []);
+            const raw = await apiService.getNotifications();
+            setNotifications(Array.isArray(raw) ? raw : (raw?.items ?? []));
         } catch {
             setNotifications([]);
         } finally {
@@ -107,20 +108,22 @@ export default function Notifications() {
 
     return (
         <div style={{paddingBottom: 40}}>
-            <div style={{
-                display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-                padding: '10px 0 16px', borderBottom: '1px solid rgba(255,255,255,0.05)', marginBottom: 14,
-            }}>
-                <span style={{fontSize: 12, color: 'var(--ink-40)'}}>
-                    {unread.length > 0
-                        ? <><b style={{fontFamily: 'var(--font-mono)', fontWeight: 500, color: 'var(--ink-10)'}}>{unread.length}</b> unread</>
-                        : 'All caught up'}
-                    <span style={{marginLeft: 14, fontFamily: 'var(--font-mono)', fontSize: 10.5, color: 'var(--ink-40)'}}>
-                        auto-poll · 30s
-                    </span>
-                </span>
+            <div style={{display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', marginBottom: 20}}>
+                <div>
+                    <Eyebrow>Inbox</Eyebrow>
+                    <h2 style={{margin: '4px 0 0', fontFamily: 'var(--font-heading)', fontSize: 22, fontWeight: 600, color: 'var(--ink-00)', letterSpacing: '-0.015em'}}>
+                        Notifications
+                    </h2>
+                    <p style={{margin: '6px 0 0', fontSize: 12, color: 'var(--ink-40)'}}>
+                        {unread.length > 0
+                            ? <><b style={{fontFamily: 'var(--font-mono)', fontWeight: 500, color: 'var(--ink-10)'}}>{unread.length}</b> unread · auto-poll 30s</>
+                            : 'All caught up · auto-poll 30s'}
+                    </p>
+                </div>
                 {unread.length > 0 && (
-                    <button onClick={markAllRead} className="du3-cta">Mark all read</button>
+                    <button onClick={markAllRead} className="du3-cta" style={{height: 32, padding: '0 14px', fontSize: 12, flexShrink: 0}}>
+                        Mark all read
+                    </button>
                 )}
             </div>
 
@@ -131,10 +134,12 @@ export default function Notifications() {
                     </div>
                 )}
                 {!loading && notifications.length === 0 && (
-                    <div style={{padding: '60px 20px', textAlign: 'center'}}>
-                        <div style={{fontSize: 32, marginBottom: 8}}>🔔</div>
+                    <div style={{padding: '60px 20px', textAlign: 'center', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 8}}>
+                        <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="var(--ink-40)" strokeWidth="1.3" strokeLinecap="round" strokeLinejoin="round">
+                            <path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 0 1-3.46 0"/>
+                        </svg>
                         <div style={{fontSize: 14, color: 'var(--ink-20)'}}>No notifications</div>
-                        <div style={{fontSize: 12, color: 'var(--ink-40)', marginTop: 4}}>You're all caught up.</div>
+                        <div style={{fontSize: 12, color: 'var(--ink-40)'}}>You're all caught up.</div>
                     </div>
                 )}
                 {notifications.map(n => (

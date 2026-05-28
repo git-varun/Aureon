@@ -2,6 +2,7 @@
 import React, {useState, useEffect, useMemo, useRef} from 'react';
 import {isBlocked, needsModal, UNDO_WINDOW_MS, fmt$} from './utils';
 import {ConfidenceIndicator, EvaluatePanel, AllocationImpactPanel} from './primitives';
+import {apiService} from '../../api/apiService';
 
 export const DecisionUnit = ({rec, activeIds, onCommit, onUndo, onResolveConflict, openModal}) => {
     const [state, setState] = useState('idle');
@@ -110,6 +111,71 @@ export const DecisionUnit = ({rec, activeIds, onCommit, onUndo, onResolveConflic
 
             {state === 'applied' && outcome && (
                 <OutcomeFeedbackCard outcome={outcome} undoLeft={undoLeft} onUndo={doUndo}/>
+            )}
+            {rec.id && <AskAureonPanel contextType="recommendation" contextId={rec.id}/>}
+        </div>
+    );
+};
+
+const AskAureonPanel = ({contextType, contextId}) => {
+    const [open, setOpen] = useState(false);
+    const [input, setInput] = useState('');
+    const [loading, setLoading] = useState(false);
+    const [turns, setTurns] = useState([]);
+
+    const submit = async () => {
+        if (!input.trim() || loading) return;
+        const q = input.trim();
+        setInput('');
+        setLoading(true);
+        try {
+            const res = await apiService.askAboutContext(contextType, String(contextId), q);
+            setTurns(t => [...t, {q, a: res.answer}]);
+        } catch {
+            setTurns(t => [...t, {q, a: 'Failed to get a response. Please try again.'}]);
+        } finally {
+            setLoading(false);
+        }
+    };
+
+    return (
+        <div style={{marginTop: 8, borderTop: '1px solid rgba(255,255,255,0.05)', paddingTop: 8}}>
+            <button
+                onClick={() => setOpen(o => !o)}
+                style={{fontSize: 11.5, color: 'var(--ink-40)', background: 'none', border: 'none', cursor: 'pointer', padding: 0}}
+            >
+                {open ? '▾' : '▸'} Ask Aureon
+            </button>
+            {open && (
+                <div style={{marginTop: 8}}>
+                    {turns.map((t, i) => (
+                        <div key={i} style={{marginBottom: 10, fontSize: 12.5}}>
+                            <div style={{color: 'var(--ink-30)', marginBottom: 3}}>Q: {t.q}</div>
+                            <div style={{color: 'var(--ink-10)', lineHeight: 1.5}}>{t.a}</div>
+                        </div>
+                    ))}
+                    <div style={{display: 'flex', gap: 8}}>
+                        <input
+                            value={input}
+                            onChange={e => setInput(e.target.value)}
+                            onKeyDown={e => e.key === 'Enter' && submit()}
+                            placeholder="Ask a question about this…"
+                            style={{
+                                flex: 1, padding: '6px 10px', borderRadius: 6, fontSize: 12.5,
+                                background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.07)',
+                                color: 'var(--ink-10)', outline: 'none',
+                            }}
+                        />
+                        <button
+                            onClick={submit}
+                            disabled={loading || !input.trim()}
+                            className="du3-cta"
+                            style={{padding: '0 12px', fontSize: 12, height: 32}}
+                        >
+                            {loading ? '…' : 'Ask'}
+                        </button>
+                    </div>
+                </div>
             )}
         </div>
     );

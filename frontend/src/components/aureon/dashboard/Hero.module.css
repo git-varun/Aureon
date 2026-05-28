@@ -104,3 +104,18 @@
     font-family: var(--font-mono);
     color: var(--ink-10);
 }
+
+@media (max-width: 640px) {
+    .hero {
+        grid-template-columns: 1fr;
+    }
+
+    .insightBlock,
+    .donutBlock {
+        display: none;
+    }
+
+    .netWorth {
+        font-size: clamp(32px, 10vw, 56px);
+    }
+}

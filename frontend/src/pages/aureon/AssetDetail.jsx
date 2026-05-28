@@ -1,14 +1,53 @@
 /* Aureon — Asset detail (price chart + AI panel + fundamentals + signals + position). */
 import React, {useEffect, useState} from 'react';
 import {useNavigate, useParams} from 'react-router-dom';
-import {useApp} from '../../components/aureon/store';
-import {Eyebrow, TierChip, SectionHead, PriceChart, Empty} from '../../components/aureon/ui';
-import {DecisionUnit, ActionConfirmationModal} from '../../components/aureon/flow';
-import {apiService} from '../../api/apiService';
-import {valueOf, plOf, plPctOf} from '../../components/aureon/utils';
-import {useAureonData} from '../../hooks/useAureonData';
-import {useV4} from '../../contexts/V4Context';
-import {useFmtMoney} from '../../hooks/useFmtMoney';
+import {useApp} from '@/components/aureon/store';
+import {Eyebrow, TierChip, SectionHead, PriceChart, Empty} from '@/components/aureon/ui';
+import {DecisionUnit, ActionConfirmationModal} from '@/components/aureon/flow';
+import {apiService} from '@/api/apiService';
+import {valueOf, plOf, plPctOf} from '@/components/aureon/utils';
+import {useAureonData} from '@/hooks/useAureonData';
+import {useV4} from '@/contexts/V4Context';
+import {useFmtMoney} from '@/hooks/useFmtMoney';
+
+function ThemeStrip({ticker}) {
+    const navigate = useNavigate();
+    const [themes, setThemes] = useState([]);
+
+    useEffect(() => {
+        let cancelled = false;
+        apiService.getThemesForSymbol(ticker)
+            .then(data => { if (!cancelled) setThemes(Array.isArray(data) ? data : []); })
+            .catch(() => {});
+        return () => { cancelled = true; };
+    }, [ticker]);
+
+    if (!themes.length) return null;
+
+    return (
+        <div style={{marginTop: 22}}>
+            <SectionHead eyebrow="Discovery" title="Themes this asset appears in" meta={`${themes.length} themes`}/>
+            <div style={{display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 10}}>
+                {themes.map(t => (
+                    <button key={t.id} onClick={() => navigate('/markets/themes/' + t.id)} className="layer-1"
+                        style={{padding: '14px 16px', textAlign: 'left', cursor: 'pointer', color: 'inherit', background: 'rgba(255,255,255,0.025)', border: '1px solid rgba(255,255,255,0.06)'}}
+                        onMouseEnter={e => e.currentTarget.style.borderColor = 'rgba(201,168,106,0.25)'}
+                        onMouseLeave={e => e.currentTarget.style.borderColor = 'rgba(255,255,255,0.06)'}
+                    >
+                        <div style={{display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 6}}>
+                            <div style={{fontFamily: 'var(--font-heading)', fontSize: 13.5, fontWeight: 600, color: 'var(--ink-00)'}}>{t.name}</div>
+                            <span style={{fontFamily: 'var(--font-mono)', fontSize: 11, color: (t.ret1m || 0) >= 0 ? 'var(--sage-500)' : 'var(--crimson-500)'}}>
+                                {(t.ret1m || 0) >= 0 ? '+' : ''}{((t.ret1m || 0) * 100).toFixed(1)}% · 1m
+                            </span>
+                        </div>
+                        <div style={{fontSize: 11.5, color: 'var(--ink-30)', lineHeight: 1.45}}>{t.desc}</div>
+                        <div style={{fontFamily: 'var(--font-mono)', fontSize: 10.5, color: 'var(--ink-40)', marginTop: 8}}>View theme detail →</div>
+                    </button>
+                ))}
+            </div>
+        </div>
+    );
+}
 
 const _fmtTime = (ts) => {
     const d = new Date(ts);
@@ -22,21 +61,24 @@ export default function AssetDetail() {
     const {ticker} = useParams();
     const navigate = useNavigate();
     const {allRecs, active, apply} = useApp();
-    const {holdings, classLabel, netWorth, loading: holdingsLoading} = useAureonData();
+    const {holdings, signals: storeSignals, classLabel, netWorth, loading: holdingsLoading} = useAureonData();
     const v4 = useV4();
     const aiRuns = (v4?.aiRuns && v4.aiRuns[ticker]) || [];
     const [modal, setModal] = useState(null);
-    const [apiAsset, setApiAsset] = useState(null);
+    const [apiAsset, setApiAsset] = useState(undefined);
     const [period, setPeriod] = useState('1M');
     const [chartSeries, setChartSeries] = useState(null);
+    const [genLoading, setGenLoading] = useState(false);
+    const [expandedSigs, setExpandedSigs] = useState(new Set());
     const h = holdings.find(x => x.ticker === ticker);
     const currency = h?.region === 'IN' ? 'INR' : 'USD';
 
     useEffect(() => {
         let cancelled = false;
+        setApiAsset(undefined);
         apiService.fetchAureonAsset(ticker)
-            .then(d => { if (!cancelled) setApiAsset(d); })
-            .catch(() => {});
+            .then(d => { if (!cancelled) setApiAsset(d || null); })
+            .catch(() => { if (!cancelled) setApiAsset(null); });
         return () => { cancelled = true; };
     }, [ticker]);
 
@@ -44,20 +86,45 @@ export default function AssetDetail() {
         let cancelled = false;
         setChartSeries(null);
         apiService.fetchChartData(ticker, PERIOD_DAYS[period] ?? 30)
-            .then(d => { if (!cancelled) setChartSeries(d?.length ? d : null); })
+            .then(d => { if (!cancelled) setChartSeries(d?.length ? d.map(c => c.close) : null); })
             .catch(() => {});
         return () => { cancelled = true; };
     }, [ticker, period]);
 
-    if (holdingsLoading && !h) return <div style={{padding: 40, color: 'var(--ink-30)'}}>Loading…</div>;
-    if (!h) return <div style={{padding: 40, color: 'var(--ink-30)'}}>Asset not found. <button
-        onClick={() => navigate('/assets')} className="du3-cta ghost">Back to assets</button></div>;
+    // Derive a display-asset from either portfolio holding (h) or API response
+    const displayAsset = h || (apiAsset ? {
+        ticker: apiAsset.ticker || ticker,
+        name: apiAsset.name || ticker,
+        class: apiAsset.class || 'stocks',
+        tier: apiAsset.tier || null,
+        price: apiAsset.price || 0,
+        dayPct: apiAsset.dayPct ?? 0,
+        cost: 0, qty: 0,
+        spark: apiAsset.priceSeries || [],
+        beta: null, sector: null,
+    } : null);
 
-    const series = chartSeries ?? (apiAsset?.priceSeries?.length ? apiAsset.priceSeries : h.spark);
-    const v = valueOf(h), pl = plOf(h), plPct = plPctOf(h);
-    const wt = netWorth > 0 ? v / netWorth : 0;
+    if (!displayAsset) {
+        if (holdingsLoading || apiAsset === undefined) {
+            return <div style={{padding: 40, color: 'var(--ink-30)'}}>Loading…</div>;
+        }
+        return (
+            <div style={{padding: 40, color: 'var(--ink-30)'}}>
+                Asset not found.{' '}
+                <button onClick={() => navigate('/assets')} className="du3-cta ghost">Back to assets</button>
+            </div>
+        );
+    }
+
+    const series = chartSeries ?? (apiAsset?.priceSeries?.length ? apiAsset.priceSeries : (h?.spark || displayAsset.spark));
+    const v = h ? valueOf(h) : 0;
+    const pl = h ? plOf(h) : 0;
+    const plPct = h ? plPctOf(h) : 0;
+    const wt = h && netWorth > 0 ? v / netWorth : 0;
     const rec = allRecs.find(r => r.scope?.kind === 'asset' && r.scope.ref === ticker && active.includes(r.id));
-    const sigs = apiAsset?.signals || [];
+    const sigs = apiAsset?.signals?.length
+        ? apiAsset.signals
+        : (storeSignals || []).filter(s => s.asset === ticker || s.asset === ticker + '.NS');
 
     const events = (() => {
         if (!series) return [];
@@ -86,9 +153,9 @@ export default function AssetDetail() {
                 </button>
                 <span>/</span>
                 <button onClick={() => navigate('/assets')} className="du3-cta ghost"
-                        style={{padding: '2px 6px', height: 'auto', fontSize: 11.5}}>{classLabel[h.class]}</button>
+                        style={{padding: '2px 6px', height: 'auto', fontSize: 11.5}}>{classLabel[displayAsset.class]}</button>
                 <span>/</span>
-                <span style={{color: 'var(--ink-10)', fontFamily: 'var(--font-mono)'}}>{h.ticker}</span>
+                <span style={{color: 'var(--ink-10)', fontFamily: 'var(--font-mono)'}}>{displayAsset.ticker}</span>
             </div>
 
             <div style={{
@@ -115,7 +182,7 @@ export default function AssetDetail() {
                         fontWeight: 600,
                         color: 'var(--ink-00)',
                         letterSpacing: '0.04em',
-                    }}>{h.ticker.slice(0, 4)}</div>
+                    }}>{displayAsset.ticker.slice(0, 4)}</div>
                     <div>
                         <div style={{display: 'flex', alignItems: 'baseline', gap: 10}}>
                             <span style={{
@@ -124,9 +191,23 @@ export default function AssetDetail() {
                                 fontWeight: 600,
                                 color: 'var(--ink-00)',
                                 letterSpacing: '0.04em'
-                            }}>{h.ticker}</span>
-                            <TierChip tier={h.tier}/>
+                            }}>{displayAsset.ticker}</span>
+                            <TierChip tier={displayAsset.tier}/>
+                            {!h && (
+                                <span style={{
+                                    fontSize: 10,
+                                    letterSpacing: '0.10em',
+                                    textTransform: 'uppercase',
+                                    color: 'var(--ink-40)',
+                                    background: 'rgba(255,255,255,0.04)',
+                                    border: '1px solid rgba(255,255,255,0.08)',
+                                    borderRadius: 4,
+                                    padding: '2px 6px',
+                                    fontWeight: 600,
+                                }}>Not in portfolio</span>
+                            )}
                         </div>
+                        {displayAsset.name !== displayAsset.ticker && (
                         <div style={{
                             fontFamily: 'var(--font-heading)',
                             fontSize: 18,
@@ -134,12 +215,13 @@ export default function AssetDetail() {
                             color: 'var(--ink-10)',
                             letterSpacing: '-0.01em',
                             marginTop: 2
-                        }}>{h.name}</div>
+                        }}>{displayAsset.name}</div>
+                        )}
                         <div style={{
                             fontSize: 11.5,
                             color: 'var(--ink-40)',
                             marginTop: 4
-                        }}>{classLabel[h.class]} · {h.sector}</div>
+                        }}>{classLabel[displayAsset.class]}{displayAsset.sector ? ` · ${displayAsset.sector}` : ''}</div>
                     </div>
                 </div>
                 <div style={{flex: 1, minWidth: 120}}/>
@@ -154,20 +236,20 @@ export default function AssetDetail() {
                         lineHeight: 1,
                         letterSpacing: '-0.015em'
                     }}>
-                        {fmt(h.price, currency, {dp: 2})}
+                        {fmt(displayAsset.price, currency, {dp: 2})}
                     </div>
                     <div style={{
                         fontFamily: 'var(--font-mono)',
                         fontSize: 13,
-                        color: h.dayPct >= 0 ? 'var(--sage-500)' : 'var(--crimson-500)',
+                        color: displayAsset.dayPct >= 0 ? 'var(--sage-500)' : 'var(--crimson-500)',
                         marginTop: 6
                     }}>
-                        {h.dayPct >= 0 ? '▲' : '▼'} {(Math.abs(h.dayPct) * 100).toFixed(2)}% today
+                        {displayAsset.dayPct >= 0 ? '▲' : '▼'} {(Math.abs(displayAsset.dayPct) * 100).toFixed(2)}% today
                     </div>
                 </div>
             </div>
 
-            {h.tier !== 'passive' && series && (
+            {displayAsset.tier !== 'passive' && series && (
                 <section className="layer-1" style={{padding: '14px 18px 4px', marginBottom: 18}}>
                     <div style={{
                         display: 'flex',
@@ -244,10 +326,12 @@ export default function AssetDetail() {
                     <div style={{display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '14px 24px', marginTop: 12}}>
                         {[
                             ['P/E', apiAsset?.fundamentals?.pe != null ? apiAsset.fundamentals.pe : '—'],
-                            ['PEG', apiAsset?.fundamentals?.peg != null ? apiAsset.fundamentals.peg : '—'],
+                            ['PEG', '—'],
                             ['Yield', '—'],
-                            ['Market cap', '—'],
-                            ['Beta', h.beta != null ? h.beta : '—'],
+                            ['Market cap', apiAsset?.fundamentals?.market_cap != null
+                                ? fmt(apiAsset.fundamentals.market_cap, 'USD', {dp: 0})
+                                : '—'],
+                            ['Beta', displayAsset.beta != null ? displayAsset.beta : '—'],
                             ['Rev · 1y', '—'],
                         ].map(([k, val]) => (
                             <div key={k}>
@@ -271,48 +355,109 @@ export default function AssetDetail() {
                 </section>
 
                 <section className="layer-1" style={{padding: '14px 18px'}}>
-                    <div style={{
-                        display: 'flex',
-                        alignItems: 'baseline',
-                        justifyContent: 'space-between',
-                        marginBottom: 10
-                    }}>
-                        <Eyebrow>Signals · inputs only</Eyebrow>
-                        <span style={{fontSize: 11, color: 'var(--ink-40)'}}>{sigs.length} detected</span>
+                    <div style={{display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 10}}>
+                        <div style={{display: 'flex', alignItems: 'baseline', gap: 10}}>
+                            <Eyebrow>Signals · inputs only</Eyebrow>
+                            <span style={{fontSize: 11, color: 'var(--ink-40)'}}>{sigs.length} detected</span>
+                        </div>
+                        <button
+                            disabled={genLoading}
+                            onClick={() => {
+                                setGenLoading(true);
+                                apiService.generateSignalForSymbol(ticker, displayAsset.class)
+                                    .then(() => apiService.fetchAureonAsset(ticker))
+                                    .then(d => { if (d) setApiAsset(d); })
+                                    .catch(() => {})
+                                    .finally(() => setGenLoading(false));
+                            }}
+                            style={{
+                                display: 'inline-flex', alignItems: 'center', gap: 6,
+                                height: 28, padding: '0 12px', borderRadius: 6,
+                                background: 'transparent', border: '1px solid rgba(255,255,255,0.10)',
+                                color: genLoading ? 'var(--ink-40)' : 'var(--ink-20)',
+                                fontSize: 12, fontFamily: 'var(--font-ui)', cursor: 'pointer',
+                            }}>
+                            {genLoading ? (
+                                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" style={{animation: 'spin 1s linear infinite'}}><circle cx="12" cy="12" r="9" strokeDasharray="40 80"/></svg>
+                            ) : (
+                                <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round"><polyline points="23 4 23 10 17 10"/><path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10"/></svg>
+                            )}
+                            {genLoading ? 'Generating…' : 'Generate Signal'}
+                        </button>
                     </div>
                     {sigs.length === 0 ? (
                         <Empty>No active signals on this position.</Empty>
                     ) : (
-                        <div style={{display: 'grid', gap: 8}}>
-                            {sigs.map(s => (
-                                <div key={s.id} style={{
-                                    display: 'grid',
-                                    gridTemplateColumns: 'auto auto 1fr auto',
-                                    gap: 10,
-                                    padding: '8px 0',
-                                    alignItems: 'center',
-                                    fontSize: 12.5,
-                                    borderBottom: '1px solid rgba(255,255,255,0.04)'
-                                }}>
-                                    <span style={{
-                                        fontFamily: 'var(--font-mono)',
-                                        color: 'var(--ink-40)',
-                                        fontSize: 11
-                                    }}>{s.ts}</span>
-                                    <span style={{
-                                        fontSize: 10,
-                                        letterSpacing: '0.10em',
-                                        textTransform: 'uppercase',
-                                        color: 'var(--ink-30)',
-                                        fontWeight: 600
-                                    }}>{s.kind}</span>
-                                    <span style={{color: 'var(--ink-10)'}}>{s.text}</span>
-                                    {s.linkedRec &&
-                                        <button onClick={() => navigate('/recommendations')} className="du3-cta ghost"
-                                                style={{padding: '2px 8px', height: 'auto', fontSize: 11}}>→
-                                            Rec</button>}
-                                </div>
-                            ))}
+                        <div style={{display: 'flex', flexDirection: 'column', gap: 0}}>
+                            {sigs.map(s => {
+                                const linkedRec = s.linkedRec ? allRecs.find(r => r.id === s.linkedRec) : null;
+                                const action = linkedRec
+                                    ? (/trim|reduce|harvest/i.test(linkedRec.action || '') ? 'SELL' : /add|buy/i.test(linkedRec.action || '') ? 'BUY' : 'HOLD')
+                                    : 'HOLD';
+                                const bStyle = {
+                                    BUY:  {bg: 'rgba(111,174,136,0.10)',  border: 'rgba(111,174,136,0.25)',  color: 'var(--sage-500)'},
+                                    SELL: {bg: 'rgba(209,107,107,0.10)', border: 'rgba(209,107,107,0.25)', color: 'var(--crimson-500)'},
+                                    HOLD: {bg: 'rgba(255,255,255,0.06)', border: 'rgba(255,255,255,0.12)', color: 'var(--ink-30)'},
+                                }[action];
+                                const CONF = {high: 80, med: 60, low: 40};
+                                const conf = CONF[s.severity] ?? 50;
+                                const filled = Math.round(conf / 10);
+                                const expanded = expandedSigs.has(s.id);
+                                return (
+                                    <div key={s.id}>
+                                        <div style={{display: 'grid', gridTemplateColumns: 'auto 1fr auto auto', gap: 10, padding: '10px 0', alignItems: 'start', borderBottom: '1px solid rgba(255,255,255,0.04)'}}>
+                                            <span style={{
+                                                padding: '2px 8px', borderRadius: 4, marginTop: 1, flexShrink: 0,
+                                                background: bStyle.bg, border: `1px solid ${bStyle.border}`,
+                                                color: bStyle.color, fontFamily: 'var(--font-mono)',
+                                                fontSize: 10, fontWeight: 600, letterSpacing: '0.08em',
+                                            }}>{action}</span>
+                                            <div style={{minWidth: 0}}>
+                                                <div style={{fontSize: 12.5, color: 'var(--ink-10)', lineHeight: 1.5, overflow: 'hidden', display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical'}}>{s.text}</div>
+                                                <div style={{display: 'flex', alignItems: 'center', gap: 6, marginTop: 5}}>
+                                                    <div style={{display: 'flex', gap: 2}}>
+                                                        {Array.from({length: 10}, (_, i) => (
+                                                            <span key={i} style={{width: 8, height: 3, borderRadius: 1, background: i < filled ? 'var(--aurum-500)' : 'rgba(255,255,255,0.10)'}}/>
+                                                        ))}
+                                                    </div>
+                                                    <span style={{fontFamily: 'var(--font-mono)', fontSize: 10.5, color: 'var(--ink-40)'}}>{conf}%</span>
+                                                </div>
+                                            </div>
+                                            <div style={{textAlign: 'right', flexShrink: 0}}>
+                                                <div style={{fontFamily: 'var(--font-mono)', fontSize: 11, color: 'var(--ink-40)'}}>{s.ts}</div>
+                                                <div style={{fontSize: 10, letterSpacing: '0.08em', textTransform: 'uppercase', color: 'var(--ink-40)', marginTop: 2}}>{s.kind}</div>
+                                            </div>
+                                            {linkedRec ? (
+                                                <button onClick={() => setExpandedSigs(prev => {
+                                                    const next = new Set(prev);
+                                                    next.has(s.id) ? next.delete(s.id) : next.add(s.id);
+                                                    return next;
+                                                })} style={{
+                                                    background: 'none', border: 'none', cursor: 'pointer', padding: 2, color: 'var(--ink-40)',
+                                                    transform: expanded ? 'rotate(180deg)' : 'rotate(0deg)', transition: 'transform 160ms',
+                                                }}>
+                                                    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="6 9 12 15 18 9"/></svg>
+                                                </button>
+                                            ) : <span/>}
+                                        </div>
+                                        {linkedRec && expanded && (
+                                            <div style={{
+                                                marginLeft: 16, marginBottom: 6, padding: '8px 12px',
+                                                background: 'rgba(201,168,106,0.06)',
+                                                borderLeft: '1px solid rgba(201,168,106,0.18)',
+                                                borderRadius: '0 6px 6px 0',
+                                                display: 'flex', alignItems: 'center', gap: 10,
+                                            }}>
+                                                <div style={{flex: 1, minWidth: 0}}>
+                                                    <div style={{fontSize: 12, color: 'var(--ink-10)', fontWeight: 500}}>{linkedRec.title}</div>
+                                                    <div style={{fontSize: 11, color: 'var(--aurum-100)', marginTop: 2, fontFamily: 'var(--font-mono)'}}>{linkedRec.action} · {linkedRec.impactOneLine}</div>
+                                                </div>
+                                                <button onClick={() => navigate('/recommendations')} className="du3-cta ghost" style={{padding: '0 10px', height: 26, fontSize: 11, flexShrink: 0}}>Apply →</button>
+                                            </div>
+                                        )}
+                                    </div>
+                                );
+                            })}
                         </div>
                     )}
                     <div style={{
@@ -332,36 +477,40 @@ export default function AssetDetail() {
                 </section>
             </div>
 
-            <section className="layer-1" style={{padding: '14px 18px', marginTop: 14}}>
-                <Eyebrow>Position</Eyebrow>
-                <div style={{display: 'grid', gridTemplateColumns: 'repeat(5, 1fr)', gap: 24, marginTop: 12}}>
-                    {[
-                        ['Quantity', h.qty.toLocaleString(undefined, {maximumFractionDigits: 4})],
-                        ['Avg cost', fmt(h.cost, currency, {dp: 2})],
-                        ['Value', fmt(v, currency, {dp: 0})],
-                        ['Unreal P/L', (pl >= 0 ? '+' : '−') + fmt(Math.abs(pl), currency, {dp: 0}) + ' · ' + (plPct >= 0 ? '+' : '−') + (Math.abs(plPct) * 100).toFixed(1) + '%'],
-                        ['Weight', (wt * 100).toFixed(2) + '%'],
-                    ].map(([k, val], i) => (
-                        <div key={k}>
-                            <div style={{
-                                fontSize: 10.5,
-                                letterSpacing: '0.12em',
-                                textTransform: 'uppercase',
-                                color: 'var(--ink-40)',
-                                fontWeight: 600
-                            }}>{k}</div>
-                            <div style={{
-                                fontFamily: 'var(--font-mono)',
-                                fontSize: 18,
-                                fontWeight: 500,
-                                color: i === 3 && pl < 0 ? 'var(--crimson-500)' : i === 3 ? 'var(--sage-500)' : 'var(--ink-00)',
-                                marginTop: 4,
-                                letterSpacing: '-0.01em'
-                            }}>{val}</div>
-                        </div>
-                    ))}
-                </div>
-            </section>
+            {h && (
+                <section className="layer-1" style={{padding: '14px 18px', marginTop: 14}}>
+                    <Eyebrow>Position</Eyebrow>
+                    <div style={{display: 'grid', gridTemplateColumns: 'repeat(5, 1fr)', gap: 24, marginTop: 12}}>
+                        {[
+                            ['Quantity', h.qty.toLocaleString(undefined, {maximumFractionDigits: 4})],
+                            ['Avg cost', fmt(h.cost, currency, {dp: 2})],
+                            ['Value', fmt(v, currency, {dp: 0})],
+                            ['Unreal P/L', h.cost > 0
+                                ? (pl >= 0 ? '+' : '−') + fmt(Math.abs(pl), currency, {dp: 0}) + ' · ' + (plPct >= 0 ? '+' : '−') + (Math.abs(plPct) * 100).toFixed(1) + '%'
+                                : '—'],
+                            ['Weight', (wt * 100).toFixed(2) + '%'],
+                        ].map(([k, val], i) => (
+                            <div key={k}>
+                                <div style={{
+                                    fontSize: 10.5,
+                                    letterSpacing: '0.12em',
+                                    textTransform: 'uppercase',
+                                    color: 'var(--ink-40)',
+                                    fontWeight: 600
+                                }}>{k}</div>
+                                <div style={{
+                                    fontFamily: 'var(--font-mono)',
+                                    fontSize: 18,
+                                    fontWeight: 500,
+                                    color: i === 3 && pl < 0 ? 'var(--crimson-500)' : i === 3 && pl >= 0 && h.cost > 0 ? 'var(--sage-500)' : 'var(--ink-00)',
+                                    marginTop: 4,
+                                    letterSpacing: '-0.01em'
+                                }}>{val}</div>
+                            </div>
+                        ))}
+                    </div>
+                </section>
+            )}
 
             {aiRuns.length > 0 && (
                 <section className="layer-1" style={{padding: '16px 18px', marginTop: 14}}>
@@ -406,6 +555,8 @@ export default function AssetDetail() {
                     </div>
                 </section>
             )}
+
+            <ThemeStrip ticker={ticker}/>
 
             <div style={{height: 32}}/>
             {modal && <ActionConfirmationModal rec={modal.rec} onCancel={() => setModal(null)} onConfirm={() => {

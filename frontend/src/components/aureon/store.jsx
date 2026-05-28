@@ -1,6 +1,6 @@
 /* eslint-disable react-refresh/only-export-components */
 /* Aureon — global app state (recs, activity, search, drawer, toast). */
-import React, {createContext, useContext, useEffect, useMemo, useState} from 'react';
+import React, {createContext, useCallback, useContext, useEffect, useMemo, useRef, useState} from 'react';
 import {useQuery} from '@tanstack/react-query';
 import {apiService} from '../../api/apiService';
 import {AUREON_STATE_KEY} from '../../hooks/useAureonData';
@@ -40,6 +40,7 @@ export const AppProvider = ({children}) => {
     const [drawer, setDrawer] = useState(null);
     const [search, setSearch] = useState('');
     const [toast, setToast] = useState(null);
+    const toastTimerRef = useRef(null);
     const hydrated = isSuccess;
 
     useEffect(() => {
@@ -58,7 +59,7 @@ export const AppProvider = ({children}) => {
             id: r.ext_id,
             ts: r.applied_at ? new Date(r.applied_at).toLocaleTimeString('en-US', {hour: '2-digit', minute: '2-digit'}) : '',
             predicted: r.predicted_impact,
-            realized: r.realized_impact,
+            realized: r.realized_impact ?? null,
         })));
         setDismissed((recs.dismissed || []).map(r => ({
             id: r.ext_id,
@@ -68,26 +69,32 @@ export const AppProvider = ({children}) => {
         if (Array.isArray(s.activity) && s.activity.length) setActivity(s.activity);
     }, [s]);
 
-    const recById = (id) => allRecs.find(r => r.id === id);
+    const recById = useCallback((id) => allRecs.find(r => r.id === id), [allRecs]);
 
-    const undo = (id) => {
+    const _showToast = useCallback((t) => {
+        if (toastTimerRef.current) clearTimeout(toastTimerRef.current);
+        setToast(t);
+        if (t) toastTimerRef.current = setTimeout(() => setToast(null), 5500);
+    }, []);
+
+    const undo = useCallback((id) => {
         const prevActive = active;
         const prevApplied = applied;
         const prevDismissed = dismissed;
         setActive(a => a.includes(id) ? a : [...a, id]);
         setApplied(a => a.filter(x => x.id !== id));
         setDismissed(d => d.filter(x => x.id !== id));
-        setToast(null);
+        _showToast(null);
         if (!hydrated) return;
         apiService.undoRecommendation(id).catch(err => {
             setActive(prevActive);
             setApplied(prevApplied);
             setDismissed(prevDismissed);
-            setToast({text: `Undo failed: ${err?.message || 'network error'}`});
+            _showToast({text: `Undo failed: ${err?.message || 'network error'}`});
         });
-    };
+    }, [active, applied, dismissed, hydrated, _showToast]);
 
-    const apply = (id) => {
+    const apply = useCallback((id) => {
         const r = recById(id);
         if (!r) return;
         const ts = new Date().toLocaleTimeString('en-US', {hour: '2-digit', minute: '2-digit'});
@@ -95,25 +102,25 @@ export const AppProvider = ({children}) => {
         const prevApplied = applied;
         const prevActivity = activity;
         setActive(a => a.filter(x => x !== id));
-        setApplied(a => [...a, {id, ts, predicted: r.impact?.ret?.delta, realized: r.impact?.ret?.delta}]);
+        // realized is null on apply — it's unknowable until the trade settles
+        setApplied(a => [...a, {id, ts, predicted: r.impact?.ret?.delta, realized: null}]);
         setActivity(act => [{
-            id: 'a-' + Date.now(), ts: `today · ${ts}`, kind: 'applied',
+            id: 'a-' + Date.now(), extId: id, ts: `today · ${ts}`, kind: 'applied',
             action: r.action, asset: r.scope?.ref || 'PORT',
             detail: r.impactOneLine,
-            predicted: r.impact?.ret?.delta, realized: r.impact?.ret?.delta,
+            predicted: r.impact?.ret?.delta, realized: null,
         }, ...act]);
-        setToast({text: `${r.action} ${r.scope?.ref || ''} applied`, undo: () => undo(id)});
-        setTimeout(() => setToast(t => (t && t.text && t.text.includes(r.action)) ? null : t), 5500);
+        _showToast({text: `${r.action} ${r.scope?.ref || ''} applied`, undoId: id});
         if (!hydrated) return;
         apiService.applyRecommendation(id).catch(err => {
             setActive(prevActive);
             setApplied(prevApplied);
             setActivity(prevActivity);
-            setToast({text: `Apply failed: ${err?.response?.data?.message || err?.message || 'network error'}`});
+            _showToast({text: `Apply failed: ${err?.response?.data?.message || err?.message || 'network error'}`});
         });
-    };
+    }, [active, applied, activity, hydrated, recById, _showToast]);
 
-    const dismiss = (id, reason = 'User dismissed') => {
+    const dismiss = useCallback((id, reason = 'User dismissed') => {
         const r = recById(id);
         if (!r) return;
         const ts = new Date().toLocaleTimeString('en-US', {hour: '2-digit', minute: '2-digit'});
@@ -123,7 +130,7 @@ export const AppProvider = ({children}) => {
         setActive(a => a.filter(x => x !== id));
         setDismissed(d => [...d, {id, ts, reason}]);
         setActivity(act => [{
-            id: 'a-' + Date.now(), ts: `today · ${ts}`, kind: 'dismissed',
+            id: 'a-' + Date.now(), extId: id, ts: `today · ${ts}`, kind: 'dismissed',
             action: r.action, asset: r.scope?.ref || 'PORT',
             detail: `declined — ${reason.toLowerCase()}`,
         }, ...act]);
@@ -132,9 +139,9 @@ export const AppProvider = ({children}) => {
             setActive(prevActive);
             setDismissed(prevDismissed);
             setActivity(prevActivity);
-            setToast({text: `Dismiss failed: ${err?.message || 'network error'}`});
+            _showToast({text: `Dismiss failed: ${err?.message || 'network error'}`});
         });
-    };
+    }, [active, dismissed, activity, hydrated, recById, _showToast]);
 
     const value = useMemo(() => ({
         allRecs, active, applied, dismissed,
@@ -142,10 +149,9 @@ export const AppProvider = ({children}) => {
         activity,
         drawer, setDrawer,
         search, setSearch,
-        toast, setToast,
+        toast, setToast: _showToast,
         hydrated,
-        // eslint-disable-next-line react-hooks/exhaustive-deps
-    }), [allRecs, active, applied, dismissed, activity, drawer, search, toast, hydrated]);
+    }), [allRecs, active, applied, dismissed, activity, drawer, search, toast, hydrated, apply, dismiss, undo, _showToast]);
 
     return <AppContext.Provider value={value}>{children}</AppContext.Provider>;
 };

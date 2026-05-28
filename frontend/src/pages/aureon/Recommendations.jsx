@@ -1,8 +1,8 @@
 /* Aureon — Recommendations feed (active / applied / dismissed). */
 import React, {useState} from 'react';
-import {useApp} from '../../components/aureon/store';
-import {Eyebrow, SectionHead, Empty} from '../../components/aureon/ui';
-import {DecisionUnit, ActionConfirmationModal} from '../../components/aureon/flow';
+import {useApp} from '@/components/aureon/store';
+import {Eyebrow, SectionHead, Empty} from '@/components/aureon/ui';
+import {DecisionUnit, ActionConfirmationModal} from '@/components/aureon/flow';
 
 export default function Recommendations() {
     const {allRecs, active, applied, dismissed, apply, dismiss} = useApp();
@@ -62,14 +62,16 @@ export default function Recommendations() {
                     }}>{dismissed.length}</div>
                 </div>
                 <div style={{flex: 1}}/>
-                <div style={{display: 'flex', gap: 10, alignItems: 'center'}}>
+                {allRecs.length > 0 && <div style={{display: 'flex', gap: 10, alignItems: 'center'}}>
                     <select value={strength} onChange={e => setStrength(e.target.value)} style={{
                         padding: '7px 12px',
                         fontSize: 12,
                         borderRadius: 8,
-                        background: 'rgba(255,255,255,0.03)',
-                        border: '1px solid rgba(255,255,255,0.06)',
-                        color: 'var(--ink-10)'
+                        background: 'var(--canvas)',
+                        border: '1px solid rgba(255,255,255,0.10)',
+                        color: 'var(--ink-10)',
+                        colorScheme: 'dark',
+                        outline: 'none'
                     }}>
                         <option value="all">All strengths</option>
                         <option value="recommended">Recommended</option>
@@ -81,9 +83,11 @@ export default function Recommendations() {
                         padding: '7px 12px',
                         fontSize: 12,
                         borderRadius: 8,
-                        background: 'rgba(255,255,255,0.03)',
-                        border: '1px solid rgba(255,255,255,0.06)',
-                        color: 'var(--ink-10)'
+                        background: 'var(--canvas)',
+                        border: '1px solid rgba(255,255,255,0.10)',
+                        color: 'var(--ink-10)',
+                        colorScheme: 'dark',
+                        outline: 'none'
                     }}>
                         <option value="all">All actions</option>
                         <option>Reduce</option>
@@ -93,7 +97,7 @@ export default function Recommendations() {
                         <option>Harvest</option>
                         <option>Ladder</option>
                     </select>
-                </div>
+                </div>}
             </div>
 
             <SectionHead eyebrow="Active · awaiting your decision" title="Active recommendations"

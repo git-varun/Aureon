@@ -262,8 +262,10 @@ class MarketEngine:
         fx_rate = self.fetch_fx_rate()
 
         cache.set(cache_key("market", "universe"), universe, ttl=_CACHE_TTL)
-        cache.set(cache_key("market", "movers"), movers, ttl=_CACHE_TTL)
-        cache.set(cache_key("market", "sectors"), sectors, ttl=_CACHE_TTL)
+        if movers["gainers"] or movers["losers"]:
+            cache.set(cache_key("market", "movers"), movers, ttl=_CACHE_TTL)
+        if sectors:
+            cache.set(cache_key("market", "sectors"), sectors, ttl=_CACHE_TTL)
         if indices:
             cache.set(cache_key("market", "indices"), indices, ttl=_CACHE_TTL)
         if themes:

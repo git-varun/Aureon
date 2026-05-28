@@ -49,3 +49,22 @@
     font-size: 11px;
     color: var(--ink-40);
 }
+
+.mobileSummary {
+    display: none;
+}
+
+@media (max-width: 640px) {
+    .strip {
+        display: none;
+    }
+
+    .mobileSummary {
+        display: block;
+        font-size: 11.5px;
+        color: var(--ink-30);
+        padding: 6px 0 16px;
+        font-family: var(--font-mono);
+        letter-spacing: 0.02em;
+    }
+}

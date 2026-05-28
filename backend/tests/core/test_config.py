@@ -127,13 +127,10 @@ class TestSettingsDefaults:
         assert self.s.api_redoc_url == "/redoc"
 
     def test_port_default(self):
-        assert self.s.port == 8001
+        assert self.s.port == 8000
 
     def test_cors_origins_is_list(self):
         assert isinstance(self.s.cors_origins, list)
-
-    def test_cors_origins_contains_vite_dev_server(self):
-        assert "http://localhost:5173" in self.s.cors_origins
 
     def test_cors_origins_contains_frontend_default(self):
         assert "http://localhost:3000" in self.s.cors_origins

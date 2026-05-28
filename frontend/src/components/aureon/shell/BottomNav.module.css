@@ -1,0 +1,228 @@
+.bottomNav {
+    display: none;
+}
+
+@media (max-width: 767px) {
+    .bottomNav {
+        display: flex;
+        position: fixed;
+        bottom: 0;
+        left: 0;
+        right: 0;
+        height: 56px;
+        z-index: 100;
+        background: var(--canvas);
+        border-top: 1px solid rgba(255, 255, 255, 0.07);
+        padding-bottom: env(safe-area-inset-bottom);
+        align-items: stretch;
+    }
+}
+
+.tab {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 3px;
+    background: transparent;
+    border: none;
+    cursor: pointer;
+    color: var(--ink-40);
+    position: relative;
+    transition: color 120ms ease;
+    padding: 0;
+}
+
+.tab:hover {
+    color: var(--ink-20);
+}
+
+.tabActive {
+    color: var(--aurum-100);
+}
+
+.tabIcon {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 20px;
+    height: 20px;
+}
+
+.tabIcon svg {
+    width: 18px;
+    height: 18px;
+}
+
+.tabLabel {
+    font-size: 9.5px;
+    font-family: var(--font-ui);
+    letter-spacing: 0.02em;
+    line-height: 1;
+}
+
+.badge {
+    position: absolute;
+    top: 4px;
+    right: calc(50% - 16px);
+    min-width: 14px;
+    height: 14px;
+    padding: 0 3px;
+    border-radius: 7px;
+    background: var(--crimson-500);
+    color: #fff;
+    font-size: 8.5px;
+    font-weight: 600;
+    font-family: var(--font-mono);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+/* More drawer */
+
+.drawerOverlay {
+    display: none;
+}
+
+@media (max-width: 767px) {
+    .drawerOverlay {
+        display: flex;
+        position: fixed;
+        inset: 0;
+        z-index: 200;
+        background: rgba(0, 0, 0, 0.5);
+        align-items: flex-end;
+    }
+}
+
+.drawer {
+    width: 100%;
+    background: var(--surface-1, #1a1c20);
+    border-top: 1px solid rgba(255, 255, 255, 0.08);
+    border-radius: 16px 16px 0 0;
+    padding: 8px 0 calc(env(safe-area-inset-bottom) + 56px);
+}
+
+.drawerHandle {
+    width: 36px;
+    height: 4px;
+    background: rgba(255, 255, 255, 0.12);
+    border-radius: 2px;
+    margin: 8px auto 12px;
+}
+
+.drawerItem {
+    display: flex;
+    align-items: center;
+    gap: 14px;
+    width: 100%;
+    padding: 13px 20px;
+    background: transparent;
+    border: none;
+    cursor: pointer;
+    color: var(--ink-10);
+    font-size: 14px;
+    font-family: var(--font-ui);
+    text-align: left;
+    transition: background 100ms ease;
+}
+
+.drawerItem:active {
+    background: rgba(255, 255, 255, 0.04);
+}
+
+.drawerIcon {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 20px;
+    height: 20px;
+    color: var(--ink-30);
+}
+
+.drawerDivider {
+    height: 1px;
+    background: rgba(255, 255, 255, 0.06);
+    margin: 4px 0;
+}
+
+.drawerSectionLabel {
+    font-size: 9.5px;
+    letter-spacing: 0.16em;
+    text-transform: uppercase;
+    color: var(--ink-40);
+    font-weight: 600;
+    padding: 8px 20px 4px;
+}
+
+.drawerBadge {
+    margin-left: auto;
+    font-family: var(--font-mono);
+    font-size: 10px;
+    padding: 1px 6px;
+    border-radius: 999px;
+    background: rgba(245, 200, 66, 0.16);
+    color: var(--aurum-100);
+}
+
+.drawerItemDanger {
+    color: var(--crimson-500, #e05470);
+}
+
+.drawerItemDanger .drawerIcon {
+    color: var(--crimson-500, #e05470);
+}
+
+.accountHeader {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 10px 20px 14px;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+    margin-bottom: 4px;
+}
+
+.accountName {
+    font-size: 14px;
+    font-weight: 500;
+    color: var(--ink-00);
+}
+
+.accountSub {
+    font-size: 11px;
+    color: var(--ink-40);
+    margin-top: 1px;
+}
+
+.avatarLg {
+    width: 36px;
+    height: 36px;
+    border-radius: 999px;
+    background: linear-gradient(135deg, #E7D3A1, #B4924F);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: #0B0D10;
+    font-size: 12px;
+    font-family: var(--font-mono);
+    font-weight: 700;
+    letter-spacing: 0.02em;
+    flex-shrink: 0;
+}
+
+.avatarSmall {
+    width: 20px;
+    height: 20px;
+    border-radius: 999px;
+    background: linear-gradient(135deg, #E7D3A1, #B4924F);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: #0B0D10;
+    font-size: 7px;
+    font-family: var(--font-mono);
+    font-weight: 700;
+    letter-spacing: 0.02em;
+}

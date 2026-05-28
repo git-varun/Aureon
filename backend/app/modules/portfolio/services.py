@@ -459,6 +459,81 @@ class PortfolioService:
         logger.info("recompute_avg_buy_price: position_id=%s old=%.4f new=%.4f", position_id, old_avg, vwap)
         return {"position_id": position_id, "updated": True, "old_avg_buy_price": old_avg, "new_avg_buy_price": vwap}
 
+    def recalculate_position(self, asset_id: int, user_id: int) -> None:
+        """Recompute position qty and avg_buy_price from BUY/SELL transactions.
+
+        Deletes the position if net quantity is ≤ 0.
+        """
+        from sqlalchemy import or_
+
+        buy_sell = {TransactionType.BUY.value, TransactionType.SELL.value}
+        txns = (
+            self.session.query(Transaction)
+            .filter(
+                Transaction.asset_id == asset_id,
+                Transaction.transaction_type.in_(buy_sell),
+            )
+            .filter(or_(Transaction.user_id == user_id, Transaction.user_id.is_(None)))
+            .all()
+        )
+
+        net_qty = 0.0
+        total_buy_cost = 0.0
+        total_buy_qty = 0.0
+        for t in txns:
+            qty = float(t.quantity)
+            if t.transaction_type == TransactionType.BUY.value:
+                net_qty += qty
+                total_buy_cost += qty * float(t.price)
+                total_buy_qty += qty
+            else:
+                net_qty -= qty
+
+        pos = (
+            self.session.query(Position)
+            .filter(Position.asset_id == asset_id)
+            .filter(or_(Position.user_id == user_id, Position.user_id.is_(None)))
+            .first()
+        )
+
+        if net_qty <= 0:
+            if pos:
+                self.session.delete(pos)
+                self.session.flush()
+                logger.info("recalculate_position: deleted position asset_id=%s user_id=%s", asset_id, user_id)
+            return
+
+        vwap = total_buy_cost / total_buy_qty if total_buy_qty > 0 else 0.0
+        asset = self.session.query(Asset).filter(Asset.id == asset_id).first()
+        current_price = asset.current_price if asset and asset.current_price else vwap
+        current_value = net_qty * current_price
+        pnl = current_value - (net_qty * vwap) if vwap > 0 else None
+        pnl_pct = (pnl / (net_qty * vwap) * 100) if vwap > 0 and pnl is not None else None
+
+        if pos:
+            pos.quantity = net_qty
+            pos.avg_buy_price = vwap
+            pos.current_value = current_value
+            pos.pnl = pnl
+            pos.pnl_percent = pnl_pct
+        else:
+            pos = Position(
+                asset_id=asset_id,
+                user_id=user_id,
+                quantity=net_qty,
+                avg_buy_price=vwap,
+                current_value=current_value,
+                pnl=pnl,
+                pnl_percent=pnl_pct,
+            )
+            self.session.add(pos)
+
+        self.session.flush()
+        logger.info(
+            "recalculate_position: asset_id=%s user_id=%s net_qty=%.4f vwap=%.4f",
+            asset_id, user_id, net_qty, vwap,
+        )
+
     def sync_assets(self, assets_data: List[dict]) -> List[Asset]:
         logger.info("sync_assets: syncing %d assets from broker", len(assets_data))
         synced = []

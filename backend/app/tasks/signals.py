@@ -158,8 +158,94 @@ def daily_signal_batch_task(self):
             session.close()
 
 
+@celery_app.task(bind=True, name="signals.compute_technicals")
+def compute_technicals_task(self):
+    """Compute RSI, MACD, Bollinger Bands for all assets with sufficient price history.
+
+    Upserts one TechnicalIndicators row per asset (keyed by symbol).
+    Requires at least 14 price history rows per asset.
+    """
+    from datetime import datetime, timedelta
+    from app.modules.analytics.models import TechnicalIndicators
+    from app.modules.portfolio.models import Asset, PriceHistory
+    from app.shared.quant import QuantEngine
+
+    session = None
+    try:
+        session = SessionLocal()
+        qe = QuantEngine()
+        cutoff = datetime.utcnow() - timedelta(days=60)
+
+        assets = session.query(Asset).filter(Asset.current_price.isnot(None)).all()
+        processed = 0
+        skipped = 0
+
+        for asset in assets:
+            prices = (
+                session.query(PriceHistory)
+                .filter(PriceHistory.asset_id == asset.id, PriceHistory.date >= cutoff)
+                .order_by(PriceHistory.date.asc())
+                .all()
+            )
+            if len(prices) < 14:
+                skipped += 1
+                continue
+
+            indicators = qe.compute_all(prices)
+
+            bb = indicators.get("bollinger") or {}
+            existing = (
+                session.query(TechnicalIndicators)
+                .filter(TechnicalIndicators.symbol == asset.symbol)
+                .first()
+            )
+            if existing:
+                existing.rsi = indicators.get("rsi_14")
+                existing.macd = indicators.get("macd")
+                existing.bollinger_upper = bb.get("upper") if isinstance(bb, dict) else None
+                existing.bollinger_lower = bb.get("lower") if isinstance(bb, dict) else None
+                existing.vwap = indicators.get("vwap")
+            else:
+                session.add(TechnicalIndicators(
+                    symbol=asset.symbol,
+                    rsi=indicators.get("rsi_14"),
+                    macd=indicators.get("macd"),
+                    bollinger_upper=bb.get("upper") if isinstance(bb, dict) else None,
+                    bollinger_lower=bb.get("lower") if isinstance(bb, dict) else None,
+                    vwap=indicators.get("vwap"),
+                ))
+            processed += 1
+
+        session.commit()
+        logger.info("compute_technicals: processed=%d skipped=%d", processed, skipped)
+        return {"status": "success", "processed": processed, "skipped": skipped}
+    except Exception as exc:
+        logger.exception("compute_technicals failed: %s", exc)
+        if session:
+            session.rollback()
+        raise
+    finally:
+        if session:
+            session.close()
+
+
+@celery_app.task(bind=True, name="signals.clean_stale")
+def clean_stale_signals_task(self):
+    from app.core.db import SessionLocal
+    from app.modules.signals.models import Signal
+    from datetime import datetime, timedelta, timezone
+    cutoff = datetime.now(timezone.utc) - timedelta(days=30)
+    with SessionLocal() as db:
+        deleted = db.query(Signal).filter(Signal.created_at < cutoff).delete()
+        db.commit()
+    logger.info("clean_stale_signals: deleted=%d", deleted)
+    return {"status": "ok", "deleted": deleted}
+
+
 __all__ = [
     "generate_signals_task",
     "generate_signal_for_symbol_task",
     "daily_signal_batch_task",
+    "compute_technicals_task",
+    "clean_stale_signals_task",
 ]

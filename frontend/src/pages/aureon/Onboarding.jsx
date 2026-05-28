@@ -1,5 +1,6 @@
 import React, {useState} from 'react';
 import {fmtINR} from './marketData';
+import {apiService} from '@/api/apiService';
 
 const STEPS = ['Welcome', 'Link accounts', 'Set goals', 'Review'];
 
@@ -216,7 +217,15 @@ export default function Onboarding({onDone}) {
     const [linked, setLinked] = useState({zerodha: true, groww: false, binance: false, epfo: false, npscra: false, mfcentral: false});
     const [goals, setGoals] = useState({retire: 55, corpus: 50000000, monthly: 75000, risk: 'balanced'});
 
-    const finish = () => {
+    const finish = async () => {
+        try {
+            await apiService.updateCurrentUserProfile({
+                risk_profile: goals.risk,
+                target_profit_pct: null,
+                monthly_saving: goals.monthly,
+                swing_trading_enabled: goals.risk === 'aggressive' || goals.risk === 'speculative',
+            });
+        } catch { /* non-fatal — profile saved later via Settings */ }
         localStorage.setItem('aureon.onboarded', '1');
         onDone();
     };

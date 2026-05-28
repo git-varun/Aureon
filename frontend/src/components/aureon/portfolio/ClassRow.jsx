@@ -8,7 +8,7 @@ import s from './ClassRow.module.css';
 
 const CLASS_LABEL = {
     stocks: 'Equity', crypto: 'Crypto', funds: 'Mutual Funds',
-    bonds: 'Bond', real_estate: 'Real estate', retirement: 'Retirement', insurance: 'Insurance',
+    bonds: 'Bonds', real_estate: 'Real estate', retirement: 'Retirement', insurance: 'Insurance',
 };
 
 const CLASS_TIER = {
@@ -37,7 +37,21 @@ export const ClassRow = ({cls, items, alloc, target, color}) => {
         const withBeta = items.filter(h => h.beta != null);
         return withBeta.length ? withBeta.reduce((sum, h) => sum + h.beta, 0) / withBeta.length : null;
     })();
-    const sparkData = items.flatMap(h => h.spark?.length ? h.spark : []).slice(-30);
+    // Collective sparkline: value-weighted average across holdings, right-aligned to 30 points
+    const sparkData = (() => {
+        const POINTS = 30;
+        const contributors = items.filter(h => h.spark?.length >= 2 && h.qty > 0);
+        if (!contributors.length) return [];
+        const maxLen = Math.max(...contributors.map(h => h.spark.length));
+        const result = new Array(Math.min(maxLen, POINTS)).fill(0);
+        const totalQty = contributors.reduce((s, h) => s + h.qty, 0);
+        contributors.forEach(h => {
+            const spark = h.spark.slice(-POINTS);
+            const offset = result.length - spark.length;
+            spark.forEach((v, i) => { result[offset + i] += (v * h.qty) / totalQty; });
+        });
+        return result;
+    })();
     const tier = CLASS_TIER[cls] || 'passive';
     const ts = TIER_STYLES[tier];
 
@@ -73,11 +87,13 @@ export const ClassRow = ({cls, items, alloc, target, color}) => {
                         {pl >= 0 ? '+' : '−'}{fmt(Math.abs(pl), 'USD', {dp: 0})}
                     </div>
                     {(() => {
-                        const cost = items.reduce((sum, h) => sum + (h.cost * h.qty || 0), 0);
-                        const pct = cost > 0 ? Math.min(1, Math.abs(pl) / cost) : 0;
+                        const pricedItems = items.filter(h => (h.cost || 0) > 0);
+                        const cost = pricedItems.reduce((sum, h) => sum + (h.cost * h.qty || 0), 0);
+                        const pricedPl = pricedItems.reduce((sum, h) => sum + plOf(h), 0);
+                        const pct = cost > 0 ? Math.min(1, Math.abs(pricedPl) / cost) : 0;
                         return (
                             <div style={{height: 4, borderRadius: 999, marginTop: 5, background: 'rgba(255,255,255,0.04)', overflow: 'hidden'}}>
-                                <div style={{width: `${pct * 100}%`, height: '100%', background: pl >= 0 ? 'var(--sage-500)' : 'var(--crimson-500)', opacity: 0.85}}/>
+                                <div style={{width: `${pct * 100}%`, height: '100%', background: pricedPl >= 0 ? 'var(--sage-500)' : 'var(--crimson-500)', opacity: 0.85}}/>
                             </div>
                         );
                     })()}
@@ -86,7 +102,7 @@ export const ClassRow = ({cls, items, alloc, target, color}) => {
                 <AllocBar actual={alloc} target={target}/>
 
                 <div>
-                    <div className={s.colLabel}>Trend · 60D</div>
+                    <div className={s.colLabel}>Trend · 30D</div>
                     <Sparkline data={sparkData.length >= 2 ? sparkData : [0, 1]} w={120} h={28}/>
                     {avgBeta != null && <div className={s.beta}>risk β {avgBeta.toFixed(2)}</div>}
                 </div>

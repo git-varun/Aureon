@@ -4,7 +4,7 @@ import {Stat, SparklineChart} from './primitives';
 
 export function OverviewTab({quote, spark, picked, fmtPrice}) {
     return (
-        <div style={{display: 'grid', gridTemplateColumns: '2fr 1fr', gap: 18}}>
+        <div style={{display: 'grid', gridTemplateColumns: '2fr 1fr', gap: 18, alignItems: 'stretch'}}>
             <SparklineChart series={spark} dayPct={picked.dayPct}/>
             <div>
                 <Eyebrow>Quick stats</Eyebrow>

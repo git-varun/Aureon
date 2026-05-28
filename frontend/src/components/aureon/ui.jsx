@@ -51,7 +51,8 @@ export const TierChip = ({tier}) => {
         semi: {bg: 'rgba(122,168,212,0.10)', col: '#7AA8D4', label: 'Semi-active'},
         passive: {bg: 'rgba(255,255,255,0.04)', col: 'var(--ink-30)', label: 'Passive · illiq'},
     };
-    const m = map[tier] || map.active;
+    const m = map[tier];
+    if (!m) return null;
     return (
         <span style={{
             display: 'inline-flex', alignItems: 'center', height: 18, padding: '0 7px', borderRadius: 999,

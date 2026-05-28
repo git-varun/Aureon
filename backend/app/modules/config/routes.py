@@ -98,7 +98,7 @@ def update_job(
 def run_job(
         job_name: str,
         db: Session = Depends(get_session),
-        _user=Depends(require_auth)
+        current_user=Depends(require_auth)
 ):
     """Trigger a job manually and log execution."""
     from app.modules.config.models import JobStatus
@@ -108,7 +108,7 @@ def run_job(
 
     log = svc.log_job_start(job_name)
     try:
-        task_id = svc.dispatch_job(job_name, log_id=log.id)
+        task_id = svc.dispatch_job(job_name, log_id=log.id, user_id=current_user.id)
     except Exception as e:
         svc.log_job_end(log.id, JobStatus.FAILED, error=str(e))
         raise HTTPException(status_code=500, detail=f"Failed to dispatch {job_name}: {e}")
@@ -124,7 +124,7 @@ def list_allocation_targets(db: Session = Depends(get_session), _user=Depends(re
     """Per-class target allocation as flat map: { asset_class: target_pct }."""
     svc = ConfigService(db)
     targets = svc.list_allocation_targets()
-    return {t.asset_class: t.target_pct for t in targets}
+    return {t["asset_class"]: t["target_pct"] for t in targets}
 
 
 @router.put("/allocation_targets/{asset_class}")
@@ -144,7 +144,7 @@ def upsert_allocation_target(
         notes=payload.notes,
     )
     targets = svc.list_allocation_targets()
-    return {t.asset_class: t.target_pct for t in targets}
+    return {t["asset_class"]: t["target_pct"] for t in targets}
 
 
 @router.get("/jobs/{job_name}/logs", response_model=JobLogsResponse)

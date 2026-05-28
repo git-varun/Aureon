@@ -1,21 +1,72 @@
-# React + Vite
+# Aureon Frontend
 
-This template provides a minimal setup to get React working in Vite with HMR and some ESLint rules.
+React + Vite frontend for the Aureon portfolio platform.
 
-Currently, two official plugins are available:
+## Stack
 
-- [@vitejs/plugin-react](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react)
-  uses [Oxc](https://oxc.rs)
-- [@vitejs/plugin-react-swc](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react-swc)
-  uses [SWC](https://swc.rs/)
+- React
+- Vite
+- React Router
+- TanStack Query
+- Axios
 
-## React Compiler
+## Project Structure
 
-The React Compiler is not enabled on this template because of its impact on dev & build performances. To add it,
-see [this documentation](https://react.dev/learn/react-compiler/installation).
+- `src/AureonShell.jsx`: shell layout, route tree, global providers.
+- `src/pages/aureon/*`: page-level route components.
+- `src/components/aureon/*`: dashboard/portfolio/shell/auth primitives.
+- `src/hooks/useAureonData.js`: unified state hydration from backend composite endpoint.
+- `src/api/apiService.js`: backend API client wrappers and token refresh logic.
 
-## Expanding the ESLint configuration
+## Environment
 
-If you are developing a production application, we recommend using TypeScript with type-aware lint rules enabled. Check
-out the [TS template](https://github.com/vitejs/vite/tree/main/packages/create-vite/template-react-ts) for information
-on how to integrate TypeScript and [`typescript-eslint`](https://typescript-eslint.io) in your project.
+Create a local env file if needed:
+
+```bash
+cp .env.example .env
+```
+
+Common variable:
+
+- `VITE_API_PROXY_TARGET` (defaults to backend service/proxy target in Docker/local setups)
+
+## Run (without Docker)
+
+From `frontend/`:
+
+```bash
+npm install
+npm run dev
+```
+
+Dev app: `http://localhost:3000`
+
+## Run (with Docker Compose)
+
+From repo root:
+
+```bash
+docker-compose up -d frontend
+```
+
+The frontend container runs `npm install && npm run dev` and proxies API requests to the `api` service.
+
+## Available Scripts
+
+From `frontend/`:
+
+```bash
+npm run dev
+npm run build
+npm run lint
+npm run preview
+```
+
+## Reset Frontend State
+
+```bash
+rm -rf node_modules package-lock.json
+npm install
+```
+
+If browser auth/session state is stale, clear site data (local storage + cookies) in browser devtools and sign in again.

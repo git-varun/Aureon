@@ -18,7 +18,7 @@ if str(PROJECT_ROOT) not in sys.path:
     sys.path.insert(0, str(PROJECT_ROOT))
 
 from app.core.config import settings
-from app.core.db import engine, Base
+from app.core.db import engine
 from app.core.limiter import limiter
 from app.core.logger import correlation_id_var, setup_master_logger
 from app.modules.analytics.routes import router as analytics_router
@@ -36,6 +36,7 @@ from app.modules.signals.routes import router as signals_router
 from app.modules.users.routes import router as users_router
 from app.modules.watchlist.routes import router as watchlist_router
 from app.modules.health.routes import router as health_router
+from app.ws.router import ws_router
 from app.shared.exceptions import AppException, NotFoundError, ConflictError, ValidationError, DataFetchError
 
 setup_master_logger()
@@ -53,31 +54,42 @@ def register_models() -> None:
     from app.modules.users import models as _users  # noqa: F401
     from app.modules.watchlist import models as _watchlist  # noqa: F401
     from app.modules.market import models as _market  # noqa: F401
+    from app.modules.market.models import ThemeWeight  # noqa: F401
     # auth/models imports User from users — no separate import needed
 
 
 def _run_migrations() -> None:
-    """Run all pending Alembic migrations programmatically.
-
-    Falls back to create_all if the alembic/versions/ directory is empty
-    (i.e., before the baseline revision is generated).
-    """
+    """Run all pending Alembic migrations programmatically."""
     from pathlib import Path as _Path
-    versions_dir = _Path(__file__).resolve().parent.parent / "alembic" / "versions"
-    has_migrations = any(versions_dir.glob("*.py"))
+    from alembic import command
+    from alembic.config import Config as AlembicConfig
 
-    if has_migrations:
-        from alembic import command
-        from alembic.config import Config as AlembicConfig
-        alembic_cfg = AlembicConfig(str(_Path(__file__).resolve().parent.parent / "alembic.ini"))
-        command.upgrade(alembic_cfg, "head")
-    else:
-        # Bootstrap path: no revisions yet — use create_all so the app can start.
-        # Run `alembic revision --autogenerate -m "baseline"` then `alembic stamp head`
-        # on an existing install to switch to the migration-managed path.
-        logger.warning("No Alembic revisions found — falling back to create_all. "
-                       "Generate a baseline revision and stamp existing installs.")
-        Base.metadata.create_all(bind=engine)
+    backend_root = _Path(__file__).resolve().parent.parent
+    alembic_cfg = AlembicConfig(str(backend_root / "alembic.ini"))
+    alembic_cfg.set_main_option("script_location", str(backend_root / "alembic"))
+    command.upgrade(alembic_cfg, "head")
+
+
+async def _wait_for_db(max_retries: int = 15, delay: float = 3.0) -> None:
+    """Probe DB until reachable; raises on final failure."""
+    from sqlalchemy import text
+    from sqlalchemy.exc import OperationalError
+
+    for attempt in range(1, max_retries + 1):
+        try:
+            with engine.connect() as conn:
+                conn.execute(text("SELECT 1"))
+            logger.info("Database reachable")
+            return
+        except OperationalError as exc:
+            if attempt == max_retries:
+                logger.error("Database unreachable after %d attempts — last error: %s", max_retries, exc)
+                raise
+            logger.warning(
+                "Database not ready (attempt %d/%d), retrying in %.0fs — %s",
+                attempt, max_retries, delay, getattr(exc, "orig", exc),
+            )
+            await asyncio.sleep(delay)
 
 
 @asynccontextmanager
@@ -86,25 +98,10 @@ async def lifespan(app: FastAPI):
     logger.info("Application starting...")
     register_models()
 
-    # Run Alembic migrations (retry loop handles startup race conditions/DNS lag)
-    from sqlalchemy.exc import OperationalError
-    max_retries = 5
-    for i in range(max_retries):
-        try:
-            _run_migrations()
-            logger.info("Database migrations applied")
-            break
-        except OperationalError as e:
-            if i == max_retries - 1:
-                logger.error("Could not connect to database after %d retries. Last error: %s", max_retries, e)
-                raise
-            logger.warning("Database connection failed (attempt %d/%d), retrying in 2s... Error: %s", i + 1,
-                           max_retries, e)
-            await asyncio.sleep(2)
+    await _wait_for_db()
 
-    from app.core.db_patcher import run_patches
-    run_patches(engine)
-    logger.info("Schema patches applied")
+    _run_migrations()
+    logger.info("Database migrations applied")
 
     # Seed default config (idempotent)
     from app.core.db import SessionLocal
@@ -169,6 +166,8 @@ def create_app() -> FastAPI:
         )
 
     # ── Routers ───────────────────────────────────────────────────────────
+    # Keep explicit registration order so API docs and startup logs stay
+    # stable between deploys and local runs.
     app.include_router(portfolio_router)
     app.include_router(signals_router)
     app.include_router(auth_router)
@@ -183,6 +182,9 @@ def create_app() -> FastAPI:
     app.include_router(aureon_router)  # Aureon composite endpoints
     app.include_router(market_router)  # Market data — indices, sectors, movers, themes, universe
     app.include_router(watchlist_router)  # Per-user watchlists
+    app.include_router(ws_router)         # WebSocket: per-user push events
+    # Health endpoints are last by convention; they are infra-facing and do
+    # not participate in product-domain navigation.
     app.include_router(health_router)
 
     return app
@@ -193,4 +195,4 @@ app = create_app()
 if __name__ == "__main__":
     import uvicorn
 
-    uvicorn.run(app, host="0.0.0.0", port=8001)
+    uvicorn.run(app, host="0.0.0.0", port=settings.port)

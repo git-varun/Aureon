@@ -13,6 +13,8 @@ logger = logging.getLogger("valuation.factory")
 _ALL_VALUATION_PROVIDERS = {
     "bond_valuation": "app.modules.valuation.providers.bond:BondValuationProvider",
     "epf_ppf_valuation": "app.modules.valuation.providers.epf_ppf:EPFPPFValuationProvider",
+    "eps_valuation": "app.modules.valuation.providers.eps:EPSValuationProvider",
+    "nps_valuation": "app.modules.valuation.providers.nps:NPSValuationProvider",
     "insurance_valuation": "app.modules.valuation.providers.insurance:InsuranceValuationProvider",
     "real_estate_valuation": "app.modules.valuation.providers.real_estate:RealEstateValuationProvider",
 }
@@ -21,6 +23,8 @@ _ASSET_TYPE_TO_PROVIDER = {
     "bond": "bond_valuation",
     "epf": "epf_ppf_valuation",
     "ppf": "epf_ppf_valuation",
+    "eps": "eps_valuation",
+    "nps": "nps_valuation",
     "insurance": "insurance_valuation",
     "real_estate": "real_estate_valuation",
 }

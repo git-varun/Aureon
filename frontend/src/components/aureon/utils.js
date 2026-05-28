@@ -15,7 +15,7 @@ export const UNDO_WINDOW_MS = 20000;
 export const valueOf = (h) => h.qty * h.price;
 export const costOf = (h) => h.qty * h.cost;
 export const plOf = (h) => valueOf(h) - costOf(h);
-export const plPctOf = (h) => (valueOf(h) - costOf(h)) / costOf(h);
+export const plPctOf = (h) => { const c = costOf(h); return c > 0 ? (valueOf(h) - c) / c : 0; };
 
 export const fmt$ = (n, d = 0) => (n < 0 ? '−' : '') + '$' + Math.abs(n).toLocaleString('en-US', {
     minimumFractionDigits: d,

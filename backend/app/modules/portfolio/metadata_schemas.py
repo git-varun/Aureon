@@ -25,6 +25,22 @@ class EPFMetadata(BaseModel):
     interest_rate: float = 8.15  # current EPFO rate
 
 
+class EPSMetadata(BaseModel):
+    """Employee Pension Scheme — pension component of EPF.
+
+    Corpus = 8.33% × min(pensionable_salary, 15000) × months of service.
+    Projected monthly pension at retirement = (pensionable_salary × service_years) / 70.
+    """
+    asset_type: Literal["eps"]
+    uan_number: Optional[str] = None
+    employer_name: Optional[str] = None
+    pensionable_salary: float  # basic salary; formula caps it at ₹15,000
+    date_of_joining: Optional[str] = None  # ISO date, used to compute service years
+    date_of_exit: Optional[str] = None  # ISO date if already left/retired
+    known_service_years: Optional[float] = None  # override computed value
+    employer_eps_monthly: float = 0.0  # override auto-computed (8.33% × min(sal,15000))
+
+
 class PPFMetadata(BaseModel):
     asset_type: Literal["ppf"]
     account_number: Optional[str] = None
@@ -49,6 +65,23 @@ class InsuranceMetadata(BaseModel):
     units: Optional[float] = None
 
 
+class NPSMetadata(BaseModel):
+    """National Pension System — one record per tier (tier1 or tier2).
+
+    Corpus is manually updated by the user; no auto-growth is applied.
+    expected_return_rate is used only for projection display, not valuation.
+    """
+    asset_type: Literal["nps"]
+    pran_number: Optional[str] = None
+    cra_name: Optional[str] = None  # NSDL / KFintech (formerly Karvy)
+    tier: Literal["tier1", "tier2"] = "tier1"
+    fund_name: Optional[str] = None  # SBI / HDFC / UTI / LIC / Kotak / Aditya Birla
+    balance: float  # current corpus in INR (manually entered)
+    monthly_contribution: float = 0.0
+    employer_contribution: float = 0.0  # for govt employees (NPS mandatory)
+    expected_return_rate: float = 10.0  # % p.a., display-only projection
+
+
 class RealEstateMetadata(BaseModel):
     asset_type: Literal["real_estate"]
     address: Optional[str] = None
@@ -59,9 +92,9 @@ class RealEstateMetadata(BaseModel):
 
 
 AssetMetadataUnion = Annotated[
-    Union[BondMetadata, EPFMetadata, PPFMetadata, InsuranceMetadata, RealEstateMetadata],
+    Union[BondMetadata, EPFMetadata, EPSMetadata, NPSMetadata, PPFMetadata, InsuranceMetadata, RealEstateMetadata],
     Field(discriminator="asset_type"),
 ]
 
-ILLIQUID_TYPES = {"bond", "epf", "ppf", "insurance", "real_estate"}
+ILLIQUID_TYPES = {"bond", "epf", "eps", "nps", "ppf", "insurance", "real_estate"}
 TRADEABLE_TYPES = {"equity", "crypto", "mutual_fund", "commodity"}

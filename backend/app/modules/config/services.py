@@ -47,6 +47,8 @@ _DEFAULT_PROVIDERS = [
     # Valuation
     {"provider_name": "bond_valuation", "provider_type": "valuation", "key_names": '[]', "enabled": True},
     {"provider_name": "epf_ppf_valuation", "provider_type": "valuation", "key_names": '[]', "enabled": True},
+    {"provider_name": "eps_valuation", "provider_type": "valuation", "key_names": '[]', "enabled": True},
+    {"provider_name": "nps_valuation", "provider_type": "valuation", "key_names": '[]', "enabled": True},
     {"provider_name": "insurance_valuation", "provider_type": "valuation", "key_names": '[]', "enabled": True},
     {"provider_name": "real_estate_valuation", "provider_type": "valuation", "key_names": '[]', "enabled": True},
 
@@ -80,8 +82,14 @@ _DEFAULT_JOBS = [
     {"job_name": "fetch_fx_rate", "cron_expression": "0 */4 * * *", "enabled": True, "job_tier": "system"},
     {"job_name": "compute_state", "cron_expression": "*/15 9-15 * * 1-5", "enabled": True, "job_tier": "system"},
     {"job_name": "accrue_epf", "cron_expression": "0 6 1 * *", "enabled": True, "job_tier": "system"},
+    {"job_name": "accrue_eps", "cron_expression": "0 6 1 * *", "enabled": True, "job_tier": "system"},
     {"job_name": "bond_mtm", "cron_expression": "30 9 * * 1-5", "enabled": True, "job_tier": "system"},
     {"job_name": "insurance_premium", "cron_expression": "0 8 * * 1", "enabled": True, "job_tier": "system"},
+    {"job_name": "compute_technicals", "cron_expression": "0 16 * * 1-5", "enabled": False, "job_tier": "user"},
+    {"job_name": "notify_daily_summary", "cron_expression": "0 19 * * 1-5", "enabled": False, "job_tier": "user"},
+    {"job_name": "clean_stale_signals", "cron_expression": "0 2 * * *", "enabled": True, "job_tier": "system"},
+    {"job_name": "seed_market_universe", "cron_expression": "0 8 * * 1-5", "enabled": False, "job_tier": "system"},
+    {"job_name": "refresh_watchlist_prices", "cron_expression": "*/30 9-16 * * 1-5", "enabled": False, "job_tier": "user"},
 ]
 
 
@@ -380,7 +388,7 @@ class ConfigService:
             for l in logs
         ]
 
-    def dispatch_job(self, job_name: str, log_id: Optional[int] = None) -> Optional[str]:
+    def dispatch_job(self, job_name: str, log_id: Optional[int] = None, user_id: Optional[int] = None) -> Optional[str]:
         """Dispatch the named job to Celery and return task_id(s).
 
         Pre-assigns task IDs before dispatch so that the JobLog row is populated
@@ -414,7 +422,7 @@ class ConfigService:
             broker_ids = [(b, str(uuid.uuid4())) for b in brokers]
             _pre_assign(",".join(tid for _, tid in broker_ids))
             for broker, tid in broker_ids:
-                sync_portfolio_task.apply_async(kwargs={"broker": broker}, task_id=tid)
+                sync_portfolio_task.apply_async(kwargs={"broker": broker, "user_id": user_id}, task_id=tid)
             return ",".join(tid for _, tid in broker_ids)
 
         task_id = _pre_assign(str(uuid.uuid4()))
@@ -449,12 +457,30 @@ class ConfigService:
         elif job_name == "accrue_epf":
             from app.tasks.fixed_return import accrue_epf_task
             accrue_epf_task.apply_async(task_id=task_id)
+        elif job_name == "accrue_eps":
+            from app.tasks.fixed_return import accrue_eps_task
+            accrue_eps_task.apply_async(task_id=task_id)
         elif job_name == "bond_mtm":
             from app.tasks.fixed_return import bond_mtm_task
             bond_mtm_task.apply_async(task_id=task_id)
         elif job_name == "insurance_premium":
             from app.tasks.fixed_return import insurance_premium_task
             insurance_premium_task.apply_async(task_id=task_id)
+        elif job_name == "compute_technicals":
+            from app.tasks.signals import compute_technicals_task
+            compute_technicals_task.apply_async(task_id=task_id)
+        elif job_name == "notify_daily_summary":
+            from app.tasks.notification import daily_summary_task
+            daily_summary_task.apply_async(task_id=task_id)
+        elif job_name == "clean_stale_signals":
+            from app.tasks.signals import clean_stale_signals_task
+            clean_stale_signals_task.apply_async(task_id=task_id)
+        elif job_name == "seed_market_universe":
+            from app.tasks.market import seed_market_universe_task
+            seed_market_universe_task.apply_async(task_id=task_id)
+        elif job_name == "refresh_watchlist_prices":
+            from app.tasks.portfolio import refresh_watchlist_prices_task
+            refresh_watchlist_prices_task.apply_async(task_id=task_id)
         else:
             raise ValueError(f"Unknown job: {job_name}")
 

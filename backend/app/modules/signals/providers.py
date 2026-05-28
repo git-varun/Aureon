@@ -442,19 +442,15 @@ class OnChainSignalProvider(SignalProvider):
             return None
 
         try:
-            # Placeholder: Return neutral signal with on-chain data placeholder
-            # In production, this would integrate with actual on-chain metrics
-
             return SignalPayload(
                 symbol=symbol,
                 action="HOLD",
                 confidence=0.5,
                 provider=self.provider_name,
                 timeframe="medium_term",
-                rationale="On-chain metrics neutral (placeholder)",
+                rationale="On-chain metrics unavailable",
                 risk_level="medium",
                 metadata={
-                    "note": "On-chain integration placeholder",
                     "whale_movements": None,
                     "exchange_flows": None,
                     "mvrv_ratio": None,

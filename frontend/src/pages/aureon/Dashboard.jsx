@@ -1,21 +1,19 @@
 /* Aureon — Dashboard page (composition layer). */
 import React, {useMemo, useState} from 'react';
 import {useNavigate} from 'react-router-dom';
-import {useApp} from '../../components/aureon/store';
-import {SectionHead} from '../../components/aureon/ui';
-import {PortfolioDecisionUnit, ActionConfirmationModal, EmptyDecisions} from '../../components/aureon/flow';
-import {useAureonData} from '../../hooks/useAureonData';
-import {Hero}               from '../../components/aureon/dashboard/Hero';
-import {PortfolioProgress}  from '../../components/aureon/dashboard/PortfolioProgress';
-import {LifecycleStrip}     from '../../components/aureon/dashboard/LifecycleStrip';
-import {TopHoldingsRow}     from '../../components/aureon/dashboard/TopHoldingsRow';
-import {SupportingStrip}    from '../../components/aureon/dashboard/SupportingStrip';
-import {WiredDecisionUnit}  from '../../components/aureon/dashboard/WiredDecisionUnit';
+import {useApp} from '@/components/aureon/store';
+import {SectionHead} from '@/components/aureon/ui';
+import {PortfolioDecisionUnit, ActionConfirmationModal, EmptyDecisions} from '@/components/aureon/flow';
+import {useAureonData} from '@/hooks/useAureonData';
+import {
+    Hero, PortfolioProgress, LifecycleStrip, TopHoldingsRow,
+    SupportingStrip, WiredDecisionUnit, GoalProgress,
+} from '@/components/aureon/dashboard';
 
 export default function Dashboard() {
     const navigate = useNavigate();
     const {allRecs, active, apply} = useApp();
-    const {holdings, signals, netWorth, dayDelta, classLabel, classTarget, allocByClass, portfolioRec, recsActive, activity, marketPulse} = useAureonData();
+    const {holdings, signals, netWorth, dayDelta, classLabel, classTarget, allocByClass, portfolioRec, recsActive, activity, marketPulse, dataUpdatedAt} = useAureonData();
     const [modal, setModal] = useState(null);
 
     const recs = useMemo(() => allRecs.filter(r => active.includes(r.id)), [allRecs, active]);
@@ -59,11 +57,12 @@ export default function Dashboard() {
             />
             <PortfolioProgress/>
             <LifecycleStrip signalCount={signals.length} appliedToday={appliedToday}/>
+            <GoalProgress/>
 
             <SectionHead
                 eyebrow="Decisions · what should you do next"
                 title="Active recommendations"
-                meta={`${active.length} active · updated 3 min ago`}
+                meta={`${active.length} active${dataUpdatedAt ? ` · updated ${Math.max(0, Math.round((Date.now() - dataUpdatedAt) / 60000))} min ago` : ''}`}
                 action={
                     <button className="du3-cta ghost" onClick={() => navigate('/recommendations')}>
                         Review all <span style={{marginLeft: 4}}>→</span>

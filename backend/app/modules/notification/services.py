@@ -16,9 +16,10 @@ class NotificationService:
 
     def get_notifications_by_user(self, user_id: int) -> List[Notification]:
         logger.debug("get_notifications_by_user: user_id=%s", user_id)
+        from sqlalchemy import or_
         results = (
             self.db.query(Notification)
-            .filter(Notification.user_id == user_id)
+            .filter(or_(Notification.user_id == user_id, Notification.user_id.is_(None)))
             .order_by(Notification.created_at.desc())
             .all()
         )
@@ -41,12 +42,20 @@ class NotificationService:
         logger.info("create_notification: committed id=%s user_id=%s", notification.id, data.get("user_id"))
         return notification
 
-    def mark_as_read(self, notification_id: int) -> None:
-        logger.debug("mark_as_read: notification_id=%s", notification_id)
+    def mark_as_read(self, notification_id: int, user_id: int) -> None:
+        logger.debug("mark_as_read: notification_id=%s user_id=%s", notification_id, user_id)
+        from sqlalchemy import or_
 
-        notification = self.db.query(Notification).filter(Notification.id == notification_id).first()
+        notification = (
+            self.db.query(Notification)
+            .filter(
+                Notification.id == notification_id,
+                or_(Notification.user_id == user_id, Notification.user_id.is_(None)),
+            )
+            .first()
+        )
         if not notification:
-            logger.warning("mark_as_read: notification_id=%s not found", notification_id)
+            logger.warning("mark_as_read: notification_id=%s not found or not owned by user_id=%s", notification_id, user_id)
             raise NotFoundError(f"Notification {notification_id} not found")
 
         notification.read = True

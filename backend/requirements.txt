@@ -6,7 +6,9 @@ python-multipart>=0.0.6
 python-dotenv>=1.0.0
 requests>=2.31.0
 pandas>=2.0.0
-pandas-ta>=0.3.0
+pandas-ta>=0.4.71b0
+openpyxl>=3.1.0
+pdfplumber>=0.11.0
 numpy>=1.24.0
 yfinance>=0.2.0
 apscheduler>=3.10.0
@@ -25,8 +27,8 @@ feedparser>=6.0.0
 lxml>=4.9.0
 python-telegram-bot>=20.0
 
-python-jose
-contextvars
-pyjwt
+pyjwt>=2.8.0
 passlib[bcrypt]>=1.7.4
 cryptography>=42.0.0
+slowapi>=0.1.9
+google-auth>=2.28.0

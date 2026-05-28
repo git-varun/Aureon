@@ -15,7 +15,7 @@ from app.modules.auth.schemas import (
     RegisterRequest,
 )
 from app.modules.users.models import User
-from app.shared.exceptions import ConflictError, ValidationError
+from app.shared.exceptions import ConflictError, DataFetchError, ValidationError
 
 logger = logging.getLogger("app.auth.services")
 
@@ -95,7 +95,10 @@ def _send_otp(identifier: str, purpose: str, db: Session) -> None:
 
     if purpose == "phone_signin":
         from app.core import sms_service
-        sms_service.send_otp(identifier, code)
+        try:
+            sms_service.send_otp(identifier, code)
+        except Exception as exc:
+            raise DataFetchError(f"Failed to send SMS: {exc}") from exc
     else:
         from app.core import email_service
         label = "Your 2FA verification code" if purpose == "password_2fa" else "Your sign-in code"
@@ -168,6 +171,18 @@ def login_user(req: LoginRequest, db: Session) -> None:
     _send_otp(req.email, "password_2fa", db)
 
 
+def dev_login(email: str, password: str, db: Session) -> tuple[str, str, int]:
+    """Bypass OTP — only called from /dev-login which requires ENABLE_API_DOCS=true."""
+    user = db.query(User).filter_by(email=email).first()
+    if not user or not user.password_hash or not verify_password(password, user.password_hash):
+        raise ValidationError("Invalid email or password")
+    if not user.is_active:
+        raise ValidationError("Account inactive")
+    access = create_access_token(str(user.id))
+    refresh = _create_refresh_token(user.id, db)
+    return access, refresh, user.id
+
+
 def login_verify_otp(email: str, code: str, db: Session) -> tuple[str, str, int]:
     """Step 2 of password+OTP login. Verifies email OTP, returns tokens."""
     _verify_otp(email, code, "password_2fa", db)
@@ -204,33 +219,49 @@ def logout_user(refresh_token: str, db: Session) -> None:
 
 # ── Magic link ─────────────────────────────────────────────────────────────
 
-def magic_send(email: str, db: Session, base_url: str = "http://localhost:5173") -> None:
-    """Generate a magic token and email the sign-in link."""
-    # Invalidate any existing unused tokens for this email
+def _purge_expired_magic_tokens(db: Session) -> None:
+    """Delete expired or used magic tokens. Called opportunistically on each send."""
+    db.query(MagicToken).filter(
+        (MagicToken.expires_at < datetime.now(timezone.utc)) | (MagicToken.used == True)  # noqa: E712
+    ).delete(synchronize_session=False)
+    db.commit()
+
+
+def magic_send(email: str, db: Session) -> None:
+    """Generate a magic token, store its hash, and email the plaintext link.
+
+    The raw token is never persisted — only its HMAC-SHA256 hash is stored.
+    A DB compromise therefore does not yield usable tokens.
+    """
+    from app.core.config import settings
+
+    # Invalidate any pending tokens for this email, then purge expired rows.
     db.query(MagicToken).filter_by(email=email, used=False).update({"used": True})
     db.commit()
+    _purge_expired_magic_tokens(db)
 
     raw = secrets.token_urlsafe(48)
     expires = datetime.now(timezone.utc) + timedelta(minutes=_MAGIC_TTL_MINUTES)
 
-    user = db.query(User).filter_by(email=email).first()
     db.add(MagicToken(
-        token=raw,
+        token_hash=_hash_code(raw),
         email=email,
-        user_id=user.id if user else None,
         expires_at=expires,
     ))
     db.commit()
 
-    link = f"{base_url}/#magic_token={raw}"
+    link = f"{settings.frontend_url.rstrip('/')}/auth/magic?token={raw}"
     from app.core import email_service
     email_service.send_magic_link(email, link)
     logger.info("Magic link sent email=*** expires_in=%dm", _MAGIC_TTL_MINUTES)
 
 
 def magic_verify(token: str, db: Session) -> tuple[str, str, int, bool]:
-    """Consume a magic token and return (access, refresh, user_id, is_new_user)."""
-    record = db.query(MagicToken).filter_by(token=token, used=False).first()
+    """Consume a magic token and return (access, refresh, user_id, is_new_user).
+
+    Looks up by HMAC hash of the presented token — never stores or compares plaintext.
+    """
+    record = db.query(MagicToken).filter_by(token_hash=_hash_code(token), used=False).first()
     if not record:
         raise ValidationError("Invalid or already-used magic link")
     if record.expires_at.replace(tzinfo=timezone.utc) < datetime.now(timezone.utc):
