@@ -1,6 +1,7 @@
 """Provider contracts and payload schemas used across the app modules."""
 
 from abc import ABC, abstractmethod
+from datetime import datetime
 from typing import Any, Dict, List, Literal, Optional
 
 from pydantic import BaseModel, Field
@@ -25,6 +26,7 @@ class NewsPayload(BaseModel):
     snippet: str
     link: str
     provider: str
+    published_at: Optional[datetime] = None
 
 
 class TechMetricsPayload(BaseModel):

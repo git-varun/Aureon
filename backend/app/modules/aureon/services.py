@@ -38,8 +38,10 @@ def _classify(asset_type: Optional[str]) -> str:
 def _holding_payload(pos, a, ph_closes: list[float], fx_rate: float = 83.50) -> dict[str, Any]:
     """Build a holding dict with all monetary values normalised to USD.
 
-    Crypto prices are stored as USD; all other assets are stored as INR.
-    Dividing INR values by fx_rate (USD/INR) converts them to USD.
+    Uses asset.currency to determine denomination: USD assets (crypto, or any
+    future USD-denominated security) are kept as-is; INR assets are divided by
+    fx_rate. This replaces the old crypto-type-only heuristic so that US equities
+    (if ever added with currency='USD') are handled correctly too.
     """
     qty = float(pos.quantity or 0)
     cost = float(pos.avg_buy_price or 0)
@@ -51,8 +53,8 @@ def _holding_payload(pos, a, ph_closes: list[float], fx_rate: float = 83.50) -> 
         price = float(pos.current_value) / qty
     prev = float(a.previous_close or price)
 
-    is_crypto = (a.asset_type or "").lower() == "crypto"
-    if not is_crypto:
+    is_usd_asset = getattr(a, "currency", "INR") == "USD"
+    if not is_usd_asset:
         # INR → USD
         price = price / fx_rate
         prev = prev / fx_rate
@@ -115,13 +117,13 @@ def build_aureon_state(session: Session, user_id: Optional[int] = None) -> dict[
         h = _holding_payload(pos, a, prices_by_aid.get(a.id, []), fx_rate=fx_rate)
         value = h["qty"] * h["price"]
         net_worth += value
-        is_crypto = (a.asset_type or "").lower() == "crypto"
+        is_usd_asset = getattr(a, "currency", "INR") == "USD"
         raw_prev = float(a.previous_close or a.current_price or 0)
         if raw_prev == 0:
             # No historical price — treat prev == current so day delta is zero.
             prev_price = h["price"]
         else:
-            prev_price = raw_prev if is_crypto else raw_prev / fx_rate
+            prev_price = raw_prev if is_usd_asset else raw_prev / fx_rate
         prev_value = h["qty"] * prev_price
         day_delta_dollars += (value - prev_value)
         alloc[h["class"]] = alloc.get(h["class"], 0.0) + value
@@ -487,22 +489,26 @@ def build_portfolio_history(
     user_id: Optional[int],
     days: int = 60,
 ) -> list[dict[str, Any]]:
-    """Return daily portfolio net-worth for the last *days* days.
+    """Return daily portfolio net-worth (in USD) for the last *days* days.
 
     Strategy: for each calendar date in the window, sum (position.quantity *
     price_on_that_date) across all user positions.  Positions that don't have a
     price row for a given date use that asset's most-recent prior close instead
-    (last-observation-carried-forward).
+    (last-observation-carried-forward).  INR-denominated prices are converted to
+    USD using the cached fx_rate so the output is consistent with netWorth.
 
     Returns a list sorted ascending by date:
-        [{"date": "2024-12-01", "value": 1234567.89}, ...]
+        [{"date": "2024-12-01", "value": 1234.56}, ...]  (USD)
 
     Returns [] when the user has no positions or no price history exists.
     """
-    from app.modules.portfolio.models import Position, PriceHistory, Asset
-    from sqlalchemy import func
-
+    from app.core.cache import cache
+    from app.modules.portfolio.models import Asset, Position, PriceHistory
+    from app.shared.utils import cache_key
     from sqlalchemy import or_
+
+    fx_rate = float(cache.get(cache_key("fx", "usd_inr")) or 83.50)
+
     positions = (
         session.query(Position)
         .filter(or_(Position.user_id == user_id, Position.user_id.is_(None)), Position.quantity > 0)
@@ -513,6 +519,12 @@ def build_portfolio_history(
 
     asset_ids = [p.asset_id for p in positions]
     qty_map = {p.asset_id: float(p.quantity) for p in positions}
+
+    # Build per-asset currency map in one query
+    currency_map = {
+        a.id: (a.currency or "INR")
+        for a in session.query(Asset).filter(Asset.id.in_(asset_ids)).all()
+    }
 
     cutoff = datetime.now(timezone.utc) - timedelta(days=days)
 
@@ -527,12 +539,13 @@ def build_portfolio_history(
     )
     if not rows:
         # No price history — return a single snapshot using current_price from Asset
-        from app.modules.portfolio.models import Asset as _Asset
         total = 0.0
         for p in positions:
-            asset = session.get(_Asset, p.asset_id)
+            asset = session.get(Asset, p.asset_id)
             if asset and asset.current_price:
-                total += float(p.quantity) * float(asset.current_price)
+                raw = float(asset.current_price)
+                usd = raw if currency_map.get(p.asset_id) == "USD" else raw / fx_rate
+                total += float(p.quantity) * usd
         if total > 0:
             return [{"date": datetime.now(timezone.utc).strftime("%Y-%m-%d"), "value": round(total, 2)}]
         return []
@@ -547,14 +560,12 @@ def build_portfolio_history(
     all_dates: list[datetime] = sorted({r[1] for r in rows})
 
     result: list[dict[str, Any]] = []
-    # last known price per asset (LOCF)
-    last_price: dict[int, float] = {}
+    last_price: dict[int, float] = {}  # last known price per asset (LOCF), in native currency
 
     for date in all_dates:
         daily_value = 0.0
         for asset_id in asset_ids:
             series = price_series.get(asset_id, [])
-            # find price on this date (or use last known)
             price = None
             for d, c in series:
                 if d <= date:
@@ -565,7 +576,9 @@ def build_portfolio_history(
                 last_price[asset_id] = price
             used_price = last_price.get(asset_id)
             if used_price is not None:
-                daily_value += qty_map[asset_id] * used_price
+                # Normalise to USD: INR assets are divided by fx_rate
+                usd_price = used_price if currency_map.get(asset_id) == "USD" else used_price / fx_rate
+                daily_value += qty_map[asset_id] * usd_price
 
         if daily_value > 0:
             result.append({

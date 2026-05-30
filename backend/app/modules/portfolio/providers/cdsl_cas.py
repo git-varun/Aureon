@@ -64,6 +64,11 @@ def _clean_isin(raw: str) -> str:
     return re.sub(r"[^A-Z0-9]", "", raw.upper())
 
 
+def _slug(s: str) -> str:
+    """Convert a scheme name to a filesystem/symbol-safe slug."""
+    return re.sub(r"[^a-z0-9]+", "_", str(s).lower()).strip("_")
+
+
 def _clean_scheme_name(raw: str) -> str:
     """
     Demat security names are formatted as:

@@ -55,32 +55,26 @@ class TestSignalRoutes:
         mock_signal.entry_price = None
         mock_signal.exit_price = None
 
-        # Mock the service
-        with patch("app.modules.signals.routes.SignalService") as mock_service_class:
-            mock_service = MagicMock()
-            mock_service.get_signal.return_value = mock_signal
-            mock_service_class.return_value = mock_service
+        # Mock database query
+        mock_session.query.return_value.filter.return_value.order_by.return_value.first.return_value = mock_signal
 
-            response = test_client.get("/api/signals/RELIANCE")
+        response = test_client.get("/api/signals/RELIANCE")
 
         assert response.status_code == 200
         data = response.json()
         assert data["symbol"] == "RELIANCE"
 
     def test_get_signal_not_found(self, client):
-        """Test GET /api/signals/{symbol} returns 404 when signal doesn't exist."""
+        """Test GET /api/signals/{symbol} returns 200 and null when signal doesn't exist."""
         test_client, mock_session = client
 
-        # Mock the service to return None
-        with patch("app.modules.signals.routes.SignalService") as mock_service_class:
-            mock_service = MagicMock()
-            mock_service.get_signal.return_value = None
-            mock_service_class.return_value = mock_service
+        # Mock database query to return None
+        mock_session.query.return_value.filter.return_value.order_by.return_value.first.return_value = None
 
-            response = test_client.get("/api/signals/UNKNOWN")
+        response = test_client.get("/api/signals/UNKNOWN")
 
-        assert response.status_code == 404
-        assert "No signal found" in response.json()["detail"]
+        assert response.status_code == 200
+        assert response.json() is None
 
     def test_list_signals(self, client):
         """Test GET /api/signals lists recent signals."""

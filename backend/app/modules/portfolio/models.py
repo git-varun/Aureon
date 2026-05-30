@@ -118,21 +118,6 @@ class PriceHistory(Base):
     )
 
 
-class CostBasis(Base):
-    """Tax lot tracking for capital gains computation."""
-
-    __tablename__ = "cost_basis"
-
-    id = Column(Integer, primary_key=True)
-    asset_id = Column(Integer, ForeignKey("assets.id"), nullable=False)
-
-    quantity = Column(Float, nullable=False)
-    purchase_price = Column(Float, nullable=False)
-    purchase_date = Column(DateTime, nullable=False)
-    source = Column(String(50), nullable=True)  # groww, zerodha, binance
-
-    created_at = Column(DateTime, default=datetime.utcnow)
-
 
 class Alert(Base):
     """Price/signal alerts for assets."""
@@ -172,7 +157,7 @@ class Transaction(Base):
     broker_reference = Column(String(100), nullable=True)
 
     # Aureon ledger fields
-    kind = Column(String(30), default="trade", nullable=False)  # trade|applied|contribution
+    kind = Column(String(30), default="trade", nullable=False)  # trade|applied|contribution|broker_snapshot
     recommendation_id = Column(Integer, ForeignKey("recommendations.id"), nullable=True)
     predicted_impact = Column(String(80), nullable=True)
     realized_impact = Column(String(80), nullable=True)
@@ -187,7 +172,7 @@ class Transaction(Base):
         Index("idx_transaction_rec", "recommendation_id"),
     )
 
-    VALID_KINDS = {"trade", "applied", "contribution"}
+    VALID_KINDS = {"trade", "applied", "contribution", "broker_snapshot"}
 
     @validates("kind")
     def validate_kind(self, key, value):

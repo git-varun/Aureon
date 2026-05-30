@@ -14,16 +14,13 @@ from app.modules.portfolio.providers.custom_equity import CustomEquitySync
 class TestCredentialManager:
     """Test CredentialManager credential fetching logic."""
 
-    def test_credential_manager_without_session_uses_env(self, monkeypatch):
-        """Test that CredentialManager falls back to env vars when session is None."""
-        monkeypatch.setenv("BINANCE_API_KEY", "env_key")
-        monkeypatch.setenv("BINANCE_API_SECRET", "env_secret")
-
+    def test_credential_manager_without_session_uses_env(self):
+        """Test that CredentialManager returns None when session is None (no env fallback)."""
         manager = CredentialManager(session=None)
         api_key, api_secret = manager.get_binance_credentials()
 
-        assert api_key == "env_key"
-        assert api_secret == "env_secret"
+        assert api_key is None
+        assert api_secret is None
 
     def test_credential_manager_with_session_queries_db(self):
         """Test that CredentialManager queries database when session provided."""
@@ -43,11 +40,8 @@ class TestCredentialManager:
         assert api_secret == "db_secret"
         assert mock_config_service.get_decrypted_key.call_count == 2
 
-    def test_credential_manager_db_fallback_to_env(self, monkeypatch):
-        """Test fallback to env when DB returns None."""
-        monkeypatch.setenv("BINANCE_API_KEY", "env_key")
-        monkeypatch.setenv("BINANCE_API_SECRET", "env_secret")
-
+    def test_credential_manager_db_fallback_to_env(self):
+        """Test that CredentialManager returns None when DB returns None (no env fallback)."""
         mock_session = Mock()
         mock_config_service = Mock()
         mock_config_service.get_decrypted_key.return_value = None
@@ -57,44 +51,33 @@ class TestCredentialManager:
 
         api_key, api_secret = manager.get_binance_credentials()
 
-        # Should have tried DB first, then fallen back to env
-        assert api_key == "env_key"
-        assert api_secret == "env_secret"
+        assert api_key is None
+        assert api_secret is None
 
-    def test_credential_manager_groww_credentials(self, monkeypatch):
-        """Test Groww credentials fetching."""
-        monkeypatch.setenv("GROWW_API_KEY", "groww_key")
-        monkeypatch.setenv("GROWW_API_SECRET", "groww_secret")
-
+    def test_credential_manager_groww_credentials(self):
+        """Test Groww credentials fetching returns None when session is None (no env fallback)."""
         manager = CredentialManager(session=None)
         api_key, api_secret = manager.get_groww_credentials()
 
-        assert api_key == "groww_key"
-        assert api_secret == "groww_secret"
+        assert api_key is None
+        assert api_secret is None
 
-    def test_credential_manager_coinbase_credentials(self, monkeypatch):
-        """Test Coinbase credentials fetching."""
-        monkeypatch.setenv("COINBASE_API_KEY", "cb_key")
-        monkeypatch.setenv("COINBASE_API_SECRET", "cb_secret")
-        monkeypatch.setenv("COINBASE_PASSPHRASE", "cb_pass")
-
+    def test_credential_manager_coinbase_credentials(self):
+        """Test Coinbase credentials fetching returns None when session is None (no env fallback)."""
         manager = CredentialManager(session=None)
         api_key, api_secret, passphrase = manager.get_coinbase_credentials()
 
-        assert api_key == "cb_key"
-        assert api_secret == "cb_secret"
-        assert passphrase == "cb_pass"
+        assert api_key is None
+        assert api_secret is None
+        assert passphrase is None
 
-    def test_credential_manager_custom_equity_credentials(self, monkeypatch):
-        """Test custom equity credentials fetching."""
-        json_data = '[{"symbol": "TEST", "qty": 10}]'
-        monkeypatch.setenv("CUSTOM_EQUITY_HOLDINGS_JSON", json_data)
-
+    def test_credential_manager_custom_equity_credentials(self):
+        """Test custom equity credentials fetching returns None when session is None (no env fallback)."""
         manager = CredentialManager(session=None)
         holdings_json, holdings_file = manager.get_custom_equity_credentials()
 
-        assert holdings_json == json_data
-        assert holdings_file is None or holdings_file == ""
+        assert holdings_json is None
+        assert holdings_file is None
 
 
 class TestProviderWithCredentialManager:
@@ -111,16 +94,17 @@ class TestProviderWithCredentialManager:
         assert provider.api_secret == "api_secret"
         mock_cred_manager.get_binance_credentials.assert_called_once()
 
-    def test_binance_provider_without_cred_manager_uses_settings(self, monkeypatch):
-        """Test BinanceIntelligenceClient falls back to settings."""
-        monkeypatch.setenv("BINANCE_API_KEY", "")
-        monkeypatch.setenv("BINANCE_API_SECRET", "")
+    def test_binance_provider_without_cred_manager_raises_attribute_error(self):
+        """Test BinanceIntelligenceClient raises AttributeError if cred_manager is None."""
+        with pytest.raises(AttributeError):
+            BinanceIntelligenceClient(cred_manager=None)
 
-        provider = BinanceIntelligenceClient(cred_manager=None)
-
-        # Should use empty settings
-        assert provider.api_key == ""
-        assert provider.api_secret == ""
+    def test_binance_provider_with_empty_cred_manager(self):
+        """Test BinanceIntelligenceClient handles empty credentials."""
+        manager = CredentialManager(session=None)
+        provider = BinanceIntelligenceClient(cred_manager=manager)
+        assert provider.api_key is None
+        assert provider.api_secret is None
 
     def test_coinbase_provider_with_cred_manager(self):
         """Test CoinbaseSync accepts cred_manager."""
@@ -154,7 +138,7 @@ class TestProviderWithCredentialManager:
         mock_cred_manager.get_groww_credentials.return_value = ("api_key", "api_secret")
 
         # Mock the GrowwAPI to prevent actual authentication
-        with patch("app.modules.portfolio.providers.groww.GrowwAPI"):
+        with patch("growwapi.GrowwAPI"):
             provider = GrowwSync(cred_manager=mock_cred_manager)
 
             assert provider.api_key == "api_key"

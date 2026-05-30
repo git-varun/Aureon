@@ -25,29 +25,29 @@ class StubProvider(AssetSource):
         return self._holdings
 
 
-def test_sync_portfolio_creates_new_position(monkeypatch):
+def test_sync_portfolio_creates_snapshot_and_recalculates(monkeypatch):
+    """sync_portfolio should upsert a broker_snapshot transaction then delegate
+    position state to recalculate_position, not call create_position directly."""
     session = MagicMock()
     service = PortfolioService(session)
 
     holdings = [
-        AssetPayload(symbol="TCS", qty=10.0, avg_buy_price=3200.0, source="custom_equity", type="equity")
+        AssetPayload(symbol="TCS", qty=10.0, avg_buy_price=3200.0, source="stub", type="equity")
     ]
     provider = StubProvider(holdings)
 
     asset = Asset(id=1, symbol="TCS", name="TCS", asset_type=AssetType.EQUITY, exchange="NSE")
-    position = Position(id=1, asset_id=1, quantity=10.0, avg_buy_price=3200.0, current_value=32000.0, pnl=0.0, pnl_percent=0.0)
 
-    with patch.object(service, "create_asset", return_value=asset) as create_asset, \
-         patch.object(service.position_repo, "find_by_asset", return_value=None) as find_pos, \
-         patch.object(service, "create_position", return_value=position) as create_position:
-        result = service.sync_portfolio(provider, dry_run=False)
+    # Session query for broker_snapshot returns None (first sync, no existing snapshot)
+    snap_query = MagicMock()
+    snap_query.filter_by.return_value.first.return_value = None
+    session.query.return_value = snap_query
 
-    create_asset.assert_called_once()
-    create_position.assert_called_once_with({
-        "asset_id": 1,
-        "quantity": 10.0,
-        "avg_buy_price": 3200.0,
-    })
+    with patch.object(service, "create_asset", return_value=asset), \
+         patch.object(service, "recalculate_position") as mock_recalc:
+        result = service.sync_portfolio(provider, dry_run=False, user_id=1)
+
+    mock_recalc.assert_called_once_with(asset.id, 1)
     assert result["status"] == "success"
     assert result["holdings_count"] == 1
     assert result["updated_assets"] == 1
@@ -58,7 +58,7 @@ def test_sync_portfolio_dry_run_returns_holdings_count():
     session = MagicMock()
     service = PortfolioService(session)
     holdings = [
-        AssetPayload(symbol="INFY", qty=5.0, avg_buy_price=1400.0, source="custom_equity", type="equity")
+        AssetPayload(symbol="INFY", qty=5.0, avg_buy_price=1400.0, source="stub", type="equity")
     ]
     provider = StubProvider(holdings)
 

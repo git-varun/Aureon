@@ -46,10 +46,12 @@ class MFAPIPriceProvider(PriceProvider):
 
         if symbol not in self._scheme_cache:
             code = self._lookup_scheme_code(symbol)
-            if code is None:
-                logger.warning("mfapi: could not resolve scheme code for %s", symbol)
-                return None
-            self._scheme_cache[symbol] = code
+            # Cache failures (None → -1) to prevent repeated search requests.
+            self._scheme_cache[symbol] = code if code is not None else -1
+
+        if self._scheme_cache[symbol] == -1:
+            logger.warning("mfapi: could not resolve scheme code for %s", symbol)
+            return None
 
         scheme_code = self._scheme_cache[symbol]
         try:
@@ -76,6 +78,11 @@ class MFAPIPriceProvider(PriceProvider):
             if code is None:
                 return []
             self._scheme_cache[symbol] = code
+
+        # -1 is the failure sentinel written by get_price; guard against it here
+        # so we don't fire an HTTP request to mfapi.in/mf/-1.
+        if self._scheme_cache[symbol] == -1:
+            return []
 
         scheme_code = self._scheme_cache[symbol]
         try:

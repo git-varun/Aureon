@@ -1,7 +1,7 @@
 """Finnhub news provider."""
 
 import logging
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from typing import List
 
 import requests
@@ -60,12 +60,15 @@ class FinnhubNewsProvider(BaseNewsProvider):
                 if not headline or not url:
                     continue
 
+                ts = item.get("datetime")
+                pub = datetime.fromtimestamp(ts, tz=timezone.utc) if ts else None
                 results.append(
                     NewsPayload(
                         title=headline,
                         snippet=summary,
                         link=url,
                         provider=self.provider_name,
+                        published_at=pub,
                     )
                 )
 

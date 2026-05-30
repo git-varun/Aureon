@@ -20,4 +20,7 @@ def test_sync_portfolio_task_delegates_to_service():
              "errors": [],
          }) as mock_sync, \
          patch("app.tasks.portfolio.SessionLocal", return_value=MagicMock()):
-            result = sync_portfolio_task.run(broker="custom_equity")
+            result = sync_portfolio_task.run(broker="custom_equity", user_id=1)
+
+    assert result["status"] == "success"
+    assert result["broker"] == "custom_equity"

@@ -120,7 +120,7 @@ class NewsService:
                 url=url,
                 summary=payload.snippet,
                 symbols=symbol,
-                published_at=datetime.now(timezone.utc),
+                published_at=payload.published_at or datetime.now(timezone.utc),
             )
             db.add(article)
             new_count += 1
@@ -217,7 +217,9 @@ def _link_news_assets(db: Session, symbol: str) -> None:
     from app.modules.portfolio.models import Asset
     from sqlalchemy import func
 
-    assets = db.query(Asset).filter(Asset.symbol.ilike(f"{symbol}-%")).all()
+    assets = db.query(Asset).filter(
+        (Asset.symbol.ilike(symbol)) | Asset.symbol.ilike(f"{symbol}-%")
+    ).all()
     if not assets:
         logger.debug("_link_news_assets: no asset found for symbol=%s — skipping junction write", symbol)
         return

@@ -59,15 +59,27 @@ def register_models() -> None:
 
 
 def _run_migrations() -> None:
-    """Run all pending Alembic migrations programmatically."""
+    """Run all pending Alembic migrations programmatically with an advisory lock."""
     from pathlib import Path as _Path
     from alembic import command
     from alembic.config import Config as AlembicConfig
+    from sqlalchemy import create_engine, text
+    from sqlalchemy.pool import NullPool
 
     backend_root = _Path(__file__).resolve().parent.parent
     alembic_cfg = AlembicConfig(str(backend_root / "alembic.ini"))
     alembic_cfg.set_main_option("script_location", str(backend_root / "alembic"))
-    command.upgrade(alembic_cfg, "head")
+
+    lock_engine = create_engine(settings.database_url, poolclass=NullPool)
+    with lock_engine.connect() as conn:
+        logger.info("Acquiring database migration lock...")
+        conn.execute(text("SELECT pg_advisory_lock(7022900)"))
+        try:
+            command.upgrade(alembic_cfg, "head")
+            logger.info("Database migrations applied successfully")
+        finally:
+            conn.execute(text("SELECT pg_advisory_unlock(7022900)"))
+            logger.info("Released database migration lock")
 
 
 async def _wait_for_db(max_retries: int = 15, delay: float = 3.0) -> None:

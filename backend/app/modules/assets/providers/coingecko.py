@@ -73,7 +73,8 @@ class CoinGeckoProvider(PriceProvider):
         if base in _SYMBOL_ID_MAP:
             return _SYMBOL_ID_MAP[base]
         if base in self._search_cache:
-            return self._search_cache[base]
+            cached = self._search_cache[base]
+            return cached if cached else None
 
         try:
             resp = requests.get(
@@ -93,6 +94,8 @@ class CoinGeckoProvider(PriceProvider):
         except Exception as e:
             logger.debug("CoinGecko search failed for %s: %s", base, e)
 
+        # Cache the miss so consecutive failures don't hammer the search endpoint.
+        self._search_cache[base] = ""
         return None
 
     def get_price(self, symbol: str, asset_type: str) -> PricePayload | None:

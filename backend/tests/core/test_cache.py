@@ -123,14 +123,12 @@ class TestClearPatternWithRedis:
         self.mgr = _make_manager(redis_client=self.redis)
 
     def test_deletes_each_matched_key(self):
-        self.redis.scan_iter.return_value = ["a:1", "a:2"]
+        self.redis.scan.return_value = (0, ["a:1", "a:2"])
         self.mgr.clear_pattern("a:*")
-        self.redis.delete.assert_any_call("a:1")
-        self.redis.delete.assert_any_call("a:2")
-        assert self.redis.delete.call_count == 2
+        self.redis.unlink.assert_called_once_with("a:1", "a:2")
 
     def test_does_not_raise_on_redis_exception(self):
-        self.redis.scan_iter.side_effect = Exception("timeout")
+        self.redis.scan.side_effect = Exception("timeout")
         self.mgr.clear_pattern("*")  # must not propagate
 
 

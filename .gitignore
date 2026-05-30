@@ -181,3 +181,10 @@ cython_debug/
 .idea/
 data/
 logs/
+
+# Vim swap files
+*.swp
+*.swo
+
+# IDE / tool metadata
+.antigravitycli/

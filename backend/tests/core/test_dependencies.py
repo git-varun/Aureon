@@ -55,21 +55,19 @@ class TestGetCurrentUser:
         """A decode error in the jwt module must surface as HTTP 401."""
         creds = HTTPAuthorizationCredentials(scheme="Bearer", credentials="bad.token")
         # Make jwt.decode raise so the except branch fires
-        sys.modules["jwt"].decode.side_effect = Exception("bad token")
-        with pytest.raises(HTTPException) as exc_info:
-            self._call(credentials=creds, db=MagicMock())
-        sys.modules["jwt"].decode.side_effect = None
+        with patch("jwt.decode", side_effect=Exception("bad token")):
+            with pytest.raises(HTTPException) as exc_info:
+                self._call(credentials=creds, db=MagicMock())
         assert exc_info.value.status_code == 401
 
     def test_raises_401_when_user_not_found(self):
         creds = HTTPAuthorizationCredentials(scheme="Bearer", credentials="any.token")
         mock_db = MagicMock()
         mock_db.query.return_value.filter_by.return_value.first.return_value = None
-        sys.modules["jwt"].decode.side_effect = None
-        sys.modules["jwt"].decode.return_value = {"sub": "99"}
 
-        with pytest.raises(HTTPException) as exc_info:
-            self._call(credentials=creds, db=mock_db)
+        with patch("jwt.decode", return_value={"sub": "99"}):
+            with pytest.raises(HTTPException) as exc_info:
+                self._call(credentials=creds, db=mock_db)
         assert exc_info.value.status_code == 401
 
     def test_returns_user_when_token_valid(self):
@@ -77,10 +75,9 @@ class TestGetCurrentUser:
         fake_user = MagicMock()
         mock_db = MagicMock()
         mock_db.query.return_value.filter_by.return_value.first.return_value = fake_user
-        sys.modules["jwt"].decode.side_effect = None
-        sys.modules["jwt"].decode.return_value = {"sub": "1"}
 
-        result = self._call(credentials=creds, db=mock_db)
+        with patch("jwt.decode", return_value={"sub": "1"}):
+            result = self._call(credentials=creds, db=mock_db)
         assert result is fake_user
 
 

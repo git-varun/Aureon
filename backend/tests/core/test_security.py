@@ -12,12 +12,6 @@ from unittest.mock import MagicMock, call, patch
 
 import pytest
 
-# ── Stub python-jose so the module can be imported without the package ────────
-if "jose" not in sys.modules:
-    _jose_stub = types.ModuleType("jose")
-    _jose_stub.jwt = MagicMock()
-    sys.modules["jose"] = _jose_stub
-
 from app.core.security import create_access_token  # noqa: E402
 
 
@@ -25,15 +19,16 @@ from app.core.security import create_access_token  # noqa: E402
 
 @pytest.fixture(autouse=True)
 def _patch_settings_and_jose():
-    """Isolate settings and capture calls to jose.jwt.encode."""
-    import jose  # the stubbed module
-    jose.jwt.encode = MagicMock(return_value="mocked.jwt.token")
-
-    with patch("app.core.security.settings") as mock_settings:
-        mock_settings.secret_key = "test-secret"
+    """Isolate settings and capture calls to jwt.encode."""
+    with (
+        patch("app.core.security.settings") as mock_settings,
+        patch("app.core.security.jwt") as mock_jwt,
+    ):
+        mock_settings.secret_key = "test-secret-at-least-32-bytes-long"
         mock_settings.jwt_algorithm = "HS256"
         mock_settings.access_token_expire_minutes = 60
-        yield mock_settings, jose.jwt.encode
+        mock_jwt.encode.return_value = "mocked.jwt.token"
+        yield mock_settings, mock_jwt.encode
 
 
 # ── Tests ─────────────────────────────────────────────────────────────────────
@@ -50,7 +45,7 @@ class TestCreateAccessToken:
         create_access_token("user-1")
         args, kwargs = mock_encode.call_args
         secret = args[1] if len(args) >= 2 else kwargs.get("key")
-        assert secret == "test-secret"
+        assert secret == "test-secret-at-least-32-bytes-long"
 
     def test_calls_encode_with_correct_algorithm(self, _patch_settings_and_jose):
         _, mock_encode = _patch_settings_and_jose
