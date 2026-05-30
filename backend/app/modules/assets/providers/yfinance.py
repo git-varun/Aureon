@@ -17,16 +17,14 @@ class YahooFinanceProvider(PriceProvider):
     def get_price(self, symbol: str, asset_type: str) -> PricePayload | None:
         try:
             ticker = yf.Ticker(symbol)
-            info = ticker.info
+            fi = ticker.fast_info
             price = (
-                    info.get("currentPrice")
-                    or info.get("regularMarketPrice")
-                    or info.get("ask")
-                    or info.get("bid")
-                    or info.get("previousClose")
+                getattr(fi, "last_price", None)
+                or getattr(fi, "regular_market_price", None)
+                or getattr(fi, "previous_close", None)
             )
             if price:
-                currency = info.get("currency", "USD")
+                currency = getattr(fi, "currency", "USD") or "USD"
                 norm_currency = "INR" if currency == "INR" else "USD"
                 return PricePayload(
                     symbol=symbol,

@@ -1,6 +1,8 @@
 """RSS-based news provider using feedparser."""
 
 import logging
+import time as _time
+from datetime import datetime, timezone
 from typing import List
 from urllib.parse import quote
 
@@ -70,6 +72,8 @@ class RSSNewsProvider(BaseNewsProvider):
                             or ""
                     )
 
+                    parsed_time = getattr(entry, "published_parsed", None)
+                    pub = datetime(*parsed_time[:6], tzinfo=timezone.utc) if parsed_time else None
                     seen_links.add(link)
                     results.append(
                         NewsPayload(
@@ -77,6 +81,7 @@ class RSSNewsProvider(BaseNewsProvider):
                             snippet=snippet,
                             link=link,
                             provider=self.provider_name,
+                            published_at=pub,
                         )
                     )
 

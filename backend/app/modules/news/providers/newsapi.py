@@ -1,6 +1,7 @@
 """NewsAPI news provider."""
 
 import logging
+from datetime import datetime, timezone
 from typing import List
 
 import requests
@@ -58,12 +59,18 @@ class NewsAPIProvider(BaseNewsProvider):
                 if not title or not url:
                     continue
 
+                pub_str = article.get("publishedAt")
+                try:
+                    pub = datetime.fromisoformat(pub_str.replace("Z", "+00:00")) if pub_str else None
+                except (ValueError, AttributeError):
+                    pub = None
                 results.append(
                     NewsPayload(
                         title=title,
                         snippet=description,
                         link=url,
                         provider=self.provider_name,
+                        published_at=pub,
                     )
                 )
 

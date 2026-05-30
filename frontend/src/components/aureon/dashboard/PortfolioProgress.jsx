@@ -47,13 +47,6 @@ function SparkLine({data, width, height}) {
     );
 }
 
-function fmtVal(n) {
-    if (n == null) return '—';
-    if (n >= 1e7) return `₹${(n / 1e7).toFixed(2)}Cr`;
-    if (n >= 1e5) return `₹${(n / 1e5).toFixed(2)}L`;
-    return `₹${Math.round(n).toLocaleString('en-IN')}`;
-}
-
 function SummaryStat({label, value, tone}) {
     const color = tone === 'pos' ? 'var(--sage-500)' : tone === 'neg' ? 'var(--crimson-500)' : tone === 'warn' ? 'var(--dusk-500)' : 'var(--ink-00)';
     return (
@@ -143,6 +136,7 @@ export const PortfolioProgress = () => {
     const [open, setOpen] = useState(false);
     const [tab, setTab] = useState('net');
     const [range, setRange] = useState('3M');
+    const fmt = useFmtMoney();
     const containerRef = useRef(null);
     const [dims, setDims] = useState({w: 600, h: 120});
     const {allocByClass, classTarget} = useAureonData();
@@ -265,11 +259,11 @@ export const PortfolioProgress = () => {
                                     </div>
                                 </div>
                                 <div style={{display: 'flex', flexDirection: 'column', gap: 10}}>
-                                    <ProgressStat label="Start" value={fmtVal(first)} sub={history[0]?.date}/>
-                                    <ProgressStat label="Current" value={fmtVal(last)} sub="today" highlight/>
+                                    <ProgressStat label="Start" value={fmt(first, 'USD')} sub={history[0]?.date}/>
+                                    <ProgressStat label="Current" value={fmt(last, 'USD')} sub="today" highlight/>
                                     <ProgressStat
                                         label="Δ"
-                                        value={delta != null ? `${delta >= 0 ? '+' : '−'}${fmtVal(Math.abs(delta))}` : '—'}
+                                        value={delta != null ? `${delta >= 0 ? '+' : '−'}${fmt(Math.abs(delta), 'USD')}` : '—'}
                                         sub={deltaPct != null ? `${deltaPct >= 0 ? '+' : ''}${(deltaPct * 100).toFixed(2)}%` : undefined}
                                         tone={delta != null ? (delta >= 0 ? 'pos' : 'neg') : undefined}
                                     />

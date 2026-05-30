@@ -45,6 +45,8 @@ class PortfolioService:
         )
 
         asset.is_tradeable = is_tradeable
+        if asset_type_val == AssetType.CRYPTO.value:
+            asset.currency = "USD"
         if data.asset_metadata is not None:
             asset.asset_metadata = data.asset_metadata.model_dump()
 
@@ -196,8 +198,41 @@ class PortfolioService:
                 })
                 if holding.current_price is not None:
                     asset.current_price = holding.current_price
-                    self.session.commit()
-                self._update_or_create_position(asset, holding.qty, holding.avg_buy_price, user_id=user_id, current_price=holding.current_price)
+                    self.session.flush()
+
+                # Upsert a broker_snapshot transaction so recalculate_position has a
+                # source of truth even when no manual transactions exist. Re-syncing
+                # updates the same row rather than inserting a duplicate.
+                existing_snap = (
+                    self.session.query(Transaction)
+                    .filter_by(
+                        asset_id=asset.id,
+                        user_id=user_id,
+                        broker=provider.provider_name,
+                        kind="broker_snapshot",
+                    )
+                    .first()
+                )
+                if existing_snap:
+                    existing_snap.quantity = holding.qty
+                    existing_snap.price = holding.avg_buy_price
+                    existing_snap.total_value = holding.qty * holding.avg_buy_price
+                    existing_snap.transaction_date = datetime.utcnow()
+                else:
+                    self.session.add(Transaction(
+                        asset_id=asset.id,
+                        user_id=user_id,
+                        transaction_type=TransactionType.BUY.value,
+                        quantity=holding.qty,
+                        price=holding.avg_buy_price,
+                        total_value=holding.qty * holding.avg_buy_price,
+                        transaction_date=datetime.utcnow(),
+                        broker=provider.provider_name,
+                        kind="broker_snapshot",
+                    ))
+                self.session.flush()
+
+                self.recalculate_position(asset.id, user_id)
                 updated_assets += 1
             except Exception as exc:
                 logger.exception("sync_portfolio: failed to persist holding %s: %s", holding.symbol, exc)
@@ -206,6 +241,13 @@ class PortfolioService:
                     self.session.rollback()
                 except Exception:
                     pass
+
+        # Commit all snapshot upserts and recalculated positions in one shot.
+        # create_asset() commits per-asset (to flush the upsert), leaving the
+        # snapshot + recalculate writes in an uncommitted transaction that must
+        # be committed here or they are lost when the session is closed.
+        if updated_assets > 0:
+            self.session.commit()
 
         return {
             "status": "success",
@@ -416,7 +458,7 @@ class PortfolioService:
         )
 
     def recompute_avg_buy_price(self, position_id: int, user_id: Optional[int] = None) -> dict:
-        """Recompute avg_buy_price from BUY transactions using VWAP and update P&L."""
+        """Recompute avg_buy_price via AVCO and update P&L. Delegates to recalculate_position."""
         from sqlalchemy import or_
 
         pos_q = self.session.query(Position).filter(Position.id == position_id)
@@ -426,43 +468,43 @@ class PortfolioService:
         if not pos:
             raise NotFoundError(f"Position {position_id} not found")
 
-        txn_q = (
-            self.session.query(Transaction)
-            .filter(
-                Transaction.asset_id == pos.asset_id,
-                Transaction.transaction_type == TransactionType.BUY,
-            )
-        )
-        if user_id is not None:
-            from sqlalchemy import or_
-            txn_q = txn_q.filter(or_(Transaction.user_id == user_id, Transaction.user_id.is_(None)))
-        buy_txns = txn_q.all()
-        if not buy_txns:
-            return {"position_id": position_id, "updated": False, "reason": "no buy transactions found"}
-
-        total_qty = sum(float(t.quantity) for t in buy_txns)
-        total_cost = sum(float(t.quantity) * float(t.price) for t in buy_txns)
-        if total_qty <= 0:
-            return {"position_id": position_id, "updated": False, "reason": "total buy quantity is zero"}
-
-        vwap = total_cost / total_qty
         old_avg = float(pos.avg_buy_price)
-        pos.avg_buy_price = vwap
-        pos.pnl = pos.current_value - (pos.quantity * vwap)
-        pos.pnl_percent = (pos.pnl / (pos.quantity * vwap) * 100) if vwap > 0 else 0.0
+        effective_user_id = user_id if user_id is not None else pos.user_id
+        self.recalculate_position(pos.asset_id, effective_user_id)
+
+        # recalculate_position deletes the position when net_qty <= 0 and flushes,
+        # so we must re-query rather than refresh the (potentially deleted) object.
+        from sqlalchemy import or_
+        refreshed = (
+            self.session.query(Position)
+            .filter(Position.id == position_id)
+            .first()
+        )
+        if refreshed is None:
+            self.session.add(AuditLog(
+                entity="position", entity_id=position_id, action="recompute_cost",
+                before_json={"avg_buy_price": old_avg},
+                after_json={"deleted": True},
+            ))
+            self.session.commit()
+            logger.info("recompute_avg_buy_price: position_id=%s deleted (net_qty<=0)", position_id)
+            return {"position_id": position_id, "updated": True, "old_avg_buy_price": old_avg, "new_avg_buy_price": 0.0, "deleted": True}
+
+        new_avg = float(refreshed.avg_buy_price)
         self.session.add(AuditLog(
             entity="position", entity_id=position_id, action="recompute_cost",
             before_json={"avg_buy_price": old_avg},
-            after_json={"avg_buy_price": vwap, "pnl": float(pos.pnl)},
+            after_json={"avg_buy_price": new_avg},
         ))
         self.session.commit()
-        logger.info("recompute_avg_buy_price: position_id=%s old=%.4f new=%.4f", position_id, old_avg, vwap)
-        return {"position_id": position_id, "updated": True, "old_avg_buy_price": old_avg, "new_avg_buy_price": vwap}
+        logger.info("recompute_avg_buy_price: position_id=%s old=%.4f new=%.4f", position_id, old_avg, new_avg)
+        return {"position_id": position_id, "updated": True, "old_avg_buy_price": old_avg, "new_avg_buy_price": new_avg}
 
     def recalculate_position(self, asset_id: int, user_id: int) -> None:
-        """Recompute position qty and avg_buy_price from BUY/SELL transactions.
+        """Recompute position qty and avg_buy_price from BUY/SELL transactions using AVCO.
 
-        Deletes the position if net quantity is ≤ 0.
+        AVCO (Average Cost): on BUY, running weighted average is updated; on SELL, qty drops
+        and the average is unchanged. Deletes the position if net quantity is ≤ 0.
         """
         from sqlalchemy import or_
 
@@ -472,22 +514,43 @@ class PortfolioService:
             .filter(
                 Transaction.asset_id == asset_id,
                 Transaction.transaction_type.in_(buy_sell),
+                # Exclude broker_snapshot rows: they represent the broker's reported
+                # total position, not incremental trades. Including them alongside
+                # manual transactions would double-count every share.
+                Transaction.kind != "broker_snapshot",
             )
             .filter(or_(Transaction.user_id == user_id, Transaction.user_id.is_(None)))
+            .order_by(Transaction.transaction_date.asc(), Transaction.id.asc())
             .all()
         )
 
+        # If no manual transactions exist, fall back to the broker snapshot so
+        # that broker-only portfolios still compute a valid position.
+        if not txns:
+            snap = (
+                self.session.query(Transaction)
+                .filter(
+                    Transaction.asset_id == asset_id,
+                    Transaction.kind == "broker_snapshot",
+                )
+                .filter(or_(Transaction.user_id == user_id, Transaction.user_id.is_(None)))
+                .order_by(Transaction.transaction_date.desc())
+                .first()
+            )
+            if snap:
+                txns = [snap]
+
         net_qty = 0.0
-        total_buy_cost = 0.0
-        total_buy_qty = 0.0
+        running_avg = 0.0
         for t in txns:
             qty = float(t.quantity)
             if t.transaction_type == TransactionType.BUY.value:
-                net_qty += qty
-                total_buy_cost += qty * float(t.price)
-                total_buy_qty += qty
+                new_qty = net_qty + qty
+                if new_qty > 0:
+                    running_avg = (net_qty * running_avg + qty * float(t.price)) / new_qty
+                net_qty = new_qty
             else:
-                net_qty -= qty
+                net_qty = max(net_qty - qty, 0.0)
 
         pos = (
             self.session.query(Position)
@@ -503,16 +566,16 @@ class PortfolioService:
                 logger.info("recalculate_position: deleted position asset_id=%s user_id=%s", asset_id, user_id)
             return
 
-        vwap = total_buy_cost / total_buy_qty if total_buy_qty > 0 else 0.0
         asset = self.session.query(Asset).filter(Asset.id == asset_id).first()
-        current_price = asset.current_price if asset and asset.current_price else vwap
+        current_price = asset.current_price if asset and asset.current_price else running_avg
         current_value = net_qty * current_price
-        pnl = current_value - (net_qty * vwap) if vwap > 0 else None
-        pnl_pct = (pnl / (net_qty * vwap) * 100) if vwap > 0 and pnl is not None else None
+        cost_basis = net_qty * running_avg
+        pnl = round(current_value - cost_basis, 4) if running_avg > 0 else None
+        pnl_pct = round(pnl / cost_basis * 100, 4) if running_avg > 0 and cost_basis > 0 else None
 
         if pos:
             pos.quantity = net_qty
-            pos.avg_buy_price = vwap
+            pos.avg_buy_price = running_avg
             pos.current_value = current_value
             pos.pnl = pnl
             pos.pnl_percent = pnl_pct
@@ -521,7 +584,7 @@ class PortfolioService:
                 asset_id=asset_id,
                 user_id=user_id,
                 quantity=net_qty,
-                avg_buy_price=vwap,
+                avg_buy_price=running_avg,
                 current_value=current_value,
                 pnl=pnl,
                 pnl_percent=pnl_pct,
@@ -530,8 +593,8 @@ class PortfolioService:
 
         self.session.flush()
         logger.info(
-            "recalculate_position: asset_id=%s user_id=%s net_qty=%.4f vwap=%.4f",
-            asset_id, user_id, net_qty, vwap,
+            "recalculate_position: asset_id=%s user_id=%s net_qty=%.4f avco=%.4f",
+            asset_id, user_id, net_qty, running_avg,
         )
 
     def sync_assets(self, assets_data: List[dict]) -> List[Asset]:

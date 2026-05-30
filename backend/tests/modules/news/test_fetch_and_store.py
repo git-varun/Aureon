@@ -36,13 +36,19 @@ def test_fetch_and_store_dual_write(pg_engine):
     from app.modules.portfolio.models import Asset
 
     with SessionLocal() as session:
+        # Initial cleanup from previous failed runs
+        news_row = session.query(News).filter_by(url="https://example.com/dualtest-article-unique").first()
+        if news_row:
+            session.query(NewsAsset).filter_by(news_id=news_row.id).delete()
+            session.delete(news_row)
+        session.query(Asset).filter_by(symbol="DUALTEST").delete()
+        session.commit()
+
         # Seed asset
-        asset = session.query(Asset).filter_by(symbol="DUALTEST").first()
-        if not asset:
-            asset = Asset(symbol="DUALTEST", name="Dual Write Test", asset_type="equity")
-            session.add(asset)
-            session.commit()
-            session.refresh(asset)
+        asset = Asset(symbol="DUALTEST", name="Dual Write Test", asset_type="equity")
+        session.add(asset)
+        session.commit()
+        session.refresh(asset)
 
         # Mock provider to return one article
         mock_payload = MagicMock()
@@ -50,6 +56,7 @@ def test_fetch_and_store_dual_write(pg_engine):
         mock_payload.title = "Dual Write Test Headline"
         mock_payload.snippet = "snippet"
         mock_payload.provider = "test"
+        mock_payload.published_at = None
 
         mock_provider = MagicMock()
         mock_provider.provider_name = "test"

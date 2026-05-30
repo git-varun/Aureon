@@ -18,6 +18,7 @@ class _IsolatedSettings(Settings):
     Use this in tests that drive behaviour through environment variables so
     that any real .env file on disk cannot interfere with the assertions.
     """
+    secret_key: str = "change-me-but-make-it-at-least-32-bytes-long"
 
     model_config = SettingsConfigDict(
         env_file=None,
@@ -51,27 +52,27 @@ class TestDatabaseUrlValidator:
     def test_empty_string_raises(self):
         with pytest.raises(ValidationError) as exc_info:
             Settings(database_url="")
-        assert "required and cannot be empty" in str(exc_info.value)
+        assert "must use postgresql://" in str(exc_info.value)
 
     def test_whitespace_only_raises(self):
         with pytest.raises(ValidationError) as exc_info:
             Settings(database_url="   ")
-        assert "required and cannot be empty" in str(exc_info.value)
+        assert "must use postgresql://" in str(exc_info.value)
 
     def test_sqlite_scheme_raises(self):
         with pytest.raises(ValidationError) as exc_info:
             Settings(database_url="sqlite:///./local.db")
-        assert "must start with" in str(exc_info.value)
+        assert "must use postgresql://" in str(exc_info.value)
 
     def test_mysql_scheme_raises(self):
         with pytest.raises(ValidationError) as exc_info:
             Settings(database_url="mysql://user:pass@localhost/mydb")
-        assert "must start with" in str(exc_info.value)
+        assert "must use postgresql://" in str(exc_info.value)
 
     def test_mssql_scheme_raises(self):
         with pytest.raises(ValidationError) as exc_info:
             Settings(database_url="mssql+pyodbc://user:pass@server/mydb")
-        assert "must start with" in str(exc_info.value)
+        assert "must use postgresql://" in str(exc_info.value)
 
     def test_partial_prefix_raises(self):
         """'post' is not a valid prefix."""
@@ -98,8 +99,7 @@ class TestSettingsDefaults:
 
     @pytest.fixture(autouse=True)
     def settings(self):
-        # Use _IsolatedSettings so the real .env file on disk cannot override
-        # defaults for API-key fields (gemini_api_key, telegram_bot_token, etc.)
+        # Use _IsolatedSettings so the real .env file on disk cannot override defaults
         self.s = _IsolatedSettings(database_url=_VALID_DB_URL)
 
     def test_enable_db_init_default(self):
@@ -115,19 +115,16 @@ class TestSettingsDefaults:
         assert self.s.celery_result_backend is None
 
     def test_api_title_default(self):
-        assert self.s.api_title == "Investment OS API"
+        assert self.s.api_title == "Aureon API"
 
     def test_api_version_default(self):
         assert self.s.api_version == "7.0"
 
-    def test_api_docs_url_default(self):
-        assert self.s.api_docs_url == "/docs"
-
-    def test_api_redoc_url_default(self):
-        assert self.s.api_redoc_url == "/redoc"
+    def test_enable_api_docs_default(self):
+        assert self.s.enable_api_docs is False
 
     def test_port_default(self):
-        assert self.s.port == 8000
+        assert self.s.port == 8001
 
     def test_cors_origins_is_list(self):
         assert isinstance(self.s.cors_origins, list)
@@ -135,41 +132,8 @@ class TestSettingsDefaults:
     def test_cors_origins_contains_frontend_default(self):
         assert "http://localhost:3000" in self.s.cors_origins
 
-    def test_gemini_api_key_default_is_empty(self):
-        assert self.s.gemini_api_key == ""
-
-    def test_telegram_bot_token_default_is_empty(self):
-        assert self.s.telegram_bot_token == ""
-
-    def test_telegram_chat_id_default_is_empty(self):
-        assert self.s.telegram_chat_id == ""
-
-    def test_binance_api_key_default_is_empty(self):
-        assert self.s.binance_api_key == ""
-
-    def test_binance_api_secret_default_is_empty(self):
-        assert self.s.binance_api_secret == ""
-
-    def test_zerodha_api_key_default_is_empty(self):
-        assert self.s.zerodha_api_key == ""
-
-    def test_zerodha_api_secret_default_is_empty(self):
-        assert self.s.zerodha_api_secret == ""
-
-    def test_zerodha_access_token_default_is_empty(self):
-        assert self.s.zerodha_access_token == ""
-
-    def test_groww_email_default_is_empty(self):
-        assert self.s.groww_email == ""
-
-    def test_groww_password_default_is_empty(self):
-        assert self.s.groww_password == ""
-
-    def test_finnhub_api_key_default_is_empty(self):
-        assert self.s.finnhub_api_key == ""
-
     def test_secret_key_default(self):
-        assert self.s.secret_key == "change-me"
+        assert self.s.secret_key == "change-me-but-make-it-at-least-32-bytes-long"
 
     def test_jwt_algorithm_default(self):
         assert self.s.jwt_algorithm == "HS256"
@@ -224,9 +188,9 @@ class TestEnvVarOverrides:
 
     def test_secret_key_from_env(self, monkeypatch):
         monkeypatch.setenv("DATABASE_URL", _VALID_DB_URL)
-        monkeypatch.setenv("SECRET_KEY", "super-secret-test-key")
+        monkeypatch.setenv("SECRET_KEY", "super-secret-test-key-32-bytes-long")
         s = _IsolatedSettings()
-        assert s.secret_key == "super-secret-test-key"
+        assert s.secret_key == "super-secret-test-key-32-bytes-long"
 
     def test_access_token_expire_minutes_from_env(self, monkeypatch):
         monkeypatch.setenv("DATABASE_URL", _VALID_DB_URL)
@@ -239,12 +203,6 @@ class TestEnvVarOverrides:
         monkeypatch.setenv("REDIS_URL", "redis://localhost:6379/0")
         s = _IsolatedSettings()
         assert s.redis_url == "redis://localhost:6379/0"
-
-    def test_gemini_api_key_from_env(self, monkeypatch):
-        monkeypatch.setenv("DATABASE_URL", _VALID_DB_URL)
-        monkeypatch.setenv("GEMINI_API_KEY", "test-gemini-key")
-        s = _IsolatedSettings()
-        assert s.gemini_api_key == "test-gemini-key"
 
     def test_init_value_overrides_env_var(self, monkeypatch):
         """Explicit constructor argument beats env var (pydantic-settings priority)."""
@@ -266,7 +224,7 @@ class TestLoadSettings:
 
     def test_returns_settings_instance(self):
         """_load_settings() with a valid env should return a Settings object."""
-        with patch("app.core.config.Settings", return_value=Settings(database_url=_VALID_DB_URL)):
+        with patch("app.core.config.Settings", return_value=Settings(database_url=_VALID_DB_URL, secret_key="super-secret-test-key-32-bytes-long")):
             result = _load_settings()
         assert isinstance(result, Settings)
 
@@ -287,18 +245,20 @@ class TestLoadSettings:
             with pytest.raises(RuntimeError, match="boom"):
                 _load_settings()
 
-    def test_logs_warning_when_env_file_missing(self, tmp_path, caplog):
+    def test_logs_warning_when_env_file_missing(self, tmp_path):
         """A warning is emitted when the .env file does not exist."""
-        import logging
+        import app.core.config
 
         missing_path = tmp_path / "nonexistent.env"
         # Patch _ENV_FILE so the code sees it as non-existent.
         with patch("app.core.config._ENV_FILE", missing_path):
-            with patch("app.core.config.Settings", return_value=Settings(database_url=_VALID_DB_URL)):
-                with caplog.at_level(logging.WARNING, logger="app.core.config"):
+            with patch("app.core.config.Settings", return_value=Settings(database_url=_VALID_DB_URL, secret_key="super-secret-test-key-32-bytes-long")):
+                with patch.object(app.core.config.logger, "warning") as mock_warning:
                     _load_settings()
 
-        assert any(".env file not found" in r.message for r in caplog.records)
+        mock_warning.assert_called_once()
+        args, kwargs = mock_warning.call_args
+        assert ".env file not found" in args[0]
 
     def test_no_warning_when_env_file_exists(self, tmp_path, caplog):
         """No 'not found' warning when the .env file exists."""
@@ -308,7 +268,7 @@ class TestLoadSettings:
         existing_env.write_text("")  # empty but present
 
         with patch("app.core.config._ENV_FILE", existing_env):
-            with patch("app.core.config.Settings", return_value=Settings(database_url=_VALID_DB_URL)):
+            with patch("app.core.config.Settings", return_value=Settings(database_url=_VALID_DB_URL, secret_key="super-secret-test-key-32-bytes-long")):
                 with caplog.at_level(logging.WARNING, logger="app.core.config"):
                     _load_settings()
 
@@ -328,9 +288,9 @@ class TestLoadSettings:
 # ── CORS origins sanity ────────────────────────────────────────────────────────
 
 class TestCorsOriginsDefault:
-    def test_default_has_three_entries(self):
+    def test_default_has_two_entries(self):
         s = _IsolatedSettings(database_url=_VALID_DB_URL)
-        assert len(s.cors_origins) == 3
+        assert len(s.cors_origins) == 2
 
     def test_all_entries_are_strings(self):
         s = _IsolatedSettings(database_url=_VALID_DB_URL)

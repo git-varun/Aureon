@@ -60,20 +60,19 @@ class TestRegisterUser:
 # ─────────────────────────────────────────────────────────────────────────────
 
 class TestLoginUser:
-    def test_valid_credentials_returns_tokens(self):
+    def test_valid_credentials_sends_otp(self):
         db = _mock_db()
         db.query.return_value.filter_by.return_value.first.return_value = _mock_user()
 
         req = LoginRequest(email="test@example.com", password="correct")
         with (
             patch("app.modules.auth.services.verify_password", return_value=True),
-            patch("app.modules.auth.services.create_access_token", return_value="access"),
-            patch("app.modules.auth.services._create_refresh_token", return_value="refresh"),
+            patch("app.modules.auth.services._send_otp") as mock_send_otp,
         ):
-            access, refresh, user_id = login_user(req, db)
+            res = login_user(req, db)
 
-        assert access == "access"
-        assert refresh == "refresh"
+        assert res is None
+        mock_send_otp.assert_called_once_with("test@example.com", "password_2fa", db)
 
     def test_wrong_password_raises_validation_error(self):
         db = _mock_db()
@@ -122,10 +121,14 @@ class TestRefreshAccessToken:
         db = _mock_db()
         db.query.return_value.filter_by.return_value.first.return_value = self._mock_token_record()
 
-        with patch("app.modules.auth.services.create_access_token", return_value="new_access"):
-            token = refresh_access_token("valid_refresh", db)
+        with (
+            patch("app.modules.auth.services.create_access_token", return_value="new_access"),
+            patch("app.modules.auth.services._create_refresh_token", return_value="new_refresh"),
+        ):
+            access, refresh = refresh_access_token("valid_refresh", db)
 
-        assert token == "new_access"
+        assert access == "new_access"
+        assert refresh == "new_refresh"
 
     def test_unknown_token_raises_validation_error(self):
         db = _mock_db()

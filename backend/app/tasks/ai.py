@@ -159,14 +159,26 @@ def news_sentiment_task(self):
                     sentiments_by_url[url] = item.get("sentiment")
 
             processed = 0
+            skipped_no_url = 0
             for news in unscoreds:
-                score = sentiments_by_url.get(news.url or "")
+                if not news.url:
+                    # No URL — AI batch cannot match this article; skip rather
+                    # than permanently marking it 0.0, so it can be retried if
+                    # a URL is populated later.
+                    skipped_no_url += 1
+                    continue
+                score = sentiments_by_url.get(news.url)
                 if score is not None:
                     news.sentiment_score = float(score)
                     processed += 1
+                else:
+                    # AI returned results but didn't score this specific article
+                    # (rate-limit gap, missing context). Mark neutral so it
+                    # doesn't permanently block the 20-item processing window.
+                    news.sentiment_score = 0.0
 
             db.commit()
-            logger.info("news_sentiment_task: scored %d articles", processed)
+            logger.info("news_sentiment_task: scored %d articles (skipped %d with no url)", processed, skipped_no_url)
 
             if task_id:
                 report_task_status(task_id, "SUCCESS")

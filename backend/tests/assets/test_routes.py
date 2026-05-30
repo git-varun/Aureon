@@ -176,7 +176,7 @@ class TestChartRoute:
     def test_chart_404_for_missing_asset(self, client):
         with patch("app.modules.assets.routes.AssetsService") as MockSvc:
             svc_instance = MagicMock()
-            svc_instance.get_asset.return_value = None
+            svc_instance.get_chart_data.return_value = None
             MockSvc.return_value = svc_instance
 
             resp = client.get("/api/assets/UNKNOWN/chart")

@@ -82,9 +82,17 @@ def accrue_epf_task(self):
                     running_total=round(running_total, 2),
                 ))
 
-                # Update current_value for every user position on this asset
+                # Update positions: advance cost basis by the new contribution only
+                # (not interest), so pnl reflects accumulated interest rather than
+                # treating contributions as unrealized profit.
                 for pos in session.query(Position).filter(Position.asset_id == asset.id).all():
+                    qty = float(pos.quantity or 1)
+                    old_contributions = float(pos.avg_buy_price or 0) * qty
+                    new_contributions = old_contributions + monthly_contribution
+                    pos.avg_buy_price = round(new_contributions / qty, 4)
                     pos.current_value = round(running_total, 2)
+                    pos.pnl = round(running_total - new_contributions, 2)
+                    pos.pnl_percent = round(pos.pnl / new_contributions * 100, 4) if new_contributions > 0 else 0.0
                     pos.last_valued_at = datetime.now(timezone.utc)
 
                 session.commit()
@@ -301,8 +309,16 @@ def accrue_eps_task(self):
                     running_total=running_total,
                 ))
 
+                # EPS has no interest — the entire amount is an employer contribution.
+                # Advance cost basis by the monthly amount so pnl stays near zero.
                 for pos in session.query(Position).filter(Position.asset_id == asset.id).all():
+                    qty = float(pos.quantity or 1)
+                    old_contributions = float(pos.avg_buy_price or 0) * qty
+                    new_contributions = old_contributions + monthly
+                    pos.avg_buy_price = round(new_contributions / qty, 4)
                     pos.current_value = running_total
+                    pos.pnl = round(running_total - new_contributions, 2)
+                    pos.pnl_percent = round(pos.pnl / new_contributions * 100, 4) if new_contributions > 0 else 0.0
                     pos.last_valued_at = datetime.now(timezone.utc)
 
                 session.commit()

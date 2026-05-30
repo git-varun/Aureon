@@ -1,6 +1,7 @@
 """Alpha Vantage news provider."""
 
 import logging
+from datetime import datetime, timezone
 from typing import List
 
 import requests
@@ -61,12 +62,18 @@ class AlphaVantageNewsProvider(BaseNewsProvider):
                 if not title or not url:
                     continue
 
+                pub_str = item.get("time_published")
+                try:
+                    pub = datetime.strptime(pub_str, "%Y%m%dT%H%M%S").replace(tzinfo=timezone.utc) if pub_str else None
+                except (ValueError, TypeError):
+                    pub = None
                 results.append(
                     NewsPayload(
                         title=title,
                         snippet=summary,
                         link=url,
                         provider=self.provider_name,
+                        published_at=pub,
                     )
                 )
 

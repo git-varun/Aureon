@@ -272,7 +272,7 @@ class TestOnChainSignalProvider:
         assert result.symbol == "BTC"
         assert result.provider == "on_chain"
         assert result.action == "HOLD"  # Placeholder returns HOLD
-        assert "placeholder" in result.rationale.lower()
+        assert "unavailable" in result.rationale.lower()
 
 
 if __name__ == "__main__":
