@@ -6,7 +6,7 @@
     border-right: 1px solid rgba(255, 255, 255, 0.06);
     display: flex;
     flex-direction: column;
-    gap: 2px;
+    gap: 6px;
     flex-shrink: 0;
     position: sticky;
     top: 0;
@@ -24,7 +24,7 @@
 .logoBtn {
     background: none;
     border: none;
-    padding: 2px 6px 14px;
+    padding: 6px 8px 14px;
     display: flex;
     align-items: center;
     gap: 10px;
@@ -47,7 +47,16 @@
     text-transform: uppercase;
     color: var(--ink-40);
     font-weight: 600;
-    padding: 10px 8px 4px;
+    padding: 14px 8px 6px;
+}
+
+.sectionLabelFirst {
+    font-size: 9.5px;
+    letter-spacing: 0.16em;
+    text-transform: uppercase;
+    color: var(--ink-40);
+    font-weight: 600;
+    padding: 4px 8px 6px;
 }
 
 .navItem {
@@ -162,11 +171,6 @@
     color: var(--ink-10);
     font-size: 12px;
     font-weight: 500;
-}
-
-.userSignout {
-    font-size: 10.5px;
-    color: var(--ink-40);
 }
 
 .userMenu {

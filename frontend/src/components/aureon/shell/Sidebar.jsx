@@ -25,11 +25,11 @@ const SidebarItem = ({path, label, icon, badge, badgeGold}) => {
     );
 };
 
-const SidebarLabel = ({children}) => (
-    <div className={s.sectionLabel}>{children}</div>
+const SidebarLabel = ({children, first}) => (
+    <div className={first ? s.sectionLabelFirst : s.sectionLabel}>{children}</div>
 );
 
-export const Sidebar = ({userName, onLogout, portfolioCount, signalCount, unreadCount, watchlistCount}) => {
+export const Sidebar = ({userName, onLogout, portfolioCount, transactionCount}) => {
     const navigate = useNavigate();
     const {active} = useApp();
     const [menuOpen, setMenuOpen] = useState(false);
@@ -60,20 +60,17 @@ export const Sidebar = ({userName, onLogout, portfolioCount, signalCount, unread
                 <span className={s.logoText}>Aureon</span>
             </button>
 
-            <SidebarLabel>Daily</SidebarLabel>
-            <SidebarItem path={ROUTES.DASHBOARD}       label="Dashboard"       icon={I.dash}/>
-            <SidebarItem path={ROUTES.RECOMMENDATIONS} label="Recommendations" icon={I.recs}      badge={active.length || null} badgeGold/>
-            <SidebarItem path={ROUTES.SIGNALS}         label="Signals"         icon={I.signals}   badge={signalCount ?? null}/>
-            <SidebarItem path={ROUTES.AI_BRIEFINGS}    label="AI Briefings"    icon={I.recs}/>
+            <SidebarLabel first>Daily</SidebarLabel>
+            <SidebarItem path={ROUTES.DASHBOARD}  label="Dashboard"  icon={I.dash}/>
+            <SidebarItem path={ROUTES.DECISIONS}  label="Decisions"  icon={I.recs}     badge={active.length || null} badgeGold/>
 
             <SidebarLabel>Markets</SidebarLabel>
-            <SidebarItem path={ROUTES.MARKETS}         label="Markets"         icon={I.markets}/>
-            <SidebarItem path={ROUTES.TERMINAL}        label="Terminal"        icon={I.terminal}/>
-            <SidebarItem path={ROUTES.WATCHLIST}       label="Watchlist"       icon={I.watchlist} badge={watchlistCount ?? null}/>
+            <SidebarItem path={ROUTES.MARKETS}    label="Markets"    icon={I.markets}/>
+            <SidebarItem path={ROUTES.TERMINAL}   label="Terminal"   icon={I.terminal}/>
 
             <SidebarLabel>You</SidebarLabel>
-            <SidebarItem path={ROUTES.PORTFOLIO}       label="Portfolio"       icon={I.portfolio} badge={portfolioCount ?? null}/>
-            <SidebarItem path={ROUTES.ACTIVITY}        label="Activity"        icon={I.activity}/>
+            <SidebarItem path={ROUTES.PORTFOLIO}  label="Portfolio"  icon={I.portfolio} badge={portfolioCount ?? null}/>
+            <SidebarItem path={ROUTES.TRANSACTIONS} label="Transactions" icon={I.activity} badge={transactionCount}/>
 
             <div className={s.spacer}/>
 
@@ -95,17 +92,6 @@ export const Sidebar = ({userName, onLogout, portfolioCount, signalCount, unread
                                 <div style={{fontSize: 10.5, color: 'var(--ink-40)'}}>Personal account</div>
                             </div>
                         </div>
-                        <button onClick={() => { navigate(ROUTES.NOTIFICATIONS); setMenuOpen(false); }} className={s.userMenuItem}>
-                            <span style={{display: 'inline-flex', alignItems: 'center', gap: 8}}>
-                                {I.bell}
-                                <span>Notifications</span>
-                                {unreadCount > 0 && (
-                                    <span style={{marginLeft: 4, fontFamily: 'var(--font-mono)', fontSize: 10, padding: '1px 5px', borderRadius: 999, background: 'rgba(245,200,66,0.16)', color: 'var(--aurum-100)'}}>
-                                        {unreadCount}
-                                    </span>
-                                )}
-                            </span>
-                        </button>
                         <button onClick={() => { navigate(ROUTES.SETTINGS); setMenuOpen(false); }} className={s.userMenuItem}>
                             <span style={{display: 'inline-flex', alignItems: 'center', gap: 8}}>
                                 {I.gear}
@@ -122,13 +108,10 @@ export const Sidebar = ({userName, onLogout, portfolioCount, signalCount, unread
                     <div className={s.avatar}>{(userName || 'U').slice(0, 2).toUpperCase()}</div>
                     <div className={s.userMeta}>
                         <div className={s.userName}>{userName || 'You'}</div>
-                        <div className={s.userSignout}>{menuOpen ? '▲ Account' : '▾ Account'}</div>
                     </div>
-                    {unreadCount > 0 && (
-                        <span style={{fontFamily: 'var(--font-mono)', fontSize: 9.5, padding: '1px 5px', borderRadius: 999, background: 'rgba(245,200,66,0.16)', color: 'var(--aurum-100)'}}>
-                            {unreadCount}
-                        </span>
-                    )}
+                    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{color: 'var(--ink-40)', flexShrink: 0, transform: menuOpen ? 'rotate(180deg)' : 'rotate(0deg)', transition: 'transform 160ms var(--ease-std)'}}>
+                        <polyline points="6 9 12 15 18 9"/>
+                    </svg>
                 </button>
             </div>
         </aside>

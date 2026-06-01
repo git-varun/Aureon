@@ -2,22 +2,22 @@
 import React, {lazy, Suspense} from 'react';
 import {Routes, Route, Navigate} from 'react-router-dom';
 import {Toaster} from 'react-hot-toast';
-import {useQuery} from '@tanstack/react-query';
 import {AppProvider} from '@/components/aureon/store';
 import {V4Provider} from '@/contexts/V4Context';
 import {Sidebar, TopBar, Toast, BottomNav} from '@/components/aureon/shell';
 import {ErrorBoundary} from '@/components/aureon/ErrorBoundary';
 import {useAureonData} from '@/hooks/useAureonData';
-import {apiService} from '@/api/apiService';
 import {ROUTES} from '@/routes';
 
 const Dashboard       = lazy(() => import('@/pages/aureon/Dashboard'));
+const Decisions       = lazy(() => import('@/pages/aureon/Decisions'));
 const Portfolio       = lazy(() => import('@/pages/aureon/Portfolio'));
 const AssetsIndex     = lazy(() => import('@/pages/aureon/AssetsIndex'));
 const AssetDetail     = lazy(() => import('@/pages/aureon/AssetDetail'));
 const Signals         = lazy(() => import('@/pages/aureon/Signals'));
 const Recommendations = lazy(() => import('@/pages/aureon/Recommendations'));
 const Activity        = lazy(() => import('@/pages/aureon/Activity'));
+const Transactions    = lazy(() => import('@/pages/aureon/Transactions'));
 const Settings        = lazy(() => import('@/pages/aureon/Settings'));
 const Notifications   = lazy(() => import('@/pages/aureon/Notifications'));
 const Markets         = lazy(() => import('@/pages/aureon/Markets'));
@@ -33,24 +33,14 @@ const PageSkeleton = () => (
 );
 
 function AureonShellInner({onLogout, userName}) {
-    const {holdings, signals, unreadCount} = useAureonData();
-
-    const {data: watchlists} = useQuery({
-        queryKey: ['watchlists'],
-        queryFn: () => apiService.getWatchlists(),
-    });
-    const watchlistCount = watchlists
-        ? watchlists.reduce((s, l) => s + (l.symbols?.length || 0), 0) || null
-        : null;
+    const {holdings, signals, activity, unreadCount} = useAureonData();
 
     return (
         <div style={{display: 'flex', height: '100vh', overflow: 'hidden', background: 'var(--canvas)', color: 'var(--ink-10)'}}>
             <Sidebar
                 userName={userName} onLogout={onLogout}
                 portfolioCount={holdings.length || null}
-                signalCount={signals.length || null}
-                unreadCount={unreadCount}
-                watchlistCount={watchlistCount}
+                transactionCount={activity.length || null}
             />
             <main style={{flex: 1, display: 'flex', flexDirection: 'column', minWidth: 0, overflow: 'hidden'}}>
                 <TopBar/>
@@ -61,13 +51,18 @@ function AureonShellInner({onLogout, userName}) {
                                 <Routes>
                                     <Route index element={<Navigate to={ROUTES.DASHBOARD} replace/>}/>
                                     <Route path="dashboard" element={<Dashboard/>}/>
+                                    <Route path="decisions" element={<Decisions/>}/>
+                                    <Route path="recommendations" element={<Navigate to="/decisions?tab=recommendations" replace/>}/>
+                                    <Route path="signals" element={<Navigate to="/decisions?tab=signals" replace/>}/>
+                                    <Route path="briefings" element={<Navigate to="/decisions?tab=briefings" replace/>}/>
                                     <Route path="portfolio" element={<Portfolio/>}/>
                                     <Route path="assets" element={<AssetsIndex/>}/>
                                     <Route path="assets/:ticker" element={<AssetDetail/>}/>
                                     <Route path="signals" element={<Signals/>}/>
                                     <Route path="recommendations" element={<Recommendations/>}/>
-                                    <Route path="activity" element={<Activity/>}/>
-                                    <Route path="settings" element={<Settings/>}/>
+                                    <Route path="transactions" element={<Transactions/>}/>
+                                    <Route path="activity" element={<Navigate to="/transactions?tab=activity" replace/>}/>
+                                    <Route path="settings/*" element={<Settings/>}/>
                                     <Route path="notifications" element={<Notifications/>}/>
                                     <Route path="markets" element={<Markets/>}/>
                                     <Route path="terminal" element={<Terminal/>}/>
