@@ -4,11 +4,47 @@ import {Stat, SparklineChart} from './primitives';
 
 export function OverviewTab({quote, spark, picked, fmtPrice}) {
     return (
-        <div style={{display: 'grid', gridTemplateColumns: '2fr 1fr', gap: 18, alignItems: 'stretch'}}>
-            <SparklineChart series={spark} dayPct={picked.dayPct}/>
-            <div>
-                <Eyebrow>Quick stats</Eyebrow>
-                <div style={{display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px 18px', marginTop: 10}}>
+        <div className="overview-tab-grid" style={{display: 'grid', gap: 18, alignItems: 'stretch'}}>
+            <style>{`
+                .overview-tab-grid {
+                    grid-template-columns: 2fr 1fr;
+                }
+                @media (max-width: 768px) {
+                    .overview-tab-grid {
+                        grid-template-columns: 1fr;
+                    }
+                }
+            `}</style>
+            
+            {/* Chart Card */}
+            <div className="layer-1" style={{
+                padding: '16px 20px',
+                borderRadius: 8,
+                border: '1px solid rgba(255,255,255,0.06)',
+                display: 'flex',
+                flexDirection: 'column',
+                justifyContent: 'center',
+                minHeight: 180
+            }}>
+                <div style={{fontSize: 11, letterSpacing: '0.10em', textTransform: 'uppercase', color: 'var(--ink-40)', fontWeight: 600, marginBottom: 12}}>
+                    Sparkline (Price Trend)
+                </div>
+                <div style={{flex: 1, display: 'flex', alignItems: 'center'}}>
+                    <SparklineChart series={spark} dayPct={picked.dayPct}/>
+                </div>
+            </div>
+
+            {/* Stats Card */}
+            <div className="layer-1" style={{
+                padding: '16px 20px',
+                borderRadius: 8,
+                border: '1px solid rgba(255,255,255,0.06)',
+                display: 'flex',
+                flexDirection: 'column',
+                minHeight: 180
+            }}>
+                <Eyebrow style={{marginBottom: 10}}>Quick stats</Eyebrow>
+                <div style={{display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px 18px', marginTop: 4, flex: 1}}>
                     <Stat label="Open"       value={quote?.open           != null ? fmtPrice(quote.open)           : null}/>
                     <Stat label="High"       value={quote?.high           != null ? fmtPrice(quote.high)           : null}/>
                     <Stat label="Low"        value={quote?.low            != null ? fmtPrice(quote.low)            : null}/>

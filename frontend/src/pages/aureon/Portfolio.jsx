@@ -8,6 +8,8 @@ import {useFmtMoney} from '@/hooks/useFmtMoney';
 import {ClassRow, LogTradeModal} from '@/components/aureon/portfolio';
 import {RetirementModal} from '@/components/aureon/portfolio/RetirementModal';
 import {apiService} from '@/api/apiService';
+import {FilterBar} from '@/components/aureon/ds';
+import s from './Portfolio.module.css';
 
 const CLASS_ORDER = ['stocks', 'crypto', 'funds', 'bonds', 'real_estate', 'retirement', 'insurance'];
 const CLASS_LABEL_SHORT = {
@@ -54,7 +56,7 @@ const DonutChart = ({segments}) => {
 export default function Portfolio() {
     const fmt = useFmtMoney();
     const queryClient = useQueryClient();
-    const {holdings, classTarget, netWorth, allocByClass, loading} = useAureonData();
+    const {holdings, classTarget, netWorth, allocByClass, loading, techDriftProse} = useAureonData();
     const [filter, setFilter] = useState('all');
     const [showTrade, setShowTrade] = useState(false);
     const [showRetirement, setShowRetirement] = useState(false);
@@ -74,17 +76,6 @@ export default function Portfolio() {
 
     // Dynamic drift: find the class with the largest absolute deviation from target
     const classCount = Object.keys(grouped).length;
-    const driftEntry = useMemo(() => {
-        let maxDrift = 0, maxCls = null;
-        CLASS_ORDER.forEach(cls => {
-            if (!grouped[cls]?.length) return;
-            const actual = allocByClass[cls] || 0;
-            const target = classTarget[cls] ?? CLASS_TARGET[cls] ?? 0;
-            const drift = Math.round((actual - target) * 100);
-            if (Math.abs(drift) > Math.abs(maxDrift)) { maxDrift = drift; maxCls = cls; }
-        });
-        return maxCls ? {cls: maxCls, drift: maxDrift} : null;
-    }, [grouped, allocByClass, classTarget]);
 
     const donutSegments = CLASS_ORDER
         .filter(cls => (grouped[cls]?.length ?? 0) > 0)
@@ -104,39 +95,36 @@ export default function Portfolio() {
     return (
         <>
             {/* Hero */}
-            <div style={{
-                display: 'grid', gridTemplateColumns: 'minmax(0,1.3fr) minmax(0,1fr) auto',
-                gap: 32, alignItems: 'end',
-                paddingBottom: 24, borderBottom: '1px solid rgba(255,255,255,0.05)', marginBottom: 18,
-            }}>
+            <div className={s.hero}>
                 <div>
                     <Eyebrow>Portfolio value · all classes</Eyebrow>
                     <div style={{fontFamily: 'var(--font-mono)', fontSize: 48, fontWeight: 500, color: 'var(--ink-00)', letterSpacing: '-0.025em', marginTop: 6, lineHeight: 1}}>
                         {fmt(totalValue, 'USD', {dp: 0})}
                     </div>
-                    <div style={{fontFamily: 'var(--font-mono)', fontSize: 14, marginTop: 8, color: totalPl >= 0 ? 'var(--sage-500)' : 'var(--crimson-500)'}}>
-                        {totalPl >= 0 ? '+' : '−'}{fmt(Math.abs(totalPl), 'USD', {dp: 0})}&nbsp;
-                        ({totalPl >= 0 ? '+' : '−'}{(Math.abs(plPct) * 100).toFixed(1)}%)&nbsp;
-                        <span style={{color: 'var(--ink-40)'}}>unrealized · all-time</span>
+                    <div className={s.plRow}>
+                        <div style={{color: totalPl >= 0 ? 'var(--sage-500)' : 'var(--crimson-500)'}}>
+                            <div style={{fontFamily: 'var(--font-mono)', fontSize: 14}}>
+                                {totalPl >= 0 ? '+' : '−'}{fmt(Math.abs(totalPl), 'USD', {dp: 0})}
+                            </div>
+                            <div style={{fontFamily: 'var(--font-mono)', fontSize: 13}}>
+                                ({totalPl >= 0 ? '+' : '−'}{(Math.abs(plPct) * 100).toFixed(1)}%)
+                            </div>
+                        </div>
+                        <span className={s.plLabel}>unrealized · all-time</span>
                     </div>
                 </div>
                 <div style={{paddingLeft: 32, borderLeft: '1px solid rgba(255,255,255,0.06)'}}>
                     <div style={{fontSize: 10.5, letterSpacing: '0.12em', textTransform: 'uppercase', color: 'var(--ink-40)', fontWeight: 600, marginBottom: 6}}>
                         Diversification
                     </div>
-                    <div style={{fontSize: 13, color: 'var(--ink-20)', lineHeight: 1.55}}>
+                    <div style={{fontSize: 13, color: 'var(--ink-10)', lineHeight: 1.55, maxWidth: 360}}>
                         {holdings.length === 0
                         ? 'No holdings yet. Log a trade or sync a provider to get started.'
-                        : <>{classCount} asset {classCount === 1 ? 'class' : 'classes'} · {holdings.length} holdings.{' '}
-                            {driftEntry && Math.abs(driftEntry.drift) > 3 && (
-                                <span style={{color: driftEntry.drift > 0 ? 'var(--crimson-500)' : 'var(--aurum-100)'}}>
-                                    {CLASS_LABEL_SHORT[driftEntry.cls] || driftEntry.cls} {Math.abs(driftEntry.drift)}pp {driftEntry.drift > 0 ? 'above' : 'below'} target — rebalance pending.
-                                </span>
-                            )}</>
-                    }
+                        : <>{classCount} asset {classCount === 1 ? 'class' : 'classes'} · {holdings.length} holdings. Tech {techDriftProse} — rebalance pending.</>
+                        }
                     </div>
                 </div>
-                <div style={{display: 'flex', alignItems: 'center', gap: 10}}>
+                <div className={s.heroActions}>
                     <button onClick={() => apiService.exportPortfolioCSV()} className="du3-cta ghost" style={{padding: '0 12px', height: 32, fontSize: 12}}>
                         Export CSV
                     </button>
@@ -154,18 +142,18 @@ export default function Portfolio() {
             <div style={{display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 16}}>
                 <div style={{display: 'flex', alignItems: 'center', gap: 10}}>
                     <span style={{fontSize: 10.5, letterSpacing: '0.12em', textTransform: 'uppercase', color: 'var(--ink-40)', fontWeight: 600}}>Filter</span>
-                    <div style={{display: 'flex', gap: 3, padding: 3, borderRadius: 8, background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.06)'}}>
-                        {[['all', 'All tiers'], ['active', 'Active'], ['semi', 'Semi'], ['passive', 'Passive']].map(([k, l]) => (
-                            <button key={k} onClick={() => setFilter(k)} style={{
-                                padding: '5px 12px', fontSize: 11.5, borderRadius: 6, border: 'none', cursor: 'pointer',
-                                background: filter === k ? 'rgba(255,255,255,0.08)' : 'transparent',
-                                color: filter === k ? 'var(--ink-00)' : 'var(--ink-40)',
-                                fontWeight: filter === k ? 500 : 400,
-                            }}>{l}</button>
-                        ))}
-                    </div>
+                    <FilterBar
+                        options={[
+                            { value: 'all', label: 'All tiers' },
+                            { value: 'active', label: 'Active' },
+                            { value: 'semi', label: 'Semi' },
+                            { value: 'passive', label: 'Passive' },
+                        ]}
+                        value={filter}
+                        onChange={setFilter}
+                    />
                 </div>
-                <span style={{fontSize: 11, color: 'var(--ink-50)'}}>Click a class to expand holdings</span>
+                <span className={s.filterHint}>Click a class to expand its holdings table</span>
             </div>
 
             {/* Class cards — each class is its own glass panel */}
@@ -197,8 +185,8 @@ export default function Portfolio() {
             </div>
             <div style={{height: 32}}/>
 
-            {showTrade && <LogTradeModal onClose={(refresh) => { setShowTrade(false); if (refresh) queryClient.invalidateQueries({queryKey: AUREON_STATE_KEY}); }}/>}
-            {showRetirement && <RetirementModal onClose={(refresh) => { setShowRetirement(false); if (refresh) queryClient.invalidateQueries({queryKey: AUREON_STATE_KEY}); }}/>}
+            {showTrade && <LogTradeModal onClose={(refresh) => { setShowTrade(false); if (refresh) { queryClient.invalidateQueries({queryKey: AUREON_STATE_KEY}); queryClient.invalidateQueries({queryKey: ['transactions']}); } }}/>}
+            {showRetirement && <RetirementModal onClose={(refresh) => { setShowRetirement(false); if (refresh) { queryClient.invalidateQueries({queryKey: AUREON_STATE_KEY}); queryClient.invalidateQueries({queryKey: ['transactions']}); } }}/>}
         </>
     );
 }

@@ -1,7 +1,7 @@
-import React, {useEffect, useRef, useState} from 'react';
+import React, {useState, useEffect} from 'react';
 import {useNavigate} from 'react-router-dom';
 import {toast} from 'react-hot-toast';
-import {apiService} from '@/api/apiService';
+import {useApp} from '@/components/aureon/store';
 
 const inputStyle = {
     width: '100%', padding: '9px 12px', borderRadius: 7,
@@ -26,63 +26,32 @@ const RISK_OPTIONS = [
     {value: 'speculative',  label: 'Speculative'},
 ];
 
-export default function UserProfile() {
+export default function UserProfile({form, setForm, isDirty, setIsDirty}) {
     const navigate = useNavigate();
-    const [profile, setProfile] = useState(null);
-    const [form, setForm] = useState({
-        first_name: '', last_name: '', phone: '', bio: '',
-        risk_profile: '', working_area: '',
-        target_profit_pct: '', monthly_saving: '',
-        swing_trading_enabled: false,
-    });
+    const {profile, saveProfile} = useApp() || {};
     const [saving, setSaving] = useState(false);
-    const [loading, setLoading] = useState(true);
-    const [loadError, setLoadError] = useState(null);
     const [savedAt, setSavedAt] = useState(null);
-    const didFetch = useRef(false);
-
-    useEffect(() => {
-        if (didFetch.current) return;
-        didFetch.current = true;
-        loadProfile();
-    }, []);
-
-    const loadProfile = async () => {
-        setLoading(true);
-        setLoadError(null);
-        try {
-            const data = await apiService.getCurrentUserProfile();
-            setProfile(data);
-            setForm({
-                first_name: data.first_name || '',
-                last_name: data.last_name || '',
-                phone: data.phone || '',
-                bio: data.bio || '',
-                risk_profile: data.risk_profile || '',
-                working_area: data.working_area || '',
-                target_profit_pct: data.target_profit_pct != null ? String(data.target_profit_pct) : '',
-                monthly_saving: data.monthly_saving != null ? String(data.monthly_saving) : '',
-                swing_trading_enabled: data.swing_trading_enabled || false,
-            });
-        } catch {
-            setLoadError('Could not load profile — check your connection.');
-        } finally {
-            setLoading(false);
-        }
-    };
 
     const handleSave = async () => {
+        if (!profile || !saveProfile) return;
         setSaving(true);
         try {
-            const payload = {...form};
-            if (payload.target_profit_pct !== '') payload.target_profit_pct = parseFloat(payload.target_profit_pct);
-            else delete payload.target_profit_pct;
-            if (payload.monthly_saving !== '') payload.monthly_saving = parseFloat(payload.monthly_saving);
-            else delete payload.monthly_saving;
-            if (!payload.risk_profile) delete payload.risk_profile;
-            await apiService.updateCurrentUserProfile(payload);
+            const nextProfile = {
+                ...profile,
+                first: form.first_name,
+                last: form.last_name,
+                phone: form.phone,
+                bio: form.bio,
+                riskProfile: form.risk_profile ? (form.risk_profile.charAt(0).toUpperCase() + form.risk_profile.slice(1)) : 'Balanced',
+                workingArea: form.working_area,
+                annualTarget: form.target_profit_pct,
+                monthlySavings: form.monthly_saving,
+                swingTrading: form.swing_trading_enabled,
+            };
+            saveProfile(nextProfile);
             setSavedAt(new Date().toLocaleTimeString('en-IN', {hour: '2-digit', minute: '2-digit'}));
-            await loadProfile();
+            setIsDirty(false);
+            toast.success('Profile saved');
         } catch (e) {
             toast.error(e.message || 'Failed to update profile');
         } finally {
@@ -90,27 +59,14 @@ export default function UserProfile() {
         }
     };
 
-    if (loading) return (
-        <div style={{padding: 40, textAlign: 'center', color: 'var(--ink-40)', fontSize: 13}}>Loading profile…</div>
-    );
+    const updateForm = (updater) => {
+        setForm(updater);
+        setIsDirty(true);
+    };
 
-    if (loadError) return (
-        <section className="layer-1" style={{padding: '22px 24px'}}>
-            <div style={{display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 14, padding: '40px 20px', textAlign: 'center'}}>
-                <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="var(--crimson-500)" strokeWidth="1.4" strokeLinecap="round" strokeLinejoin="round">
-                    <circle cx="12" cy="12" r="9"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/>
-                </svg>
-                <div style={{fontSize: 13, color: 'var(--ink-20)', fontWeight: 500}}>Profile unavailable</div>
-                <div style={{fontSize: 12, color: 'var(--ink-40)', maxWidth: 280}}>{loadError}</div>
-                <button
-                    onClick={() => { setLoadError(null); didFetch.current = false; loadProfile(); }}
-                    className="du3-cta ghost"
-                    style={{height: 32, padding: '0 16px', fontSize: 12.5}}>
-                    Try again
-                </button>
-            </div>
-        </section>
-    );
+    if (!profile || !form) {
+        return <div style={{padding: 40, textAlign: 'center', color: 'var(--ink-40)', fontSize: 13}}>Loading profile…</div>;
+    }
 
     return (
         <section className="layer-1" style={{padding: '22px 24px'}}>
@@ -142,16 +98,16 @@ export default function UserProfile() {
                             <input value={profile.email} disabled style={{...inputStyle, opacity: 0.55, cursor: 'not-allowed'}}/>
                         </Field>
                         <Field label="First name">
-                            <input value={form.first_name} onChange={e => setForm(f => ({...f, first_name: e.target.value}))} style={inputStyle} placeholder="e.g. Varun"/>
+                            <input value={form.first_name} onChange={e => updateForm(f => ({...f, first_name: e.target.value}))} style={inputStyle} placeholder="e.g. Varun"/>
                         </Field>
                         <Field label="Last name">
-                            <input value={form.last_name} onChange={e => setForm(f => ({...f, last_name: e.target.value}))} style={inputStyle} placeholder="e.g. Sharma"/>
+                            <input value={form.last_name} onChange={e => updateForm(f => ({...f, last_name: e.target.value}))} style={inputStyle} placeholder="e.g. Sharma"/>
                         </Field>
                         <Field label="Phone" full>
-                            <input value={form.phone} onChange={e => setForm(f => ({...f, phone: e.target.value}))} style={inputStyle} placeholder="+91 98765 43210"/>
+                            <input value={form.phone} onChange={e => updateForm(f => ({...f, phone: e.target.value}))} style={inputStyle} placeholder="+91 98765 43210"/>
                         </Field>
                         <Field label="Bio" full>
-                            <textarea value={form.bio} onChange={e => setForm(f => ({...f, bio: e.target.value}))}
+                            <textarea value={form.bio} onChange={e => updateForm(f => ({...f, bio: e.target.value}))}
                                 placeholder="About yourself…"
                                 style={{...inputStyle, minHeight: 80, resize: 'vertical', lineHeight: 1.5}}/>
                         </Field>
@@ -166,7 +122,7 @@ export default function UserProfile() {
                             {RISK_OPTIONS.map(opt => {
                                 const active = form.risk_profile === opt.value;
                                 return (
-                                    <button key={opt.value} onClick={() => setForm(f => ({...f, risk_profile: opt.value}))} style={{
+                                    <button key={opt.value} onClick={() => updateForm(f => ({...f, risk_profile: opt.value}))} style={{
                                         height: 34, borderRadius: 6, cursor: 'pointer', fontSize: 12,
                                         background: active ? 'rgba(201,168,106,0.14)' : 'rgba(255,255,255,0.04)',
                                         border: `1px solid ${active ? 'rgba(201,168,106,0.35)' : 'rgba(255,255,255,0.08)'}`,
@@ -183,7 +139,7 @@ export default function UserProfile() {
                             <div style={{fontSize: 11, color: 'var(--ink-40)', marginBottom: 6}}>AI briefings flag when YTD annualised return falls below this pace.</div>
                             <div style={{position: 'relative'}}>
                                 <input type="number" min="0" max="1000" step="0.1" value={form.target_profit_pct}
-                                    onChange={e => setForm(f => ({...f, target_profit_pct: e.target.value}))}
+                                    onChange={e => updateForm(f => ({...f, target_profit_pct: e.target.value}))}
                                     placeholder="e.g. 20" style={{...inputStyle, paddingRight: 36}}/>
                                 <span style={{position: 'absolute', right: 12, top: '50%', transform: 'translateY(-50%)', fontSize: 13, color: 'var(--ink-30)', fontFamily: 'var(--font-mono)', pointerEvents: 'none'}}>%</span>
                             </div>
@@ -193,7 +149,7 @@ export default function UserProfile() {
                             <div style={{position: 'relative'}}>
                                 <span style={{position: 'absolute', left: 12, top: '50%', transform: 'translateY(-50%)', fontSize: 13, color: 'var(--ink-30)', fontFamily: 'var(--font-mono)', pointerEvents: 'none'}}>₹</span>
                                 <input type="number" min="0" step="100" value={form.monthly_saving}
-                                    onChange={e => setForm(f => ({...f, monthly_saving: e.target.value}))}
+                                    onChange={e => updateForm(f => ({...f, monthly_saving: e.target.value}))}
                                     placeholder="e.g. 25000" style={{...inputStyle, paddingLeft: 28}}/>
                             </div>
                         </Field>
@@ -204,7 +160,7 @@ export default function UserProfile() {
                     <div style={{display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 4}}>
                         <span style={{fontSize: 13, color: 'var(--ink-10)'}}>Enable swing trading signals</span>
                         <button
-                            onClick={() => setForm(f => ({...f, swing_trading_enabled: !f.swing_trading_enabled}))}
+                            onClick={() => updateForm(f => ({...f, swing_trading_enabled: !f.swing_trading_enabled}))}
                             style={{
                                 width: 40, height: 22, borderRadius: 999, padding: 2, flexShrink: 0,
                                 background: form.swing_trading_enabled ? 'rgba(201,168,106,0.35)' : 'rgba(255,255,255,0.12)',
@@ -223,7 +179,7 @@ export default function UserProfile() {
                     <div style={{fontSize: 11, color: 'var(--ink-40)', marginBottom: 14}}>Enables short-horizon (2–10 day) trade recommendations alongside position sizing.</div>
                     <Field label="Location / industry">
                         <div style={{fontSize: 11, color: 'var(--ink-40)', marginBottom: 6}}>Helps filter out sector-conflict signals (e.g., employer stock).</div>
-                        <input value={form.working_area} onChange={e => setForm(f => ({...f, working_area: e.target.value}))}
+                        <input value={form.working_area} onChange={e => updateForm(f => ({...f, working_area: e.target.value}))}
                             placeholder="e.g. Software Engineering, Bangalore" style={inputStyle}/>
                     </Field>
 

@@ -9,6 +9,7 @@ import {valueOf, plOf, plPctOf} from '@/components/aureon/utils';
 import {useAureonData} from '@/hooks/useAureonData';
 import {useV4} from '@/contexts/V4Context';
 import {useFmtMoney} from '@/hooks/useFmtMoney';
+import {ErrorState} from '@/components/aureon/ds';
 
 function ThemeStrip({ticker}) {
     const navigate = useNavigate();
@@ -109,10 +110,11 @@ export default function AssetDetail() {
             return <div style={{padding: 40, color: 'var(--ink-30)'}}>Loading…</div>;
         }
         return (
-            <div style={{padding: 40, color: 'var(--ink-30)'}}>
-                Asset not found.{' '}
-                <button onClick={() => navigate('/assets')} className="du3-cta ghost">Back to assets</button>
-            </div>
+            <ErrorState
+                title="Asset not found"
+                body={`No data for ticker "${ticker}".`}
+                actions={<button className="du3-cta ghost" onClick={() => navigate('/portfolio')}>Back to portfolio</button>}
+            />
         );
     }
 

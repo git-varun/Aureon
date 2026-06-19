@@ -1,0 +1,550 @@
+# Aureon — Project Handoff (Updated)
+
+## Executive Summary
+
+Aureon is a local-first Investment Operating System designed for a single user.
+
+Deployment Model:
+
+* Runs only on a local machine.
+* Docker Compose based.
+* No SaaS requirements.
+* No multi-tenancy.
+* No cloud infrastructure requirements.
+* No enterprise-scale requirements.
+
+Primary Goal:
+
+Allow a user to manage their entire financial life from one application:
+
+* Stocks
+* Mutual Funds
+* ETFs
+* Crypto
+* EPF
+* PPF
+* NPS
+* Real Estate
+* Cash
+* Manual Assets
+
+The project has transitioned from architecture work into release-candidate validation.
+
+---
+
+# Current Status
+
+## Architecture
+
+Status:
+
+```text
+Complete
+```
+
+Major architectural issues have already been fixed and verified.
+
+Implemented:
+
+* Database indexes
+* Transaction batching
+* HTTP timeout protection
+* Redis self-healing
+* Pipeline orchestration stabilization
+
+No further architecture optimization is required.
+
+---
+
+## Product Status
+
+Current State:
+
+```text
+Release Candidate
+```
+
+Estimated Completion:
+
+```text
+99%
+```
+
+The application is feature complete.
+
+Remaining work is:
+
+* Validation
+* Bug discovery
+* Minor polish
+
+Not feature development.
+
+---
+
+# Core Stack
+
+Backend:
+
+* FastAPI
+* PostgreSQL
+* Redis
+* Celery
+* RabbitMQ
+
+Frontend:
+
+* React
+* Vite
+
+Deployment:
+
+* Docker Compose
+
+---
+
+# Architectural Decisions
+
+## Local-First Philosophy
+
+The most important decision:
+
+Aureon is LOCAL SOFTWARE.
+
+Not SaaS.
+
+Ignore recommendations involving:
+
+* Kubernetes
+* ECS
+* Multi-region
+* Auto-scaling
+* Service Mesh
+* Distributed Tracing
+* Blue/Green Deployments
+* Canary Releases
+* Enterprise Observability
+* Database Clustering
+
+These are explicitly out of scope.
+
+---
+
+## Pipeline Strategy
+
+Current:
+
+```text
+Single Orchestrated Execution Path
+```
+
+Reason:
+
+* Single user
+* Local machine
+* Small asset universe
+
+Do NOT introduce:
+
+* Celery Chains
+* Celery Chords
+* Complex orchestration
+
+Future Migration Trigger:
+
+```text
+>1000 assets
+OR
+Intraday refresh requirements
+OR
+Pipeline runtime >5 min
+```
+
+Only then consider Chain/Chord orchestration.
+
+---
+
+# Major Features Completed
+
+## Portfolio Management
+
+Implemented:
+
+* Transaction CRUD
+* BUY
+* SELL
+* DIVIDEND
+* INTEREST
+* BONUS
+* SPLIT
+
+Position recalculation supports:
+
+* Average Costing
+* Bonus shares
+* Splits
+
+---
+
+## Backup & Restore
+
+Implemented:
+
+Export:
+
+* JSON
+
+Restore:
+
+* JSON
+
+Features:
+
+* Validation preview
+* Confirmation flow
+* Full portfolio recovery
+
+---
+
+## Sync Experience
+
+Implemented:
+
+* Sync Now button
+* Manual refresh
+* Loading states
+* Success states
+* Failure states
+
+---
+
+## Cache Correctness
+
+Implemented:
+
+Automatic cache invalidation on:
+
+* Transaction create
+* Transaction update
+* Transaction delete
+* Portfolio restore
+* Broker sync
+* Manual valuation updates
+
+No known stale-dashboard issues remain.
+
+---
+
+## Data Freshness
+
+Implemented:
+
+* Last price sync
+* Last news sync
+* Last AI briefing
+
+Warnings:
+
+```text
+Data may be stale
+```
+
+appears when freshness thresholds are exceeded.
+
+---
+
+## Error Handling
+
+Implemented:
+
+User-friendly handling for:
+
+* Missing GEMINI_API_KEY
+* Provider failures
+* Network failures
+* Sync failures
+* Import failures
+
+No infinite loading states.
+
+---
+
+## Settings
+
+Implemented:
+
+* Profile
+* Providers
+* Jobs
+* Security
+* Backup
+
+Profile now:
+
+* Persists to localStorage
+* Survives reloads
+* Updates Dashboard goals
+
+Unsaved changes warning exists.
+
+---
+
+# Frontend Stabilization Work Completed
+
+## Fixed Trust Issues
+
+### Allocation Consistency
+
+Previously:
+
+```text
+Stocks +6%
+```
+
+while actual portfolio calculations showed:
+
+```text
+Stocks -27.9%
+```
+
+Now:
+
+Single computed source of truth.
+
+All screens agree.
+
+---
+
+### Recommendation Undo
+
+Previously:
+
+Undo appeared to work but did not.
+
+Now:
+
+Undo correctly:
+
+* Restores state
+* Restores badges
+* Removes ledger entries
+* Reverts recommendation state
+
+---
+
+### Toast System
+
+Previously:
+
+Apply toasts never auto-dismissed.
+
+Now:
+
+Proper timeout lifecycle.
+
+---
+
+### Ledger Consistency
+
+Previously:
+
+Undo left phantom activity rows.
+
+Now:
+
+Ledger correctly reverses actions.
+
+---
+
+### Portfolio Logging
+
+Previously:
+
+Portfolio transaction modal showed success without saving.
+
+Now:
+
+Transactions persist correctly.
+
+---
+
+### Basket Commits
+
+Previously:
+
+Bypassed confirmations.
+
+Now:
+
+Confirmation required before commit.
+
+---
+
+## Currency Consistency
+
+Implemented:
+
+* Currency selector respected
+* Portfolio prices converted correctly
+* Decision cards converted correctly
+* Trade forms display correct currency
+
+---
+
+## Prototype Seams Removed
+
+Removed:
+
+* alert() dialogs
+* QA notification menu
+* Raw stack traces
+* Hardcoded counts
+* Raw recommendation IDs
+
+---
+
+## Recommendation Calibration
+
+Previously:
+
+```text
+Predicted == Realized
+```
+
+immediately after Apply.
+
+Now:
+
+```text
+Predicted
+Settling (~N days)
+```
+
+Calibration metrics no longer inflate toward 100%.
+
+---
+
+# Remaining Known Issues
+
+No known release blockers.
+
+Minor items remain:
+
+* Native confirm dialog for unsaved profile changes.
+* Some prototype/demo seed data still exists.
+* Pending outcomes never auto-resolve during a session (acceptable for local prototype data).
+
+None are release blockers.
+
+---
+
+# Explicitly Deferred
+
+## Portfolio Health Dashboard
+
+Designed.
+
+Not implemented.
+
+Design includes:
+
+* Asset allocation drift
+* Diversification score
+* HHI concentration analysis
+* Cash allocation analysis
+* Rebalancing recommendations
+
+Status:
+
+```text
+Planned for v1.1
+```
+
+---
+
+## Tax Export
+
+Designed.
+
+Not implemented.
+
+Status:
+
+```text
+Planned for v1.1
+```
+
+---
+
+## Dead Code Cleanup
+
+Deferred until after release.
+
+Status:
+
+```text
+Post-v1.0 cleanup
+```
+
+---
+
+# Testing Priorities
+
+Focus only on validation.
+
+Do NOT initiate new feature work.
+
+Validate:
+
+1. Transaction CRUD
+2. Backup & Restore
+3. Sync Operations
+4. Cache Invalidation
+5. Recommendation Apply/Undo
+6. Currency Switching
+7. Settings Persistence
+8. Provider Sync
+9. Error States
+10. Navigation Flows
+
+---
+
+# Current Strategic Objective
+
+Stop:
+
+* Architecture reviews
+* Infrastructure reviews
+* Feature ideation
+* Refactoring initiatives
+
+Focus only on:
+
+* Release testing
+* Bug fixing
+* Workflow validation
+* Data correctness
+* Product confidence
+
+---
+
+# Definition of Success
+
+Aureon v1.0 is successful when:
+
+* A user can manage their complete portfolio.
+* Data remains consistent across screens.
+* Transactions can be created, edited, deleted, backed up, and restored.
+* Sync operations are reliable.
+* Portfolio values remain trustworthy.
+* Recommendations behave predictably.
+* No spreadsheets or external portfolio tools are required.
+
+Current assessment:
+
+```text
+Release Candidate
+Ready for Final Validation
+Release Readiness: 99%
+```
+

@@ -73,11 +73,14 @@ const WatchlistSearchBar = ({ onAdd, listSymbols }) => {
             try {
                 const res = await apiService.searchAssets(q);
                 setApiResults(
-                    (res.data || []).map(a => ({
-                        u: {sym: a.symbol, name: a.name, class: _TYPE_TO_CLASS[a.type] || a.type, exchange: a.exchange, ex: a.exchange},
-                        score: a.symbol.toUpperCase() === q.trim().toUpperCase() ? 100 : 60,
-                        exact: a.symbol.toUpperCase() === q.trim().toUpperCase(),
-                    }))
+                    (res.data || []).map(a => {
+                        const sym = a.symbol || a.sym || '';
+                        return {
+                            u: {sym: sym, name: a.name, class: _TYPE_TO_CLASS[a.type] || a.type, exchange: a.exchange, ex: a.exchange},
+                            score: sym.toUpperCase() === q.trim().toUpperCase() ? 100 : 60,
+                            exact: sym.toUpperCase() === q.trim().toUpperCase(),
+                        };
+                    })
                 );
             } catch (err) {
                 console.warn('Watchlist search error:', err?.response?.data || err?.message);

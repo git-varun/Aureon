@@ -4,6 +4,7 @@ import {useApp} from '../store';
 import {I} from './icons.jsx';
 import s from './Sidebar.module.css';
 import {ROUTES} from '@/routes';
+import {usePortfolio} from '@/contexts/PortfolioContext';
 
 const SidebarItem = ({path, label, icon, badge, badgeGold}) => {
     const navigate = useNavigate();
@@ -35,6 +36,8 @@ export const Sidebar = ({userName, onLogout, portfolioCount, transactionCount}) 
     const [menuOpen, setMenuOpen] = useState(false);
     const menuRef = useRef(null);
 
+    const {portfolios, activePortfolio, switchPortfolio} = usePortfolio();
+
     useEffect(() => {
         if (!menuOpen) return;
         const handler = (e) => {
@@ -59,6 +62,32 @@ export const Sidebar = ({userName, onLogout, portfolioCount, transactionCount}) 
                 </svg>
                 <span className={s.logoText}>Aureon</span>
             </button>
+
+            {portfolios.length > 1 && (
+                <div style={{padding: '0 12px 12px', borderBottom: '1px solid rgba(255,255,255,0.06)', marginBottom: 8}}>
+                    <div style={{fontSize: 10.5, color: 'var(--ink-40)', textTransform: 'uppercase', marginBottom: 4, letterSpacing: '0.05em'}}>Portfolio</div>
+                    <select
+                        value={activePortfolio?.id || ''}
+                        onChange={(e) => switchPortfolio(e.target.value)}
+                        style={{
+                            width: '100%',
+                            background: 'rgba(255,255,255,0.03)',
+                            border: '1px solid rgba(255,255,255,0.1)',
+                            borderRadius: 6,
+                            padding: '6px 8px',
+                            color: 'var(--ink-10)',
+                            fontSize: 12.5,
+                            outline: 'none',
+                            cursor: 'pointer'
+                        }}
+                    >
+                        {portfolios.map(p => (
+                            <option key={p.id} value={p.id} style={{background: '#0B0D10'}}>{p.name}</option>
+                        ))}
+                    </select>
+                </div>
+            )}
+
 
             <SidebarLabel first>Daily</SidebarLabel>
             <SidebarItem path={ROUTES.DASHBOARD}  label="Dashboard"  icon={I.dash}/>

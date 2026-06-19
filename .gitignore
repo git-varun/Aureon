@@ -144,6 +144,7 @@ env/
 frontend/tests/.auth/
 frontend/playwright-report/
 frontend/test-results/
+.playwright-mcp/
 venv/
 ENV/
 env.bak/
@@ -188,3 +189,51 @@ logs/
 
 # IDE / tool metadata
 .antigravitycli/
+
+# Build outputs and artifacts
+dist/
+build/
+*.min.js
+*.min.css
+
+# Frontend build and dependencies
+node_modules/
+.vite/
+frontend/dist/
+
+# Database files
+*.db
+*.sqlite
+*.sqlite3
+*.dbm
+
+# OS-specific files
+.DS_Store
+Thumbs.db
+.windows-terminal-context.xml
+.directory
+*.lnk
+
+# Cache and temporary files
+.cache/
+*.tmp
+*.temp
+.ruff_cache/
+
+# Local development overrides
+*.local
+.vscode/settings.json
+.vscode/extensions.json
+
+# Temporary debug/trace files
+*.debug
+*.trace
+debug.log
+
+# Archives and backups
+*.zip
+*.tar
+*.tar.gz
+*.bak
+*.backup
+~*

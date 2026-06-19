@@ -6,3 +6,4 @@ export {GoalProgress}       from './GoalProgress';
 export {LifecycleStrip}     from './LifecycleStrip';
 export {SupportingStrip}    from './SupportingStrip';
 export {WiredDecisionUnit}  from './WiredDecisionUnit';
+export {DataFreshnessStrip} from './DataFreshnessStrip';

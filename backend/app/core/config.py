@@ -1,115 +1,78 @@
-"""Configuration from environment variables."""
+from typing import Any
 
-import logging
-import sys
-from pathlib import Path
-
-from pydantic import field_validator
+from pydantic import field_validator, model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
-
-# Keep env discovery anchored at repository root so backend commands work both
-# from project root and from `backend/` without duplicating env files.
-_ENV_FILE = Path(__file__).resolve().parent.parent.parent.parent / ".env"
-_ENV_FILE_STR = str(_ENV_FILE) if _ENV_FILE.exists() else None
-
-logger = logging.getLogger("app.core.config")
 
 
 class Settings(BaseSettings):
-    """App configuration loaded from env."""
+    PROJECT_NAME: str = "Aureon API"
+    DEBUG: bool = True
 
-    # Database
-    database_url: str
-    enable_db_init: bool = True
+    DATABASE_URL: str
+    DATABASE_ECHO: bool = False
+    REDIS_URL: str
 
-    # Redis
-    redis_url: str | None = None
-
-    # Celery
-    celery_broker_url: str | None = None
-    celery_result_backend: str | None = None
-
-    # API
-    api_title: str = "Aureon API"
-    api_version: str = "7.0"
-    enable_api_docs: bool = False
-    port: int = 8001
-
-    # CORS
-    cors_origins: list = ["http://localhost:3000", "http://localhost:8001"]
-
-    # Security — SECRET_KEY is required; no default to prevent accidental insecure deploys
-    secret_key: str
-    jwt_algorithm: str = "HS256"
-    access_token_expire_minutes: int = 60
-
-    # Timezone
-    timezone: str = "Asia/Kolkata"
-
-    # Debug — safe production defaults
-    debug: bool = False
-    log_level: str = "INFO"
-
-    # Frontend URL — used for magic link construction; defaults to local dev
-    frontend_url: str = "http://localhost:3000"
-
-    # Email (SMTP) — all optional; if unset, OTPs/links are printed to logs (dev mode)
-    smtp_host: str | None = None
-    smtp_port: int = 587
-    smtp_user: str | None = None
-    smtp_password: str | None = None
-    smtp_from: str = "noreply@aureon.app"
-
-    # SMS providers — Fast2SMS takes priority over Textbelt when both are set.
-    # FAST2SMS_API_KEY: from fast2sms.com dashboard (works with Indian numbers)
-    # TEXTBELT_API_KEY: "textbelt" = free tier (1/day, US only); paid key for international
-    # If neither is set, OTP is printed to logs (dev mode).
-    fast2sms_api_key: str | None = None
-    textbelt_url: str = "https://textbelt.com/text"
-    textbelt_api_key: str | None = None
-
-    # Google OAuth — optional; if unset, Google auth raises ConfigError
-    google_client_id: str | None = None
-
-    @field_validator("secret_key")
+    @field_validator("DATABASE_URL", mode="before")
     @classmethod
-    def validate_secret_key(cls, value: str) -> str:
-        if len(value.encode()) < 32:
-            raise ValueError(
-                f"SECRET_KEY must be at least 32 bytes (got {len(value.encode())}). "
-                "Generate one with: python3 -c \"import secrets; print(secrets.token_hex(32))\""
-            )
-        return value
+    def assemble_db_url(cls, v: str) -> str:
+        if isinstance(v, str) and v.startswith("postgresql://"):
+            return v.replace("postgresql://", "postgresql+psycopg://", 1)
+        return v
 
-    @field_validator("database_url")
+    FINNHUB_API_KEY: str | None = None
+    POLYGON_API_KEY: str | None = None
+
+    SLA_QUOTE_MAX_AGE_SEC: int = 300
+    SLA_FUNDAMENTALS_MAX_AGE_SEC: int = 86400
+    SLA_NEWS_MAX_AGE_SEC: int = 3600
+    SLA_SIGNAL_MAX_AGE_SEC: int = 3600
+
+    # Auth & security settings
+    SECRET_KEY: str = "a7ab7603b94dfe3dd6c0fa505548081fc5cda3bc340ac80e0f37aaf2f05623fa"
+    JWT_ALGORITHM: str = "HS256"
+    ACCESS_TOKEN_EXPIRE_MINUTES: int = 60
+    GOOGLE_CLIENT_ID: str | None = None
+
+    # CORS Configuration
+    CORS_ALLOWED_ORIGINS: list[str] = []
+    CORS_ALLOW_CREDENTIALS: bool = True
+    CORS_ALLOW_METHODS: list[str] = ["*"]
+    CORS_ALLOW_HEADERS: list[str] = ["*"]
+
+    @field_validator("CORS_ALLOWED_ORIGINS", "CORS_ALLOW_METHODS", "CORS_ALLOW_HEADERS", mode="before")
     @classmethod
-    def validate_database_url(cls, value: str) -> str:
-        normalized = value.strip()
-        if not normalized.startswith(("postgresql://", "postgresql+psycopg2://")):
-            raise ValueError(
-                f"DATABASE_URL must use postgresql:// or postgresql+psycopg2://, "
-                f"got: {normalized[:40]}"
-            )
-        return normalized
+    def parse_env_list(cls, v: Any) -> list[str]:
+        if not v:
+            return []
+        if isinstance(v, str):
+            try:
+                import json
+                parsed = json.loads(v)
+                if isinstance(parsed, list):
+                    return [str(item).strip() for item in parsed]
+            except json.JSONDecodeError:
+                pass
+            return [x.strip() for x in v.split(",") if x.strip()]
+        if isinstance(v, list):
+            return [str(x).strip() for x in v if str(x).strip()]
+        return []
 
-    model_config = SettingsConfigDict(extra='ignore', env_file=_ENV_FILE_STR, env_file_encoding='utf-8')
+    @model_validator(mode="after")
+    def validate_secrets_and_cors(self) -> "Settings":
+        DEFAULT_DEV_SECRET = "a7ab7603b94dfe3dd6c0fa505548081fc5cda3bc340ac80e0f37aaf2f05623fa"
+        if not self.DEBUG:
+            # Check secret key safety
+            if self.SECRET_KEY == DEFAULT_DEV_SECRET:
+                raise ValueError("SECRET_KEY must be changed from the default development key in production (DEBUG=False).")
+            if not self.SECRET_KEY or len(self.SECRET_KEY) < 32:
+                raise ValueError("SECRET_KEY must be a cryptographically secure string of at least 32 characters in production.")
 
+            # Check CORS allowed origins
+            if "*" in self.CORS_ALLOWED_ORIGINS:
+                raise ValueError("CORS_ALLOWED_ORIGINS cannot contain wildcard '*' in production mode (DEBUG=False).")
+        return self
 
-def _load_settings() -> Settings:
-    """Instantiate and return the Settings singleton.
+    model_config = SettingsConfigDict(env_file=".env", env_file_encoding="utf-8", extra="ignore")
 
-    Logs a warning when the .env file is absent. Re-raises any exception from
-    Settings() after printing a FATAL line to stderr so startup failures are
-    always visible even when the log system isn't configured yet.
-    """
-    if not _ENV_FILE.exists():
-        logger.warning(".env file not found at %s — relying on environment variables", _ENV_FILE)
+settings = Settings()  # type: ignore
 
-    try:
-        return Settings()
-    except Exception as exc:
-        print(f"FATAL: failed to load configuration: {exc}", file=sys.stderr)
-        raise
-
-
-settings = _load_settings()

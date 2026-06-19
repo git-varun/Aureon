@@ -10,7 +10,7 @@ const PASSWORD = process.env.TEST_PASSWORD;
 // Pre-generated long-lived token for dev (30 days). Regenerate if expired:
 //   python3 -c "import jwt,datetime; print(jwt.encode({'sub':'2','exp':datetime.datetime.now(datetime.timezone.utc)+datetime.timedelta(days=30),'iat':datetime.datetime.now(datetime.timezone.utc)}, '<SECRET_KEY>', algorithm='HS256'))"
 const DEV_TOKEN = process.env.DEV_ACCESS_TOKEN ||
-    'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiIyIiwiZXhwIjoxNzgxOTU5MjQyLCJpYXQiOjE3NzkzNjcyNDJ9.rzcWb7BEH-LnxNZJmbL9G-qI48O1QXgTizAl6o1wg2M';
+    'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiIxOCIsImV4cCI6MTc4MjkwODg5NiwiaWF0IjoxNzgwMzE2ODk2fQ.u4oMGGtJGxw0Vh5yA2BRdDsz6R33XtSdxZw8pqAWNMc';
 
 setup('authenticate', async ({ page }) => {
     let accessToken = DEV_TOKEN;
@@ -18,23 +18,28 @@ setup('authenticate', async ({ page }) => {
 
     // Try dev-login first (available when ENABLE_API_DOCS=true on backend)
     try {
-        const res = await page.request.post(`${API_URL}/api/auth/dev-login`, {
+        const res = await page.request.post(`${API_URL}/api/v1/auth/login`, {
             data: { email: EMAIL, password: PASSWORD },
             timeout: 5_000,
         });
         if (res.ok()) {
             const data = await res.json();
-            accessToken = data.access_token;
-            refreshToken = data.refresh_token;
-            console.log('✓ Authenticated via dev-login');
+            accessToken = data.session?.session_token || data.access_token;
+            console.log('✓ Authenticated via v1/auth/login');
+        } else {
+            console.error('v1/auth/login response not ok:', res.status(), await res.text());
         }
-    } catch { /* use pre-generated token */ }
+    } catch (e) {
+        console.error('v1/auth/login failed:', e);
+        /* use pre-generated token */
+    }
 
     // Inject token into browser localStorage and save the auth state
     await page.goto(BASE_URL);
     await page.evaluate(([at, rt]) => {
         localStorage.setItem('access_token', at);
         if (rt) localStorage.setItem('refresh_token', rt);
+        localStorage.setItem('aureon.onboarded', 'true');
     }, [accessToken, refreshToken]);
 
     // Reload so the app picks up the token

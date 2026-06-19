@@ -2,18 +2,15 @@ import React, {useEffect, useState} from 'react';
 import {useNavigate} from 'react-router-dom';
 import {apiService} from '../../../api/apiService';
 import {useFmtMoney} from '../../../hooks/useFmtMoney';
+import {useApp} from '../store';
 
-export function GoalProgress() {
+export function GoalProgress({monthlyDeployed = null}) {
     const navigate = useNavigate();
     const fmt = useFmtMoney();
-    const [profile, setProfile] = useState(null);
+    const {profile} = useApp() || {};
     const [ytdReturn, setYtdReturn] = useState(null);
 
     useEffect(() => {
-        apiService.getCurrentUserProfile()
-            .then(setProfile)
-            .catch(() => {});
-
         const yearStart = new Date(new Date().getFullYear(), 0, 1).toISOString().slice(0, 10);
         apiService.fetchPortfolioHistory(365)
             .then(hist => {
@@ -29,8 +26,8 @@ export function GoalProgress() {
 
     if (!profile) return null;
 
-    const annualTarget = profile.target_profit_pct;
-    const monthlySaving = profile.monthly_saving;
+    const annualTarget = profile.target_profit_pct != null ? parseFloat(profile.target_profit_pct) : (profile.annualTarget != null ? parseFloat(profile.annualTarget) : null);
+    const monthlySaving = profile.monthly_saving != null ? parseFloat(profile.monthly_saving) : (profile.monthlySavings != null ? parseFloat(profile.monthlySavings) : null);
 
     if (annualTarget == null && monthlySaving == null) return null;
 
@@ -94,7 +91,10 @@ export function GoalProgress() {
                         <div style={{fontSize: 11.5, color: 'var(--ink-30)', marginTop: 2}}>/ month target</div>
                     </div>
                     <div style={{textAlign: 'right'}}>
-                        <div style={{fontSize: 11, color: 'var(--ink-30)', marginTop: 2}}>this month</div>
+                        <div style={{fontFamily: 'var(--font-mono)', fontSize: 20, fontWeight: 500, color: monthlyDeployed !== null && monthlySaving !== null ? (monthlyDeployed >= monthlySaving ? 'var(--sage-500)' : 'var(--ink-00)') : 'var(--ink-00)'}}>
+                            {monthlyDeployed !== null ? fmt(monthlyDeployed, 'INR') : '—'}
+                        </div>
+                        <div style={{fontSize: 11, color: 'var(--ink-30)', marginTop: 2}}>this month saved</div>
                         <button
                             onClick={() => navigate('/settings')}
                             style={{fontSize: 10.5, color: 'var(--ink-40)', background: 'none', border: 'none', cursor: 'pointer', padding: 0, marginTop: 4}}

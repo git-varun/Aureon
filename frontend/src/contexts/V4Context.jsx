@@ -1,6 +1,6 @@
 /* Aureon v4 — Currency layer + Jobs layer context. */
-import React, { createContext, useContext, useState, useEffect } from 'react';
-import { useQueryClient } from '@tanstack/react-query';
+import React, { createContext, useContext, useState, useEffect, useMemo } from 'react';
+import { useQueryClient, useQuery } from '@tanstack/react-query';
 import { apiService } from '../api/apiService';
 import { SUPPORTED_CURRENCIES, FX_PER_INR } from '../pages/aureon/marketData';
 import { AUREON_STATE_KEY } from '../hooks/useAureonData';
@@ -125,6 +125,23 @@ export const V4Provider = ({ children }) => {
     const [aiRuns, setAiRuns] = useState({});
     const queryClient = useQueryClient();
 
+    const { data: stateData } = useQuery({
+        queryKey: AUREON_STATE_KEY,
+        queryFn: () => apiService.fetchAureonState(),
+        staleTime: 30000,
+    });
+
+    const effectiveRates = useMemo(() => {
+        const baseRates = fxRates || FX_PER_INR;
+        if (stateData?.fxRate) {
+            return {
+                ...baseRates,
+                USD: 1 / stateData.fxRate,
+            };
+        }
+        return baseRates;
+    }, [fxRates, stateData?.fxRate]);
+
     /* Map job IDs to the real API call that backs them. */
     const _jobApiCall = (jobId, ticker) => {
         switch (jobId) {
@@ -213,7 +230,7 @@ export const V4Provider = ({ children }) => {
     };
 
     return (
-        <V4Context.Provider value={{ currency, setCurrency, fxRates: fxRates || FX_PER_INR, running, jobHistory, runJob, aiRuns }}>
+        <V4Context.Provider value={{ currency, setCurrency, fxRates: effectiveRates, running, jobHistory, runJob, aiRuns }}>
             {children}
         </V4Context.Provider>
     );

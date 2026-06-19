@@ -1,19 +1,14 @@
 import React, {useEffect, useRef, useState} from 'react';
 import AuthShell from './AuthShell';
 import {FormError, BackLink, Spinner} from './AuthPrimitives';
-import {apiService} from '../../api/apiService';
-
-function storeTokens(data) {
-    localStorage.setItem('access_token', data.access_token);
-    localStorage.setItem('refresh_token', data.refresh_token);
-    if (data.first_name) localStorage.setItem('user_first_name', data.first_name);
-}
+import {useAuth} from '../../contexts/AuthContext';
 
 export default function GoogleAuthScreen({onBack, onSuccess, variant = 'split'}) {
     const btnRef = useRef(null);
     const [error, setError] = useState('');
     const [loading, setLoading] = useState(false);
     const [sdkReady, setSdkReady] = useState(false);
+    const {loginGoogle} = useAuth();
 
     useEffect(() => {
         const clientId = import.meta.env.VITE_GOOGLE_CLIENT_ID;
@@ -56,9 +51,8 @@ export default function GoogleAuthScreen({onBack, onSuccess, variant = 'split'})
         setError('');
         setLoading(true);
         try {
-            const data = await apiService.googleAuth(credential);
-            storeTokens(data);
-            onSuccess(data.is_new_user ?? false);
+            await loginGoogle(credential);
+            onSuccess(false);
         } catch (err) {
             setError(err.message || 'Google sign-in failed. Please try again.');
         } finally {

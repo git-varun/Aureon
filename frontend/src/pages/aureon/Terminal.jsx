@@ -1,6 +1,7 @@
 import React, {useState, useEffect, useMemo, useCallback} from 'react';
 import {useNavigate, useParams} from 'react-router-dom';
 import {Eyebrow, SectionHead} from '@/components/aureon/ui';
+import {PageHeader, EmptyState} from '@/components/aureon/ds';
 import {apiService} from '@/api/apiService';
 import {useFmtMoney} from '@/hooks/useFmtMoney';
 import {useAureonData} from '@/hooks/useAureonData';
@@ -18,7 +19,13 @@ export default function Terminal() {
     const navigate = useNavigate();
     const {sym: initialSym} = useParams();
     const [query,       setQuery]       = useState('');
-    const [pickedSym,   setPickedSym]   = useState(initialSym || null);
+    const [pickedSym,   setPickedSym]   = useState(initialSym ? initialSym.toUpperCase() : null);
+
+    useEffect(() => {
+        if (initialSym) {
+            setPickedSym(initialSym.toUpperCase());
+        }
+    }, [initialSym]);
     const [universe,    setUniverse]    = useState([]);
     const [themes,      setThemes]      = useState([]);
     const [loading,     setLoading]     = useState(true);
@@ -121,14 +128,7 @@ export default function Terminal() {
 
     return (
         <>
-            <div style={{display: 'flex', alignItems: 'baseline', gap: 14, marginBottom: 14}}>
-                <div>
-                    <Eyebrow>Asset terminal</Eyebrow>
-                    <h2 style={{margin: '4px 0 0', fontFamily: 'var(--font-heading)', fontSize: 22, fontWeight: 600, color: 'var(--ink-00)', letterSpacing: '-0.015em'}}>
-                        Look up an asset
-                    </h2>
-                </div>
-                </div>
+            <PageHeader eyebrow="Asset terminal" title="Look up an asset"/>
 
             {indices.length > 0 && (
                 <div style={{display: 'flex', gap: 8, flexWrap: 'wrap', marginBottom: 12}}>
@@ -239,10 +239,21 @@ export default function Terminal() {
     );
 }
 
+function IndexEmptyState() {
+    return (
+        <div style={{maxWidth: 580, margin: '20px 0'}}>
+            <EmptyState
+                title="Instrument-level analysis is not available for indices."
+                body="Detailed technical signals, fundamental indicators, and AI briefings are only generated for constituent stocks and individual assets."
+            />
+        </div>
+    );
+}
+
 function AssetView({sym, picked, spark, fmtPrice, watchlists, watchListId, setWatchListId}) {
     const navigate = useNavigate();
     const isIndex = picked.class === 'index';
-    const tabs    = isIndex ? INDEX_TABS : TABS;
+    const tabs    = TABS;
     const [tab,          setTab]          = useState('overview');
     const [watching,     setWatching]     = useState(false);
     const [quote,        setQuote]        = useState(null);
@@ -250,11 +261,6 @@ function AssetView({sym, picked, spark, fmtPrice, watchlists, watchListId, setWa
     const [fundamentals, setFundamentals] = useState(null);
     const [aiTake,       setAiTake]       = useState(null);
     const [aiLoading,    setAiLoading]    = useState(false);
-
-    // Reset to overview when switching to an index (which has fewer tabs)
-    useEffect(() => {
-        if (isIndex && !INDEX_TABS.includes(tab)) setTab('overview');
-    }, [isIndex, tab]);
 
     useEffect(() => {
         if (isIndex) return;
@@ -383,22 +389,17 @@ function AssetView({sym, picked, spark, fmtPrice, watchlists, watchListId, setWa
 
             {/* Tab content */}
             <div style={{paddingTop: 16}}>
-                {isIndex && (
-                    <div style={{marginBottom: 12, padding: '8px 12px', borderRadius: 8, background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.06)', fontSize: 11.5, color: 'var(--ink-40)'}}>
-                        Market index · Per-instrument analysis (technical, fundamentals, AI) is not available for indices.
-                    </div>
-                )}
                 {tab === 'overview'     && <OverviewTab     quote={quote}       spark={spark} picked={picked} fmtPrice={fmtPrice}/>}
                 {tab === 'chart'        && <ChartTab        sym={sym}           assetClass={picked.class}/>}
-                {tab === 'technical'    && <TechnicalTab    signal={signal}     sym={sym} onGenerateSignal={() => {
+                {tab === 'technical'    && (isIndex ? <IndexEmptyState /> : <TechnicalTab    signal={signal}     sym={sym} onGenerateSignal={() => {
                     setSignal(null);
                     apiService.generateSignalForSymbol(sym, picked?.class)
                         .then(() => apiService.getAssetSignal(sym))
                         .then(res => setSignal(res ?? undefined))
                         .catch(() => setSignal(undefined));
-                }}/>}
-                {tab === 'fundamentals' && <FundamentalsTab data={fundamentals} assetClass={picked.class} fmtPrice={fmtPrice} onRefresh={refreshFundamentals}/>}
-                {tab === 'ai'           && <AiTab           take={aiTake}       loading={aiLoading} sym={sym} onRun={runAiAnalysis}/>}
+                }}/>)}
+                {tab === 'fundamentals' && (isIndex ? <IndexEmptyState /> : <FundamentalsTab data={fundamentals} assetClass={picked.class} fmtPrice={fmtPrice} onRefresh={refreshFundamentals}/>)}
+                {tab === 'ai'           && (isIndex ? <IndexEmptyState /> : <AiTab           take={aiTake}       loading={aiLoading} sym={sym} onRun={runAiAnalysis}/>)}
             </div>
         </div>
     );

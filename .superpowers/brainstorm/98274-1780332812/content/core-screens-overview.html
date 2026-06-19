@@ -1,0 +1,159 @@
+<h2>Sub-project 2: Core Screens — Structural Patch Plan</h2>
+<p class="subtitle">Approach B: align layout structure + swap in ds.jsx primitives. Business logic untouched.</p>
+
+<style>
+.screen-grid { display:grid; grid-template-columns:1fr 1fr 1fr; gap:14px; margin-top:24px }
+.screen-card { background:rgba(255,255,255,0.03); border:1px solid rgba(255,255,255,0.08); border-radius:12px; overflow:hidden }
+.screen-head { padding:12px 16px; border-bottom:1px solid rgba(255,255,255,0.06); display:flex; align-items:baseline; gap:10px }
+.screen-name { font-family:monospace; font-size:13px; font-weight:600; color:#E7D3A1 }
+.screen-tag  { font-size:10px; letter-spacing:0.1em; text-transform:uppercase; color:#6F7480; font-weight:600 }
+.screen-body { padding:14px 16px; font-size:12.5px; color:#BFC5CF; line-height:1.7 }
+.change      { display:flex; align-items:baseline; gap:8px; padding:3px 0 }
+.ch-add      { color:#6FAE88; font-family:monospace; font-size:10.5px; font-weight:700; flex-shrink:0 }
+.ch-rem      { color:#D16B6B; font-family:monospace; font-size:10.5px; font-weight:700; flex-shrink:0 }
+.ch-keep     { color:#7AA8D4; font-family:monospace; font-size:10.5px; font-weight:700; flex-shrink:0 }
+.ch-fix      { color:#C9A86A; font-family:monospace; font-size:10.5px; font-weight:700; flex-shrink:0 }
+</style>
+
+<div class="screen-grid">
+
+  <!-- Dashboard -->
+  <div class="screen-card" style="grid-column:1/3">
+    <div class="screen-head">
+      <span class="screen-name">Dashboard</span>
+      <span class="screen-tag">Dashboard.jsx + dashboard/ components</span>
+    </div>
+    <div class="screen-body" style="display:grid;grid-template-columns:1fr 1fr;gap:0 24px">
+      <div>
+        <div style="font-size:10.5px;letter-spacing:0.1em;text-transform:uppercase;color:#6F7480;font-weight:600;margin-bottom:8px">Layout structure (matches design ✓)</div>
+        <div style="background:#0B0D10;border-radius:8px;padding:10px 12px;font-size:11.5px;color:#969CA6;line-height:2">
+          Hero (3-col: networth · insight · donut)<br>
+          PortfolioProgress (collapsible)<br>
+          LifecycleStrip (5 steps)<br>
+          GoalProgress (2 cards)<br>
+          SectionHead → Active decisions<br>
+          Decision units<br>
+          SectionHead → Top positions<br>
+          TopHoldingsRow (5 cards)<br>
+          SupportingStrip (3 cards)
+        </div>
+      </div>
+      <div>
+        <div style="font-size:10.5px;letter-spacing:0.1em;text-transform:uppercase;color:#6F7480;font-weight:600;margin-bottom:8px">Changes</div>
+        <div class="change"><span class="ch-fix">FIX </span> Hero networth: 60px mono font (check Hero.module.css)</div>
+        <div class="change"><span class="ch-fix">FIX </span> LifecycleStrip routes: signals→/decisions?tab=signals, activity→/decisions?tab=activity</div>
+        <div class="change"><span class="ch-keep">KEEP</span> Hero, LifecycleStrip, GoalProgress, TopHoldingsRow, PortfolioProgress, SupportingStrip — already structurally correct</div>
+        <div class="change"><span class="ch-fix">FIX </span> SectionHead calls: replace eyebrow+title inline pattern with consistent <code>SectionHead</code> from ui.jsx (already used — just verify props)</div>
+        <div class="change"><span class="ch-keep">KEEP</span> All hooks, React Query, business logic</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Decisions -->
+  <div class="screen-card">
+    <div class="screen-head">
+      <span class="screen-name">Decisions</span>
+      <span class="screen-tag">Decisions.jsx</span>
+    </div>
+    <div class="screen-body">
+      <div style="font-size:10.5px;letter-spacing:0.1em;text-transform:uppercase;color:#6F7480;font-weight:600;margin-bottom:8px">Changes</div>
+      <div class="change"><span class="ch-fix">FIX </span> Replace inline tab rendering with <code>Tabs</code> from ds.jsx</div>
+      <div class="change"><span class="ch-keep">KEEP</span> DecisionTrackRecord (calibration stat, top-right)</div>
+      <div class="change"><span class="ch-keep">KEEP</span> 4 tab panels: Recommendations · Signals · Activity · Briefings</div>
+      <div class="change"><span class="ch-keep">KEEP</span> All hooks and data flow</div>
+    </div>
+  </div>
+
+  <!-- Portfolio -->
+  <div class="screen-card" style="grid-column:1/3">
+    <div class="screen-head">
+      <span class="screen-name">Portfolio</span>
+      <span class="screen-tag">Portfolio.jsx + portfolio/ components</span>
+    </div>
+    <div class="screen-body" style="display:grid;grid-template-columns:1fr 1fr;gap:0 24px">
+      <div>
+        <div style="font-size:10.5px;letter-spacing:0.1em;text-transform:uppercase;color:#6F7480;font-weight:600;margin-bottom:8px">Design header layout</div>
+        <div style="background:#0B0D10;border-radius:8px;padding:10px 12px;font-size:11.5px;color:#969CA6;line-height:2">
+          [eyebrow] Portfolio value · all classes<br>
+          [large mono] ₹42.3L   [borderLeft]  Diversification text<br>
+          [delta row]             [alloc donut + legend]<br>
+          ─────────────────────────────────<br>
+          FilterBar (All · Stocks · Crypto · Funds · …)<br>
+          ClassRow × N (expandable, with HoldingSubRow)<br>
+          Log trade button (top-right)
+        </div>
+      </div>
+      <div>
+        <div style="font-size:10.5px;letter-spacing:0.1em;text-transform:uppercase;color:#6F7480;font-weight:600;margin-bottom:8px">Changes</div>
+        <div class="change"><span class="ch-fix">FIX </span> Header: align 3-col grid proportions (1.3fr · 1fr · auto) matching design</div>
+        <div class="change"><span class="ch-fix">FIX </span> Replace local filter chips with <code>FilterBar</code> from ds.jsx</div>
+        <div class="change"><span class="ch-keep">KEEP</span> ClassRow + HoldingSubRow — already structured correctly</div>
+        <div class="change"><span class="ch-keep">KEEP</span> DonutChart, allocation calculation, all hooks</div>
+        <div class="change"><span class="ch-keep">KEEP</span> LogTradeModal, RetirementModal</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Asset Detail -->
+  <div class="screen-card">
+    <div class="screen-head">
+      <span class="screen-name">Asset Detail</span>
+      <span class="screen-tag">AssetDetail.jsx</span>
+    </div>
+    <div class="screen-body">
+      <div style="font-size:10.5px;letter-spacing:0.1em;text-transform:uppercase;color:#6F7480;font-weight:600;margin-bottom:8px">Changes</div>
+      <div class="change"><span class="ch-keep">KEEP</span> Loading skeleton (already exists)</div>
+      <div class="change"><span class="ch-fix">FIX </span> Breadcrumb: <code>Assets / TICKER</code> above header</div>
+      <div class="change"><span class="ch-fix">FIX </span> Header: ticker (mono) + name + price + day% + tier chip</div>
+      <div class="change"><span class="ch-fix">FIX </span> Replace inline error/empty with <code>ErrorState</code> / <code>EmptyState</code> from ds.jsx</div>
+      <div class="change"><span class="ch-keep">KEEP</span> Terminal component tabs (Overview, Chart, etc.)</div>
+      <div class="change"><span class="ch-keep">KEEP</span> All API hooks and rec logic</div>
+    </div>
+  </div>
+
+  <!-- Transactions -->
+  <div class="screen-card" style="grid-column:1/-1">
+    <div class="screen-head">
+      <span class="screen-name">Transactions</span>
+      <span class="screen-tag">Transactions.jsx — pure ledger after this</span>
+    </div>
+    <div class="screen-body" style="display:grid;grid-template-columns:1fr 1fr;gap:0 24px">
+      <div>
+        <div style="font-size:10.5px;letter-spacing:0.1em;text-transform:uppercase;color:#6F7480;font-weight:600;margin-bottom:8px">Design layout</div>
+        <div style="background:#0B0D10;border-radius:8px;padding:10px 12px;font-size:11.5px;color:#969CA6;line-height:2">
+          Stat header: count · buys · sells · net flow<br>
+          Search input + Type select + Broker select + Date range<br>
+          Table: date · type · asset · qty · price · total · delete<br>
+          Delete flow: confirm modal → loading → toast/error<br>
+          Log transaction button (top-right)
+        </div>
+      </div>
+      <div>
+        <div style="font-size:10.5px;letter-spacing:0.1em;text-transform:uppercase;color:#6F7480;font-weight:600;margin-bottom:8px">Changes</div>
+        <div class="change"><span class="ch-rem">REMOVE</span> Activity tab + <code>useSearchParams</code> for tab routing</div>
+        <div class="change"><span class="ch-rem">REMOVE</span> <code>import Activity from './Activity'</code></div>
+        <div class="change"><span class="ch-fix">FIX </span> Stat header: replace inline stats with <code>StatGrid + MetricCard</code> from ds.jsx</div>
+        <div class="change"><span class="ch-fix">FIX </span> TypeBadge → replace with <code>StatusBadge</code> from ds.jsx</div>
+        <div class="change"><span class="ch-fix">FIX </span> Custom grid table → replace with <code>DataTable</code> from ds.jsx</div>
+        <div class="change"><span class="ch-fix">FIX </span> Delete confirm modal → replace with <code>ModalShell</code> from ds.jsx</div>
+        <div class="change"><span class="ch-keep">KEEP</span> Current FilterBar (has search + selects + date range — richer than ds FilterBar chips)</div>
+        <div class="change"><span class="ch-keep">KEEP</span> Full delete flow logic, API calls, LogTradeModal</div>
+      </div>
+    </div>
+  </div>
+
+</div>
+
+<div style="margin-top:20px;padding:14px 18px;border-radius:10px;border:1px solid rgba(201,168,106,0.18);background:rgba(201,168,106,0.04)">
+  <div style="font-size:11px;letter-spacing:0.12em;text-transform:uppercase;color:#C9A86A;font-weight:600;margin-bottom:8px">Files touched</div>
+  <div style="display:grid;grid-template-columns:1fr 1fr;gap:4px 24px;font-size:12px;color:#BFC5CF;font-family:monospace">
+    <span>frontend/src/pages/aureon/Dashboard.jsx</span>
+    <span>frontend/src/pages/aureon/Transactions.jsx</span>
+    <span>frontend/src/components/aureon/dashboard/Hero.jsx</span>
+    <span>frontend/src/pages/aureon/AssetDetail.jsx</span>
+    <span>frontend/src/components/aureon/dashboard/Hero.module.css</span>
+    <span>frontend/src/pages/aureon/Decisions.jsx</span>
+    <span>frontend/src/components/aureon/dashboard/LifecycleStrip.jsx</span>
+    <span>frontend/src/pages/aureon/Portfolio.jsx</span>
+  </div>
+</div>
