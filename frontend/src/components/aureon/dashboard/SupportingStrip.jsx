@@ -14,7 +14,7 @@ export const SupportingStrip = ({signalCount, signalsToday, drift, classLabel, m
         : '—';
 
     const cards = [
-        {t: 'Signals · inputs',  v: signalCount, sub: `${signalsToday} new today`,      foot: 'See Recommendations for decisions', route: 'signals'},
+        {t: 'Signals · inputs',  v: signalCount, sub: `${signalsToday} new today`,      foot: 'See Decisions for signals', href: '/decisions?tab=signals'},
         {t: 'Allocation drift',  v: driftV,       sub: driftSub,                         foot: drift ? 'Informed by rebalance rec' : 'Allocation on target', route: 'portfolio'},
         {t: 'Market pulse',      v: pulseV,       sub: 'aggregate sentiment',             foot: marketPulse != null ? 'Context only' : 'Run pipeline to update', route: null},
     ];
@@ -24,10 +24,13 @@ export const SupportingStrip = ({signalCount, signalsToday, drift, classLabel, m
             {cards.map(x => (
                 <button
                     key={x.t}
-                    onClick={() => x.route && navigate('/' + x.route)}
-                    disabled={!x.route}
+                    onClick={() => {
+                        if (x.href) navigate(x.href);
+                        else if (x.route) navigate('/' + x.route);
+                    }}
+                    disabled={!x.route && !x.href}
                     className={s.card}
-                    style={{cursor: x.route ? 'pointer' : 'default'}}
+                    style={{cursor: (x.route || x.href) ? 'pointer' : 'default'}}
                 >
                     <Eyebrow>{x.t}</Eyebrow>
                     <div className={s.value}>{x.v}</div>

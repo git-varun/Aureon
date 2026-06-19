@@ -1,0 +1,251 @@
+from datetime import datetime
+from typing import Any, Dict, List, Optional
+
+from fastapi import APIRouter, Depends, HTTPException
+from pydantic import BaseModel, ConfigDict, Field, model_validator
+
+from app.api.dependencies import get_config_service, get_current_user, get_members_repo
+from app.core.exceptions import NotFoundError
+from app.domain.entities.config import JobStatus
+from app.domain.entities.system import OrganizationMember, User
+from app.domain.services.config import ConfigService
+from app.infrastructure.repositories import OrganizationMembersRepository
+
+router = APIRouter(prefix="/config", tags=["config"])
+
+# --- Authorization Helper ---
+
+def check_admin_access(current_user: User, members_repo: OrganizationMembersRepository):
+    # Only users who are OWNER or ADMIN in at least one organization can perform admin/config operations.
+    memberships = members_repo.session.query(OrganizationMember).filter(
+        OrganizationMember.user_id == current_user.id,
+        OrganizationMember.role.in_(["OWNER", "ADMIN"])
+    ).all()
+    if not memberships:
+        raise HTTPException(status_code=403, detail="Admin access required")
+
+# --- Schemas ---
+
+class ProviderConfigResponse(BaseModel):
+    provider_name: str
+    provider_type: str
+    enabled: bool
+    key_names: List[str]
+    keys_status: Dict[str, bool]
+    config: Dict[str, Any]
+
+    model_config = ConfigDict(from_attributes=True)
+
+class ProvidersListResponse(BaseModel):
+    providers: List[ProviderConfigResponse]
+
+class ProviderKeyResponse(BaseModel):
+    provider: ProviderConfigResponse
+
+class ProviderEnableToggle(BaseModel):
+    enabled: bool
+
+class SetProviderKeyRequest(BaseModel):
+    key_name: str = Field(..., min_length=1)
+    value: str = Field(default="", description="Leave blank to clear key")
+
+class JobLogResponse(BaseModel):
+    id: int
+    job_name: str
+    status: str
+    task_id: Optional[str] = None
+    error_message: Optional[str] = None
+    started_at: Optional[datetime] = None
+    ended_at: Optional[datetime] = None
+    duration_ms: Optional[int] = None
+
+    model_config = ConfigDict(from_attributes=True)
+
+class JobLogsResponse(BaseModel):
+    job_name: str
+    logs: List[JobLogResponse]
+
+class JobConfigResponse(BaseModel):
+    id: int
+    job_name: str
+    enabled: bool
+    cron_schedule: str
+    job_tier: str = "user"
+    last_status: Optional[str] = None
+    last_run_at: Optional[datetime] = None
+    next_run_at: Optional[datetime] = None
+
+    model_config = ConfigDict(from_attributes=True)
+
+class JobsListResponse(BaseModel):
+    jobs: List[JobConfigResponse]
+
+class JobUpdateRequest(BaseModel):
+    enabled: Optional[bool] = None
+    cron_schedule: Optional[str] = Field(None, description="Cron expression (e.g., '0 9 * * *')")
+    schedule: Optional[str] = Field(None, description="Alias for cron_schedule (FE compat)")
+
+    @model_validator(mode="after")
+    def resolve_cron_schedule(self) -> "JobUpdateRequest":
+        if self.cron_schedule is None and self.schedule is not None:
+            self.cron_schedule = self.schedule
+        return self
+
+class JobRunResponse(BaseModel):
+    status: str
+    job_name: str
+    task_id: Optional[str] = None
+
+class AllocationTargetUpsert(BaseModel):
+    target_pct: Optional[float] = Field(None, ge=0, le=1)
+    target: Optional[float] = Field(None, ge=0, le=1, description="Alias for target_pct (FE compat)")
+    band_low_pct: Optional[float] = Field(None, ge=0, le=1)
+    band_high_pct: Optional[float] = Field(None, ge=0, le=1)
+    notes: Optional[str] = None
+
+    @model_validator(mode="after")
+    def resolve_target_pct(self) -> "AllocationTargetUpsert":
+        if self.target_pct is None and self.target is not None:
+            self.target_pct = self.target
+        if self.target_pct is None:
+            raise ValueError("Either target_pct or target must be provided")
+        return self
+
+# --- Providers ---
+
+@router.get("/providers", response_model=ProvidersListResponse)
+def get_providers(
+    user: User = Depends(get_current_user),
+    members_repo: OrganizationMembersRepository = Depends(get_members_repo),
+    svc: ConfigService = Depends(get_config_service)
+):
+    check_admin_access(user, members_repo)
+    return {"providers": svc.get_all_providers()}
+
+@router.put("/providers/{provider_name}", response_model=ProvidersListResponse)
+def update_provider(
+    provider_name: str,
+    payload: ProviderEnableToggle,
+    user: User = Depends(get_current_user),
+    members_repo: OrganizationMembersRepository = Depends(get_members_repo),
+    svc: ConfigService = Depends(get_config_service)
+):
+    check_admin_access(user, members_repo)
+    try:
+        svc.update_provider(provider_name, enabled=payload.enabled, actor_id=user.id)
+    except NotFoundError as e:
+        raise HTTPException(status_code=404, detail=str(e))
+    return {"providers": svc.get_all_providers()}
+
+@router.put("/providers/{provider_name}/keys", response_model=ProviderKeyResponse)
+def set_provider_key(
+    provider_name: str,
+    payload: SetProviderKeyRequest,
+    user: User = Depends(get_current_user),
+    members_repo: OrganizationMembersRepository = Depends(get_members_repo),
+    svc: ConfigService = Depends(get_config_service)
+):
+    check_admin_access(user, members_repo)
+    try:
+        svc.set_provider_key(provider_name, payload.key_name, payload.value, actor_id=user.id)
+        p_dict = svc.get_provider_dict(provider_name)
+        if not p_dict:
+            raise HTTPException(status_code=404, detail=f"Provider {provider_name} not found")
+        return {"provider": p_dict}
+    except NotFoundError as e:
+        raise HTTPException(status_code=404, detail=str(e))
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+
+# --- Jobs ---
+
+@router.get("/jobs", response_model=JobsListResponse)
+def get_jobs(
+    user: User = Depends(get_current_user),
+    members_repo: OrganizationMembersRepository = Depends(get_members_repo),
+    svc: ConfigService = Depends(get_config_service)
+):
+    check_admin_access(user, members_repo)
+    return {"jobs": svc.get_all_jobs()}
+
+@router.put("/jobs/{job_name}", response_model=JobsListResponse)
+def update_job(
+    job_name: str,
+    payload: JobUpdateRequest,
+    user: User = Depends(get_current_user),
+    members_repo: OrganizationMembersRepository = Depends(get_members_repo),
+    svc: ConfigService = Depends(get_config_service)
+):
+    check_admin_access(user, members_repo)
+    job = svc.get_job(job_name)
+    if not job:
+        raise HTTPException(status_code=404, detail=f"Job {job_name} not found")
+    if (job.job_tier or "user") == "system" and payload.cron_schedule is not None:
+        raise HTTPException(status_code=403, detail="Cron schedule is read-only for system jobs")
+    try:
+        svc.update_job(job_name, enabled=payload.enabled, cron_expression=payload.cron_schedule, actor_id=user.id)
+    except NotFoundError as e:
+        raise HTTPException(status_code=404, detail=str(e))
+    return {"jobs": svc.get_all_jobs()}
+
+@router.post("/jobs/{job_name}/run", response_model=JobRunResponse)
+def run_job(
+    job_name: str,
+    user: User = Depends(get_current_user),
+    members_repo: OrganizationMembersRepository = Depends(get_members_repo),
+    svc: ConfigService = Depends(get_config_service)
+):
+    check_admin_access(user, members_repo)
+    if not svc.get_job(job_name):
+        raise HTTPException(status_code=404, detail=f"Job {job_name} not found")
+
+    log = svc.log_job_start(job_name)
+    try:
+        task_id = svc.dispatch_job(job_name, log_id=log.id, user_id=user.id)
+    except Exception as e:
+        svc.log_job_end(log.id, JobStatus.FAILED, error=str(e))
+        raise HTTPException(status_code=500, detail=f"Failed to dispatch {job_name}: {e}")
+
+    svc.mark_job_ran(job_name)
+    return {"status": "triggered", "job_name": job_name, "task_id": task_id}
+
+@router.get("/jobs/{job_name}/logs", response_model=JobLogsResponse)
+def get_job_logs(
+    job_name: str,
+    limit: int = 50,
+    user: User = Depends(get_current_user),
+    members_repo: OrganizationMembersRepository = Depends(get_members_repo),
+    svc: ConfigService = Depends(get_config_service)
+):
+    check_admin_access(user, members_repo)
+    return {"job_name": job_name, "logs": svc.get_job_logs(job_name, limit=limit)}
+
+# --- Allocation Targets ---
+
+@router.get("/allocation_targets")
+def list_allocation_targets(
+    user: User = Depends(get_current_user),
+    svc: ConfigService = Depends(get_config_service)
+):
+    targets = svc.list_allocation_targets()
+    return {t["asset_class"]: t["target_pct"] for t in targets}
+
+@router.put("/allocation_targets/{asset_class}")
+def upsert_allocation_target(
+    asset_class: str,
+    payload: AllocationTargetUpsert,
+    user: User = Depends(get_current_user),
+    members_repo: OrganizationMembersRepository = Depends(get_members_repo),
+    svc: ConfigService = Depends(get_config_service)
+):
+    check_admin_access(user, members_repo)
+    svc.upsert_allocation_target(
+        asset_class,
+        target_pct=payload.target_pct,
+        band_low_pct=payload.band_low_pct,
+        band_high_pct=payload.band_high_pct,
+        notes=payload.notes,
+        actor_id=user.id
+    )
+    targets = svc.list_allocation_targets()
+    return {t["asset_class"]: t["target_pct"] for t in targets}

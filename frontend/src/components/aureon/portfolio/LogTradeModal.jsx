@@ -1,6 +1,7 @@
 import React, {useState, useEffect, useRef} from 'react';
 import {toast} from 'react-hot-toast';
 import {apiService} from '../../../api/apiService';
+import {ModalShell} from '../ds';
 
 const fieldStyle = {
     width: '100%', padding: '9px 12px', borderRadius: 7,
@@ -13,15 +14,17 @@ const labelStyle = {
     color: 'var(--ink-30)', fontWeight: 600, display: 'block', marginBottom: 6,
 };
 
-const TRADE_TYPES = ['BUY', 'SELL', 'DIVIDEND', 'SPLIT'];
+const TRADE_TYPES = ['BUY', 'SELL', 'DIVIDEND', 'SPLIT', 'BONUS', 'INTEREST'];
 const TYPE_STYLES = {
     BUY:      {bg: 'rgba(111,174,136,0.16)',  color: 'var(--sage-500)'},
     SELL:     {bg: 'rgba(209,107,107,0.16)', color: 'var(--crimson-500)'},
     DIVIDEND: {bg: 'rgba(201,168,106,0.14)', color: 'var(--aurum-100)'},
     SPLIT:    {bg: 'rgba(201,168,106,0.14)', color: 'var(--aurum-100)'},
+    BONUS:    {bg: 'rgba(111,174,136,0.16)',  color: 'var(--sage-500)'},
+    INTEREST: {bg: 'rgba(201,168,106,0.14)', color: 'var(--aurum-100)'},
 };
 
-export function LogTradeModal({onClose}) {
+export function LogTradeModal({onClose, transaction}) {
     const [form, setForm] = useState({
         ticker: '', type: 'BUY', qty: '', price: '',
         date: new Date().toISOString().slice(0, 10),
@@ -33,6 +36,22 @@ export function LogTradeModal({onClose}) {
     const set = (k, v) => setForm(f => ({...f, [k]: v}));
 
     useEffect(() => {
+        if (transaction) {
+            setForm({
+                ticker: transaction.asset || '',
+                type: (transaction.action || 'BUY').toUpperCase(),
+                qty: transaction.quantity !== null && transaction.quantity !== undefined ? String(transaction.quantity) : '',
+                price: transaction.price !== null && transaction.price !== undefined ? String(transaction.price) : '',
+                date: transaction.transaction_date || (transaction.ts ? transaction.ts.split(' ')[0] : new Date().toISOString().slice(0, 10)),
+                broker: transaction.broker || 'zerodha',
+                notes: transaction.notes || '',
+            });
+            setQuery(transaction.asset || '');
+        }
+    }, [transaction]);
+
+    useEffect(() => {
+        if (transaction) return; // Do not fetch search results while editing an existing transaction
         if (!query.trim()) { setResults([]); return; }
         const tid = setTimeout(async () => {
             try {
@@ -41,7 +60,7 @@ export function LogTradeModal({onClose}) {
             } catch { setResults([]); }
         }, 250);
         return () => clearTimeout(tid);
-    }, [query]);
+    }, [query, transaction]);
 
     const pickTicker = (asset) => {
         set('ticker', asset.symbol);
@@ -53,7 +72,7 @@ export function LogTradeModal({onClose}) {
         if (!form.ticker || !form.qty || !form.price) return;
         setSubmitting(true);
         try {
-            await apiService.createTransaction({
+            const payload = {
                 symbol: form.ticker,
                 transaction_type: form.type.toLowerCase(),
                 quantity: parseFloat(form.qty),
@@ -61,43 +80,52 @@ export function LogTradeModal({onClose}) {
                 transaction_date: form.date,
                 broker: form.broker,
                 notes: form.notes || undefined,
-            });
-            toast.success(`${form.type} ${form.ticker} logged`);
+            };
+            if (transaction) {
+                const transactionId = parseInt(transaction.id.replace('t-', ''));
+                await apiService.updateTransaction(transactionId, payload);
+                toast.success('Transaction updated');
+            } else {
+                await apiService.createTransaction(payload);
+                toast.success(`${form.type} ${form.ticker} logged`);
+            }
             onClose(true);
         } catch (e) {
-            toast.error(e?.response?.data?.detail || e.message || 'Failed to log trade');
+            toast.error(e?.response?.data?.detail || e.message || 'Failed to save transaction');
         } finally {
             setSubmitting(false);
         }
     };
 
-    return (
-        <div
-            onClick={onClose}
-            style={{
-                position: 'fixed', inset: 0, zIndex: 800,
-                background: 'rgba(0,0,0,0.55)', backdropFilter: 'blur(6px)',
-                display: 'flex', alignItems: 'center', justifyContent: 'center',
-            }}>
-            <div
-                onClick={e => e.stopPropagation()}
+    const footer = (
+        <div style={{display: 'flex', gap: 10}}>
+            <button onClick={onClose} className="du3-cta ghost" style={{flex: 1}}>Cancel</button>
+            <button
+                onClick={submit}
+                disabled={submitting || !form.ticker || !form.qty || !form.price}
+                className="du3-cta"
                 style={{
-                    width: 'min(520px,92vw)', borderRadius: 14,
-                    background: 'rgba(18,20,24,0.97)', border: '1px solid rgba(255,255,255,0.10)',
-                    boxShadow: '0 30px 80px rgba(0,0,0,0.55)', backdropFilter: 'blur(40px)',
+                    flex: 2,
+                    background: 'rgba(201,168,106,0.14)',
+                    border: '1px solid rgba(201,168,106,0.35)',
+                    color: 'var(--aurum-100)',
+                    opacity: (!form.ticker || !form.qty || !form.price) ? 0.5 : 1,
                 }}>
-                <div style={{
-                    display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-                    padding: '16px 20px', borderBottom: '1px solid rgba(255,255,255,0.06)',
-                }}>
-                    <div>
-                        <div style={{fontFamily: 'var(--font-heading)', fontSize: 16, fontWeight: 600, color: 'var(--ink-00)'}}>Log a trade</div>
-                        <div style={{fontSize: 11.5, color: 'var(--ink-40)', marginTop: 2}}>Record a transaction manually</div>
-                    </div>
-                    <button onClick={onClose} style={{background: 'none', border: 'none', color: 'var(--ink-40)', cursor: 'pointer', fontSize: 18, lineHeight: 1, padding: '2px 6px'}}>✕</button>
-                </div>
+                {submitting ? (transaction ? 'Saving…' : 'Logging…') : (transaction ? 'Save Changes' : `Log ${form.type}`)}
+            </button>
+        </div>
+    );
 
-                <div style={{padding: '18px 20px', display: 'flex', flexDirection: 'column', gap: 14}}>
+    return (
+        <ModalShell
+            open={true}
+            onClose={onClose}
+            title={transaction ? 'Edit transaction' : 'Log a trade'}
+            subtitle={transaction ? 'Modify details of this manual transaction' : 'Record a transaction manually'}
+            width="520px"
+            footer={footer}
+        >
+            <div style={{display: 'flex', flexDirection: 'column', gap: 14}}>
                     {/* Ticker search */}
                     <div>
                         <label style={labelStyle}>Ticker / symbol</label>
@@ -205,25 +233,7 @@ export function LogTradeModal({onClose}) {
                                   style={{...fieldStyle, resize: 'vertical', minHeight: 56}}
                         />
                     </div>
-                </div>
-
-                <div style={{display: 'flex', gap: 10, padding: '14px 20px', borderTop: '1px solid rgba(255,255,255,0.06)'}}>
-                    <button onClick={onClose} className="du3-cta ghost" style={{flex: 1}}>Cancel</button>
-                    <button
-                        onClick={submit}
-                        disabled={submitting || !form.ticker || !form.qty || !form.price}
-                        className="du3-cta"
-                        style={{
-                            flex: 2,
-                            background: 'rgba(201,168,106,0.14)',
-                            border: '1px solid rgba(201,168,106,0.35)',
-                            color: 'var(--aurum-100)',
-                            opacity: (!form.ticker || !form.qty || !form.price) ? 0.5 : 1,
-                        }}>
-                        {submitting ? 'Logging…' : `Log ${form.type}`}
-                    </button>
-                </div>
             </div>
-        </div>
+        </ModalShell>
     );
 }

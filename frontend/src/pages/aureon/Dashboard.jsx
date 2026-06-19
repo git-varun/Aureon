@@ -7,13 +7,13 @@ import {PortfolioDecisionUnit, ActionConfirmationModal, EmptyDecisions} from '@/
 import {useAureonData} from '@/hooks/useAureonData';
 import {
     Hero, PortfolioProgress, LifecycleStrip, TopHoldingsRow,
-    SupportingStrip, WiredDecisionUnit, GoalProgress,
+    SupportingStrip, WiredDecisionUnit, GoalProgress, DataFreshnessStrip,
 } from '@/components/aureon/dashboard';
 
 export default function Dashboard() {
     const navigate = useNavigate();
-    const {allRecs, active, apply} = useApp();
-    const {holdings, signals, netWorth, dayDelta, classLabel, classTarget, allocByClass, portfolioRec, recsActive, activity, marketPulse, dataUpdatedAt} = useAureonData();
+    const {allRecs, active, apply, undo} = useApp();
+    const {holdings, signals, netWorth, dayDelta, classLabel, classTarget, allocByClass, portfolioRec, recsActive, activity, marketPulse, dataUpdatedAt, techDriftProse, aiBriefing, loading, freshness, goalProgress} = useAureonData();
     const [modal, setModal] = useState(null);
 
     const recs = useMemo(() => allRecs.filter(r => active.includes(r.id)), [allRecs, active]);
@@ -52,38 +52,48 @@ export default function Dashboard() {
                 classLabel={classLabel}
                 allocByClass={allocByClass}
                 drift={drift}
-                recsActiveCount={recsActive.length}
+                recsActiveCount={active.length}
                 activityThisWeek={activityThisWeek}
+                techDriftProse={techDriftProse}
+                portfolioRec={portfolioRec}
+                aiBriefing={aiBriefing}
+                loading={loading}
+                hasPortfolioData={holdings.length > 0}
             />
             <PortfolioProgress/>
             <LifecycleStrip signalCount={signals.length} appliedToday={appliedToday}/>
-            <GoalProgress/>
+            <div style={{overflowX: 'auto'}}>
+                <DataFreshnessStrip freshness={freshness}/>
+            </div>
+            <GoalProgress monthlyDeployed={goalProgress?.monthlyDeployed ?? null}/>
 
             <SectionHead
                 eyebrow="Decisions · what should you do next"
                 title="Active recommendations"
                 meta={`${active.length} active${dataUpdatedAt ? ` · updated ${Math.max(0, Math.round((Date.now() - dataUpdatedAt) / 60000))} min ago` : ''}`}
                 action={
-                    <button className="du3-cta ghost" onClick={() => navigate('/recommendations')}>
+                    <button className="du3-cta ghost" onClick={() => navigate('/decisions?tab=recommendations')}>
                         Review all <span style={{marginLeft: 4}}>→</span>
                     </button>
                 }
             />
 
-            {dashRecs.length === 0 ? (
+            {!portfolioRec && dashRecs.length === 0 ? (
                 <EmptyDecisions/>
             ) : (
                 <>
                     {portfolioRec && (
                         <div style={{marginBottom: 14}}>
-                            <PortfolioDecisionUnit rec={portfolioRec} onCommit={() => apply(portfolioRec.id)} openModal={openModal}/>
+                            <PortfolioDecisionUnit rec={portfolioRec} onCommit={() => apply(portfolioRec.id)} onUndo={() => undo(portfolioRec.id)} openModal={openModal}/>
                         </div>
                     )}
-                    <div style={{display: 'grid', gap: 10}}>
-                        {dashRecs.map(rec => (
-                            <WiredDecisionUnit key={rec.id} rec={rec} openModal={openModal}/>
-                        ))}
-                    </div>
+                    {dashRecs.length > 0 && (
+                        <div style={{display: 'grid', gap: 10}}>
+                            {dashRecs.map(rec => (
+                                <WiredDecisionUnit key={rec.id} rec={rec} openModal={openModal}/>
+                            ))}
+                        </div>
+                    )}
                 </>
             )}
 

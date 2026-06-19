@@ -10,23 +10,26 @@ import s from './TopBar.module.css';
 
 const TITLE_MAP = {
     dashboard: 'Dashboard', portfolio: 'Portfolio', assets: 'Assets',
-    signals: 'Signals', recommendations: 'Recommendations', activity: 'Activity',
+    decisions: 'Decisions', signals: 'Signals', recommendations: 'Recommendations', activity: 'Transactions',
     settings: 'Settings', notifications: 'Notifications',
     markets: 'Markets', terminal: 'Asset terminal', watchlist: 'Watchlist',
+    briefings: 'AI Briefings',
 };
 
 const SUBTITLE_MAP = {
     dashboard: "Today's state · top decisions",
     portfolio: 'All holdings, flattened',
     assets: 'Grouped by asset class',
-    signals: 'Inputs · see Recommendations for decisions',
+    decisions: 'Ledger of applied decisions and contributions',
+    signals: 'Inputs · see Decisions for recommendations',
     recommendations: 'Decision feed · active and historical',
-    activity: 'Ledger of applied decisions and contributions',
+    activity: 'Trade history · import · ledger',
     settings: 'Profile, providers, jobs',
     notifications: 'Alerts and updates',
     markets: 'Live indices · sectors · movers · universe',
     terminal: 'Search · power view · discovery',
     watchlist: 'Lists · price alerts · AI takes',
+    briefings: 'AI-generated market briefings',
 };
 
 export const TopBar = () => {

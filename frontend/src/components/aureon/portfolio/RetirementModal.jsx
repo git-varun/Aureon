@@ -1,6 +1,7 @@
 import React, {useState} from 'react';
 import {toast} from 'react-hot-toast';
 import {apiService} from '../../../api/apiService';
+import {ModalShell} from '../ds';
 
 const fieldStyle = {
     width: '100%', padding: '9px 12px', borderRadius: 7,
@@ -312,62 +313,41 @@ export function RetirementModal({onClose}) {
     const handleClose = (refreshNeeded) => onClose(refreshNeeded);
 
     return (
-        <div
-            onClick={() => handleClose(false)}
-            style={{
-                position: 'fixed', inset: 0, zIndex: 800,
-                background: 'rgba(0,0,0,0.55)', backdropFilter: 'blur(6px)',
-                display: 'flex', alignItems: 'center', justifyContent: 'center',
-            }}>
-            <div
-                onClick={e => e.stopPropagation()}
-                style={{
-                    width: 'min(540px,94vw)', borderRadius: 14,
-                    background: 'rgba(18,20,24,0.97)', border: '1px solid rgba(255,255,255,0.10)',
-                    boxShadow: '0 30px 80px rgba(0,0,0,0.55)', backdropFilter: 'blur(40px)',
-                    maxHeight: '92vh', overflow: 'auto',
-                }}>
-                {/* Header */}
-                <div style={{
-                    display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-                    padding: '16px 20px', borderBottom: '1px solid rgba(255,255,255,0.06)',
-                }}>
-                    <div>
-                        <div style={{fontFamily: 'var(--font-heading)', fontSize: 16, fontWeight: 600, color: 'var(--ink-00)'}}>Add retirement account</div>
-                        <div style={{fontSize: 11.5, color: 'var(--ink-40)', marginTop: 2}}>EPS · NPS — manually tracked, no public API</div>
-                    </div>
-                    <button onClick={() => handleClose(false)} style={{background: 'none', border: 'none', color: 'var(--ink-40)', cursor: 'pointer', fontSize: 18, lineHeight: 1, padding: '2px 6px'}}>✕</button>
-                </div>
-
-                {/* Tabs */}
-                <div style={{display: 'flex', padding: '12px 20px 0', gap: 4}}>
-                    {TABS.map(t => (
-                        <button key={t.id} onClick={() => setTab(t.id)} style={{
-                            padding: '7px 18px', borderRadius: '8px 8px 0 0', cursor: 'pointer',
-                            background: tab === t.id ? 'rgba(255,255,255,0.05)' : 'transparent',
-                            border: tab === t.id ? `1px solid rgba(255,255,255,0.10)` : '1px solid transparent',
-                            borderBottom: tab === t.id ? '1px solid rgba(18,20,24,0.97)' : '1px solid transparent',
-                            color: tab === t.id ? 'var(--ink-10)' : 'var(--ink-40)',
-                            fontSize: 12, fontWeight: tab === t.id ? 600 : 400,
-                            display: 'flex', alignItems: 'center', gap: 6,
-                        }}>
-                            <span style={{
-                                width: 20, height: 20, borderRadius: 5, display: 'inline-flex',
-                                alignItems: 'center', justifyContent: 'center',
-                                background: t.color, color: '#fff', fontSize: 9, fontWeight: 700,
-                            }}>{t.label[0]}</span>
-                            <span>{t.label}</span>
-                            <span style={{fontSize: 10, color: 'var(--ink-50)'}}>· {t.sublabel}</span>
-                        </button>
-                    ))}
-                </div>
-
-                {/* Form body */}
-                <div style={{padding: '18px 20px 20px', borderTop: '1px solid rgba(255,255,255,0.06)'}}>
-                    {tab === 'eps' && <EPSForm onClose={handleClose} />}
-                    {tab === 'nps' && <NPSForm onClose={handleClose} />}
-                </div>
+        <ModalShell
+            open={true}
+            onClose={() => handleClose(false)}
+            title="Add retirement account"
+            subtitle="EPS · NPS — manually tracked, no public API"
+            width="540px"
+        >
+            {/* Tabs */}
+            <div style={{display: 'flex', marginBottom: 12, gap: 4}}>
+                {TABS.map(t => (
+                    <button key={t.id} onClick={() => setTab(t.id)} style={{
+                        padding: '7px 18px', borderRadius: '8px 8px 0 0', cursor: 'pointer',
+                        background: tab === t.id ? 'rgba(255,255,255,0.05)' : 'transparent',
+                        border: tab === t.id ? `1px solid rgba(255,255,255,0.10)` : '1px solid transparent',
+                        borderBottom: tab === t.id ? '1px solid rgba(18,20,24,0.97)' : '1px solid transparent',
+                        color: tab === t.id ? 'var(--ink-10)' : 'var(--ink-40)',
+                        fontSize: 12, fontWeight: tab === t.id ? 600 : 400,
+                        display: 'flex', alignItems: 'center', gap: 6,
+                    }}>
+                        <span style={{
+                            width: 20, height: 20, borderRadius: 5, display: 'inline-flex',
+                            alignItems: 'center', justifyContent: 'center',
+                            background: t.color, color: '#fff', fontSize: 9, fontWeight: 700,
+                        }}>{t.label[0]}</span>
+                        <span>{t.label}</span>
+                        <span style={{fontSize: 10, color: 'var(--ink-50)'}}>· {t.sublabel}</span>
+                    </button>
+                ))}
             </div>
-        </div>
+
+            {/* Form body */}
+            <div style={{borderTop: '1px solid rgba(255,255,255,0.06)', paddingTop: 18}}>
+                {tab === 'eps' && <EPSForm onClose={handleClose} />}
+                {tab === 'nps' && <NPSForm onClose={handleClose} />}
+            </div>
+        </ModalShell>
     );
 }

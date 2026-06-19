@@ -7,8 +7,8 @@
 
 .header {
     display: grid;
-    grid-template-columns: 2.2fr 1.2fr 1.2fr 1.4fr 1.6fr 40px;
-    gap: 16px;
+    grid-template-columns: 2fr 1.1fr 1.2fr 1.35fr 1.55fr 40px;
+    gap: 20px;
     padding: 16px 18px;
     width: 100%;
     background: transparent;
@@ -29,6 +29,13 @@
 }
 
 .nameGroup {
+    display: flex;
+    flex-direction: column;
+    gap: 5px;
+    min-width: 0;
+}
+
+.nameRow {
     display: flex;
     align-items: center;
     gap: 10px;
@@ -53,7 +60,7 @@
 .count {
     font-size: 11px;
     color: var(--ink-40);
-    flex-shrink: 0;
+    padding-left: 20px; /* indent past the color dot */
 }
 
 .colLabel {
@@ -67,9 +74,10 @@
 
 .colValue {
     font-family: var(--font-mono);
-    font-size: 15px;
+    font-size: 17px;
     font-weight: 500;
     color: var(--ink-00);
+    line-height: 1.2;
 }
 
 .colValueMeta {
@@ -98,7 +106,7 @@
 
 .bodyHeader {
     display: grid;
-    grid-template-columns: 1.8fr 0.7fr 1fr 0.8fr 0.8fr 0.9fr 0.6fr;
+    grid-template-columns: 1.8fr 0.9fr 1.1fr 0.9fr 0.8fr 0.9fr 0.6fr;
     gap: 12px;
     padding: 8px 18px 8px 46px;
     font-size: 9.5px;

@@ -14,16 +14,12 @@ const Decisions       = lazy(() => import('@/pages/aureon/Decisions'));
 const Portfolio       = lazy(() => import('@/pages/aureon/Portfolio'));
 const AssetsIndex     = lazy(() => import('@/pages/aureon/AssetsIndex'));
 const AssetDetail     = lazy(() => import('@/pages/aureon/AssetDetail'));
-const Signals         = lazy(() => import('@/pages/aureon/Signals'));
-const Recommendations = lazy(() => import('@/pages/aureon/Recommendations'));
-const Activity        = lazy(() => import('@/pages/aureon/Activity'));
 const Transactions    = lazy(() => import('@/pages/aureon/Transactions'));
 const Settings        = lazy(() => import('@/pages/aureon/Settings'));
 const Notifications   = lazy(() => import('@/pages/aureon/Notifications'));
 const Markets         = lazy(() => import('@/pages/aureon/Markets'));
 const Terminal        = lazy(() => import('@/pages/aureon/Terminal'));
 const Watchlist       = lazy(() => import('@/pages/aureon/Watchlist'));
-const AIBriefings     = lazy(() => import('@/pages/aureon/AIBriefings'));
 const ThemeDetail     = lazy(() => import('@/pages/aureon/ThemeDetail'));
 
 const PageSkeleton = () => (
@@ -58,17 +54,14 @@ function AureonShellInner({onLogout, userName}) {
                                     <Route path="portfolio" element={<Portfolio/>}/>
                                     <Route path="assets" element={<AssetsIndex/>}/>
                                     <Route path="assets/:ticker" element={<AssetDetail/>}/>
-                                    <Route path="signals" element={<Signals/>}/>
-                                    <Route path="recommendations" element={<Recommendations/>}/>
                                     <Route path="transactions" element={<Transactions/>}/>
-                                    <Route path="activity" element={<Navigate to="/transactions?tab=activity" replace/>}/>
+                                    <Route path="activity" element={<Navigate to="/decisions?tab=activity" replace/>}/>
                                     <Route path="settings/*" element={<Settings/>}/>
                                     <Route path="notifications" element={<Notifications/>}/>
                                     <Route path="markets" element={<Markets/>}/>
                                     <Route path="terminal" element={<Terminal/>}/>
                                     <Route path="terminal/:sym" element={<Terminal/>}/>
                                     <Route path="watchlist" element={<Watchlist/>}/>
-                                    <Route path="briefings" element={<AIBriefings/>}/>
                                     <Route path="markets/themes/:themeId" element={<ThemeDetail/>}/>
                                     <Route path="markets/sectors/:sectorName" element={<ThemeDetail/>}/>
                                     <Route path="*" element={<Navigate to={ROUTES.DASHBOARD} replace/>}/>

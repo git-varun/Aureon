@@ -1,1 +1,0 @@
-"""Investment OS modular monolith."""

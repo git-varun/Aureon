@@ -12,7 +12,72 @@ const RISK_COLOR = {
 };
 
 export function TechnicalTab({signal, sym, onGenerateSignal}) {
-    if (signal === null) return <TabSkeleton/>;
+    if (signal === null) {
+        return (
+            <div style={{maxWidth: 600}}>
+                <style>{`
+                    @keyframes pulse-shimmer {
+                        0%, 100% { opacity: 0.15; }
+                        50% { opacity: 0.35; }
+                    }
+                    .skeleton-pulse {
+                        animation: pulse-shimmer 1.8s ease-in-out infinite;
+                    }
+                `}</style>
+                {/* Header Skeleton */}
+                <div style={{display: 'flex', alignItems: 'center', gap: 14, marginBottom: 28}}>
+                    <div className="skeleton-pulse" style={{height: 32, width: 80, borderRadius: 6, background: 'rgba(255,255,255,0.06)'}} />
+                    <div className="skeleton-pulse" style={{height: 24, width: 100, borderRadius: 4, background: 'rgba(255,255,255,0.04)'}} />
+                    <div style={{flex: 1}}/>
+                    <div className="skeleton-pulse" style={{height: 14, width: 70, borderRadius: 2, background: 'rgba(255,255,255,0.04)'}} />
+                </div>
+
+                {/* Grid */}
+                <div style={{display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '24px 28px', marginBottom: 24}}>
+                    <div>
+                        <Eyebrow>RSI (14)</Eyebrow>
+                        <div className="skeleton-pulse" style={{height: 48, borderRadius: 6, background: 'rgba(255,255,255,0.04)', marginTop: 8}} />
+                    </div>
+                    <div>
+                        <Eyebrow>MACD</Eyebrow>
+                        <div className="skeleton-pulse" style={{height: 28, width: 120, borderRadius: 4, background: 'rgba(255,255,255,0.04)', marginTop: 8}} />
+                    </div>
+                    <div>
+                        <Eyebrow>ATR (14)</Eyebrow>
+                        <div className="skeleton-pulse" style={{height: 28, width: 100, borderRadius: 4, background: 'rgba(255,255,255,0.04)', marginTop: 8}} />
+                    </div>
+                    <div>
+                        <Eyebrow>Confidence</Eyebrow>
+                        <div className="skeleton-pulse" style={{height: 28, borderRadius: 4, background: 'rgba(255,255,255,0.04)', marginTop: 8}} />
+                    </div>
+                </div>
+
+                {/* Rationale Skeleton */}
+                <div className="skeleton-pulse" style={{height: 60, borderRadius: 8, background: 'rgba(255,255,255,0.025)', border: '1px solid rgba(255,255,255,0.05)', marginBottom: 20}} />
+
+                {/* Status Indicator */}
+                <div style={{
+                    display: 'flex', alignItems: 'center', gap: 10,
+                    padding: '8px 12px', background: 'rgba(255,255,255,0.03)',
+                    border: '1px solid rgba(255,255,255,0.06)', borderRadius: 6,
+                    fontSize: 12, color: 'var(--ink-30)', width: 'fit-content'
+                }}>
+                    <svg className="spin-loader" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
+                        <circle cx="12" cy="12" r="10" strokeDasharray="32" strokeDashoffset="8" strokeLinecap="round" />
+                    </svg>
+                    <span>Generating technical indicators and trend signals...</span>
+                </div>
+                <style>{`
+                    @keyframes spin {
+                        to { transform: rotate(360deg); }
+                    }
+                    .spin-loader {
+                        animation: spin 1s linear infinite;
+                    }
+                `}</style>
+            </div>
+        );
+    }
 
     if (!signal) {
         return (

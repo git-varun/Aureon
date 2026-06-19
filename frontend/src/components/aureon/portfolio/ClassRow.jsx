@@ -62,14 +62,16 @@ export const ClassRow = ({cls, items, alloc, target, color}) => {
                 className={`${s.header}${expanded ? ' ' + s.headerExpanded : ''}`}
             >
                 <div className={s.nameGroup}>
-                    <span className={s.colorDot} style={{background: color}}/>
-                    <span className={s.className}>{CLASS_LABEL[cls] || cls}</span>
-                    <span
-                        className={s.tierBadge}
-                        style={{color: ts.color, background: ts.bg, border: `1px solid ${ts.border}`}}
-                    >
-                        {CLASS_TIER_LABEL[tier]}
-                    </span>
+                    <div className={s.nameRow}>
+                        <span className={s.colorDot} style={{background: color}}/>
+                        <span className={s.className}>{CLASS_LABEL[cls] || cls}</span>
+                        <span
+                            className={s.tierBadge}
+                            style={{color: ts.color, background: ts.bg, border: `1px solid ${ts.border}`}}
+                        >
+                            {CLASS_TIER_LABEL[tier]}
+                        </span>
+                    </div>
                     <span className={s.count}>{items.length} {items.length === 1 ? 'holding' : 'holdings'}</span>
                 </div>
 
@@ -102,8 +104,8 @@ export const ClassRow = ({cls, items, alloc, target, color}) => {
                 <AllocBar actual={alloc} target={target}/>
 
                 <div>
-                    <div className={s.colLabel}>Trend · 30D</div>
-                    <Sparkline data={sparkData.length >= 2 ? sparkData : [0, 1]} w={120} h={28}/>
+                    <div className={s.colLabel}>Trend · 60D</div>
+                    <Sparkline data={sparkData.length >= 2 ? sparkData : [0, 1]} w={160} h={32}/>
                     {avgBeta != null && <div className={s.beta}>risk β {avgBeta.toFixed(2)}</div>}
                 </div>
 

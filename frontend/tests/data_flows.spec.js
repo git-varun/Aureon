@@ -81,10 +81,10 @@ test('Flow 3: Watchlist Workflow', async ({ page }) => {
     if (await newListBtn.isVisible()) {
         await newListBtn.click();
         const nameInput = page.locator('input[placeholder="List name…"]');
-        const listName = `Flow Test List`;
+        const listName = `Flow Test List ${Date.now()}`;
         await nameInput.fill(listName);
         await page.keyboard.press('Enter');
-        await page.waitForTimeout(600);
+        await page.waitForTimeout(1000); // Wait for the list creation API/UI state to complete
         await snap(page, '09_watchlist_list_created');
 
         // Add a symbol to the newly created list

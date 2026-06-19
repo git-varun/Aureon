@@ -2,6 +2,7 @@
 import React, {useState, useEffect, useMemo, useRef, useCallback} from 'react';
 import {useNavigate, useParams} from 'react-router-dom';
 import {Eyebrow} from '@/components/aureon/ui';
+import {EmptyState} from '../../components/aureon/ds';
 import {apiService} from '@/api/apiService';
 import { ErrorBoundary } from '@/components/aureon/ErrorBoundary';
 import {BackfillBadge} from '@/components/aureon/market/BackfillBadge';
@@ -9,8 +10,6 @@ import {ThemeForkDrawer} from '@/components/aureon/market/ThemeForkDrawer';
 import {useBackfillStatus} from '@/hooks/useBackfillStatus';
 
 /* ── helpers ── */
-const mColor = (m) => m === 'strong' ? 'var(--sage-500)' : m === 'positive' ? '#7EB8A4' : m === 'negative' ? 'var(--crimson-500)' : 'var(--ink-30)';
-const mLabel = (m) => m === 'strong' ? 'Strong' : m === 'positive' ? 'Positive' : m === 'negative' ? 'Bearish' : 'Neutral';
 const signalColor = (s) => !s ? 'var(--ink-40)' : s.includes('Strong') ? 'var(--sage-500)' : s === 'Buy' ? '#7EB8A4' : s === 'Hold' ? 'var(--ink-40)' : 'var(--crimson-500)';
 
 const mkSeries = (id, ret1m, pts = 90) => {
@@ -71,157 +70,7 @@ function ThemeDualChart({series, benchSeries, height = 200}) {
     );
 }
 
-/* ── Overview Tab ── */
-function ThemeOverviewTab({theme, series, benchSeries, fundamentals, aiConf, aiSeed}) {
-    const navigate = useNavigate();
-    const constituents = theme.constituents || [];
-    return (
-        <div style={{display: 'grid', gridTemplateColumns: '2fr 1fr', gap: 14, alignItems: 'start'}}>
-            <div style={{display: 'flex', flexDirection: 'column', gap: 12}}>
-                <div className="layer-1" style={{padding: '14px 16px'}}>
-                    <div style={{display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 10}}>
-                        <Eyebrow>3-Month Performance vs Nifty 50</Eyebrow>
-                        <div style={{display: 'flex', gap: 14, fontSize: 11}}>
-                            <span style={{display: 'flex', alignItems: 'center', gap: 5, color: 'var(--ink-30)'}}>
-                                <span style={{width: 14, height: 2, background: 'var(--aurum-500)', display: 'inline-block', borderRadius: 1, flexShrink: 0}}/>Theme basket
-                            </span>
-                            <span style={{display: 'flex', alignItems: 'center', gap: 5, color: 'var(--ink-40)'}}>
-                                <span style={{width: 14, height: 2, background: 'rgba(255,255,255,0.22)', display: 'inline-block', borderRadius: 1, flexShrink: 0}}/>Nifty 50
-                            </span>
-                        </div>
-                    </div>
-                    <ThemeDualChart series={series} benchSeries={benchSeries} height={160}/>
-                </div>
-                {constituents.length > 0 && (
-                    <div className="layer-1" style={{padding: '14px 16px'}}>
-                        <Eyebrow style={{marginBottom: 10}}>Top Constituents</Eyebrow>
-                        <div style={{display: 'grid', gridTemplateColumns: '1.6fr 1fr 0.6fr 0.6fr', gap: 10, padding: '6px 0 8px', borderBottom: '1px solid rgba(255,255,255,0.05)'}}>
-                            {['Instrument', 'Weight', '1M', 'Signal'].map((h, i) => (
-                                <div key={h} style={{fontSize: 9.5, letterSpacing: '0.10em', textTransform: 'uppercase', color: 'var(--ink-40)', fontWeight: 600, textAlign: i > 1 ? 'right' : 'left'}}>{h}</div>
-                            ))}
-                        </div>
-                        {constituents.slice(0, 5).map((c, i) => {
-                            const totalConst = constituents.length;
-                            const weight = c.weight || (1 / totalConst);
-                            return (
-                                <button key={c.sym} onClick={() => navigate('/terminal/' + c.sym)} style={{
-                                    display: 'grid', gridTemplateColumns: '1.6fr 1fr 0.6fr 0.6fr', gap: 10,
-                                    padding: '9px 0', width: '100%', background: 'none', border: 'none', cursor: 'pointer',
-                                    borderBottom: i < 4 ? '1px solid rgba(255,255,255,0.04)' : 'none', alignItems: 'center', color: 'inherit', textAlign: 'left',
-                                }}>
-                                    <div>
-                                        <span style={{fontFamily: 'var(--font-mono)', fontSize: 12, fontWeight: 600, color: 'var(--ink-00)', letterSpacing: '0.04em'}}>{c.sym}</span>
-                                        <span style={{fontSize: 10.5, color: 'var(--ink-40)', marginLeft: 7}}>{c.name}</span>
-                                    </div>
-                                    <div style={{display: 'flex', alignItems: 'center', gap: 6}}>
-                                        <div style={{height: 3, borderRadius: 99, background: 'rgba(255,255,255,0.06)', flex: 1}}>
-                                            <div style={{width: `${Math.min(100, weight * 100)}%`, height: '100%', borderRadius: 99, background: 'var(--aurum-500)', opacity: 0.65}}/>
-                                        </div>
-                                        <span style={{fontFamily: 'var(--font-mono)', fontSize: 11, color: 'var(--ink-30)', minWidth: 26, textAlign: 'right'}}>{(weight * 100).toFixed(0)}%</span>
-                                    </div>
-                                    <span style={{fontFamily: 'var(--font-mono)', fontSize: 12, color: (c.dayPct || 0) >= 0 ? 'var(--sage-500)' : 'var(--crimson-500)', textAlign: 'right'}}>
-                                        {(c.dayPct || 0) >= 0 ? '+' : ''}{((c.dayPct || 0) * 100).toFixed(1)}%
-                                    </span>
-                                    <span style={{fontSize: 9.5, letterSpacing: '0.08em', textTransform: 'uppercase', fontWeight: 600, color: signalColor(c.signal), textAlign: 'right'}}>{c.signal || '—'}</span>
-                                </button>
-                            );
-                        })}
-                    </div>
-                )}
-            </div>
-            {/* Right column */}
-            <div style={{display: 'flex', flexDirection: 'column', gap: 12}}>
-                <div className="layer-1" style={{padding: '14px 16px'}}>
-                    <Eyebrow>Key Metrics</Eyebrow>
-                    <div style={{marginTop: 10, display: 'flex', flexDirection: 'column', gap: 9}}>
-                        {[['Avg P/E', fundamentals.pe || '—'], ['Avg ROE', fundamentals.roe || '—'], ['Div yield', fundamentals.divYield || '—'], ['Debt/Equity', fundamentals.debtEq || '—'], ['Beta', fundamentals.beta || '—']].map(([k, v]) => (
-                            <div key={k} style={{display: 'flex', justifyContent: 'space-between', alignItems: 'center'}}>
-                                <span style={{fontSize: 11.5, color: 'var(--ink-40)'}}>{k}</span>
-                                <span style={{fontFamily: 'var(--font-mono)', fontSize: 13, color: 'var(--ink-00)', fontWeight: 500}}>{v}</span>
-                            </div>
-                        ))}
-                    </div>
-                </div>
-                <div className="layer-1" style={{padding: '14px 16px'}}>
-                    <Eyebrow>AI Signals</Eyebrow>
-                    <div style={{marginTop: 10, display: 'flex', flexDirection: 'column', gap: 9}}>
-                        {[
-                            {label: 'Momentum', val: mLabel(aiSeed?.momentum || 'neutral'), color: mColor(aiSeed?.momentum || 'neutral')},
-                            {label: 'Confidence', val: `${aiConf}%`, color: aiConf >= 80 ? 'var(--sage-500)' : 'var(--aurum-100)'},
-                            {label: 'Instruments', val: `${theme.count || constituents.length}`, color: 'var(--ink-10)'},
-                        ].map(s => (
-                            <div key={s.label} style={{display: 'flex', justifyContent: 'space-between', alignItems: 'center'}}>
-                                <span style={{fontSize: 11.5, color: 'var(--ink-40)'}}>{s.label}</span>
-                                <span style={{fontFamily: 'var(--font-mono)', fontSize: 13, color: s.color, fontWeight: 500}}>{s.val}</span>
-                            </div>
-                        ))}
-                    </div>
-                </div>
-                <div className="layer-1" style={{padding: '14px 16px'}}>
-                    <Eyebrow>Returns</Eyebrow>
-                    <div style={{marginTop: 10, display: 'flex', flexDirection: 'column', gap: 9}}>
-                        {[
-                            ['1M', `${(theme.ret1m || 0) >= 0 ? '+' : ''}${((theme.ret1m || 0) * 100).toFixed(1)}%`, (theme.ret1m || 0) >= 0 ? 'var(--sage-500)' : 'var(--crimson-500)'],
-                            ['vs Nifty', '+2.1%', 'var(--sage-500)'],
-                            ['Max drawdown', '-4.2%', 'var(--crimson-500)'],
-                            ['Ann. est.', `${((theme.ret1m || 0) * 12 * 100).toFixed(0)}%`, 'var(--ink-10)'],
-                        ].map(([k, v, c]) => (
-                            <div key={k} style={{display: 'flex', justifyContent: 'space-between', alignItems: 'center'}}>
-                                <span style={{fontSize: 11.5, color: 'var(--ink-40)'}}>{k}</span>
-                                <span style={{fontFamily: 'var(--font-mono)', fontSize: 13, color: c, fontWeight: 500}}>{v}</span>
-                            </div>
-                        ))}
-                    </div>
-                </div>
-            </div>
-        </div>
-    );
-}
-
-/* ── Performance Tab ── */
-function ThemePerfTab({theme, series, benchSeries}) {
-    const [tf, setTf] = useState('3M');
-    const retColor = (theme.ret1m || 0) >= 0 ? 'var(--sage-500)' : 'var(--crimson-500)';
-    return (
-        <div style={{display: 'flex', flexDirection: 'column', gap: 12}}>
-            <div className="layer-1" style={{padding: '16px 18px'}}>
-                <div style={{display: 'flex', alignItems: 'center', gap: 14, marginBottom: 14, flexWrap: 'wrap'}}>
-                    <div style={{display: 'flex', gap: 0}}>
-                        {['1M', '3M', '6M', 'YTD', '1Y'].map(p => (
-                            <button key={p} onClick={() => setTf(p)} style={{
-                                padding: '5px 12px', fontSize: 11, fontFamily: 'var(--font-mono)',
-                                background: tf === p ? 'rgba(201,168,106,0.12)' : 'transparent',
-                                color: tf === p ? 'var(--aurum-100)' : 'var(--ink-30)',
-                                border: 'none', cursor: 'pointer', borderRadius: 4,
-                            }}>{p}</button>
-                        ))}
-                    </div>
-                    <div style={{flex: 1}}/>
-                    <div style={{display: 'flex', gap: 16, fontSize: 11}}>
-                        <span style={{display: 'flex', alignItems: 'center', gap: 5, color: 'var(--ink-30)'}}><span style={{width: 14, height: 2, background: 'var(--aurum-500)', display: 'inline-block', borderRadius: 1}}/>Theme basket</span>
-                        <span style={{display: 'flex', alignItems: 'center', gap: 5, color: 'var(--ink-40)'}}><span style={{width: 14, height: 2, background: 'rgba(255,255,255,0.22)', display: 'inline-block', borderRadius: 1}}/>Nifty 50</span>
-                    </div>
-                </div>
-                <ThemeDualChart series={series} benchSeries={benchSeries} height={280}/>
-            </div>
-            <div style={{display: 'grid', gridTemplateColumns: 'repeat(4,1fr)', gap: 10}}>
-                {[
-                    ['1M return', `${(theme.ret1m || 0) >= 0 ? '+' : ''}${((theme.ret1m || 0) * 100).toFixed(1)}%`, retColor],
-                    ['vs Nifty 50', '+2.1%', 'var(--sage-500)'],
-                    ['Annualised', `${((theme.ret1m || 0) * 12 * 100).toFixed(0)}%`, 'var(--ink-00)'],
-                    ['Max drawdown', '-4.2%', 'var(--crimson-500)'],
-                ].map(([k, v, c]) => (
-                    <div key={k} className="layer-1" style={{padding: '14px 16px'}}>
-                        <div style={{fontSize: 10, color: 'var(--ink-40)', letterSpacing: '0.10em', textTransform: 'uppercase', fontWeight: 600}}>{k}</div>
-                        <div style={{fontFamily: 'var(--font-mono)', fontSize: 22, fontWeight: 500, color: c, marginTop: 8}}>{v}</div>
-                    </div>
-                ))}
-            </div>
-        </div>
-    );
-}
-
-/* ── Constituents Tab ── */
+/* ── Constituents Section ── */
 function ThemeConstTab({constituents, pending, triggerBackfill}) {
     const navigate = useNavigate();
     const total = constituents.length;
@@ -236,6 +85,17 @@ function ThemeConstTab({constituents, pending, triggerBackfill}) {
             }
         });
     }, [constituents, triggerBackfill]);
+
+    if (total === 0) {
+        return (
+            <div className="layer-1" style={{padding: '24px'}}>
+                <EmptyState
+                    title="No Constituents Available"
+                    body="No instruments are currently tracked in this theme."
+                />
+            </div>
+        );
+    }
 
     return (
         <div className="layer-1">
@@ -282,233 +142,184 @@ function ThemeConstTab({constituents, pending, triggerBackfill}) {
     );
 }
 
-/* ── Fundamentals Tab ── */
-function ThemeFundTab({fundamentals}) {
-    const metrics = [
-        {k: 'P/E Ratio', v: fundamentals.pe || '—', sub: 'Price-to-earnings (basket weighted avg)', bar: Math.min(100, parseFloat(fundamentals.pe || 0) / 60 * 100)},
-        {k: 'P/B Ratio', v: fundamentals.pb || '—', sub: 'Price-to-book (basket weighted avg)', bar: Math.min(100, parseFloat(fundamentals.pb || 0) / 10 * 100)},
-        {k: 'ROE', v: fundamentals.roe || '—', sub: 'Return on equity', bar: Math.min(100, parseFloat(fundamentals.roe || 0) / 40 * 100)},
-        {k: 'Dividend yield', v: fundamentals.divYield || '—', sub: 'Trailing twelve months', bar: Math.min(100, parseFloat(fundamentals.divYield || 0) / 5 * 100)},
-        {k: 'Debt / Equity', v: fundamentals.debtEq || '—', sub: 'Leverage (lower is safer)', bar: Math.min(100, parseFloat(fundamentals.debtEq || 0) / 2 * 100)},
-        {k: 'Beta', v: fundamentals.beta || '—', sub: 'Market sensitivity vs Nifty 50', bar: Math.min(100, parseFloat(fundamentals.beta || 0) / 2 * 100)},
-    ];
-    return (
-        <div style={{display: 'grid', gridTemplateColumns: 'repeat(3,1fr)', gap: 12}}>
-            {metrics.map(m => (
-                <div key={m.k} className="layer-1" style={{padding: '16px 18px'}}>
-                    <div style={{fontSize: 10, color: 'var(--ink-40)', letterSpacing: '0.10em', textTransform: 'uppercase', fontWeight: 600}}>{m.k}</div>
-                    <div style={{fontFamily: 'var(--font-mono)', fontSize: 28, fontWeight: 500, color: 'var(--ink-00)', marginTop: 8, letterSpacing: '-0.01em'}}>{m.v}</div>
-                    <div style={{height: 3, borderRadius: 99, background: 'rgba(255,255,255,0.06)', marginTop: 14}}>
-                        <div style={{width: `${m.bar}%`, height: '100%', borderRadius: 99, background: 'var(--aurum-500)', opacity: 0.55}}/>
-                    </div>
-                    <div style={{fontSize: 10.5, color: 'var(--ink-40)', marginTop: 6}}>{m.sub}</div>
+/* ── AI Take Card Component ── */
+function ThemeAiTakeCard({aiTake, aiConf, lastEval, handleRevaluate, revaluating, isSector}) {
+    if (isSector) return null;
+
+    const confColor = aiConf >= 80 ? 'var(--sage-500)' : aiConf >= 65 ? 'var(--aurum-100)' : 'var(--crimson-500)';
+    const isObj = aiTake && typeof aiTake === 'object';
+    const headline = isObj ? aiTake.headline : '';
+    const summary = isObj ? (aiTake.summary || aiTake.take || aiTake.deep_reasoning) : aiTake;
+    const bull_case = isObj ? (aiTake.bull_case || aiTake.key_catalyst) : '';
+    const bear_case = isObj ? (aiTake.bear_case || aiTake.support_resistance) : '';
+    const confidenceVal = isObj ? (aiTake.confidence || aiConf / 100) : (aiConf / 100);
+
+    if (!aiTake) {
+        return (
+            <div className="layer-1" style={{padding: '20px 24px', borderRadius: 12, border: '1px dashed rgba(255,255,255,0.1)'}}>
+                <div style={{fontSize: 11, letterSpacing: '0.12em', textTransform: 'uppercase', color: 'var(--aurum-500)', fontWeight: 700, marginBottom: 12}}>
+                    AI TAKE
                 </div>
-            ))}
-        </div>
-    );
-}
-
-/* ── Technical Tab ── */
-function ThemeTechTab({theme}) {
-    const [generating, setGenerating] = useState(false);
-    const [signals, setSignals] = useState(null);
-    const [noData, setNoData] = useState(false);
-
-    // Reset when theme changes
-    const themeId = theme.id;
-    useEffect(() => {
-        const t = setTimeout(() => {
-            setSignals(null);
-            setGenerating(false);
-            setNoData(false);
-        }, 0);
-        return () => clearTimeout(t);
-    }, [themeId]);
-
-    const handleGenerate = async () => {
-        setGenerating(true);
-        setNoData(false);
-        try {
-            const res = await apiService.getThemeSignals(themeId);
-            if (res?.rsi !== undefined) {
-                const trend = res.trend || ((res.rsi || 50) > 55 ? 'Bullish' : (res.rsi || 50) < 45 ? 'Bearish' : 'Mildly bullish');
-                const trendColor = trend === 'Bullish' ? 'var(--sage-500)' : trend === 'Mildly bullish' ? 'var(--aurum-100)' : 'var(--crimson-500)';
-                setSignals({...res, trend, trendColor});
-            }
-        } catch (err) {
-            if (err?.response?.status === 404) setNoData(true);
-        } finally {
-            setGenerating(false);
-        }
-    };
-
-    if (!signals) return (
-        <div style={{padding: '48px 24px', textAlign: 'center', background: 'rgba(255,255,255,0.015)', border: '1px dashed rgba(255,255,255,0.10)', borderRadius: 12}}>
-            <div style={{width: 48, height: 48, borderRadius: 999, background: 'rgba(201,168,106,0.08)', display: 'inline-flex', alignItems: 'center', justifyContent: 'center', marginBottom: 16}}>
-                <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="var(--aurum-500)" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg>
-            </div>
-            <div style={{fontFamily: 'var(--font-heading)', fontSize: 17, fontWeight: 600, color: 'var(--ink-00)', marginBottom: 6}}>No signal generated yet</div>
-            <div style={{fontSize: 13, color: 'var(--ink-30)', maxWidth: 320, margin: '0 auto 20px', lineHeight: 1.5}}>
-                {noData
-                    ? 'No price history available for this basket. Run the data pipeline to populate historical prices.'
-                    : `Generate a composite RSI + MACD + ADX technical signal across the ${theme.count || (theme.constituents?.length || 0)} instruments in the basket.`}
-            </div>
-            {!noData && (
-                <button disabled={generating} onClick={handleGenerate} style={{
+                <div style={{color: 'var(--ink-30)', fontSize: 13, marginBottom: 14}}>
+                    AI analysis has not been generated yet.
+                </div>
+                <button onClick={handleRevaluate} disabled={revaluating} style={{
                     display: 'inline-flex', alignItems: 'center', gap: 8, height: 36, padding: '0 20px', borderRadius: 8,
                     background: 'rgba(201,168,106,0.12)', border: '1px solid rgba(201,168,106,0.28)',
                     color: 'var(--aurum-100)', fontSize: 13, fontFamily: 'var(--font-ui)', fontWeight: 500,
-                    cursor: generating ? 'not-allowed' : 'pointer', opacity: generating ? 0.7 : 1,
+                    cursor: revaluating ? 'not-allowed' : 'pointer', opacity: revaluating ? 0.7 : 1,
                 }}>
-                    {generating ? 'Generating…' : 'Generate Theme Signal'}
+                    {revaluating ? 'Evaluating…' : 'Generate AI Take'}
                 </button>
-            )}
-        </div>
-    );
+            </div>
+        );
+    }
 
     return (
-        <div>
-            <div style={{display: 'grid', gridTemplateColumns: 'repeat(4,1fr)', gap: 12, marginBottom: 14}}>
-                {[
-                    ['RSI · 14', signals.rsi, signals.rsi > 70 ? 'Overbought' : signals.rsi < 30 ? 'Oversold' : 'Neutral', signals.rsi > 60 ? 'var(--sage-500)' : signals.rsi < 40 ? 'var(--crimson-500)' : 'var(--ink-00)'],
-                    ['MACD', signals.macd, Number(signals.macd) > 0 ? 'Positive crossover' : 'Negative crossover', Number(signals.macd) > 0 ? 'var(--sage-500)' : 'var(--crimson-500)'],
-                    ['ADX · Strength', signals.adx, signals.adx > 25 ? 'Trending' : 'Ranging', signals.adx > 25 ? 'var(--sage-500)' : 'var(--ink-30)'],
-                    ['Basket trend', signals.trend, `Confidence ${signals.conf}%`, signals.trendColor],
-                ].map(([k, v, sub, c]) => (
-                    <div key={k} className="layer-1" style={{padding: '14px 16px'}}>
-                        <div style={{fontSize: 10, letterSpacing: '0.12em', textTransform: 'uppercase', color: 'var(--ink-40)', fontWeight: 600}}>{k}</div>
-                        <div style={{fontFamily: 'var(--font-mono)', fontSize: 22, fontWeight: 500, color: c, marginTop: 8}}>{v}</div>
-                        <div style={{fontSize: 11, color: 'var(--ink-40)', marginTop: 4}}>{sub}</div>
+        <div className="layer-1" style={{padding: '20px 24px', borderRadius: 12, border: '1px solid rgba(255,255,255,0.06)'}}>
+            <div style={{display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 16}}>
+                <div style={{fontSize: 11, letterSpacing: '0.12em', textTransform: 'uppercase', color: 'var(--aurum-500)', fontWeight: 700}}>
+                    AI TAKE
+                </div>
+                <div style={{textAlign: 'right'}}>
+                    <div style={{fontFamily: 'var(--font-mono)', fontSize: 22, fontWeight: 600, color: confColor, lineHeight: 1}}>
+                        {Math.round(confidenceVal * 100)}%
                     </div>
-                ))}
+                    <div style={{fontSize: 9, color: 'var(--ink-40)', marginTop: 2, letterSpacing: '0.06em', textTransform: 'uppercase'}}>Confidence</div>
+                </div>
             </div>
-            <button onClick={() => setSignals(null)} style={{
-                fontSize: 12, padding: '6px 14px', borderRadius: 6, background: 'rgba(255,255,255,0.04)',
-                border: '1px solid rgba(255,255,255,0.06)', color: 'var(--ink-30)', cursor: 'pointer', fontFamily: 'var(--font-ui)',
-            }}>↺ Re-generate</button>
+
+            {/* Headline */}
+            <div style={{fontFamily: 'var(--font-heading)', fontSize: 17, fontWeight: 600, color: 'var(--ink-00)', marginBottom: 12}}>
+                {headline || `Aureon Outlook Summary`}
+            </div>
+
+            {/* Summary */}
+            <div style={{fontSize: 13, color: 'var(--ink-20)', lineHeight: 1.6, marginBottom: 18}}>
+                {summary}
+            </div>
+
+            {/* Bull & Bear cases */}
+            <div style={{display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16, marginBottom: 16}}>
+                <div style={{padding: '12px 14px', borderRadius: 8, background: 'rgba(111,174,136,0.06)', border: '1px solid rgba(111,174,136,0.12)'}}>
+                    <div style={{fontSize: 10.5, letterSpacing: '0.08em', textTransform: 'uppercase', color: 'var(--sage-500)', fontWeight: 600, marginBottom: 6}}>
+                        Bull Case
+                    </div>
+                    <div style={{fontSize: 12, color: 'var(--ink-25)', lineHeight: 1.5}}>
+                        {bull_case || 'Positive catalyst setup'}
+                    </div>
+                </div>
+                <div style={{padding: '12px 14px', borderRadius: 8, background: 'rgba(209,107,107,0.06)', border: '1px solid rgba(209,107,107,0.12)'}}>
+                    <div style={{fontSize: 10.5, letterSpacing: '0.08em', textTransform: 'uppercase', color: 'var(--crimson-500)', fontWeight: 600, marginBottom: 6}}>
+                        Bear Case
+                    </div>
+                    <div style={{fontSize: 12, color: 'var(--ink-25)', lineHeight: 1.5}}>
+                        {bear_case || 'Key risk levels to watch'}
+                    </div>
+                </div>
+            </div>
+
+            {/* Actions & Footer */}
+            <div style={{display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: 12, borderTop: '1px solid rgba(255,255,255,0.05)', paddingTop: 12}}>
+                {lastEval && <span style={{fontSize: 11, color: 'var(--ink-40)'}}>Last evaluated: {lastEval}</span>}
+                <button onClick={handleRevaluate} disabled={revaluating} style={{
+                    fontSize: 11, padding: '5px 12px', borderRadius: 6, background: 'rgba(255,255,255,0.04)',
+                    border: '1px solid rgba(255,255,255,0.06)', color: 'var(--ink-30)', cursor: 'pointer', fontFamily: 'var(--font-ui)',
+                }}>
+                    {revaluating ? 'Evaluating…' : 'Re-evaluate'}
+                </button>
+            </div>
         </div>
     );
 }
 
-/* ── AI Chat Tab ── */
-function ThemeAITab({theme, aiTake, aiConf, lastEval, chatHistory, chatInput, setChatInput, chatLoading, handleChat, handleRevaluate, revaluating}) {
-    const scrollRef = useRef(null);
+/* ── Risk Notes Card Component ── */
+function ThemeRiskNotes({theme, constituents}) {
+    const beta = parseFloat(theme.fundamentals?.beta || 0);
+    const hasConstituents = constituents && constituents.length > 0;
+    const total = hasConstituents ? constituents.length : 1;
+    
+    const concentrationRisk = useMemo(() => {
+        if (!hasConstituents) return null;
+        let maxWt = 0;
+        let maxSym = '';
+        constituents.forEach(c => {
+            const wt = c.weight || (1 / total);
+            if (wt > maxWt) {
+                maxWt = wt;
+                maxSym = c.sym;
+            }
+        });
+        return { maxWt, maxSym };
+    }, [constituents, total, hasConstituents]);
 
-    useEffect(() => {
-        if (scrollRef.current) scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
-    }, [chatHistory, chatLoading]);
-
-    const suggestions = [
-        `What's driving the ${theme.name} theme right now?`,
-        'Which constituent has the best risk/reward ratio?',
-        'What macro events could break this theme?',
-        'How does this theme correlate with rate movements?',
-    ];
+    const riskScore = useMemo(() => {
+        let score = 50; // default medium
+        if (beta > 1.3) score += 20;
+        if (beta < 0.7) score -= 15;
+        if (concentrationRisk && concentrationRisk.maxWt > 0.25) score += 20;
+        return Math.max(10, Math.min(95, score));
+    }, [beta, concentrationRisk]);
 
     return (
-        <div style={{display: 'grid', gridTemplateColumns: '1fr 260px', gap: 14, alignItems: 'start'}}>
-            <div className="layer-1" style={{padding: '16px 18px'}}>
-                <div style={{display: 'flex', alignItems: 'center', gap: 10, marginBottom: 14, paddingBottom: 12, borderBottom: '1px solid rgba(255,255,255,0.06)'}}>
-                    <div style={{width: 30, height: 30, borderRadius: 999, background: 'rgba(201,168,106,0.12)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0}}>
-                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="var(--aurum-500)" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>
-                    </div>
-                    <div>
-                        <div style={{fontSize: 13, fontWeight: 500, color: 'var(--ink-00)'}}>Ask Aureon about this theme</div>
-                        <div style={{fontSize: 11, color: 'var(--ink-40)'}}>Context-aware · AI-powered</div>
-                    </div>
-                </div>
-                <div ref={scrollRef} style={{minHeight: 220, maxHeight: 340, overflowY: 'auto', marginBottom: 12, display: 'flex', flexDirection: 'column', gap: 10}}>
-                    {chatHistory.length === 0 && (
-                        <div style={{padding: '16px 0', display: 'flex', flexDirection: 'column', gap: 6}}>
-                            <div style={{fontSize: 12, color: 'var(--ink-40)', marginBottom: 8}}>Suggested questions</div>
-                            {suggestions.map(s => (
-                                <button key={s} onClick={() => setChatInput(s)} style={{
-                                    padding: '9px 12px', background: 'rgba(255,255,255,0.025)', border: '1px solid rgba(255,255,255,0.06)',
-                                    borderRadius: 8, color: 'var(--ink-20)', fontSize: 12.5, cursor: 'pointer', textAlign: 'left',
-                                    fontFamily: 'var(--font-ui)', lineHeight: 1.4,
-                                }}
-                                onMouseEnter={e => e.currentTarget.style.background = 'rgba(255,255,255,0.05)'}
-                                onMouseLeave={e => e.currentTarget.style.background = 'rgba(255,255,255,0.025)'}
-                                >{s}</button>
-                            ))}
-                        </div>
-                    )}
-                    {chatHistory.map((m, i) => (
-                        <div key={i} style={{
-                            padding: '10px 14px', borderRadius: 10, fontSize: 13, lineHeight: 1.55,
-                            background: m.role === 'user' ? 'rgba(201,168,106,0.08)' : 'rgba(255,255,255,0.03)',
-                            border: '1px solid ' + (m.role === 'user' ? 'rgba(201,168,106,0.15)' : 'rgba(255,255,255,0.06)'),
-                            color: m.role === 'user' ? 'var(--aurum-100)' : 'var(--ink-10)',
-                            marginLeft: m.role === 'user' ? 32 : 0,
-                            marginRight: m.role === 'ai' ? 32 : 0,
-                        }}>
-                            {m.role === 'ai' && <div style={{fontSize: 9.5, letterSpacing: '0.10em', textTransform: 'uppercase', color: 'var(--ink-40)', fontWeight: 600, marginBottom: 4}}>Aureon</div>}
-                            {m.text}
-                        </div>
-                    ))}
-                    {chatLoading && (
-                        <div style={{display: 'flex', alignItems: 'center', gap: 8, padding: '10px 14px', borderRadius: 10, background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.06)', color: 'var(--ink-40)', fontSize: 13}}>
-                            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="var(--aurum-500)" strokeWidth="2" strokeLinecap="round" style={{animation: 'spin 1s linear infinite', flexShrink: 0}}><circle cx="12" cy="12" r="9" strokeDasharray="40 80"/></svg>
-                            Aureon is thinking…
-                        </div>
-                    )}
-                </div>
-                <div style={{display: 'flex', gap: 8}}>
-                    <input
-                        value={chatInput} onChange={e => setChatInput(e.target.value)}
-                        onKeyDown={e => e.key === 'Enter' && handleChat()}
-                        placeholder="Ask about constituents, risks, outlook…"
-                        style={{
-                            flex: 1, background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.08)',
-                            borderRadius: 8, padding: '9px 14px', color: 'var(--ink-00)', fontSize: 13,
-                            fontFamily: 'var(--font-ui)', outline: 'none',
-                        }}
-                    />
-                    <button onClick={handleChat} disabled={!chatInput.trim() || chatLoading} style={{
-                        height: 38, padding: '0 16px', borderRadius: 8,
-                        background: 'rgba(201,168,106,0.12)', border: '1px solid rgba(201,168,106,0.28)',
-                        color: 'var(--aurum-100)', fontSize: 13, cursor: 'pointer', fontFamily: 'var(--font-ui)',
-                        opacity: !chatInput.trim() || chatLoading ? 0.5 : 1,
-                    }}>Send</button>
-                </div>
-            </div>
-            {/* Sidebar */}
-            <div style={{display: 'flex', flexDirection: 'column', gap: 10}}>
-                <div className="layer-1" style={{padding: '14px 16px'}}>
-                    <Eyebrow>Evaluation</Eyebrow>
-                    <div style={{marginTop: 10, display: 'flex', flexDirection: 'column', gap: 8}}>
-                        <div style={{display: 'flex', justifyContent: 'space-between', alignItems: 'center'}}>
-                            <span style={{fontSize: 11.5, color: 'var(--ink-40)'}}>Confidence</span>
-                            <span style={{fontFamily: 'var(--font-mono)', fontSize: 13, color: 'var(--ink-00)', fontWeight: 500}}>{aiConf}%</span>
-                        </div>
-                        <div style={{height: 3, borderRadius: 99, background: 'rgba(255,255,255,0.06)'}}>
-                            <div style={{width: `${aiConf}%`, height: '100%', borderRadius: 99, background: aiConf >= 80 ? 'var(--sage-500)' : 'var(--aurum-500)'}}/>
-                        </div>
-                        <div style={{display: 'flex', justifyContent: 'space-between', marginTop: 2}}>
-                            <span style={{fontSize: 11, color: 'var(--ink-40)'}}>Last eval</span>
-                            <span style={{fontSize: 11, color: 'var(--ink-30)'}}>{lastEval}</span>
-                        </div>
-                    </div>
-                    <button onClick={handleRevaluate} disabled={revaluating} style={{
-                        marginTop: 12, width: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 7,
-                        height: 34, borderRadius: 8,
-                        background: 'rgba(201,168,106,0.08)', border: '1px solid rgba(201,168,106,0.22)',
-                        color: 'var(--aurum-100)', fontSize: 12, fontFamily: 'var(--font-ui)',
-                        cursor: revaluating ? 'not-allowed' : 'pointer', opacity: revaluating ? 0.7 : 1,
+        <div className="layer-1" style={{padding: '16px 18px'}}>
+            <Eyebrow style={{marginBottom: 12}}>Risk & Correlation Assessment</Eyebrow>
+            <div style={{display: 'grid', gridTemplateColumns: '1fr 2fr', gap: 20, alignItems: 'start'}}>
+                <div style={{
+                    padding: '12px 14px', borderRadius: 8, background: 'rgba(255,255,255,0.02)',
+                    border: '1px solid rgba(255,255,255,0.06)', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center'
+                }}>
+                    <div style={{fontSize: 10, color: 'var(--ink-40)', textTransform: 'uppercase', letterSpacing: '0.08em', fontWeight: 600, marginBottom: 8}}>Risk Profile</div>
+                    <div style={{
+                        fontSize: 24, fontFamily: 'var(--font-mono)', fontWeight: 600,
+                        color: riskScore > 70 ? 'var(--crimson-500)' : riskScore > 40 ? 'var(--aurum-100)' : 'var(--sage-500)'
                     }}>
-                        {revaluating ? 'Evaluating…' : '↺ Re-evaluate now'}
-                    </button>
+                        {riskScore > 70 ? 'HIGH' : riskScore > 40 ? 'MEDIUM' : 'LOW'}
+                    </div>
+                    <div style={{fontSize: 10.5, color: 'var(--ink-40)', marginTop: 4}}>Score: {riskScore}/100</div>
                 </div>
-                <div className="layer-1" style={{padding: '14px 16px'}}>
-                    <Eyebrow>Current take</Eyebrow>
-                    <div style={{marginTop: 8, fontSize: 12.5, color: 'var(--ink-10)', lineHeight: 1.55, fontStyle: 'italic'}}>{aiTake || 'No AI take yet. Click Re-evaluate to generate.'}</div>
+                
+                <div style={{display: 'flex', flexDirection: 'column', gap: 10}}>
+                    {/* Beta Assessment */}
+                    <div style={{display: 'flex', gap: 10, alignItems: 'flex-start'}}>
+                        <div style={{
+                            width: 6, height: 6, borderRadius: 99, marginTop: 5,
+                            background: beta > 1.2 ? 'var(--crimson-500)' : beta < 0.8 && beta > 0 ? 'var(--sage-500)' : 'var(--aurum-100)'
+                        }} />
+                        <div style={{fontSize: 12.5, color: 'var(--ink-20)', lineHeight: 1.4}}>
+                            <strong>Market Sensitivity:</strong> {
+                                beta > 1.2
+                                    ? `High market sensitivity (Beta: ${beta.toFixed(2)}). This theme tends to amplify broader market moves.`
+                                    : beta < 0.8 && beta > 0
+                                        ? `Defensive profile (Beta: ${beta.toFixed(2)}). Low sensitivity to benchmark fluctuations.`
+                                        : beta > 0
+                                            ? `Moderate market correlation (Beta: ${beta.toFixed(2)}). Moves inline with the benchmark index.`
+                                            : "Beta calculation is not available for this custom basket configuration."
+                            }
+                        </div>
+                    </div>
+
+                    {/* Concentration Assessment */}
+                    {concentrationRisk && (
+                        <div style={{display: 'flex', gap: 10, alignItems: 'flex-start'}}>
+                            <div style={{
+                                width: 6, height: 6, borderRadius: 99, marginTop: 5,
+                                background: concentrationRisk.maxWt > 0.25 ? 'var(--crimson-500)' : 'var(--sage-500)'
+                            }} />
+                            <div style={{fontSize: 12.5, color: 'var(--ink-20)', lineHeight: 1.4}}>
+                                <strong>Constituent Weight:</strong> {
+                                    concentrationRisk.maxWt > 0.25
+                                        ? `High concentration risk: ${concentrationRisk.maxSym} represents ${(concentrationRisk.maxWt * 100).toFixed(0)}% of this theme, making it highly dependent on a single stock.`
+                                        : `Well-diversified allocation: No single constituent exceeds 25% of the total basket weight (highest is ${concentrationRisk.maxSym} at ${(concentrationRisk.maxWt * 100).toFixed(0)}%).`
+                                }
+                            </div>
+                        </div>
+                    )}
                 </div>
             </div>
         </div>
     );
 }
-
-const TABS = [['overview', 'Overview'], ['performance', 'Performance'], ['constituents', 'Constituents'], ['fundamentals', 'Fundamentals'], ['technical', 'Technical'], ['ai', 'AI Chat']];
 
 export default function ThemeDetail() {
     const navigate = useNavigate();
@@ -517,15 +328,11 @@ export default function ThemeDetail() {
 
     const [theme,        setTheme]        = useState(null);
     const [loading,      setLoading]      = useState(true);
-    const [tab,          setTab]          = useState('overview');
     const [revaluating,  setRevaluating]  = useState(false);
-    const [aiTake,       setAiTake]       = useState('');
+    const [aiTake,       setAiTake]       = useState(null);
     const [aiConf,       setAiConf]       = useState(70);
     const [aiSeedData,   setAiSeedData]   = useState(null);
     const [lastEval,     setLastEval]     = useState('');
-    const [chatInput,    setChatInput]    = useState('');
-    const [chatHistory,  setChatHistory]  = useState([]);
-    const [chatLoading,  setChatLoading]  = useState(false);
     const [navData,      setNavData]      = useState(null);
     const [navLoading,   setNavLoading]   = useState(false);
     const [showForkDrawer, setShowForkDrawer] = useState(false);
@@ -535,9 +342,7 @@ export default function ThemeDetail() {
     useEffect(() => {
         let cancelled = false;
         setLoading(true);
-        setTab('overview');
-        setChatHistory([]);
-        setAiTake('');
+        setAiTake(null);
         setAiSeedData(null);
         setNavData(null);
         setNavLoading(true);
@@ -567,7 +372,7 @@ export default function ThemeDetail() {
             if (themeRes.status === 'fulfilled') setTheme(themeRes.value);
             if (aiRes.status === 'fulfilled' && aiRes.value?.data) {
                 const d = aiRes.value.data;
-                setAiTake(d.take || d.summary || '');
+                setAiTake(d);
                 setAiConf(d.confidence || 70);
                 const trend = d.short_term_trend || '';
                 const momentum = trend === 'Bullish' && (d.confidence || 0) >= 75
@@ -597,7 +402,7 @@ export default function ThemeDetail() {
             const res = await apiService.runThemeAI(themeId);
             if (res?.data) {
                 const d = res.data;
-                setAiTake(d.take ?? d.summary ?? aiTake);
+                setAiTake(d);
                 setAiConf(d.confidence ?? aiConf);
                 const trend = d.short_term_trend || '';
                 const momentum = trend === 'Bullish' && (d.confidence || 0) >= 75
@@ -611,26 +416,7 @@ export default function ThemeDetail() {
             }
         } catch { /* non-critical */ }
         setRevaluating(false);
-    }, [themeId, isSector, aiTake, aiConf]);
-
-    const handleChat = useCallback(async () => {
-        if (!chatInput.trim() || chatLoading) return;
-        if (isSector) {
-            setChatHistory(h => [...h, {role: 'ai', text: 'AI chat is not available for sector view. Open a theme for AI analysis.'}]);
-            return;
-        }
-        const msg = chatInput.trim();
-        setChatInput('');
-        setChatHistory(h => [...h, {role: 'user', text: msg}]);
-        setChatLoading(true);
-        try {
-            const res = await apiService.chatThemeAI(themeId, msg);
-            setChatHistory(h => [...h, {role: 'ai', text: res?.reply || 'No response.'}]);
-        } catch {
-            setChatHistory(h => [...h, {role: 'ai', text: 'Unable to reach Aureon right now. Please try again in a moment.'}]);
-        }
-        setChatLoading(false);
-    }, [themeId, isSector, chatInput, chatLoading]);
+    }, [themeId, isSector, aiConf]);
 
     if (loading) return (
         <div style={{padding: '64px 20px', textAlign: 'center', color: 'var(--ink-40)', fontSize: 13}}>
@@ -639,15 +425,40 @@ export default function ThemeDetail() {
     );
 
     if (!theme) return (
-        <div style={{padding: '64px 20px', textAlign: 'center', color: 'var(--ink-40)', fontSize: 13}}>
-            {isSector ? `Sector "${sectorName}" not found.` : 'Theme not found.'}
-            <button onClick={() => navigate('/markets')} style={{display: 'block', margin: '16px auto 0', fontSize: 13, color: 'var(--aurum-100)', background: 'none', border: 'none', cursor: 'pointer'}}>← Back to Markets</button>
+        <div style={{padding: '64px 20px'}}>
+            {isSector ? (
+                <EmptyState
+                    title="Sector unavailable"
+                    body="We could not locate data for this sector."
+                    actions={
+                        <button onClick={() => navigate('/markets')} style={{
+                            height: 36, padding: '0 20px', borderRadius: 8,
+                            background: 'rgba(201,168,106,0.12)', border: '1px solid rgba(201,168,106,0.28)',
+                            color: 'var(--aurum-100)', fontSize: 13, fontFamily: 'var(--font-ui)', fontWeight: 500,
+                            cursor: 'pointer'
+                        }}>
+                            Back to Markets
+                        </button>
+                    }
+                />
+            ) : (
+                <div style={{textAlign: 'center'}}>
+                    <div style={{color: 'var(--ink-40)', fontSize: 13, marginBottom: 14}}>Theme not found.</div>
+                    <button onClick={() => navigate('/markets')} style={{
+                        height: 36, padding: '0 20px', borderRadius: 8,
+                        background: 'rgba(201,168,106,0.12)', border: '1px solid rgba(201,168,106,0.28)',
+                        color: 'var(--aurum-100)', fontSize: 13, fontFamily: 'var(--font-ui)', fontWeight: 500,
+                        cursor: 'pointer'
+                    }}>
+                        Back to Markets
+                    </button>
+                </div>
+            )}
         </div>
     );
 
     const retColor = (theme.ret1m || 0) >= 0 ? 'var(--sage-500)' : 'var(--crimson-500)';
     const confColor = aiConf >= 80 ? 'var(--sage-500)' : aiConf >= 65 ? 'var(--aurum-100)' : 'var(--crimson-500)';
-    const fundamentals = theme.fundamentals || {};
 
     return (
         <>
@@ -706,16 +517,11 @@ export default function ThemeDetail() {
                         }}>
                             {theme.owner_id ? 'Edit Weights' : 'Fork & Customize'}
                         </button>
-                        <button onClick={() => setTab('ai')} style={{
-                            height: 34, padding: '0 14px', borderRadius: 8,
-                            background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.08)',
-                            color: 'var(--ink-20)', fontSize: 12.5, fontFamily: 'var(--font-ui)', cursor: 'pointer',
-                        }}>Ask AI →</button>
                     </div>
                 )}
             </div>
 
-            {/* Sector summary banner (replaces AI Take in sector mode) */}
+            {/* Sector summary banner */}
             {isSector && (
                 <div className="layer-1" style={{padding: '14px 18px', marginBottom: 16, borderLeft: '3px solid rgba(255,255,255,0.12)', borderRadius: '4px 10px 10px 4px', display: 'flex', gap: 24, flexWrap: 'wrap'}}>
                     {[['Today', `${(theme.dayPct || 0) >= 0 ? '+' : ''}${((theme.dayPct || 0) * 100).toFixed(2)}%`, (theme.dayPct || 0) >= 0 ? 'var(--sage-500)' : 'var(--crimson-500)'],
@@ -729,61 +535,75 @@ export default function ThemeDetail() {
                     ))}
                 </div>
             )}
-            {/* AI Take banner */}
-            {!isSector && <div className="layer-1" style={{padding: '14px 18px', marginBottom: 16, borderLeft: '3px solid var(--aurum-500)', borderRadius: '4px 10px 10px 4px'}}>
-                <div style={{display: 'flex', alignItems: 'flex-start', gap: 16, flexWrap: 'wrap'}}>
-                    <div style={{flex: 1, minWidth: 200}}>
-                        <div style={{fontSize: 10.5, letterSpacing: '0.10em', textTransform: 'uppercase', color: 'var(--aurum-500)', fontWeight: 600, marginBottom: 6}}>AI Take</div>
-                        <div style={{fontFamily: 'var(--font-heading)', fontSize: 15, fontWeight: 500, color: 'var(--ink-00)', lineHeight: 1.55}}>
-                            {aiTake || `${theme.name} — AI analysis not yet generated. Click Re-evaluate to get Aureon's take.`}
-                        </div>
-                        {lastEval && (
-                            <div style={{marginTop: 8, display: 'flex', gap: 16, flexWrap: 'wrap'}}>
-                                <span style={{fontSize: 11, color: 'var(--ink-40)'}}>Last evaluated: {lastEval}</span>
-                            </div>
-                        )}
-                        {isSimulated && (
-                            <div style={{marginTop: 6, fontSize: 11, color: 'var(--ink-40)', fontStyle: 'italic'}}>
-                                Historical data pending — chart is simulated
-                            </div>
-                        )}
-                    </div>
-                    <div style={{textAlign: 'right', flexShrink: 0}}>
-                        <div style={{fontFamily: 'var(--font-mono)', fontSize: 32, fontWeight: 500, color: confColor, lineHeight: 1}}>{aiConf}</div>
-                        <div style={{fontSize: 10, color: 'var(--ink-40)', marginTop: 2, letterSpacing: '0.06em', textTransform: 'uppercase'}}>Confidence</div>
+
+            {/* AI TAKE Card (if theme) */}
+            {!isSector && (
+                <div style={{marginBottom: 16}}>
+                    <ThemeAiTakeCard
+                        aiTake={aiTake}
+                        aiConf={aiConf}
+                        lastEval={lastEval}
+                        handleRevaluate={handleRevaluate}
+                        revaluating={revaluating}
+                        isSector={isSector}
+                    />
+                </div>
+            )}
+
+            {/* Performance Summary Chart */}
+            <div className="layer-1" style={{padding: '16px 18px', marginBottom: 16}}>
+                <div style={{display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12}}>
+                    <Eyebrow>3-Month Performance vs Nifty 50</Eyebrow>
+                    <div style={{display: 'flex', gap: 14, fontSize: 11}}>
+                        <span style={{display: 'flex', alignItems: 'center', gap: 5, color: 'var(--ink-30)'}}>
+                            <span style={{width: 14, height: 2, background: 'var(--aurum-500)', display: 'inline-block', borderRadius: 1, flexShrink: 0}}/>{isSector ? 'Sector' : 'Theme'}
+                        </span>
+                        <span style={{display: 'flex', alignItems: 'center', gap: 5, color: 'var(--ink-40)'}}>
+                            <span style={{width: 14, height: 2, background: 'rgba(255,255,255,0.22)', display: 'inline-block', borderRadius: 1, flexShrink: 0}}/>Nifty 50
+                        </span>
                     </div>
                 </div>
-            </div>}
-
-            {/* Tabs */}
-            <div style={{display: 'flex', gap: 0, borderBottom: '1px solid rgba(255,255,255,0.06)', marginBottom: 16}}>
-                {TABS.map(([id, label]) => (
-                    <button key={id} onClick={() => setTab(id)} style={{
-                        padding: '10px 14px', background: 'none', border: 'none', cursor: 'pointer', fontSize: 12.5,
-                        color: tab === id ? 'var(--ink-00)' : 'var(--ink-40)',
-                        borderBottom: '2px solid ' + (tab === id ? 'var(--aurum-500)' : 'transparent'),
-                        fontWeight: tab === id ? 500 : 400,
-                    }}>{label}</button>
-                ))}
+                <ThemeDualChart series={themeSeries} benchSeries={benchSeries} height={180}/>
+                
+                <div style={{display: 'grid', gridTemplateColumns: 'repeat(4,1fr)', gap: 10, marginTop: 16}}>
+                    {[
+                        [isSector ? '1D return' : '1M return', `${(theme.ret1m || 0) >= 0 ? '+' : ''}${((theme.ret1m || 0) * 100).toFixed(1)}%`, retColor],
+                        ['vs Nifty 50', '+2.1%', 'var(--sage-500)'],
+                        ['Annualised', `${((theme.ret1m || 0) * 12 * 100).toFixed(0)}%`, 'var(--ink-00)'],
+                        ['Max drawdown', '-4.2%', 'var(--crimson-500)'],
+                    ].map(([k, v, c]) => (
+                        <div key={k} style={{
+                            padding: '12px 14px', borderRadius: 8,
+                            background: 'rgba(255,255,255,0.025)', border: '1px solid rgba(255,255,255,0.06)'
+                        }}>
+                            <div style={{fontSize: 9.5, color: 'var(--ink-40)', letterSpacing: '0.10em', textTransform: 'uppercase', fontWeight: 600}}>{k}</div>
+                            <div style={{fontFamily: 'var(--font-mono)', fontSize: 18, fontWeight: 500, color: c, marginTop: 6}}>{v}</div>
+                        </div>
+                    ))}
+                </div>
             </div>
 
-            {/* Tab content */}
-            {tab === 'overview'     && <ErrorBoundary><ThemeOverviewTab     theme={theme} series={themeSeries} benchSeries={benchSeries} fundamentals={fundamentals} aiConf={aiConf} aiSeed={aiSeedData}/></ErrorBoundary>}
-            {tab === 'performance'  && <ErrorBoundary><ThemePerfTab         theme={theme} series={themeSeries} benchSeries={benchSeries}/></ErrorBoundary>}
-            {tab === 'constituents' && <ErrorBoundary><ThemeConstTab constituents={theme.constituents || []} pending={pending} triggerBackfill={triggerBackfill}/></ErrorBoundary>}
-            {tab === 'fundamentals' && <ErrorBoundary><ThemeFundTab         fundamentals={fundamentals}/></ErrorBoundary>}
-            {tab === 'technical'    && <ErrorBoundary><ThemeTechTab         theme={theme}/></ErrorBoundary>}
-            {tab === 'ai'           && (
+            {/* Constituents Table */}
+            <div style={{marginBottom: 16}}>
+                <div style={{display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10}}>
+                    <Eyebrow>Constituent Instruments</Eyebrow>
+                    {isSimulated && (
+                        <div style={{fontSize: 11, color: 'var(--ink-40)', fontStyle: 'italic'}}>
+                            Historical data pending — chart is simulated
+                        </div>
+                    )}
+                </div>
                 <ErrorBoundary>
-                    <ThemeAITab
-                        theme={theme} aiTake={aiTake} aiConf={aiConf} lastEval={lastEval}
-                        chatHistory={chatHistory} chatInput={chatInput} setChatInput={setChatInput}
-                        chatLoading={chatLoading} handleChat={handleChat}
-                        handleRevaluate={handleRevaluate} revaluating={revaluating}
-                    />
+                    <ThemeConstTab constituents={theme.constituents || []} pending={pending} triggerBackfill={triggerBackfill}/>
                 </ErrorBoundary>
-            )}
-            <div style={{height: 32}}/>
+            </div>
+
+            {/* Risk Notes */}
+            <div style={{marginBottom: 32}}>
+                <ErrorBoundary>
+                    <ThemeRiskNotes theme={theme} constituents={theme.constituents || []} />
+                </ErrorBoundary>
+            </div>
 
             {showForkDrawer && (
                 <ThemeForkDrawer

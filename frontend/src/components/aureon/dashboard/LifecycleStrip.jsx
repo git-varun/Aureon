@@ -16,13 +16,19 @@ export const LifecycleStrip = ({signalCount, appliedToday}) => {
     const activeIdx = stages.findIndex(st => st.active);
     const activeSt  = stages[activeIdx] ?? stages[0];
 
+    const ROUTE_MAP = {
+        signals:         '/decisions?tab=signals',
+        recommendations: '/decisions?tab=recommendations',
+        activity:        '/decisions?tab=activity',
+    };
+
     return (
         <>
             <div className={s.strip} style={{gridTemplateColumns: `repeat(${stages.length},1fr)`}}>
                 {stages.map((stage, i) => (
                     <button
                         key={stage.k}
-                        onClick={() => navigate('/' + stage.route)}
+                        onClick={() => navigate(ROUTE_MAP[stage.route] || '/' + stage.route)}
                         className={`${s.stage}${stage.active ? ' step-active' : ''}`}
                         style={stage.active ? {borderColor: 'rgba(201,168,106,0.30)'} : undefined}
                     >

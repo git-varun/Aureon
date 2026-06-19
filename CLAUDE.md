@@ -5,34 +5,34 @@ Aureon is a personal portfolio management platform covering equities (Zerodha/Gr
    
  classes. It has a FastAPI backend, React/Vite frontend, PostgreSQL database, Redis cache, and Celery task queue backed  
    
- by RabbitMQ.  
+ by Redis.  
 **Project layout**  
 investment-os/  
- ├── backend/          # FastAPI app, Celery tasks, tests  
- │   ├── app/  
- │   ├── tests/  
- │   ├── scripts/      # DB init SQL  
- │   ├── Dockerfile  
- │   └── requirements.txt  
- ├── frontend/         # React/Vite SPA  
- ├── data/             # Runtime data (smart_cache) — mounted into Docker  
- ├── logs/             # Runtime logs — mounted into Docker  
- ├── .env              # Env vars (read by docker-compose and local dev)  
- └── docker-compose.yml  
-   
+  ├── backend/          # FastAPI app, Celery workers, tests  
+  │   ├── app/  
+  │   ├── tests/  
+  │   ├── scripts/      # DB init SQL  
+  │   ├── Dockerfile  
+  │   └── requirements.txt  
+  ├── frontend/         # React/Vite SPA  
+  ├── data/             # Runtime data (smart_cache) — mounted into Docker  
+  ├── logs/             # Runtime logs — mounted into Docker  
+  ├── .env              # Env vars (read by docker-compose and local dev)  
+  └── docker-compose.yml  
+  
 **Commands**  
 **Backend (run from project root)**  
 # Run API server (development — enable docs with ENABLE_API_DOCS=true)  
- PYTHONPATH=backend uvicorn app.main:app --host 0.0.0.0 --port 8001 --reload  
-   
- # Run Celery worker (requires broker)  
- PYTHONPATH=backend celery -A app.core.celery_app worker --loglevel=info  
-   
- # Run Celery beat scheduler  
- PYTHONPATH=backend celery -A app.core.celery_app beat --loglevel=info  
-   
- # Run all tests  
- pytest backend/  
+  PYTHONPATH=backend uvicorn app.api.main:app --host 0.0.0.0 --port 8001 --reload  
+  
+  # Run Celery worker  
+  PYTHONPATH=backend celery -A app.workers.celery_app worker --loglevel=info  
+  
+  # Run Celery beat scheduler  
+  PYTHONPATH=backend celery -A app.workers.celery_app beat --loglevel=info  
+  
+  # Run all tests  
+  pytest backend/  
    
  # Run a single test file  
  pytest backend/tests/core/test_config.py  
@@ -51,15 +51,14 @@ investment-os/
  ./scripts/migrate.sh upgrade                       # apply pending migrations  
  ./scripts/migrate.sh downgrade                     # roll back one step  
  ./scripts/migrate.sh current                       # show current DB revision  
- ./scripts/migrate.sh history                       # full migration history  
+ ./scripts/migrate.sh history                      # full migration history  
    
  # Direct alembic commands (from backend/)  
  alembic revision --autogenerate -m "description"  
  alembic upgrade head  
  alembic downgrade -1  
- alembic stamp head  # mark existing install as current without running migrations  
-   
-***Rule:*** * Never add new statements to * *db_patcher.py* *. All schema changes go through Alembic revisions.*  
+ alembic stamp head  # mark existing install as current without running migrations  
+  
 **Frontend**  
 cd frontend  
  npm run dev      # dev server at http://localhost:3000  
@@ -84,7 +83,6 @@ Modules: analytics, assets, auth, backtesting, config, news, notification, pipel
 - config.py — Pydantic-Settings singleton (settings); reads .env from project root. PostgreSQL is mandatory.  
 - db.py — SQLAlchemy engine + SessionLocal + Base. Tables are created at startup via Base.metadata.create_all().  
 - cache.py — Redis CacheManager singleton (cache). Silently degrades to no-op when Redis is unavailable.  
-- celery_app.py — Celery app. Falls back to task_always_eager=True when broker/backend env vars are absent (useful for local dev without RabbitMQ).  
 - dependencies.py — FastAPI dependency functions (get_session, get_cache, get_current_user).  
 - logger.py — Structured logger with correlation ID via contextvars.  
 - security.py — JWT creation and verification.  
@@ -93,20 +91,18 @@ Modules: analytics, assets, auth, backtesting, config, news, notification, pipel
 - constants.py — Enums: AssetType, TransactionType.  
 - interfaces.py — Abstract base classes (e.g., AIModel).  
 - utils.py, quant.py, fundamentals.py — Shared computation helpers.  
-**Async pipeline (**app/tasks/ **)**  
-Celery tasks in portfolio.py, signals.py, news.py, ai.py, pipeline.py. Beat schedule (in celery_app.py) runs:  
-- **Daily pipeline** — weekdays 09:00 IST  
-- **Price refresh** — every 15 min, 09:00–15:00 IST weekdays  
-- **Morning AI briefing** — 07:00 IST daily  
+**Async workers (**app/workers/ **)**  
+- celery_app.py — Celery application configuration, task routes, and beat schedule. Reads Redis broker/backend configuration from REDIS_URL.
+- ingestion/tasks.py, snapshots/tasks.py, evaluation/tasks.py — Background workloads run by Celery.
 **AI service (**app/modules/analytics/ai_service.py **)**  
 Multi-model fallback chain: Gemini (4 models) → Groq (2 models). On HTTP 429 a model is cooled down and the next is tried automatically. All AI results are stored in the AIBriefing table and also cached in Redis.  
 **Key composite endpoint**  
-GET /api/state — the frontend's primary data source. Returns portfolio positions joined with technical indicators, signals, recent news, and the latest AI briefing in a single response. Located inline in app/main.py.  
+GET /api/state — the frontend's primary data source. Returns portfolio positions joined with technical indicators, signals, recent news, and the latest AI briefing in a single response. Located inline in app/api/main.py.  
 **Frontend (**frontend/ **)**  
 React + Vite SPA. API calls are in frontend/src/api/. Components are under frontend/src/components/. The dev proxy is configured in vite.config.js to forward /api/* to the FastAPI server.  
 **Configuration**  
-Copy .env.example to .env. Required: DATABASE_URL (must be postgresql://...). Optional but needed for full functionality: REDIS_URL, CELERY_BROKER_URL, CELERY_RESULT_BACKEND, GEMINI_API_KEY, broker credentials (BINANCE_*, ZERODHA_*, GROWW_*).  
-Without Redis/RabbitMQ the app still runs: cache is a no-op and Celery runs tasks eagerly in-process.  
+Copy .env.example to .env. Required: DATABASE_URL (must be postgresql://...), REDIS_URL. Optional but needed for full functionality: GEMINI_API_KEY, broker credentials (BINANCE_*, ZERODHA_*, GROWW_*).  
+Without Redis the app will fail startup checks as Redis is required for worker coordination and cache operations.  
 **Adding a New Module**  
 1. Create app/modules/<name>/ with __init__.py, models.py, schemas.py, services.py, routes.py.  
 2. Import the model in register_models() in app/main.py.  

@@ -15,7 +15,11 @@ const REGIONS = [
     {k: 'BOTH', label: 'Both', sym: '₹·$'},
 ];
 
+import {useSearchParams} from 'react-router-dom';
+
 export default function SignUpScreen({onGoSignIn, onSuccess}) {
+    const [searchParams] = useSearchParams();
+    const token = searchParams.get('token') || '';
     const [name, setName] = useState('');
     const [email, setEmail] = useState('');
     const [password, setPassword] = useState('');
@@ -39,7 +43,7 @@ export default function SignUpScreen({onGoSignIn, onSuccess}) {
         setLoading(true);
         const [first, ...rest] = name.trim().split(' ');
         try {
-            const data = await apiService.register(email, password, first, rest.join(' '));
+            const data = await apiService.register(email, password, first, rest.join(' '), token);
             storeTokens(data, name);
             onSuccess(data.is_new_user ?? true);
         } catch (err) {
@@ -48,6 +52,7 @@ export default function SignUpScreen({onGoSignIn, onSuccess}) {
             setLoading(false);
         }
     };
+
 
     return (
         <AuthShell variant="split">

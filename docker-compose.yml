@@ -3,9 +3,9 @@ x-backend-common: &backend-common
     context: ./backend
   env_file: .env
   environment: &backend-env
-    DATABASE_URL: postgresql://${POSTGRES_USER}:${POSTGRES_PASSWORD}@aureon-db:5432/${POSTGRES_DB:-aureon}
+    DATABASE_URL: postgresql+psycopg://${POSTGRES_USER}:${POSTGRES_PASSWORD}@aureon-db:5432/${POSTGRES_DB:-aureon}
     REDIS_URL: redis://redis:6379/0
-    CELERY_BROKER_URL: amqp://${RABBITMQ_USER}:${RABBITMQ_PASS}@rabbitmq:5672//
+    CELERY_BROKER_URL: redis://redis:6379/0
     CELERY_RESULT_BACKEND: redis://redis:6379/1
     FAST2SMS_API_KEY: ${FAST2SMS_API_KEY}
     PYTHONUNBUFFERED: "1"
@@ -18,8 +18,6 @@ x-backend-common: &backend-common
     aureon-db:
       condition: service_healthy
     redis:
-      condition: service_healthy
-    rabbitmq:
       condition: service_healthy
   networks:
     - aureon_network
@@ -78,37 +76,14 @@ services:
         max-size: "10m"
         max-file: "3"
 
-  rabbitmq:
-    image: rabbitmq:3.13-management-alpine
-    container_name: aureon_rabbitmq
-    environment:
-      RABBITMQ_DEFAULT_USER: ${RABBITMQ_USER}
-      RABBITMQ_DEFAULT_PASS: ${RABBITMQ_PASS}
-    ports:
-      - "15672:15672"
-    volumes:
-      - rabbitmq_data:/var/lib/rabbitmq
-    healthcheck:
-      test: ["CMD", "rabbitmq-diagnostics", "-q", "ping"]
-      interval: 10s
-      timeout: 5s
-      retries: 5
-    networks:
-      - aureon_network
-    logging:
-      driver: "json-file"
-      options:
-        max-size: "10m"
-        max-file: "3"
-
   api:
     <<: *backend-common
     container_name: aureon_api
     ports:
       - "${API_PORT:-8001}:8001"
-    command: uvicorn app.main:app --host 0.0.0.0 --port 8001 --workers 2
+    command: uvicorn app.api.main:app --host 0.0.0.0 --port 8001 --workers 2
     healthcheck:
-      test: [ "CMD", "curl", "-f", "http://localhost:8001/health/ready" ]
+      test: [ "CMD", "curl", "-f", "http://localhost:8001/api/v1/health" ]
       interval: 30s
       timeout: 10s
       start_period: 40s
@@ -117,12 +92,12 @@ services:
   celery_worker:
     <<: *backend-common
     container_name: aureon_worker
-    command: celery -A app.core.celery_app worker --loglevel=info --concurrency=4 -Q celery,price-queue,ai-queue,pipeline-queue
+    command: celery -A app.workers.celery_app worker --loglevel=info --concurrency=4
 
   celery_beat:
     <<: *backend-common
     container_name: aureon_celery_beat
-    command: celery -A app.core.celery_app beat --loglevel=info --schedule=/app/data/celerybeat-schedule
+    command: celery -A app.workers.celery_app beat --loglevel=info --schedule=/app/data/celerybeat-schedule
 
   frontend:
     image: node:22-alpine
@@ -153,7 +128,6 @@ services:
 volumes:
   postgres_data:
   redis_data:
-  rabbitmq_data:
 
 networks:
   aureon_network:

@@ -1,5 +1,6 @@
 import React, {useState} from 'react';
 import {Eyebrow, SectionHead} from '../ui';
+import {EmptyState} from '../ds';
 
 const RISK_COLOR = {
     LOW: 'var(--sage-500)',
@@ -34,30 +35,17 @@ function Pill({label, color}) {
     );
 }
 
-function AIBriefingEmpty() {
-    return (
-        <>
-            <SectionHead eyebrow="Aureon Intelligence · AI generated" title="Market briefing"/>
-            <div className="layer-1" style={{
-                padding: '40px 24px', display: 'flex', flexDirection: 'column',
-                alignItems: 'center', gap: 14, textAlign: 'center',
-            }}>
-                <svg width="36" height="36" viewBox="0 0 24 24" fill="none" stroke="var(--aurum-500)" strokeWidth="1.2" strokeLinecap="round" strokeLinejoin="round" style={{opacity: 0.6}}>
-                    <path d="M12 2a10 10 0 1 0 10 10"/><path d="M12 8v4l2 2"/><path d="M18 2v4h4"/>
-                </svg>
-                <div style={{fontSize: 14, color: 'var(--ink-10)', fontWeight: 500}}>No briefing yet today</div>
-                <div style={{fontSize: 12, color: 'var(--ink-40)', maxWidth: 380, lineHeight: 1.7}}>
-                    Aureon generates a daily AI briefing at 07:00 IST — synthesising your portfolio, macro conditions, and overnight news into a structured read.
-                    Trigger one now via <strong style={{color: 'var(--ink-20)'}}>Run → Run AI briefing</strong>.
-                </div>
-            </div>
-        </>
-    );
-}
-
 export function AIBriefingSection({briefing}) {
     const [expanded, setExpanded] = useState(false);
-    if (!briefing) return <AIBriefingEmpty/>;
+    if (!briefing) return (
+        <>
+            <SectionHead eyebrow="Aureon Intelligence · AI generated" title="Market briefing"/>
+            <EmptyState
+                title="No briefing yet today"
+                body={<>Aureon generates a daily AI briefing at 07:00 IST — synthesising your portfolio, macro conditions, and overnight news into a structured read. Trigger one now via <strong style={{color: 'var(--ink-20)'}}>Run → Run AI briefing</strong>.</>}
+            />
+        </>
+    );
 
     const {market_vibe, macro_analysis, global_score, future_projections, directives} = briefing;
     const riskLevel = future_projections?.portfolio_risk_level;

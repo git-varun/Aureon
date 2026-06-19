@@ -1,6 +1,6 @@
 import React, {useEffect, useState} from 'react';
-import {Eyebrow} from '@/components/aureon/ui';
 import {apiService} from '@/api/apiService';
+import {PageHeader} from '../../components/aureon/ds';
 
 const relativeTime = (ts) => {
     const diff = Date.now() - new Date(ts).getTime();
@@ -108,24 +108,18 @@ export default function Notifications() {
 
     return (
         <div style={{paddingBottom: 40}}>
-            <div style={{display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', marginBottom: 20}}>
-                <div>
-                    <Eyebrow>Inbox</Eyebrow>
-                    <h2 style={{margin: '4px 0 0', fontFamily: 'var(--font-heading)', fontSize: 22, fontWeight: 600, color: 'var(--ink-00)', letterSpacing: '-0.015em'}}>
-                        Notifications
-                    </h2>
-                    <p style={{margin: '6px 0 0', fontSize: 12, color: 'var(--ink-40)'}}>
-                        {unread.length > 0
-                            ? <><b style={{fontFamily: 'var(--font-mono)', fontWeight: 500, color: 'var(--ink-10)'}}>{unread.length}</b> unread · auto-poll 30s</>
-                            : 'All caught up · auto-poll 30s'}
-                    </p>
-                </div>
-                {unread.length > 0 && (
+            <PageHeader
+                eyebrow="Inbox"
+                title="Notifications"
+                meta={unread.length > 0
+                    ? <><b style={{fontFamily: 'var(--font-mono)', fontWeight: 500, color: 'var(--ink-10)'}}>{unread.length}</b> unread · auto-poll 30s</>
+                    : 'All caught up · auto-poll 30s'}
+                actions={unread.length > 0 && (
                     <button onClick={markAllRead} className="du3-cta" style={{height: 32, padding: '0 14px', fontSize: 12, flexShrink: 0}}>
                         Mark all read
                     </button>
                 )}
-            </div>
+            />
 
             <div className="layer-1" style={{padding: 0, overflow: 'hidden'}}>
                 {loading && (

@@ -11,10 +11,11 @@
 
 .value {
     font-family: var(--font-mono);
-    font-size: 16px;
+    font-size: 20px;
     font-weight: 600;
     color: var(--ink-00);
-    margin-bottom: 4px;
+    margin-bottom: 5px;
+    line-height: 1.1;
 }
 
 .track {
@@ -22,7 +23,8 @@
     border-radius: 2px;
     background: rgba(255, 255, 255, 0.06);
     position: relative;
-    width: 100px;
+    width: 100%;
+    max-width: 140px;
 }
 
 .fill {

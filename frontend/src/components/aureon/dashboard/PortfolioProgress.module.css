@@ -57,6 +57,17 @@
     flex: 1;
 }
 
+.headerStats {
+    display: flex;
+    gap: 20px;
+    align-items: center;
+}
+
+.headerSparkline {
+    display: inline-flex;
+    align-items: center;
+}
+
 .chevron {
     display: inline-flex;
     align-items: center;
@@ -73,6 +84,21 @@
     transform: rotate(180deg);
 }
 
+/* CSS Grid accordion — no JS height calculations */
+.bodyWrap {
+    display: grid;
+    grid-template-rows: 0fr;
+    transition: grid-template-rows 240ms var(--ease-decel, cubic-bezier(0.0, 0.0, 0.2, 1));
+}
+
+.bodyWrapOpen {
+    grid-template-rows: 1fr;
+}
+
+.bodyInner {
+    overflow: hidden;
+}
+
 .body {
     margin-top: 8px;
     padding: 18px 20px;
@@ -81,45 +107,65 @@
     border-radius: 10px;
 }
 
-.badge {
-    font-size: 12px;
-    font-weight: 600;
-    letter-spacing: -0.01em;
-    margin-right: 8px;
-}
-
-.loader {
-    font-size: 12px;
-    color: var(--ink-30);
-    padding: 16px 0;
-    text-align: center;
-}
-
-.meta {
+/* Tab + range bar */
+.tabBar {
     display: flex;
     align-items: center;
     gap: 8px;
-    margin-bottom: 14px;
+    margin-bottom: 18px;
     flex-wrap: wrap;
 }
 
-.metaLabel {
-    font-size: 11px;
-    color: var(--ink-40);
+.tabGroup {
+    display: flex;
+    gap: 4px;
+    padding: 3px;
+    border-radius: 8px;
+    background: rgba(0, 0, 0, 0.20);
+    border: 1px solid rgba(255, 255, 255, 0.05);
 }
 
-.metaVal {
+.tabBtn {
+    padding: 6px 14px;
     font-size: 12px;
-    font-weight: 600;
-    color: var(--ink-10);
-    letter-spacing: -0.01em;
+    border-radius: 5px;
+    cursor: pointer;
+    border: none;
+    background: transparent;
+    color: var(--ink-30);
+    font-weight: 400;
+    transition: background 120ms, color 120ms;
 }
 
-.metaSep {
-    color: var(--ink-50);
+.tabBtnActive {
+    background: rgba(201, 168, 106, 0.14);
+    color: var(--aurum-100);
+    font-weight: 500;
+}
+
+.rangeGroup {
+    display: flex;
+    gap: 0;
+}
+
+.rangeBtn {
+    padding: 4px 10px;
     font-size: 11px;
+    font-family: var(--font-mono);
+    background: transparent;
+    color: var(--ink-30);
+    border: none;
+    cursor: pointer;
+    border-radius: 4px;
+    transition: background 120ms, color 120ms;
 }
 
+.rangeBtnActive {
+    background: rgba(201, 168, 106, 0.12);
+    color: var(--aurum-100);
+}
+
+/* Chart container */
 .chart {
     width: 100%;
     overflow: hidden;
@@ -132,4 +178,66 @@
     margin-top: 6px;
     font-size: 10px;
     color: var(--ink-50);
+}
+
+/* Net Worth tab — 2-column grid */
+.netGrid {
+    display: grid;
+    grid-template-columns: 2.2fr 1fr;
+    gap: 24px;
+}
+
+/* Benchmark stats — 4-column grid */
+.benchStats {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 10px;
+    margin-top: 14px;
+}
+
+/* Skeleton loading */
+@keyframes skeletonPulse {
+    0%, 100% { opacity: 0.4; }
+    50% { opacity: 0.8; }
+}
+
+.skeleton {
+    background: rgba(255, 255, 255, 0.06);
+    border-radius: 6px;
+    animation: skeletonPulse 1.4s ease-in-out infinite;
+}
+
+/* Responsive */
+@media (max-width: 767px) {
+    .netGrid {
+        grid-template-columns: 1fr;
+    }
+
+    .benchStats {
+        grid-template-columns: repeat(2, 1fr);
+    }
+
+    .headerSparkline {
+        display: none;
+    }
+}
+
+@media (min-width: 768px) and (max-width: 1023px) {
+    .netGrid {
+        grid-template-columns: 1.6fr 1fr;
+    }
+
+    .benchStats {
+        grid-template-columns: repeat(4, 1fr);
+    }
+}
+
+@media (min-width: 1024px) {
+    .netGrid {
+        grid-template-columns: 2.2fr 1fr;
+    }
+
+    .benchStats {
+        grid-template-columns: repeat(4, 1fr);
+    }
 }

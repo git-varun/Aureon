@@ -238,10 +238,11 @@ export const DataTable = ({columns, rows, onRowClick, emptyState}) => {
 };
 
 /* ── Tabs ───────────────────────────────────────────────────── */
-export const Tabs = ({tabs, active, onChange}) => (
+export const Tabs = ({tabs, active, onChange, standalone = true}) => (
     <div style={{
-        display: 'flex', gap: 2, borderBottom: '1px solid rgba(255,255,255,0.07)',
-        marginBottom: 20,
+        display: 'flex', gap: 2,
+        borderBottom: standalone ? '1px solid rgba(255,255,255,0.07)' : 'none',
+        marginBottom: standalone ? 20 : 0,
     }}>
         {tabs.map(tab => (
             <button
@@ -276,11 +277,14 @@ export const Tabs = ({tabs, active, onChange}) => (
 export const FilterBar = ({options, value, onChange}) => (
     <div style={{display: 'flex', gap: 4, flexWrap: 'wrap'}}>
         {options.map(opt => {
-            const active = opt === value;
+            const isObj = typeof opt === 'object' && opt !== null;
+            const optVal = isObj ? opt.value : opt;
+            const optLabel = isObj ? opt.label : opt;
+            const active = optVal === value;
             return (
                 <button
-                    key={opt}
-                    onClick={() => onChange(opt)}
+                    key={optVal}
+                    onClick={() => onChange(optVal)}
                     style={{
                         padding: '5px 11px', fontSize: 12, borderRadius: 5, cursor: 'pointer',
                         fontFamily: 'var(--font-ui)',
@@ -290,7 +294,7 @@ export const FilterBar = ({options, value, onChange}) => (
                         transition: 'background 100ms, color 100ms',
                     }}
                 >
-                    {opt}
+                    {optLabel}
                 </button>
             );
         })}
