@@ -116,16 +116,21 @@ function RecNode({ rec }) {
     );
 }
 
-function OutcomeNode({ outcome }) {
+function OutcomeNode({ outcome, rec }) {
     if (!outcome) {
         return (
             <>
                 <div style={{ fontSize: 12.5, color: 'var(--ink-10)', fontWeight: 600 }}>
                     Awaiting your decision
                 </div>
-                <div style={{ color: 'var(--ink-30)', fontFamily: 'monospace', fontSize: 11, marginTop: 3 }}>
-                    expected —
+                <div style={{ fontSize: 11, color: 'var(--ink-30)', fontFamily: 'var(--font-mono)', marginTop: 3 }}>
+                    expected {rec.impact?.ret?.delta || '—'}
                 </div>
+                {rec.impact?.ret?.horizon && rec.impact.ret.horizon !== '—' && (
+                    <div style={{ fontSize: 10.5, color: 'var(--ink-40)', marginTop: 2 }}>
+                        over {rec.impact.ret.horizon}
+                    </div>
+                )}
             </>
         );
     }
@@ -215,7 +220,7 @@ function DecisionLineageInline({ rec }) {
                 </Node>
                 <Arrow />
                 <Node kicker="Outcome" accent={outcomeAccent}>
-                    <OutcomeNode outcome={outcome} />
+                    <OutcomeNode outcome={outcome} rec={rec} />
                 </Node>
             </div>
         </div>
