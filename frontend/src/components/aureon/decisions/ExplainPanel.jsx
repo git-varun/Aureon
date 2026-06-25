@@ -4,7 +4,7 @@ import RecStatusBadge from './RecCard/RecStatusBadge.jsx';
 import RecSupportingSignals from './RecCard/RecSupportingSignals.jsx';
 import RecPrediction from './RecCard/RecPrediction.jsx';
 import DecisionLineageInline from './DecisionLineageInline.jsx';
-import { ConfidenceIndicator, ReasoningList, ImpactPreviewPanel } from '@/components/aureon/primitives.jsx';
+import { ConfidenceIndicator, ImpactPreviewPanel } from '@/components/aureon/primitives.jsx';
 
 function Section({ label, children }) {
   return (
