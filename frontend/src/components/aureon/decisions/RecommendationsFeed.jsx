@@ -1,8 +1,7 @@
 /* Aureon — RecommendationsFeed: active, snoozed, basket, applied, dismissed sections. */
 import React, { useState, useEffect } from 'react';
 import { useApp } from '@/components/aureon/store';
-import { band } from '@/components/aureon/utils';
-import { needsModal } from '@/components/aureon/utils';
+import { band, needsModal } from '@/components/aureon/utils';
 import { useFmtMoney } from '@/hooks/useFmtMoney';
 import RecCard from './RecCard';
 import CalibrationStrip from './CalibrationStrip';
@@ -156,7 +155,7 @@ const CollapsibleSection = ({ title, count, children }) => {
 };
 
 /* ─── RecommendationsFeed ─── */
-export default function RecommendationsFeed({ tabState, onRetry, onExplain, onViewLineage, onOpenModal, onGoToBriefings }) {
+export default function RecommendationsFeed({ tabState, onRetry, onExplain, onViewLineage, onOpenModal, onGoToBriefings, onGoToSignals }) {
   const { allRecs, active, applied, dismissed, apply, dismiss, undo, applyBatch } = useApp();
 
   const [filterStrength, setFilterStrength] = useState('all');
@@ -301,7 +300,7 @@ export default function RecommendationsFeed({ tabState, onRetry, onExplain, onVi
               Run AI briefing
             </button>
             <button
-              onClick={onGoToBriefings}
+              onClick={onGoToSignals}
               style={{
                 height: 32, padding: '0 14px', borderRadius: 7, cursor: 'pointer',
                 background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.08)',
