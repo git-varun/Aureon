@@ -1,345 +1,122 @@
-import React, {useState, useEffect, useRef, useMemo} from 'react';
-import {useQuery} from '@tanstack/react-query';
-import {apiService} from '../../../api/apiService';
-import {Empty} from '../ui';
-import {useAureonData} from '../../../hooks/useAureonData';
-import {useFmtMoney} from '../../../hooks/useFmtMoney';
-import s from './PortfolioProgress.module.css';
+// frontend/src/components/aureon/dashboard/PortfolioProgress.jsx
+import React, { useState } from 'react';
+import { Sk, Cerr } from '../ui';
+import { Sparkline } from '../ui';
+import { PortfolioHistoryChart } from './PortfolioHistoryChart';
+import { useFmtMoney } from '@/hooks/useFmtMoney';
 
-const RANGE_DAYS = {'1M': 30, '3M': 90, '6M': 180, '1Y': 365, 'ALL': 1825};
-
-const CLASS_COLOR = {
-    stocks: '#C9A86A', funds: '#D4B888', bonds: '#7AA8D4',
-    crypto: '#D4A257', real_estate: '#6FAE88', retirement: '#8A909B', insurance: '#4B4F57',
-};
-const CLASS_ORDER = ['stocks', 'funds', 'bonds', 'crypto', 'real_estate', 'retirement', 'insurance'];
-const CLASS_LABEL = {stocks: 'Stocks', funds: 'Funds', bonds: 'Bonds', crypto: 'Crypto', real_estate: 'Real estate', retirement: 'Retirement', insurance: 'Insurance'};
-
-function SparkLine({data, width, height}) {
-    if (!data || data.length < 2) return null;
-    const values = data.map(d => typeof d === 'number' ? d : d.value);
-    const min = Math.min(...values);
-    const max = Math.max(...values);
-    const range = max - min || 1;
-    const pts = values.map((v, i) => {
-        const x = (i / (values.length - 1)) * width;
-        const y = height - ((v - min) / range) * (height - 8) - 4;
-        return `${x},${y}`;
-    });
-    const polyline = pts.join(' ');
-    const last = pts[pts.length - 1].split(',');
-    const fill = `M${pts[0]} L${polyline.slice(polyline.indexOf(' ') + 1)} L${width},${height} L0,${height} Z`;
-    const positive = values[values.length - 1] >= values[0];
-    const stroke = positive ? 'var(--sage-500)' : 'var(--crimson-500)';
-    const fillId = `pf-grad-${positive ? 'pos' : 'neg'}`;
-    return (
-        <svg width={width} height={height} viewBox={`0 0 ${width} ${height}`} preserveAspectRatio="none">
-            <defs>
-                <linearGradient id={fillId} x1="0" y1="0" x2="0" y2="1">
-                    <stop offset="0%" stopColor={stroke} stopOpacity="0.18"/>
-                    <stop offset="100%" stopColor={stroke} stopOpacity="0.01"/>
-                </linearGradient>
-            </defs>
-            <path d={fill} fill={`url(#${fillId})`}/>
-            <polyline points={polyline} fill="none" stroke={stroke} strokeWidth="1.5" strokeLinejoin="round" strokeLinecap="round"/>
-            <circle cx={last[0]} cy={last[1]} r="3" fill={stroke}/>
-        </svg>
-    );
+function SummaryStat({ label, value, tone }) {
+  const col = tone === 'pos' ? 'var(--sage-500)' : tone === 'neg' ? 'var(--crimson-500)' : tone === 'warn' ? 'var(--dusk-500)' : 'var(--ink-00)';
+  return (
+    <div style={{ textAlign: 'right' }}>
+      <div style={{ fontSize: 9.5, letterSpacing: '0.14em', textTransform: 'uppercase', color: 'var(--ink-40)', fontWeight: 600 }}>{label}</div>
+      <div style={{ fontFamily: 'var(--font-mono)', fontSize: 14, fontWeight: 500, color: col, marginTop: 2 }}>{value}</div>
+    </div>
+  );
 }
 
-function SummaryStat({label, value, tone}) {
-    const color = tone === 'pos' ? 'var(--sage-500)' : tone === 'neg' ? 'var(--crimson-500)' : tone === 'warn' ? 'var(--dusk-500)' : 'var(--ink-00)';
-    return (
-        <div style={{textAlign: 'right'}}>
-            <div style={{fontSize: 9.5, letterSpacing: '0.14em', textTransform: 'uppercase', color: 'var(--ink-40)', fontWeight: 600}}>{label}</div>
-            <div style={{fontFamily: 'var(--font-mono)', fontSize: 13, fontWeight: 500, color, marginTop: 2}}>{value}</div>
+function ProgressStat({ label, value, sub, tone, highlight }) {
+  const col = tone === 'pos' ? 'var(--sage-500)' : tone === 'neg' ? 'var(--crimson-500)' : 'var(--ink-00)';
+  return (
+    <div style={{ padding: '12px 14px', borderRadius: 8, background: highlight ? 'rgba(201,168,106,0.08)' : 'rgba(255,255,255,0.025)', border: '1px solid ' + (highlight ? 'rgba(201,168,106,0.20)' : 'rgba(255,255,255,0.05)') }}>
+      <div style={{ fontSize: 10, letterSpacing: '0.12em', textTransform: 'uppercase', color: 'var(--ink-40)', fontWeight: 600 }}>{label}</div>
+      <div style={{ fontFamily: 'var(--font-mono)', fontSize: 17, fontWeight: 500, color: col, marginTop: 4, letterSpacing: '-0.005em' }}>{value}</div>
+      {sub && <div style={{ fontSize: 11, color: 'var(--ink-30)', marginTop: 2 }}>{sub}</div>}
+    </div>
+  );
+}
+
+export function PortfolioProgress({ summData, summStatus }) {
+  const [open, setOpen] = useState(false);
+  const fmt = useFmtMoney();
+
+  const snapshots = summData?.snapshots || [];
+  const hasSnaps  = snapshots.length > 0;
+  const trend     = snapshots.map(s => s.value);
+  const startVal  = hasSnaps ? trend[0] : null;
+  const endVal    = hasSnaps ? trend[trend.length - 1] : null;
+  const delta     = hasSnaps ? endVal - startVal : null;
+  const deltaPct  = hasSnaps && startVal ? delta / startVal : null;
+  const ready     = summStatus === 'ready';
+  const empty     = summStatus === 'ready' && !hasSnaps;
+
+  return (
+    <section style={{ marginBottom: 16 }}>
+      <button
+        onClick={() => setOpen(o => !o)}
+        style={{ display: 'flex', alignItems: 'center', gap: 18, width: '100%', padding: '14px 20px', cursor: 'pointer', background: 'rgba(255,255,255,0.025)', border: '1px solid rgba(255,255,255,0.06)', borderRadius: 10, color: 'inherit', textAlign: 'left', transition: 'background 120ms var(--ease-std)' }}
+        onMouseEnter={e => e.currentTarget.style.background = 'rgba(255,255,255,0.035)'}
+        onMouseLeave={e => e.currentTarget.style.background = 'rgba(255,255,255,0.025)'}
+      >
+        <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+          <span style={{ width: 26, height: 26, borderRadius: 7, display: 'inline-flex', alignItems: 'center', justifyContent: 'center', background: 'rgba(201,168,106,0.10)', border: '1px solid rgba(201,168,106,0.18)', color: 'var(--aurum-100)', flexShrink: 0 }}>
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round">
+              <polyline points="3 17 9 11 13 15 21 7" /><polyline points="14 7 21 7 21 14" />
+            </svg>
+          </span>
+          <div>
+            <div style={{ fontFamily: 'var(--font-heading)', fontSize: 14, fontWeight: 600, color: 'var(--ink-00)', letterSpacing: '-0.005em' }}>Portfolio progress</div>
+            <div style={{ fontSize: 11.5, color: 'var(--ink-30)', marginTop: 2 }}>90-day history · vs benchmark</div>
+          </div>
         </div>
-    );
-}
-
-function ProgressStat({label, value, sub, tone, highlight}) {
-    const color = tone === 'pos' ? 'var(--sage-500)' : tone === 'neg' ? 'var(--crimson-500)' : 'var(--ink-00)';
-    return (
-        <div style={{
-            padding: '12px 14px', borderRadius: 8,
-            background: highlight ? 'rgba(201,168,106,0.08)' : 'rgba(255,255,255,0.025)',
-            border: '1px solid ' + (highlight ? 'rgba(201,168,106,0.20)' : 'rgba(255,255,255,0.05)'),
-        }}>
-            <div style={{fontSize: 10, letterSpacing: '0.12em', textTransform: 'uppercase', color: 'var(--ink-40)', fontWeight: 600}}>{label}</div>
-            <div style={{fontFamily: 'var(--font-mono)', fontSize: 17, fontWeight: 500, color, marginTop: 4, letterSpacing: '-0.005em'}}>{value}</div>
-            {sub && <div style={{fontSize: 11, color: 'var(--ink-30)', marginTop: 2}}>{sub}</div>}
+        <div style={{ flex: 1 }} />
+        <div style={{ display: 'flex', gap: 24, alignItems: 'baseline' }}>
+          <SummaryStat label="90d Δ" value={deltaPct != null ? `${deltaPct >= 0 ? '+' : ''}${(deltaPct * 100).toFixed(1)}%` : '—'} tone={deltaPct != null ? (deltaPct >= 0 ? 'pos' : 'neg') : 'neu'} />
+          <SummaryStat label="vs Bench" value="—" tone="neu" />
+          <SummaryStat label="Drift" value="—" tone="neu" />
+          {summStatus === 'loading'
+            ? <Sk h={28} w={120} r={4} />
+            : hasSnaps
+              ? <Sparkline data={trend} w={120} h={28} />
+              : <Sk h={28} w={120} r={4} />}
         </div>
-    );
-}
+        <span style={{ display: 'inline-flex', alignItems: 'center', justifyContent: 'center', width: 24, height: 24, borderRadius: 6, background: 'rgba(255,255,255,0.04)', color: 'var(--ink-30)', transform: open ? 'rotate(180deg)' : 'rotate(0)', transition: 'transform 220ms var(--ease-std)' }}>
+          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+            <polyline points="6 9 12 15 18 9" />
+          </svg>
+        </span>
+      </button>
 
-function SkeletonBlock({width = '100%', height = 24, style = {}}) {
-    return <div className={s.skeleton} style={{width, height, ...style}}/>;
-}
-
-function NetSkeleton() {
-    return (
-        <div className={s.netGrid}>
-            <div>
-                <SkeletonBlock height={160}/>
-                <div style={{display: 'flex', justifyContent: 'space-between', marginTop: 6}}>
-                    <SkeletonBlock width={60} height={10}/>
-                    <SkeletonBlock width={60} height={10}/>
+      {open && (
+        <div style={{ marginTop: 8, padding: '18px 20px', background: 'rgba(255,255,255,0.02)', border: '1px solid rgba(255,255,255,0.05)', borderRadius: 10, animation: 'cardEnter 220ms var(--ease-decel)' }}>
+          {summStatus === 'loading' && (
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+              <Sk h={220} r={6} />
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4,1fr)', gap: 10, marginTop: 4 }}>
+                {[0, 1, 2, 3].map(i => <Sk key={i} h={72} r={8} />)}
+              </div>
+            </div>
+          )}
+          {summStatus === 'error' && <Cerr msg="Could not load portfolio history" retry={null} />}
+          {empty && (
+            <div style={{ padding: '36px 24px', textAlign: 'center', border: '1px dashed rgba(255,255,255,0.08)', borderRadius: 10, background: 'rgba(255,255,255,0.01)' }}>
+              <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="var(--ink-40)" strokeWidth="1.3" strokeLinecap="round" strokeLinejoin="round" style={{ margin: '0 auto 12px', display: 'block' }}>
+                <polyline points="3 17 9 11 13 15 21 7" /><polyline points="14 7 21 7 21 14" />
+              </svg>
+              <div style={{ fontFamily: 'var(--font-heading)', fontSize: 14, fontWeight: 600, color: 'var(--ink-20)', marginBottom: 5 }}>No history yet</div>
+              <div style={{ fontSize: 12, color: 'var(--ink-40)', maxWidth: 340, margin: '0 auto', lineHeight: 1.6 }}>
+                Portfolio snapshots will appear here once the backend has recorded at least one valuation.
+              </div>
+            </div>
+          )}
+          {ready && hasSnaps && (
+            <div style={{ display: 'grid', gridTemplateColumns: '2.2fr 1fr', gap: 24 }}>
+              <div>
+                <PortfolioHistoryChart snapshots={snapshots} range="ALL" height={220} />
+                <div style={{ marginTop: 10, fontSize: 11.5, color: 'var(--ink-40)', lineHeight: 1.55 }}>
+                  Net worth tracked over {snapshots.length} backend snapshots.
                 </div>
+              </div>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
+                <ProgressStat label="Start"   value={startVal != null ? fmt(startVal, 'INR', { dp: 0 }) : '—'} sub="90d ago" />
+                <ProgressStat label="Current" value={endVal   != null ? fmt(endVal,   'INR', { dp: 0 }) : '—'} sub="today" highlight />
+                <ProgressStat label="Δ"       value={delta != null ? `${delta >= 0 ? '+' : '−'}${fmt(Math.abs(delta), 'INR', { dp: 0 })}` : '—'} sub={deltaPct != null ? `${deltaPct >= 0 ? '+' : ''}${(deltaPct * 100).toFixed(2)}%` : undefined} tone={delta != null ? (delta >= 0 ? 'pos' : 'neg') : 'neu'} />
+                <ProgressStat label="vs Bench" value="—" sub="backend provides" tone="neu" />
+              </div>
             </div>
-            <div style={{display: 'flex', flexDirection: 'column', gap: 10}}>
-                <SkeletonBlock height={64}/>
-                <SkeletonBlock height={64}/>
-                <SkeletonBlock height={64}/>
-                <SkeletonBlock height={64}/>
-            </div>
+          )}
         </div>
-    );
+      )}
+    </section>
+  );
 }
-
-function AllocSkeleton() {
-    return (
-        <div style={{display: 'flex', flexDirection: 'column', gap: 10}}>
-            {[1, 2, 3, 4].map(i => <SkeletonBlock key={i} height={32}/>)}
-        </div>
-    );
-}
-
-function BenchSkeleton() {
-    return (
-        <div>
-            <SkeletonBlock height={160}/>
-            <div style={{display: 'grid', gridTemplateColumns: 'repeat(4,1fr)', gap: 10, marginTop: 14}}>
-                <SkeletonBlock height={64}/>
-                <SkeletonBlock height={64}/>
-                <SkeletonBlock height={64}/>
-                <SkeletonBlock height={64}/>
-            </div>
-        </div>
-    );
-}
-
-function AllocationTab({allocByClass}) {
-    const entries = CLASS_ORDER
-        .map(k => ({k, label: CLASS_LABEL[k], pct: allocByClass[k] || 0, color: CLASS_COLOR[k]}))
-        .filter(e => e.pct > 0.005);
-    if (!entries.length) return (
-        <div style={{padding: 24, textAlign: 'center', color: 'var(--ink-40)', fontSize: 13}}>No allocation data yet.</div>
-    );
-    return (
-        <div>
-            <div style={{display: 'grid', gridTemplateColumns: '1fr 80px', gap: '6px 12px', alignItems: 'center', marginBottom: 10}}>
-                {entries.map(e => (
-                    <React.Fragment key={e.k}>
-                        <div style={{display: 'flex', alignItems: 'center', gap: 10}}>
-                            <span style={{width: 8, height: 8, borderRadius: 2, background: e.color, flexShrink: 0}}/>
-                            <span style={{fontSize: 11.5, color: 'var(--ink-20)'}}>{e.label}</span>
-                            <div style={{flex: 1, height: 5, borderRadius: 999, background: 'rgba(255,255,255,0.04)', overflow: 'hidden'}}>
-                                <div style={{width: `${e.pct * 100}%`, height: '100%', background: e.color, opacity: 0.85}}/>
-                            </div>
-                        </div>
-                        <span style={{fontFamily: 'var(--font-mono)', fontSize: 12, color: 'var(--ink-10)', textAlign: 'right'}}>{(e.pct * 100).toFixed(1)}%</span>
-                    </React.Fragment>
-                ))}
-            </div>
-            <div style={{marginTop: 14, fontSize: 11, color: 'var(--ink-40)', lineHeight: 1.55}}>
-                Historical allocation evolution will appear as Aureon accumulates portfolio snapshots.
-            </div>
-        </div>
-    );
-}
-
-function BenchmarkTab({history}) {
-    const containerRef = useRef(null);
-    const [w, setW] = useState(600);
-    useEffect(() => {
-        if (!containerRef.current) return;
-        const ro = new ResizeObserver(e => setW(e[0].contentRect.width || 600));
-        ro.observe(containerRef.current);
-        return () => ro.disconnect();
-    }, []);
-
-    const values = history.map(d => d.value);
-    const first = values[0];
-    const deltaPct = first > 0 ? ((values[values.length - 1] - first) / first) * 100 : 0;
-
-    return (
-        <div>
-            {history.length >= 2 ? (
-                <div ref={containerRef} className={s.chart}>
-                    <SparkLine data={values} width={w} height={160}/>
-                </div>
-            ) : (
-                <div ref={containerRef} style={{height: 160, display: 'flex', alignItems: 'center', justifyContent: 'center'}}>
-                    <span style={{fontSize: 12, color: 'var(--ink-40)'}}>No price history yet — run the daily pipeline to populate trend data.</span>
-                </div>
-            )}
-            <div className={s.benchStats}>
-                <ProgressStat label="Portfolio" value={history.length >= 1 ? `${deltaPct >= 0 ? '+' : ''}${deltaPct.toFixed(2)}%` : 'N/A'} sub="period return" tone={deltaPct >= 0 ? 'pos' : 'neg'} highlight={history.length >= 1}/>
-                <ProgressStat label="Benchmark" value="N/A" sub="unavailable"/>
-                <ProgressStat label="Alpha" value="N/A" sub="requires benchmark"/>
-                <ProgressStat label="Tracking Error" value="N/A" sub="requires benchmark"/>
-            </div>
-            <div style={{marginTop: 10, fontSize: 11, color: 'var(--ink-40)'}}>
-                Benchmark comparison (NIFTY 50 / S&amp;P 500) will be available when market data integration is enabled.
-            </div>
-        </div>
-    );
-}
-
-export const PortfolioProgress = () => {
-    const [open, setOpen] = useState(false);
-    const [tab, setTab] = useState('net');
-    const [range, setRange] = useState('3M');
-    const fmt = useFmtMoney();
-    const containerRef = useRef(null);
-    const [dims, setDims] = useState({w: 600, h: 160});
-    const {allocByClass, classTarget} = useAureonData();
-
-    const {data, isLoading, error} = useQuery({
-        queryKey: ['portfolio-history', RANGE_DAYS[range] || 90],
-        queryFn: () => apiService.fetchPortfolioHistory(RANGE_DAYS[range] || 90),
-        staleTime: 5 * 60 * 1000,
-    });
-
-    useEffect(() => {
-        if (!open || !containerRef.current) return;
-        const ro = new ResizeObserver(entries => {
-            for (const e of entries) setDims({w: e.contentRect.width || 600, h: 160});
-        });
-        ro.observe(containerRef.current);
-        return () => ro.disconnect();
-    }, [open, tab]);
-
-    const history = data?.history ?? [];
-    const hasData = history.length >= 1;
-    const values = history.map(d => d.value);
-    const first = hasData ? values[0] : null;
-    const last = hasData ? values[values.length - 1] : null;
-    const delta = hasData ? last - first : null;
-    const deltaPct = hasData && first > 0 ? (delta / first) : null;
-
-    const avgPerMonth = useMemo(() => {
-        if (!hasData || history.length < 30 || delta == null) return null;
-        const months = history.length / 30;
-        return delta / months;
-    }, [hasData, history.length, delta]);
-
-    // Drift: biggest deviation from target
-    const drift = useMemo(() => {
-        const entries = Object.entries(allocByClass)
-            .map(([k, v]) => Math.abs((v - (classTarget[k] ?? 0)) * 100));
-        if (!entries.length) return null;
-        return Math.max(...entries).toFixed(1);
-    }, [allocByClass, classTarget]);
-
-    return (
-        <section className={s.section}>
-            <button onClick={() => setOpen(o => !o)} className={s.toggle}>
-                <div className={s.titleGroup}>
-                    <span className={s.iconWrap}>
-                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round">
-                            <polyline points="3 17 9 11 13 15 21 7"/>
-                            <polyline points="14 7 21 7 21 14"/>
-                        </svg>
-                    </span>
-                    <div>
-                        <div className={s.title}>Portfolio progress</div>
-                        <div className={s.subtitle}>Trend · allocation · benchmark</div>
-                    </div>
-                </div>
-                <div className={s.spacer}/>
-                <div className={s.headerStats}>
-                    {deltaPct != null && (
-                        <SummaryStat
-                            label={`${range} Δ`}
-                            value={`${deltaPct >= 0 ? '+' : ''}${(deltaPct * 100).toFixed(1)}%`}
-                            tone={deltaPct >= 0 ? 'pos' : 'neg'}
-                        />
-                    )}
-                    {drift != null && (
-                        <SummaryStat label="Drift" value={`${drift}pp`} tone={parseFloat(drift) > 5 ? 'warn' : 'pos'}/>
-                    )}
-                    <span className={s.headerSparkline}>
-                        {hasData && values.length >= 2 && (
-                            <SparkLine data={values} width={100} height={28}/>
-                        )}
-                    </span>
-                </div>
-                <span className={`${s.chevron}${open ? ' ' + s.chevronOpen : ''}`}>
-                    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                        <polyline points="6 9 12 15 18 9"/>
-                    </svg>
-                </span>
-            </button>
-
-            <div className={`${s.bodyWrap}${open ? ' ' + s.bodyWrapOpen : ''}`}>
-                <div className={s.bodyInner}>
-                    <div className={s.body}>
-                        {/* Tab + range bar */}
-                        <div className={s.tabBar}>
-                            <div className={s.tabGroup}>
-                                {[['net', 'Net worth trend'], ['alloc', 'Allocation evolution'], ['bench', 'vs Benchmark']].map(([k, l]) => (
-                                    <button key={k} onClick={() => setTab(k)} className={`${s.tabBtn}${tab === k ? ' ' + s.tabBtnActive : ''}`}>{l}</button>
-                                ))}
-                            </div>
-                            <div style={{flex: 1}}/>
-                            {tab !== 'alloc' && (
-                                <div className={s.rangeGroup}>
-                                    {Object.keys(RANGE_DAYS).map(p => (
-                                        <button key={p} onClick={() => setRange(p)} className={`${s.rangeBtn}${range === p ? ' ' + s.rangeBtnActive : ''}`}>{p}</button>
-                                    ))}
-                                </div>
-                            )}
-                        </div>
-
-                        {error && !isLoading && <Empty>Failed to load chart data</Empty>}
-
-                        {isLoading && tab === 'net' && <NetSkeleton/>}
-                        {isLoading && tab === 'alloc' && <AllocSkeleton/>}
-                        {isLoading && tab === 'bench' && <BenchSkeleton/>}
-
-                        {tab === 'net' && !isLoading && (
-                            hasData ? (
-                                <div className={s.netGrid}>
-                                    <div>
-                                        <div ref={containerRef} className={s.chart}>
-                                            <SparkLine data={values} width={dims.w} height={dims.h}/>
-                                        </div>
-                                        <div className={s.axis}>
-                                            <span>{history[0]?.date}</span>
-                                            <span>{history[history.length - 1]?.date}</span>
-                                        </div>
-                                        <div style={{marginTop: 10, fontSize: 11.5, color: 'var(--ink-40)', lineHeight: 1.55}}>
-                                            Net worth tracked over {range}. Reflects mark-to-market across active and semi-active holdings.
-                                        </div>
-                                    </div>
-                                    <div style={{display: 'flex', flexDirection: 'column', gap: 10}}>
-                                        <ProgressStat label="Start" value={fmt(first, 'USD')} sub={history[0]?.date}/>
-                                        <ProgressStat label="Current" value={fmt(last, 'USD')} sub="today" highlight/>
-                                        <ProgressStat
-                                            label="Δ"
-                                            value={delta != null ? `${delta >= 0 ? '+' : '−'}${fmt(Math.abs(delta), 'USD')}` : '—'}
-                                            sub={deltaPct != null ? `${deltaPct >= 0 ? '+' : ''}${(deltaPct * 100).toFixed(2)}%` : undefined}
-                                            tone={delta != null ? (delta >= 0 ? 'pos' : 'neg') : undefined}
-                                        />
-                                        <ProgressStat
-                                            label="Avg/mo"
-                                            value={avgPerMonth != null ? `${avgPerMonth >= 0 ? '+' : '−'}${fmt(Math.abs(avgPerMonth), 'USD')}` : 'N/A'}
-                                            sub={avgPerMonth != null ? 'per month' : 'need ≥ 30 days'}
-                                        />
-                                    </div>
-                                </div>
-                            ) : (
-                                <Empty>No price history yet — run the daily pipeline to populate trend data</Empty>
-                            )
-                        )}
-
-                        {tab === 'alloc' && !isLoading && <AllocationTab allocByClass={allocByClass}/>}
-
-                        {tab === 'bench' && !isLoading && <BenchmarkTab history={history}/>}
-                    </div>
-                </div>
-            </div>
-        </section>
-    );
-};
