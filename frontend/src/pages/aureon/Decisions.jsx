@@ -10,7 +10,6 @@ import {
     RecommendationsFeed,
     ExplainPanel,
     AIBriefings,
-    ActivityTab,
     DecisionHistoryTab,
     OutcomesTab,
     PerformanceTab,
