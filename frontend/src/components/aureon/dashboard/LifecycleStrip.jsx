@@ -18,7 +18,6 @@ const ROUTE_MAP = {
 
 export function LifecycleStrip() {
   const navigate = useNavigate();
-  const { active, applied } = useApp();
   const { status, data } = useCardData(stub);
 
   const stages = [

@@ -74,6 +74,7 @@ export function MarketFreshnessSection({ freshness }) {
     };
   }, [freshness]);
 
+  // Note: freshness prop changes update stub immediately but don't auto-retrigger fetch — manual refetch() needed
   const { status, data, error, refetch } = useCardData(stub);
 
   return (
