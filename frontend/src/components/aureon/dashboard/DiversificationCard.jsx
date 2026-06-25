@@ -44,7 +44,7 @@ export function DiversificationCard() {
               { l: 'Asset classes', v: data.classCount },
               { l: 'Sectors',       v: data.sectors },
               { l: 'Top class',     v: data.topClass },
-              { l: 'Max weight',    v: (data.topPct * 100).toFixed(1) + '%' },
+              { l: 'Max weight',    v: data.topPct != null ? (data.topPct * 100).toFixed(1) + '%' : '—' },
             ].map(({ l, v }) => (
               <div key={l} style={{ padding: '8px 10px', borderRadius: 8, background: 'rgba(255,255,255,0.02)', border: '1px solid rgba(255,255,255,0.05)' }}>
                 <div style={{ fontSize: 9.5, letterSpacing: '0.12em', textTransform: 'uppercase', color: 'var(--ink-40)', fontWeight: 600, marginBottom: 3 }}>{l}</div>
