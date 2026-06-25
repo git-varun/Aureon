@@ -7,7 +7,7 @@ import RecActions from './RecActions';
 // DecisionLineageInline is implemented in Task 4
 import DecisionLineageInline from '../DecisionLineageInline';
 
-export default function RecCard({
+const RecCard = React.memo(function RecCard({
   rec,
   status,
   appliedInfo,
@@ -93,4 +93,6 @@ export default function RecCard({
       )}
     </article>
   );
-}
+});
+
+export default RecCard;

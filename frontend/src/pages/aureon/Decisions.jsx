@@ -155,7 +155,7 @@ export default function Decisions() {
                     status={getRecStatus(explainRec, active, applied, dismissed)}
                     signals={signals.filter(s => s.linkedRec === explainRec.id)}
                     onClose={() => { setExplainOpen(false); setExplainRec(null); }}
-                    onApply={() => apply(explainRec.id)}
+                    onApply={() => { apply(explainRec.id); setExplainOpen(false); setExplainRec(null); }}
                     onDismiss={() => dismiss(explainRec.id)}
                 />
             )}
