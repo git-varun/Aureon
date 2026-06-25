@@ -214,3 +214,65 @@ export const AllocDonut = ({size = 140, alloc}) => {
         </svg>
     );
 };
+
+/** Shimmer skeleton block. h=height, w=width, r=borderRadius */
+export const Sk = ({ h = 14, w = '100%', r = 5 }) => (
+  <div style={{
+    height: h, width: w, borderRadius: r,
+    background: 'rgba(255,255,255,0.07)',
+    animation: 'shimmer 1.5s ease-in-out infinite',
+  }} />
+);
+
+/** Card-level refresh icon button */
+export const RBtn = ({ onRefresh }) => (
+  <button
+    onClick={onRefresh}
+    title="Refresh"
+    style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--ink-40)', padding: 0, lineHeight: 0, display: 'inline-flex', borderRadius: 4 }}
+    onMouseEnter={e => e.currentTarget.style.color = 'var(--ink-20)'}
+    onMouseLeave={e => e.currentTarget.style.color = 'var(--ink-40)'}
+  >
+    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M21 2v6h-6M3 12a9 9 0 0 1 15-6.7L21 8M3 22v-6h6M21 12a9 9 0 0 1-15 6.7L3 16" />
+    </svg>
+  </button>
+);
+
+/** Card error state with optional retry button */
+export const Cerr = ({ msg, retry }) => (
+  <div style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '12px 0' }}>
+    <span style={{ width: 28, height: 28, borderRadius: 7, background: 'rgba(209,107,107,0.10)', border: '1px solid rgba(209,107,107,0.22)', display: 'inline-flex', alignItems: 'center', justifyContent: 'center', color: 'var(--crimson-500)', flexShrink: 0 }}>
+      <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round">
+        <path d="M18 6 6 18M6 6l12 12" />
+      </svg>
+    </span>
+    <div style={{ flex: 1 }}>
+      <div style={{ fontSize: 12.5, fontWeight: 500, color: 'var(--ink-20)' }}>Failed to load</div>
+      <div style={{ fontSize: 11, color: 'var(--ink-40)', marginTop: 1 }}>{msg}</div>
+    </div>
+    {retry && (
+      <button onClick={retry} className="du3-cta" style={{ height: 26, fontSize: 11, padding: '0 10px', flexShrink: 0 }}>
+        Retry
+      </button>
+    )}
+  </div>
+);
+
+/** Card empty state */
+export const Cmt = ({ msg = 'No data available' }) => (
+  <div style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '12px 0', color: 'var(--ink-40)' }}>
+    <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+      <circle cx="12" cy="12" r="10" /><path d="M12 8v4M12 16h.01" />
+    </svg>
+    <span style={{ fontSize: 12 }}>{msg}</span>
+  </div>
+);
+
+/** Shared card surface style object — spread into inline style */
+export const CS = {
+  padding: '16px 18px',
+  background: 'rgba(255,255,255,0.025)',
+  border: '1px solid rgba(255,255,255,0.06)',
+  borderRadius: 12,
+};
