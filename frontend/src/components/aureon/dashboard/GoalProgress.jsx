@@ -1,109 +1,81 @@
-import React, {useEffect, useState} from 'react';
-import {useNavigate} from 'react-router-dom';
-import {apiService} from '../../../api/apiService';
-import {useFmtMoney} from '../../../hooks/useFmtMoney';
-import {useApp} from '../store';
+// frontend/src/components/aureon/dashboard/GoalProgress.jsx
+import React from 'react';
+import { useApp } from '../store';
+import { useCardData } from '@/hooks/useCardData';
+import { Sk } from '../ui';
+import { useFmtMoney } from '@/hooks/useFmtMoney';
 
-export function GoalProgress({monthlyDeployed = null}) {
-    const navigate = useNavigate();
-    const fmt = useFmtMoney();
-    const {profile} = useApp() || {};
-    const [ytdReturn, setYtdReturn] = useState(null);
+const stub = async () => {
+  await new Promise(r => setTimeout(r, 460 + Math.random() * 200));
+  return null; // backend provides ytdReturn + monthlySavingActual
+};
 
-    useEffect(() => {
-        const yearStart = new Date(new Date().getFullYear(), 0, 1).toISOString().slice(0, 10);
-        apiService.fetchPortfolioHistory(365)
-            .then(hist => {
-                if (!Array.isArray(hist) || hist.length < 2) return;
-                const startEntry = hist.find(h => h.date >= yearStart) || hist[0];
-                const endEntry = hist[hist.length - 1];
-                if (startEntry?.value > 0 && endEntry?.value) {
-                    setYtdReturn(((endEntry.value - startEntry.value) / startEntry.value) * 100);
-                }
-            })
-            .catch(() => {});
-    }, []);
+export function GoalProgress({ onNavigateSettings }) {
+  const fmt = useFmtMoney();
+  const { profile } = useApp();
+  const annualTarget  = Number(profile?.annualTarget || profile?.target_profit_pct)   || 0;
+  const monthlySaving = Number(profile?.monthlySavings || profile?.monthly_saving) || 0;
 
-    if (!profile) return null;
+  const elapsedMonths = new Date().getMonth() + 1;
+  const { status: gpStatus, data: goalData } = useCardData(stub);
 
-    const annualTarget = profile.target_profit_pct != null ? parseFloat(profile.target_profit_pct) : (profile.annualTarget != null ? parseFloat(profile.annualTarget) : null);
-    const monthlySaving = profile.monthly_saving != null ? parseFloat(profile.monthly_saving) : (profile.monthlySavings != null ? parseFloat(profile.monthlySavings) : null);
+  if (!annualTarget && !monthlySaving) return null;
 
-    if (annualTarget == null && monthlySaving == null) return null;
+  const ytdReturn           = goalData?.ytdReturn           ?? null;
+  const monthlySavingActual = goalData?.monthlySavingActual ?? null;
+  const pace        = annualTarget ? (annualTarget * elapsedMonths) / 12 : null;
+  const statusColor = ytdReturn == null || pace == null ? 'var(--ink-40)' : ytdReturn >= pace ? 'var(--sage-500)' : ytdReturn >= pace * 0.8 ? 'var(--dusk-500)' : 'var(--crimson-500)';
+  const statusLabel = ytdReturn == null || pace == null ? '…'             : ytdReturn >= pace ? 'on track'        : ytdReturn >= pace * 0.8 ? 'behind'          : 'off track';
 
-    const elapsedMonths = new Date().getMonth() + 1;
-    const pace = annualTarget != null ? (annualTarget * elapsedMonths) / 12 : null;
-    const statusLabel = ytdReturn === null || pace === null ? '—'
-        : ytdReturn >= pace ? 'on track'
-        : ytdReturn >= pace * 0.8 ? 'behind'
-        : 'off track';
-    const statusColor = ytdReturn === null || pace === null ? 'var(--ink-40)'
-        : ytdReturn >= pace ? 'var(--sage-500)'
-        : ytdReturn >= pace * 0.8 ? 'var(--dusk-500)'
-        : 'var(--crimson-500)';
-
-    const colCount = (annualTarget != null ? 1 : 0) + (monthlySaving != null ? 1 : 0);
-
-    return (
-        <div style={{display: 'grid', gridTemplateColumns: `repeat(${colCount}, 1fr)`, gap: 10, marginBottom: 20}}>
-            {annualTarget != null && (
-                <div className="layer-1" style={{
-                    padding: '14px 18px',
-                    display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-                    background: 'rgba(255,255,255,0.025)', border: '1px solid rgba(255,255,255,0.06)', borderRadius: 10,
-                }}>
-                    <div>
-                        <div style={{fontSize: 10, letterSpacing: '0.12em', textTransform: 'uppercase', color: 'var(--ink-40)', fontWeight: 600}}>
-                            Target return
-                        </div>
-                        <div style={{fontFamily: 'var(--font-mono)', fontSize: 22, fontWeight: 500, color: 'var(--ink-00)', marginTop: 4}}>
-                            {annualTarget}%
-                        </div>
-                        <div style={{fontSize: 11.5, color: 'var(--ink-30)', marginTop: 2}}>annual target</div>
-                    </div>
-                    <div style={{textAlign: 'right'}}>
-                        <div style={{fontFamily: 'var(--font-mono)', fontSize: 20, fontWeight: 500, color: statusColor}}>
-                            {ytdReturn !== null ? `${ytdReturn >= 0 ? '+' : ''}${ytdReturn.toFixed(1)}%` : '—'}
-                        </div>
-                        <div style={{fontSize: 11, color: statusColor, marginTop: 2}}>YTD · {statusLabel}</div>
-                        <button
-                            onClick={() => navigate('/settings')}
-                            style={{fontSize: 10.5, color: 'var(--ink-40)', background: 'none', border: 'none', cursor: 'pointer', padding: 0, marginTop: 4}}
-                        >
-                            edit goal →
-                        </button>
-                    </div>
-                </div>
+  return (
+    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10, marginBottom: 16 }}>
+      {/* Target return card */}
+      {annualTarget > 0 && (
+        <div className="layer-1" style={{ padding: '14px 18px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', background: 'rgba(255,255,255,0.025)', border: '1px solid rgba(255,255,255,0.06)', borderRadius: 10 }}>
+          <div>
+            <div style={{ fontSize: 10, letterSpacing: '0.12em', textTransform: 'uppercase', color: 'var(--ink-40)', fontWeight: 600 }}>Target return</div>
+            <div style={{ fontFamily: 'var(--font-mono)', fontSize: 22, fontWeight: 500, color: 'var(--ink-00)', marginTop: 4 }}>{annualTarget}%</div>
+            <div style={{ fontSize: 11.5, color: 'var(--ink-30)', marginTop: 2 }}>annual target</div>
+          </div>
+          <div style={{ textAlign: 'right' }}>
+            {gpStatus === 'loading'
+              ? <Sk h={20} w={52} r={3} />
+              : <div style={{ fontFamily: 'var(--font-mono)', fontSize: 20, fontWeight: 500, color: statusColor }}>{ytdReturn != null ? ytdReturn + '%' : '—'}</div>
+            }
+            <div style={{ fontSize: 11, color: statusColor, marginTop: 2 }}>YTD · {statusLabel}</div>
+            {onNavigateSettings && (
+              <button onClick={onNavigateSettings} style={{ fontSize: 10.5, color: 'var(--ink-40)', background: 'none', border: 'none', cursor: 'pointer', padding: 0, marginTop: 4 }}>
+                edit goal →
+              </button>
             )}
-            {monthlySaving != null && (
-                <div className="layer-1" style={{
-                    padding: '14px 18px',
-                    display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-                    background: 'rgba(255,255,255,0.025)', border: '1px solid rgba(255,255,255,0.06)', borderRadius: 10,
-                }}>
-                    <div>
-                        <div style={{fontSize: 10, letterSpacing: '0.12em', textTransform: 'uppercase', color: 'var(--ink-40)', fontWeight: 600}}>
-                            Monthly saving
-                        </div>
-                        <div style={{fontFamily: 'var(--font-mono)', fontSize: 22, fontWeight: 500, color: 'var(--ink-00)', marginTop: 4}}>
-                            {fmt(monthlySaving, 'INR')}
-                        </div>
-                        <div style={{fontSize: 11.5, color: 'var(--ink-30)', marginTop: 2}}>/ month target</div>
-                    </div>
-                    <div style={{textAlign: 'right'}}>
-                        <div style={{fontFamily: 'var(--font-mono)', fontSize: 20, fontWeight: 500, color: monthlyDeployed !== null && monthlySaving !== null ? (monthlyDeployed >= monthlySaving ? 'var(--sage-500)' : 'var(--ink-00)') : 'var(--ink-00)'}}>
-                            {monthlyDeployed !== null ? fmt(monthlyDeployed, 'INR') : '—'}
-                        </div>
-                        <div style={{fontSize: 11, color: 'var(--ink-30)', marginTop: 2}}>this month saved</div>
-                        <button
-                            onClick={() => navigate('/settings')}
-                            style={{fontSize: 10.5, color: 'var(--ink-40)', background: 'none', border: 'none', cursor: 'pointer', padding: 0, marginTop: 4}}
-                        >
-                            edit goal →
-                        </button>
-                    </div>
-                </div>
-            )}
+          </div>
         </div>
-    );
+      )}
+
+      {/* Monthly saving card */}
+      {monthlySaving > 0 && (
+        <div className="layer-1" style={{ padding: '14px 18px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', background: 'rgba(255,255,255,0.025)', border: '1px solid rgba(255,255,255,0.06)', borderRadius: 10 }}>
+          <div>
+            <div style={{ fontSize: 10, letterSpacing: '0.12em', textTransform: 'uppercase', color: 'var(--ink-40)', fontWeight: 600 }}>Monthly saving</div>
+            <div style={{ fontFamily: 'var(--font-mono)', fontSize: 22, fontWeight: 500, color: 'var(--ink-00)', marginTop: 4 }}>{fmt(monthlySaving, 'INR', { compact: true })}</div>
+            <div style={{ fontSize: 11.5, color: 'var(--ink-30)', marginTop: 2 }}>target</div>
+          </div>
+          <div style={{ textAlign: 'right' }}>
+            {gpStatus === 'loading'
+              ? <Sk h={20} w={60} r={3} />
+              : <div style={{ fontFamily: 'var(--font-mono)', fontSize: 20, fontWeight: 500, color: 'var(--ink-00)' }}>
+                  {monthlySavingActual != null ? fmt(monthlySavingActual, 'INR', { compact: true }) : '—'}
+                </div>
+            }
+            <div style={{ fontSize: 11, color: 'var(--ink-30)', marginTop: 2 }}>this month</div>
+            {onNavigateSettings && (
+              <button onClick={onNavigateSettings} style={{ fontSize: 10.5, color: 'var(--ink-40)', background: 'none', border: 'none', cursor: 'pointer', padding: 0, marginTop: 4 }}>
+                edit goal →
+              </button>
+            )}
+          </div>
+        </div>
+      )}
+    </div>
+  );
 }
