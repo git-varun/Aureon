@@ -29,7 +29,7 @@ const TITLE_MAP = {
 };
 
 const SUBTITLE_MAP = {
-  dashboard:       'Today's state · top decisions',
+  dashboard:       "Today's state · top decisions",
   portfolio:       'All holdings, flattened',
   markets:         'India primary · global secondary',
   terminal:        'Search · power view · discovery',
