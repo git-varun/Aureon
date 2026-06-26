@@ -207,8 +207,14 @@ export const apiService = {
     addWatchlistSymbol: (id, symbol) => 
         handleRequest(API.post(`/watchlist/${id}/symbols`, {symbol})),
 
-    removeWatchlistSymbol: (id, symbol) => 
+    removeWatchlistSymbol: (id, symbol) =>
         handleRequest(API.delete(`/watchlist/${id}/symbols/${encodeURIComponent(symbol)}`)),
+
+    setWatchlistAlert: (id, symbol, price) =>
+        handleRequest(API.put(`/watchlist/${id}/symbols/${encodeURIComponent(symbol)}/alert`, {price})),
+
+    clearWatchlistAlert: (id, symbol) =>
+        handleRequest(API.delete(`/watchlist/${id}/symbols/${encodeURIComponent(symbol)}/alert`)),
 
     // ── News (V1) ─────────────────────────────────────────────────────────────
     fetchNews: () => 
