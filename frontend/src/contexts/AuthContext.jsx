@@ -61,7 +61,6 @@ export const AuthProvider = ({children}) => {
     }, []);
 
     const login = async (email, password) => {
-        setLoading(true);
         try {
             const data = await apiService.loginPassword(email, password);
             const token = data.session.session_token;
@@ -71,18 +70,11 @@ export const AuthProvider = ({children}) => {
             setIsAuthenticated(true);
             return data;
         } catch (err) {
-            localStorage.removeItem('access_token');
-            localStorage.removeItem('user_first_name');
-            setUser(null);
-            setIsAuthenticated(false);
             throw err;
-        } finally {
-            setLoading(false);
         }
     };
 
     const loginGoogle = async (idToken) => {
-        setLoading(true);
         try {
             const data = await apiService.googleAuth(idToken);
             const token = data.session.session_token;
@@ -92,13 +84,7 @@ export const AuthProvider = ({children}) => {
             setIsAuthenticated(true);
             return data;
         } catch (err) {
-            localStorage.removeItem('access_token');
-            localStorage.removeItem('user_first_name');
-            setUser(null);
-            setIsAuthenticated(false);
             throw err;
-        } finally {
-            setLoading(false);
         }
     };
 

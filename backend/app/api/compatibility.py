@@ -31,7 +31,7 @@ from app.api.dependencies import (
     get_watchlist_service,
 )
 from app.core.redis import check_redis_health, get_redis_client
-from app.core.security import hash_password, verify_password
+from app.core.security import verify_password
 from app.domain.entities.ai import AIBriefing
 from app.domain.entities.market import Asset, AssetSnapshot, LatestQuote, PriceHistory
 from app.domain.entities.notification import WebNotification
@@ -294,47 +294,6 @@ def _classify(asset_class: Optional[str], symbol: str = "") -> str:
 
 
 # ── Authentication API ──────────────────────────────────────────────────────
-
-class RegisterCompRequest(BaseModel):
-    email: str
-    password: str
-    first_name: str = ""
-    last_name: str = ""
-
-@router.post("/api/auth/register")
-def register_compatibility(
-    payload: RegisterCompRequest,
-    request: Request,
-    auth_service: AuthService = Depends(get_auth_service),
-    db: Session = Depends(get_db)
-):
-    existing = db.query(User).filter(User.email == payload.email.lower()).first()
-    if existing:
-        raise HTTPException(status_code=409, detail="User with this email already exists")
-        
-    user = User(
-        email=payload.email.lower(),
-        password_hash=hash_password(payload.password),
-        first_name=payload.first_name,
-        last_name=payload.last_name,
-        is_active=True,
-        is_verified=True
-    )
-    db.add(user)
-    db.flush()
-    
-    get_user_context(db, user)
-    
-    ip = request.client.host if request.client else None
-    user_agent = request.headers.get("user-agent")
-    session = auth_service.create_session_in_tx(user.id, ip, user_agent)
-    db.commit()
-    
-    return {
-        "access_token": session.session_token,
-        "refresh_token": session.session_token,
-        "user": serialize_user_profile(user, db)
-    }
 
 class LoginCompRequest(BaseModel):
     email: str

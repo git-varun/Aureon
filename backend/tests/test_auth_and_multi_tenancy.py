@@ -393,3 +393,186 @@ def test_api_organization_management(clean_db: None) -> None:
     revoke_resp = client.delete(f"/api/v1/invitations/{invite_id}", headers=headers)
     assert revoke_resp.status_code == 200
     assert revoke_resp.json()["status"] == "success"
+
+
+# --- AUTH HARDENING TESTS ---
+
+def _seed_org_and_invite(email: str, token_str: str, status: str = "PENDING", days: int = 1):
+    """Helper: creates owner + org + invitation, returns (owner_id, org_id, invite_id)."""
+    db = SessionLocal()
+    try:
+        owner = User(email=f"owner_{token_str}@test.com", password_hash="hash", is_active=True)
+        db.add(owner)
+        db.flush()
+        org = Organization(name=f"Org-{token_str}", slug=f"org-{token_str}")
+        db.add(org)
+        db.flush()
+        db.add(OrganizationMember(organization_id=org.id, user_id=owner.id, role="OWNER"))
+        inv = Invitation(
+            organization_id=org.id,
+            email=email,
+            role="MEMBER",
+            invited_by_id=owner.id,
+            token=token_str,
+            status=status,
+            expires_at=datetime.now(timezone.utc) + timedelta(days=days),
+        )
+        db.add(inv)
+        db.commit()
+    finally:
+        db.close()
+
+
+def test_register_requires_valid_invite_token(clean_db: None) -> None:
+    """Registration with a non-existent token is rejected."""
+    resp = client.post("/api/v1/auth/register", json={
+        "email": "newuser@test.com",
+        "password": "Password1!",
+        "first_name": "New",
+        "last_name": "User",
+        "token": "nonexistent-token",
+    })
+    assert resp.status_code == 404
+
+
+def test_register_rejects_expired_invite(clean_db: None) -> None:
+    """Registration with an expired invitation is rejected."""
+    db = SessionLocal()
+    try:
+        owner = User(email="owner_exp@test.com", password_hash="hash", is_active=True)
+        db.add(owner)
+        db.flush()
+        org = Organization(name="Org-exp", slug="org-exp")
+        db.add(org)
+        db.flush()
+        db.add(OrganizationMember(organization_id=org.id, user_id=owner.id, role="OWNER"))
+        inv = Invitation(
+            organization_id=org.id,
+            email="expired@test.com",
+            role="MEMBER",
+            invited_by_id=owner.id,
+            token="expired-token",
+            status="PENDING",
+            expires_at=datetime.now(timezone.utc) - timedelta(days=1),
+        )
+        db.add(inv)
+        db.commit()
+    finally:
+        db.close()
+
+    resp = client.post("/api/v1/auth/register", json={
+        "email": "expired@test.com",
+        "password": "Password1!",
+        "first_name": "Ex",
+        "last_name": "User",
+        "token": "expired-token",
+    })
+    assert resp.status_code == 400
+
+
+def test_register_rejects_email_mismatch(clean_db: None) -> None:
+    """Registration email must match invitation email."""
+    _seed_org_and_invite("invited@test.com", "mismatch-tok")
+    resp = client.post("/api/v1/auth/register", json={
+        "email": "other@test.com",
+        "password": "Password1!",
+        "first_name": "Wrong",
+        "last_name": "User",
+        "token": "mismatch-tok",
+    })
+    assert resp.status_code == 400
+
+
+def test_register_rejects_reused_invite(clean_db: None) -> None:
+    """A consumed invitation cannot be used again."""
+    _seed_org_and_invite("reuse@test.com", "reuse-tok")
+
+    # First registration succeeds
+    r1 = client.post("/api/v1/auth/register", json={
+        "email": "reuse@test.com",
+        "password": "Password1!",
+        "first_name": "First",
+        "last_name": "User",
+        "token": "reuse-tok",
+    })
+    assert r1.status_code == 201
+
+    # Second registration with same token is rejected
+    r2 = client.post("/api/v1/auth/register", json={
+        "email": "reuse@test.com",
+        "password": "Password1!",
+        "first_name": "Second",
+        "last_name": "User",
+        "token": "reuse-tok",
+    })
+    assert r2.status_code in (400, 409)
+
+
+def test_compat_register_route_removed(clean_db: None) -> None:
+    """/api/auth/register must not exist (was removed to close invite bypass)."""
+    resp = client.post("/api/auth/register", json={
+        "email": "bypass@test.com",
+        "password": "Password1!",
+        "first_name": "Bad",
+        "last_name": "Actor",
+    })
+    assert resp.status_code == 404 or resp.status_code == 405
+
+
+def test_global_logout_invalidates_all_sessions(clean_db: None) -> None:
+    """POST /logout/all terminates every session for the user."""
+    from app.core.security import hash_password as _hp
+    db = SessionLocal()
+    try:
+        user = User(email="multi@test.com", password_hash=_hp("pw"), is_active=True, is_verified=True)
+        db.add(user)
+        db.flush()
+        sess1 = UserSession(user_id=user.id, session_token="tok-session-1",
+                            expires_at=datetime.now(timezone.utc) + timedelta(days=1))
+        sess2 = UserSession(user_id=user.id, session_token="tok-session-2",
+                            expires_at=datetime.now(timezone.utc) + timedelta(days=1))
+        db.add(sess1)
+        db.add(sess2)
+        db.commit()
+    finally:
+        db.close()
+
+    # Call logout/all with session-1 credential
+    resp = client.post("/api/v1/auth/logout/all",
+                       headers={"Authorization": "Bearer tok-session-1"})
+    assert resp.status_code == 200
+    assert resp.json()["status"] == "success"
+
+    # Both sessions should be gone
+    db = SessionLocal()
+    try:
+        sessions_repo = SessionsRepository(db)
+        assert sessions_repo.get_by_token("tok-session-1") is None
+        assert sessions_repo.get_by_token("tok-session-2") is None
+    finally:
+        db.close()
+
+
+def test_rate_limiter_logic() -> None:
+    """check_auth_rate_limit raises 429 after max_attempts; fails open on Redis error."""
+    from unittest.mock import MagicMock, patch
+    import redis as redis_lib
+    from fastapi import HTTPException
+    from app.core.rate_limit import check_auth_rate_limit
+
+    # Simulate Redis incr returning over-limit
+    mock_client = MagicMock()
+    mock_client.incr.return_value = 6  # > max_attempts=5
+    with patch("app.core.rate_limit.get_redis_client", return_value=mock_client):
+        try:
+            check_auth_rate_limit("test-key", max_attempts=5, window_seconds=60)
+            assert False, "Expected HTTPException"
+        except HTTPException as e:
+            assert e.status_code == 429
+            assert "Retry-After" in e.headers
+
+    # Fail open: Redis error should not block the request
+    mock_err = MagicMock()
+    mock_err.incr.side_effect = redis_lib.RedisError("connection refused")
+    with patch("app.core.rate_limit.get_redis_client", return_value=mock_err):
+        check_auth_rate_limit("test-key-2", max_attempts=5, window_seconds=60)  # must not raise

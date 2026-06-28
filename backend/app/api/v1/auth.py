@@ -11,6 +11,7 @@ from app.api.dependencies import (
     get_db,
     get_users_repo,
 )
+from app.core.rate_limit import check_auth_rate_limit
 from app.api.v1.schemas import (
     AuthResponse,
     GoogleAuthRequest,
@@ -32,7 +33,8 @@ def register(
 ) -> AuthResponse:
     ip = request.client.host if request.client else None
     user_agent = request.headers.get("user-agent")
-    
+    check_auth_rate_limit(f"register:{payload.email.lower()}", max_attempts=5, window_seconds=300)
+
     session, user = auth_service.register_with_invite(
         email=payload.email,
         password=payload.password,
@@ -53,7 +55,8 @@ def login(
 ) -> AuthResponse:
     ip = request.client.host if request.client else None
     user_agent = request.headers.get("user-agent")
-    
+    check_auth_rate_limit(f"login:{payload.email.lower()}", max_attempts=5, window_seconds=60)
+
     # Authenticate and get session
     session = auth_service.login(
         email=payload.email,
@@ -100,6 +103,14 @@ def logout(
 ) -> dict:
     auth_service.logout(session.session_token)
     return {"status": "success", "message": "Successfully logged out"}
+
+@router.post("/logout/all", status_code=status.HTTP_200_OK)
+def logout_all(
+    session: UserSession = Depends(get_current_session),
+    auth_service: AuthService = Depends(get_auth_service),
+) -> dict:
+    auth_service.logout_all(session.user_id)
+    return {"status": "success", "message": "All sessions terminated"}
 
 @router.get("/me", response_model=UserResponse)
 def get_me(
