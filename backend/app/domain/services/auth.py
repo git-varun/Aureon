@@ -217,3 +217,7 @@ class AuthService(BaseService):
     def logout(self, session_token: str) -> None:
         self.sessions_repo.delete_by_token(session_token)
         self.sessions_repo.session.commit()
+
+    def logout_all(self, user_id: uuid.UUID) -> None:
+        self.sessions_repo.delete_all_for_user(user_id)
+        self.sessions_repo.session.commit()
