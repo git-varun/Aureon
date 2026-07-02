@@ -3,7 +3,7 @@
 import React, {createContext, useCallback, useContext, useEffect, useMemo, useRef, useState} from 'react';
 import {useQuery, useQueryClient} from '@tanstack/react-query';
 import {apiService} from '../../api/apiService';
-import {AUREON_STATE_KEY} from '../../hooks/useAureonData';
+
 import {useOrganization} from '../../contexts/OrganizationContext';
 import {usePortfolio} from '../../contexts/PortfolioContext';
 
@@ -47,22 +47,23 @@ export const useApp = () => {
     return context;
 };
 
-// Map an API rec (snake_case) → FE shape used by Aureon UI primitives.
+// Map an API rec (v1 snake_case or legacy shape) → FE shape used by Aureon UI primitives.
 const apiRecToFE = (r) => ({
     id: r.ext_id,
     status: r.status,
-    strength: r.strength,
-    action: r.action,
-    scope: r.scope,
-    title: r.title,
-    impactOneLine: r.impactOneLine || r.impact_one_line,
-    confidence: r.confidence,
-    horizon: r.horizon,
-    change: r.change,
-    impact: r.impact,
-    reasoning: r.reasoning,
+    strength: r.strength || null,
+    action: r.action || r.recommendation_state || null,
+    scope: r.scope || (r.symbol ? { ref: r.symbol, type: 'equity' } : null),
+    title: r.title || (r.recommendation_state && r.symbol ? `${r.recommendation_state} ${r.symbol}` : null),
+    impactOneLine: r.impactOneLine || r.impact_one_line || null,
+    confidence: r.confidence ?? r.confidence_score ?? null,
+    horizon: r.horizon || null,
+    change: r.change || null,
+    impact: r.impact || null,
+    reasoning: r.reasoning || r.explanation?.confidence_factors || null,
     conflictsWith: r.conflictsWith || r.conflicts_with || [],
     signalIds: r.signalIds || r.signal_ids || [],
+    createdAt: r.createdAt || r.created_at || null,
 });
 
 export const AppProvider = ({children}) => {
@@ -109,7 +110,7 @@ export const AppProvider = ({children}) => {
             id: t.id,
             extId: t.recommendation_id,
             ts: new Date(t.transaction_date).toLocaleDateString() + ' · ' + new Date(t.transaction_date).toLocaleTimeString('en-US', {hour: '2-digit', minute: '2-digit'}),
-            kind: t.transaction_type === 'BUY' ? 'applied' : 'dismissed',
+            kind: t.kind || (t.transaction_type === 'BUY' ? 'applied' : 'dismissed'),
             refId: t.recommendation_id,
             action: t.transaction_type,
             asset: t.symbol,
@@ -143,10 +144,10 @@ export const AppProvider = ({children}) => {
     // H8: profile + goal live in shared, persisted state so edits survive tab switches
     // and the dashboard GoalProgress reads the same source the Settings form writes.
     const PROFILE_DEFAULT = {
-        email: 'vihaan.acharya@aureon.co', first: 'Vihaan', last: 'Acharya', phone: '+91 98201 47221',
-        bio: 'Long-term holder. Active in Indian equities and global crypto. Rebalances quarterly.',
-        riskProfile: 'Balanced', annualTarget: '20', monthlySavings: '25000', swingTrading: false,
-        workingArea: 'Software Engineering, Bangalore',
+        email: '', first: '', last: '', phone: '',
+        bio: '',
+        riskProfile: 'Balanced', annualTarget: '', monthlySavings: '', swingTrading: false,
+        workingArea: '',
     };
     const [profile, setProfile] = useState(() => {
         try {
@@ -250,9 +251,9 @@ export const AppProvider = ({children}) => {
         setActivity(act => act.filter(a => a.extId !== id && a.refId !== id));
         _showToast(null);
         if (!hydrated) return;
-        apiService.undoRecommendation(id)
+        apiService.undoRecommendation(activeOrgId, id)
             .then(() => {
-                queryClient.invalidateQueries({ queryKey: AUREON_STATE_KEY });
+                queryClient.invalidateQueries({ queryKey: ["org", activeOrgId, "recommendations"] });
             })
             .catch(err => {
                 setActive(prevActive);
@@ -261,7 +262,7 @@ export const AppProvider = ({children}) => {
                 setActivity(prevActivity);
                 _showToast({text: `Undo failed: ${err?.message || 'network error'}`});
             });
-    }, [active, applied, dismissed, activity, hydrated, queryClient, _showToast]);
+    }, [active, applied, dismissed, activity, hydrated, activeOrgId, queryClient, _showToast]);
 
     const apply = useCallback((id, opts = {}) => {
         const r = recById(id);
@@ -289,9 +290,10 @@ export const AppProvider = ({children}) => {
         }
         
         if (!hydrated) return;
-        apiService.applyRecommendation(id)
+        apiService.applyRecommendation(activeOrgId, id, activePortfolioId)
             .then(() => {
-                queryClient.invalidateQueries({ queryKey: AUREON_STATE_KEY });
+                queryClient.invalidateQueries({ queryKey: ["org", activeOrgId, "recommendations"] });
+                queryClient.invalidateQueries({ queryKey: ["org", activeOrgId, "portfolio", activePortfolioId, "transactions"] });
             })
             .catch(err => {
                 setActive(prevActive);
@@ -299,7 +301,7 @@ export const AppProvider = ({children}) => {
                 setActivity(prevActivity);
                 _showToast({text: `Apply failed: ${err?.response?.data?.message || err?.message || 'network error'}`});
             });
-    }, [active, applied, activity, hydrated, recById, queryClient, _showToast]);
+    }, [active, applied, activity, hydrated, activeOrgId, activePortfolioId, recById, queryClient, _showToast]);
 
     // C6: applyBatch commits staged basket and fires a single toast
     const applyBatch = useCallback((ids) => {
@@ -336,9 +338,10 @@ export const AppProvider = ({children}) => {
         _showToast({ key: toastKey, text: `${valid.length} ${valid.length === 1 ? 'decision' : 'decisions'} applied`, undoId: null });
         
         if (!hydrated) return;
-        Promise.all(valid.map(id => apiService.applyRecommendation(id)))
+        Promise.all(valid.map(id => apiService.applyRecommendation(activeOrgId, id, activePortfolioId)))
             .then(() => {
-                queryClient.invalidateQueries({ queryKey: AUREON_STATE_KEY });
+                queryClient.invalidateQueries({ queryKey: ["org", activeOrgId, "recommendations"] });
+                queryClient.invalidateQueries({ queryKey: ["org", activeOrgId, "portfolio", activePortfolioId, "transactions"] });
             })
             .catch(err => {
                 setActive(prevActive);
@@ -346,7 +349,7 @@ export const AppProvider = ({children}) => {
                 setActivity(prevActivity);
                 _showToast({ text: `Batch apply failed: ${err?.message || 'network error'}` });
             });
-    }, [active, applied, activity, hydrated, recById, queryClient, _showToast]);
+    }, [active, applied, activity, hydrated, activeOrgId, activePortfolioId, recById, queryClient, _showToast]);
 
     const dismiss = useCallback((id, reason = 'User dismissed') => {
         const r = recById(id);
@@ -363,9 +366,9 @@ export const AppProvider = ({children}) => {
             detail: `declined — ${reason.toLowerCase()}`,
         }, ...act]);
         if (!hydrated) return;
-        apiService.dismissRecommendation(id, reason)
+        apiService.dismissRecommendation(activeOrgId, id, reason)
             .then(() => {
-                queryClient.invalidateQueries({ queryKey: AUREON_STATE_KEY });
+                queryClient.invalidateQueries({ queryKey: ["org", activeOrgId, "recommendations"] });
             })
             .catch(err => {
                 setActive(prevActive);
@@ -373,7 +376,7 @@ export const AppProvider = ({children}) => {
                 setActivity(prevActivity);
                 _showToast({text: `Dismiss failed: ${err?.message || 'network error'}`});
             });
-    }, [active, dismissed, activity, hydrated, recById, queryClient, _showToast]);
+    }, [active, dismissed, activity, hydrated, activeOrgId, recById, queryClient, _showToast]);
 
     const value = useMemo(() => ({
         allRecs, active, applied, dismissed,

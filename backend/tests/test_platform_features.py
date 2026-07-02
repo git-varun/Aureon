@@ -8,7 +8,7 @@ from app.api.main import app
 from app.core.database import SessionLocal, engine
 from app.core.exceptions import NotFoundError
 from app.domain.entities.base import Base
-from app.domain.entities.market import AssetSnapshot, LatestQuote
+from app.domain.entities.market import Asset, AssetSnapshot, LatestQuote
 from app.domain.entities.news import News
 from app.domain.entities.system import Organization, OrganizationMember, User
 from app.domain.services import (
@@ -205,6 +205,7 @@ def test_news_ingestion_and_linking(clean_db, db_session):
     
     # Add a mock asset latest quote to link news to
     asset_id = uuid.uuid5(uuid.NAMESPACE_DNS, "AAPL")
+    db_session.add(Asset(id=asset_id, symbol="AAPL", name="AAPL", asset_class="equity"))
     quote = LatestQuote(symbol="AAPL", asset_id=asset_id, price=175.5, volume=1000)
     db_session.add(quote)
     # Also add the asset snapshot to satisfy foreign key

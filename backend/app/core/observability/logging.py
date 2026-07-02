@@ -9,15 +9,15 @@ from datetime import datetime, timezone
 from app.core.observability.request_context import get_context_dict
 from app.core.observability.sanitizer import Sanitizer
 
-# Default sample rates per category and level
+# Default sample rates per category and level (WARNING+ always pass)
 DEFAULT_SAMPLING_RATES = {
     "API": {"INFO": 1.0, "DEBUG": 0.1},
-    "DATABASE": {"INFO": 0.1, "DEBUG": 0.01},
-    "CACHE": {"INFO": 0.1, "DEBUG": 0.01},
+    "DATABASE": {"INFO": 1.0, "DEBUG": 0.01},
+    "CACHE": {"INFO": 1.0, "DEBUG": 0.01},
     "AUTH": {"INFO": 1.0, "DEBUG": 1.0},
     "SECURITY": {"INFO": 1.0, "DEBUG": 1.0},
-    "WORKER": {"INFO": 0.5, "DEBUG": 0.05},
-    "PROVIDER": {"INFO": 0.5, "DEBUG": 0.05},
+    "WORKER": {"INFO": 1.0, "DEBUG": 0.05},
+    "PROVIDER": {"INFO": 1.0, "DEBUG": 0.05},
     "PORTFOLIO": {"INFO": 1.0, "DEBUG": 0.1},
     "EVALUATION": {"INFO": 1.0, "DEBUG": 0.1},
     "SYSTEM": {"INFO": 1.0, "DEBUG": 0.1},
@@ -159,52 +159,74 @@ class JsonTelemetryFormatter(logging.Formatter):
 
 
 class PrettyConsoleTelemetryFormatter(logging.Formatter):
-    """Readable colorized formatter for developer consoles in local development."""
+    """Compact one-liner formatter: [LABEL] operation ........ STATUS (Xms)"""
     COLORS = {
-        "DEBUG": "\033[36m",     # Cyan
-        "INFO": "\033[32m",      # Green
-        "WARNING": "\033[33m",   # Yellow
-        "ERROR": "\033[31m",     # Red
-        "CRITICAL": "\033[41m\033[37m", # Red background, white text
-        "RESET": "\033[0m"
+        "DEBUG":    "\033[36m",
+        "INFO":     "\033[32m",
+        "WARNING":  "\033[33m",
+        "ERROR":    "\033[31m",
+        "CRITICAL": "\033[41m\033[37m",
+        "RESET":    "\033[0m",
     }
 
+    _LABELS = {
+        "API": "HTTP", "DATABASE": "DB", "CACHE": "CACHE",
+        "AUTH": "AUTH", "SECURITY": "SEC", "WORKER": "JOB",
+        "PROVIDER": "PROVIDER", "PORTFOLIO": "PORTFOLIO",
+        "EVALUATION": "EVAL", "SYSTEM": "SVC", "MONITORING": "MONITOR",
+    }
+    _OP_WIDTH = 55  # chars for "[LABEL] operation" before the dots
+
     def format(self, record: logging.LogRecord) -> str:
-        lvl = record.levelname
-        color = self.COLORS.get(lvl, self.COLORS["RESET"])
         reset = self.COLORS["RESET"]
-        
-        timestamp = self.formatTime(record, "%Y-%m-%d %H:%M:%S")
-        req_id = getattr(record, "request_id", "-")
-        corr_id = getattr(record, "correlation_id", "-")
-        trace_id = getattr(record, "trace_id", "-")
-        span_id = getattr(record, "span_id", "-")
+        lvl = record.levelname
         category = getattr(record, "category", "SYSTEM")
-        event = getattr(record, "event", "system.log")
-        msg = Sanitizer.sanitize_string(record.getMessage())
-
-        # Construct highly readable logging format
-        log_line = (
-            f"{timestamp} | {color}{lvl:<8}{reset} | "
-            f"[{category} - {event}] "
-            f"[req:{req_id} | corr:{corr_id} | trace:{trace_id} | span:{span_id}] - {msg}"
-        )
-
-        # Append duration if applicable
+        event = getattr(record, "event", "")
         duration_ms = getattr(record, "duration_ms", None)
-        if duration_ms is not None and duration_ms != "-":
-            log_line += f" ({duration_ms}ms)"
+        status_code = getattr(record, "status_code", None)
 
-        # Append exceptions if present
+        # Determine status label and color
+        if lvl in ("ERROR", "CRITICAL"):
+            status, s_color = "FAIL", self.COLORS["ERROR"]
+        elif lvl == "WARNING":
+            status, s_color = "WARN", self.COLORS["WARNING"]
+        elif status_code is not None:
+            sc = int(status_code)
+            status = str(status_code)
+            s_color = self.COLORS["INFO"] if sc < 400 else self.COLORS["ERROR"]
+        elif event.endswith(".started"):
+            status, s_color = "START", self.COLORS["DEBUG"]
+        elif event.endswith(".completed"):
+            status, s_color = "OK", self.COLORS["INFO"]
+        elif event.endswith(".failed"):
+            status, s_color = "FAIL", self.COLORS["ERROR"]
+        elif event == "cache.hit":
+            status, s_color = "HIT", self.COLORS["INFO"]
+        elif event == "cache.miss":
+            status, s_color = "MISS", self.COLORS["DEBUG"]
+        else:
+            status, s_color = "INFO", self.COLORS["INFO"]
+
+        # Operation name: prefer structured extra, fall back to message
+        operation = getattr(record, "operation", None)
+        if not operation:
+            operation = Sanitizer.sanitize_string(record.getMessage())
+
+        label = self._LABELS.get(category, category)
+        left = f"[{label}] {operation}"
+        pad = max(1, self._OP_WIDTH - len(left))
+
+        dur = f" ({duration_ms}ms)" if duration_ms is not None else ""
+        line = f"{left} {'.' * pad} {s_color}{status}{reset}{dur}"
+
         if record.exc_info:
-            log_line += f"\n{self.formatException(record.exc_info)}"
+            line += f"\n{self.formatException(record.exc_info)}"
 
-        return log_line
+        return line
 
 
 def setup_observability_logging(name: str = "aureon") -> logging.Logger:
-    """Configures global logging system to use the new enterprise-grade structured filters and formats."""
-    # Read environment config
+    """Configure structured logging: INFO-level clean console, noisy third-parties suppressed."""
     try:
         from app.core.config import settings
         is_debug = settings.DEBUG
@@ -213,30 +235,18 @@ def setup_observability_logging(name: str = "aureon") -> logging.Logger:
 
     handler = logging.StreamHandler(sys.stdout)
     handler.addFilter(TelemetryLoggingFilter())
+    handler.setFormatter(PrettyConsoleTelemetryFormatter() if is_debug else JsonTelemetryFormatter())
 
-    if is_debug:
-        formatter = PrettyConsoleTelemetryFormatter()
-    else:
-        formatter = JsonTelemetryFormatter()
+    # Always use INFO for the console — DEBUG calls are for file/aggregation backends
+    log_level = logging.INFO
 
-    handler.setFormatter(formatter)
-    log_level = logging.DEBUG if is_debug else logging.INFO
-
-    # Names of all observed loggers
+    # Logger hierarchy roots — covers all app.* and workers.* sub-loggers automatically
     observed_loggers = [
         "aureon",
+        "app",
         "api",
-        "app.core.google_auth",
-        "app.startup_validation",
-        "ai.service",
-        "config.service",
-        "news.service",
-        "portfolio.service",
-        "portfolio.importer",
-        "providers.finnhub",
-        "providers.polygon",
-        "providers.yahoo",
-        "workers.evaluation.signals",
+        "workers",
+        "providers",
         "celery.ai",
         "celery",
         "celery.task",
@@ -250,6 +260,10 @@ def setup_observability_logging(name: str = "aureon") -> logging.Logger:
         lgr.addHandler(handler)
         lgr.setLevel(log_level)
         lgr.propagate = False
+
+    # Suppress noisy third-party libraries
+    for noisy in ["sqlalchemy", "sqlalchemy.engine", "urllib3", "httpx", "yfinance", "alembic"]:
+        logging.getLogger(noisy).setLevel(logging.WARNING)
 
     return logging.getLogger(name)
 

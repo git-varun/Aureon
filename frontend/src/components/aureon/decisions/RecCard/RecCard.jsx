@@ -1,10 +1,10 @@
 import React, { useState, useRef, useEffect, useCallback } from 'react';
 import { REC_STATUS, UNDO_WINDOW_SEC } from '../constants';
+import { needsModal } from '@/components/aureon/utils';
 import RecHeader from './RecHeader';
 import RecBody from './RecBody';
 import RecOutcomeFeedback from './RecOutcomeFeedback';
 import RecActions from './RecActions';
-// DecisionLineageInline is implemented in Task 4
 import DecisionLineageInline from '../DecisionLineageInline';
 
 const RecCard = React.memo(function RecCard({
@@ -16,6 +16,7 @@ const RecCard = React.memo(function RecCard({
   onDismiss,
   onUndo,
   onExplain,
+  onOpenModal,
   onStage,
   onSnooze,
   onViewLineage,
@@ -28,7 +29,8 @@ const RecCard = React.memo(function RecCard({
   useEffect(() => () => clearInterval(timerRef.current), []);
 
   const handleApply = useCallback(() => {
-    onApply(rec.id);
+    if (needsModal(rec)) { onOpenModal?.(); return; }
+    onApply();
     setUndoLeft(UNDO_WINDOW_SEC);
     timerRef.current = setInterval(() => {
       setUndoLeft(s => {
@@ -36,7 +38,7 @@ const RecCard = React.memo(function RecCard({
         return s - 1;
       });
     }, 1000);
-  }, [rec.id, onApply]);
+  }, [rec, onApply, onOpenModal]);
 
   const handleToggleLineage = useCallback(() => setShowLineage(v => !v), []);
 

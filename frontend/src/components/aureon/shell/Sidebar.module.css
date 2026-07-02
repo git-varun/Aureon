@@ -129,7 +129,7 @@
 
 .userBtn {
     margin-top: 8px;
-    padding: 10px 8px;
+    padding: 10px 14px;
     display: flex;
     align-items: center;
     gap: 10px;
@@ -139,6 +139,7 @@
     cursor: pointer;
     text-align: left;
     color: var(--ink-30);
+    width: 100%;
     transition: background 120ms var(--ease-std);
 }
 
@@ -176,8 +177,8 @@
 .userMenu {
     position: absolute;
     bottom: calc(100% + 6px);
-    left: 0;
-    right: 0;
+    left: 14px;
+    right: 14px;
     background: var(--layer-1, #141618);
     border: 1px solid rgba(255, 255, 255, 0.08);
     border-radius: 10px;

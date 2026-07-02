@@ -179,20 +179,33 @@ function relativeTime(iso) {
     return `${Math.floor(h / 24)}d ago`;
 }
 
-function SyncStatusRow({syncEntry, onSync}) {
+function SyncStatusRow({syncEntry, onSync, onConnect}) {
     const [syncing, setSyncing] = useState(false);
+    const [connecting, setConnecting] = useState(false);
     if (!syncEntry) return null;
     const {status, last_synced_at, positions_count, error, provider} = syncEntry;
-    const dot = status === 'ok' ? 'var(--sage-500)' : status === 'error' ? 'var(--crimson-500)' : 'var(--aurum-100)';
+
+    const authRequired = status === 'auth_required';
+    const dot = status === 'ok' ? 'var(--sage-500)'
+        : status === 'error' ? 'var(--crimson-500)'
+        : authRequired ? 'var(--dusk-500)'
+        : 'var(--aurum-100)';
     const text = status === 'ok'
         ? `Last synced ${relativeTime(last_synced_at)} · ${positions_count} positions`
         : status === 'error' ? (error || 'Sync error')
+        : authRequired ? (error ? 'Access token expired — reconnect' : 'Connect Zerodha to sync')
         : 'Never synced — click Sync to connect';
 
     const handleSync = async () => {
         setSyncing(true);
         try { await onSync(provider); }
         finally { setSyncing(false); }
+    };
+
+    const handleConnect = async () => {
+        setConnecting(true);
+        try { await onConnect(provider); }
+        finally { setConnecting(false); }
     };
 
     return (
@@ -204,12 +217,21 @@ function SyncStatusRow({syncEntry, onSync}) {
                 <span style={{width: 6, height: 6, borderRadius: 999, background: dot, flexShrink: 0}}/>
                 {text}
             </span>
-            <button
-                onClick={handleSync} disabled={syncing}
-                className="du3-cta ghost"
-                style={{marginLeft: 'auto', height: 24, padding: '0 10px', fontSize: 11}}>
-                {syncing ? '…' : 'Sync now'}
-            </button>
+            {authRequired ? (
+                <button
+                    onClick={handleConnect} disabled={connecting}
+                    className="du3-cta ghost"
+                    style={{marginLeft: 'auto', height: 24, padding: '0 10px', fontSize: 11}}>
+                    {connecting ? '…' : (error ? 'Reconnect' : 'Connect')}
+                </button>
+            ) : (
+                <button
+                    onClick={handleSync} disabled={syncing}
+                    className="du3-cta ghost"
+                    style={{marginLeft: 'auto', height: 24, padding: '0 10px', fontSize: 11}}>
+                    {syncing ? '…' : 'Sync now'}
+                </button>
+            )}
         </div>
     );
 }
@@ -246,7 +268,32 @@ export default function ProviderConfig() {
         }
     }, []);
 
+    const handleBrokerConnect = useCallback(async (provider) => {
+        if (provider !== 'zerodha') return;
+        try {
+            const {login_url} = await apiService.getZerodhaLoginUrl();
+            window.location.href = login_url;
+        } catch (e) {
+            toast.error(e.message || 'Could not start Zerodha login');
+        }
+    }, []);
+
     useEffect(() => { load(); }, [load]);
+
+    useEffect(() => {
+        const params = new URLSearchParams(window.location.search);
+        const zerodhaResult = params.get('zerodha');
+        if (!zerodhaResult) return;
+        if (zerodhaResult === 'connected') {
+            toast.success('Zerodha connected.');
+        } else if (zerodhaResult === 'error') {
+            toast.error(`Zerodha connection failed${params.get('reason') ? `: ${params.get('reason')}` : ''}.`);
+        }
+        params.delete('zerodha');
+        params.delete('reason');
+        const query = params.toString();
+        window.history.replaceState({}, '', window.location.pathname + (query ? `?${query}` : ''));
+    }, []);
 
     const handleToggle = async (name, enabled) => {
         try {
@@ -300,7 +347,7 @@ export default function ProviderConfig() {
                             return (
                                 <div key={p.provider_name}>
                                     <ProviderRow provider={p} onToggle={handleToggle} onSetKey={handleSetKey}/>
-                                    {syncEntry && <SyncStatusRow syncEntry={syncEntry} onSync={handleBrokerSync}/>}
+                                    {syncEntry && <SyncStatusRow syncEntry={syncEntry} onSync={handleBrokerSync} onConnect={handleBrokerConnect}/>}
                                 </div>
                             );
                         })}

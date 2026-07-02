@@ -181,3 +181,92 @@ def get_current_user(
 def get_ai_service(db: Session = Depends(get_db)) -> AIService:
     return AIService(db)
 
+
+def get_user_context(db: Session, user: User):
+    """Resolves or creates default Personal Org and Portfolio context on the fly."""
+    from app.domain.entities.portfolio import Portfolio
+    from app.domain.entities.system import Organization, OrganizationMember
+
+    member = db.query(OrganizationMember).filter(OrganizationMember.user_id == user.id).first()
+    if member:
+        org = db.query(Organization).filter(Organization.id == member.organization_id).first()
+        if not org:
+            org = Organization(name="Personal Org", slug=f"personal-{user.id.hex[:8]}")
+            db.add(org)
+            db.flush()
+            member.organization_id = org.id
+            db.flush()
+    else:
+        org = Organization(name="Personal Org", slug=f"personal-{user.id.hex[:8]}")
+        db.add(org)
+        db.flush()
+        member = OrganizationMember(organization_id=org.id, user_id=user.id, role="OWNER")
+        db.add(member)
+        db.flush()
+
+    portfolio = db.query(Portfolio).filter(Portfolio.organization_id == org.id).first()
+    if not portfolio:
+        portfolio = Portfolio(name="Default Portfolio", organization_id=org.id)
+        db.add(portfolio)
+        db.flush()
+
+    db.commit()
+    return org.id, portfolio.id
+
+
+def serialize_user_profile(user: User, db: Session) -> dict:
+    from app.domain.entities.market import MarketTheme, ThemeWeight
+    from app.domain.entities.system import UserPreference
+
+    # Query preference
+    pref = db.query(UserPreference).filter(UserPreference.user_id == user.id).first()
+    if not pref:
+        pref = UserPreference(
+            user_id=user.id,
+            risk_profile="moderate",
+            target_profit_pct=12.0,
+            monthly_saving=25000.0,
+            working_area=None,
+            swing_trading_enabled=True,
+            bio=None
+        )
+        db.add(pref)
+        db.commit()
+        db.refresh(pref)
+
+    # Query custom themes
+    themes = db.query(MarketTheme).filter(MarketTheme.owner_id == user.id).all()
+    custom_themes = {}
+    for t in themes:
+        # Query weights for this theme
+        weights = db.query(ThemeWeight).filter(ThemeWeight.theme_id == t.theme_id).all()
+        w_dict = {w.symbol: float(w.weight) for w in weights}
+
+        custom_themes[t.theme_id] = {
+            "id": t.theme_id,
+            "name": t.name,
+            "desc": t.desc,
+            "symbols": t.symbols,
+            "weights": w_dict,
+            "inception_date": t.inception_date,
+            "ret1m": float(t.ret1m),
+            "count": len(t.symbols),
+            "owner_id": str(user.id),
+            "forked_from": t.forked_from
+        }
+
+    return {
+        "id": str(user.id),
+        "email": user.email,
+        "first_name": user.first_name,
+        "last_name": user.last_name,
+        "bio": pref.bio,
+        "risk_profile": pref.risk_profile,
+        "working_area": pref.working_area,
+        "target_profit_pct": float(pref.target_profit_pct) if pref.target_profit_pct is not None else 12.0,
+        "monthly_saving": float(pref.monthly_saving) if pref.monthly_saving is not None else 25000.0,
+        "swing_trading_enabled": pref.swing_trading_enabled,
+        "profile_picture": user.profile_picture,
+        "custom_themes": custom_themes
+    }
+

@@ -63,7 +63,7 @@ export default function SignInScreen({onGoSignUp, onGoForgot, onGoGoogle}) {
             ) : (
                 <>
                     <div style={{fontSize: 10.5, letterSpacing: '0.16em', textTransform: 'uppercase', color: 'var(--aurum-100)', fontWeight: 600}}>Welcome back</div>
-                    <h1 style={{margin: '8px 0 6px', fontFamily: 'var(--font-heading)', fontSize: 30, fontWeight: 600, color: 'var(--ink-00)', letterSpacing: '-0.02em'}}>Sign in to Aureon</h1>
+                    <h1 data-testid="signin-heading" style={{margin: '8px 0 6px', fontFamily: 'var(--font-heading)', fontSize: 30, fontWeight: 600, color: 'var(--ink-00)', letterSpacing: '-0.02em'}}>Sign in to Aureon</h1>
                     <div style={{color: 'var(--ink-30)', fontSize: 13, marginBottom: 22}}>Enter your credentials to access your account.</div>
                 </>
             )}

@@ -16,7 +16,7 @@ def retry_failed_ingestion(ingestion_id: uuid.UUID) -> None:
 
         now = datetime.now(timezone.utc)
         backoffs = {1: 30, 2: 120, 3: 600, 4: 1800}
-        
+
         if ingestion.attempts >= 4:
             ingestion.is_exhausted = True
             session.commit()
@@ -26,12 +26,12 @@ def retry_failed_ingestion(ingestion_id: uuid.UUID) -> None:
         updated_at = ingestion.updated_at
         if updated_at.tzinfo is None:
             updated_at = updated_at.replace(tzinfo=timezone.utc)
-            
+
         time_since_last = (now - updated_at).total_seconds()
-        
+
         if time_since_last < wait_time:
             return
-            
+
         try:
             ingestion.attempts += 1
             ingestion.updated_at = now

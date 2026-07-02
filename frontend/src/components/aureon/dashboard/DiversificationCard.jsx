@@ -1,15 +1,27 @@
-// frontend/src/components/aureon/dashboard/DiversificationCard.jsx
 import React from 'react';
-import { useCardData } from '@/hooks/useCardData';
+import { useQuery } from '@tanstack/react-query';
+import { apiService } from '@/api/apiService';
+import { usePortfolio } from '@/contexts/PortfolioContext';
 import { Sk, RBtn, Cerr, Cmt, CS, Eyebrow } from '../ui';
 
-const stub = async () => {
-  await new Promise(r => setTimeout(r, 640 + Math.random() * 310));
-  return null;
+const transform = (raw) => {
+  if (!raw || (raw.position_count != null ? raw.position_count === 0 : raw.diversification_score === 0)) return null;
+  const score = Math.round(raw.diversification_score);
+  const label = score >= 75 ? 'Well diversified' : score >= 55 ? 'Moderate' : 'Concentrated';
+  return { score, label, classCount: '—', sectors: '—', topClass: '—', topPct: null };
 };
 
 export function DiversificationCard() {
-  const { status, data, error, refetch } = useCardData(stub);
+  const { activePortfolioId } = usePortfolio();
+  const { data: raw, isLoading, isError, error, refetch } = useQuery({
+    queryKey: ['intelligence', 'diversification', activePortfolioId],
+    queryFn: () => apiService.getPortfolioDiversification(activePortfolioId),
+    enabled: !!activePortfolioId,
+    staleTime: 60000,
+  });
+
+  const data = React.useMemo(() => transform(raw ?? null), [raw]);
+  const status = isLoading ? 'loading' : isError ? 'error' : !data ? 'empty' : 'ready';
 
   return (
     <div style={{ ...CS }}>
@@ -26,7 +38,7 @@ export function DiversificationCard() {
         </div>
       )}
 
-      {status === 'error' && <Cerr msg={error} retry={refetch} />}
+      {status === 'error' && <Cerr msg={error?.message} retry={refetch} />}
       {status === 'empty' && <Cmt msg="Diversification data unavailable" />}
 
       {status === 'ready' && data && (

@@ -1,7 +1,5 @@
 // frontend/src/components/aureon/dashboard/MarketFreshnessSection.jsx
 import React from 'react';
-import { useCardData } from '@/hooks/useCardData';
-import { Sk, Cerr } from '../ui';
 import { SectionHead } from '../ui';
 
 const FRESH = {
@@ -52,59 +50,33 @@ function FItem({ icon, title, item }) {
   );
 }
 
-function FItemSk() {
-  return (
-    <div style={{ flex: 1, padding: '14px 16px', background: 'rgba(255,255,255,0.02)', border: '1px solid rgba(255,255,255,0.05)', borderRadius: 10 }}>
-      <div style={{ display: 'flex', gap: 8, marginBottom: 12 }}><Sk h={28} w={28} r={8} /><Sk h={16} w={90} /></div>
-      <Sk h={22} w={40} /><div style={{ marginTop: 6 }}><Sk h={11} w={80} /></div>
-    </div>
-  );
-}
+const deriveItem = (isoStr) => {
+  if (!isoStr) return null;
+  const at = new Date(isoStr);
+  if (isNaN(at.getTime())) return null;
+  const ageMs = Date.now() - at.getTime();
+  const status = ageMs < 5 * 60000 ? 'live' : ageMs < 60 * 60000 ? 'fresh' : 'stale';
+  return { at, n: '—', status };
+};
 
 /** Derives freshness data from the `freshness` prop passed in from useAureonData */
 export function MarketFreshnessSection({ freshness }) {
-  const stub = React.useCallback(async () => {
-    await new Promise(r => setTimeout(r, 390 + Math.random() * 190));
-    if (!freshness) return null;
-    const now = Date.now();
-    return {
-      prices: { at: freshness.refresh_prices ? new Date(freshness.refresh_prices) : new Date(now - 2 * 60000), n: '—', status: 'fresh' },
-      news:   { at: freshness.fetch_news     ? new Date(freshness.fetch_news)     : new Date(now - 17 * 60000), n: '—', status: 'fresh' },
-      ai:     { at: freshness.daily_briefing ? new Date(freshness.daily_briefing)  : new Date(now - 43 * 60000), n: '—', status: 'stale' },
-    };
-  }, [freshness]);
+  if (!freshness) return null;
 
-  // Note: freshness prop changes update stub immediately but don't auto-retrigger fetch — manual refetch() needed
-  const { status, data, error, refetch } = useCardData(stub);
+  const data = {
+    prices: deriveItem(freshness.refresh_prices),
+    news: deriveItem(freshness.fetch_news),
+    ai: deriveItem(freshness.daily_briefing),
+  };
 
   return (
     <div style={{ marginBottom: 16 }}>
-      <SectionHead
-        eyebrow="Data freshness"
-        title="Market freshness"
-        action={
-          <button onClick={refetch} className="du3-cta ghost" style={{ height: 26, fontSize: 11.5, padding: '0 10px' }}>
-            Refresh all
-          </button>
-        }
-      />
-      {status === 'error' && (
-        <div style={{ padding: '14px 18px', background: 'rgba(255,255,255,0.02)', border: '1px solid rgba(255,255,255,0.05)', borderRadius: 10 }}>
-          <Cerr msg={error} retry={refetch} />
-        </div>
-      )}
-      {status !== 'error' && (
-        <div style={{ display: 'flex', gap: 12 }}>
-          {status === 'loading'
-            ? <><FItemSk /><FItemSk /><FItemSk /></>
-            : <>
-                <FItem icon={ICONS.prices} title="Prices"        item={data?.prices} />
-                <FItem icon={ICONS.news}   title="News"          item={data?.news}   />
-                <FItem icon={ICONS.ai}     title="AI Evaluation" item={data?.ai}     />
-              </>
-          }
-        </div>
-      )}
+      <SectionHead eyebrow="Data freshness" title="Market freshness" />
+      <div style={{ display: 'flex', gap: 12 }}>
+        <FItem icon={ICONS.prices} title="Prices" item={data.prices} />
+        <FItem icon={ICONS.news} title="News" item={data.news} />
+        <FItem icon={ICONS.ai} title="AI Evaluation" item={data.ai} />
+      </div>
     </div>
   );
 }

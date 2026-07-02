@@ -1,3 +1,4 @@
+import asyncio
 from datetime import datetime, timezone
 from typing import Any
 
@@ -27,37 +28,37 @@ class HealthResponse(BaseModel):
     build_version: str
     configuration: dict[str, Any]
 
+
+def _check_celery_sync() -> str:
+    """Run the Celery inspect ping in a thread — never called on the event loop."""
+    try:
+        from app.workers.celery_app import celery_app
+        if celery_app.conf.task_always_eager:
+            return "healthy (eager mode)"
+        inspector = celery_app.control.inspect(timeout=0.5)
+        pings = inspector.ping()
+        if pings:
+            return "healthy"
+        return "degraded (no workers active)"
+    except Exception as e:
+        return f"unknown: {str(e)}"
+
+
 @router.get("/health", response_model=HealthResponse)
-def health_check(db: Session = Depends(get_db)) -> HealthResponse:
+async def health_check(db: Session = Depends(get_db)) -> HealthResponse:
     # 1. Database check
     postgres_status = "healthy"
     try:
         db.execute(text("SELECT 1")).scalar()
     except Exception as e:
         postgres_status = f"unhealthy: {str(e)}"
-        
+
     # 2. Redis check
     redis_healthy = check_redis_health()
     redis_status = "healthy" if redis_healthy else "unhealthy"
-    
-    # 3. Celery check
-    celery_status = "healthy (eager)"
-    try:
-        from app.workers.celery_app import celery_app
-        if celery_app.conf.task_always_eager:
-            celery_status = "healthy (eager mode)"
-        else:
-            inspector = celery_app.control.inspect()
-            if inspector:
-                pings = inspector.ping()
-                if pings:
-                    celery_status = "healthy"
-                else:
-                    celery_status = "degraded (no workers active)"
-            else:
-                celery_status = "degraded (inspections offline)"
-    except Exception as e:
-        celery_status = f"unknown: {str(e)}"
+
+    # 3. Celery check — offloaded to a thread to avoid blocking the event loop
+    celery_status = await asyncio.to_thread(_check_celery_sync)
 
     # 4. Providers health
     providers_summary: dict[str, str] = {}
@@ -67,6 +68,25 @@ def health_check(db: Session = Depends(get_db)) -> HealthResponse:
         providers_summary = {p.name: (p.health_status or "unknown") for p in providers}
     except Exception as e:
         providers_summary["error"] = f"failed to retrieve providers: {str(e)}"
+
+    # AI provider status — check key configuration in config.provider_configs
+    try:
+        from app.infrastructure.repositories.config import ConfigRepository
+        from app.domain.services.config import _safe_json_load
+        cfg_repo = ConfigRepository(db)
+        for ai_provider in ("gemini", "groq"):
+            p = cfg_repo.get_provider(ai_provider)
+            if p:
+                stored_keys = _safe_json_load(p.encrypted_keys, {})
+                has_key = bool(stored_keys.get("api_key"))
+                if not p.enabled:
+                    providers_summary[ai_provider] = "disabled"
+                elif has_key:
+                    providers_summary[ai_provider] = "configured"
+                else:
+                    providers_summary[ai_provider] = "missing_key"
+    except Exception as e:
+        providers_summary["ai_check_error"] = str(e)
 
     # 5. Migration version
     migration_version = "unknown"

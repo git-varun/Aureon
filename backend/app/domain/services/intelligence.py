@@ -83,7 +83,7 @@ class FinancialIntelligenceService(BaseService):
         price_history = (
             self.db.query(PriceHistory)
             .filter(PriceHistory.asset_id == asset_id)
-            .order_by(func.abs(func.julianday(PriceHistory.timestamp) - func.julianday(dt)))
+            .order_by(func.abs(func.extract("epoch", PriceHistory.timestamp) - func.extract("epoch", dt)))
             .first()
         )
         if price_history:
@@ -342,7 +342,8 @@ class FinancialIntelligenceService(BaseService):
             "asset_count_score": round(s_count, 1),
             "sector_spread_score": round(s_sector, 1),
             "allocation_balance_score": round(s_balance, 1),
-            "hhi": round(hhi, 4)
+            "hhi": round(hhi, 4),
+            "position_count": asset_count,
         }
 
     def get_portfolio_risk_summary(self, portfolio_id: uuid.UUID) -> Dict[str, Any]:
@@ -727,7 +728,8 @@ class FinancialIntelligenceService(BaseService):
             "diversification_score": round(s_div, 1),
             "allocation_discipline_score": round(s_discipline, 1),
             "recommendation_outcomes_score": round(s_outcomes, 1),
-            "activity_consistency_score": round(s_consistency, 1)
+            "activity_consistency_score": round(s_consistency, 1),
+            "position_count": len(positions),
         }
 
     def get_goal_progress_metrics(self, portfolio_id: uuid.UUID, org_id: uuid.UUID, user_id: uuid.UUID) -> Dict[str, Any]:

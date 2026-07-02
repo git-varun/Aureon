@@ -7,7 +7,7 @@ from sqlalchemy import select
 
 from app.core.database import SessionLocal, engine
 from app.domain.entities.base import Base
-from app.domain.entities.market import AssetFeatures, AssetSnapshot, LatestQuote
+from app.domain.entities.market import Asset, AssetFeatures, AssetSnapshot, LatestQuote
 from app.workers.snapshots.asset_snapshot import process_asset_snapshot
 
 
@@ -29,7 +29,8 @@ def test_snapshot_to_features_flow(clean_db: None, monkeypatch: MonkeyPatch) -> 
 
     db = SessionLocal()
     try:
-        # Manually insert LatestQuote with asset_id
+        # Manually insert Asset + LatestQuote with asset_id
+        db.add(Asset(id=asset_id, symbol=symbol, name=symbol, asset_class="equity"))
         db.add(LatestQuote(symbol=symbol, asset_id=asset_id, price=300.0, volume=5000))
         db.commit()
     finally:

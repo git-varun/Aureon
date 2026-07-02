@@ -20,6 +20,20 @@ RUN pip install --no-cache-dir --upgrade pip && \
     pip install --no-cache-dir .
 
 # ==============================================================================
+# Test stage — adds dev/test dependencies (pytest, etc.) on top of the builder venv.
+# Used by docker-compose.test.yml; never part of the production image.
+# ==============================================================================
+FROM builder AS test
+
+RUN pip install --no-cache-dir .[dev]
+
+WORKDIR /app
+ENV PYTHONUNBUFFERED=1
+ENV PYTHONPATH=/app
+
+CMD ["pytest", "tests/", "-q"]
+
+# ==============================================================================
 # Final stage
 # ==============================================================================
 FROM python:3.12-slim AS runner

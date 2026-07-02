@@ -206,6 +206,7 @@ frontend/dist/
 *.sqlite
 *.sqlite3
 *.dbm
+*.rdb
 
 # OS-specific files
 .DS_Store
@@ -237,3 +238,6 @@ debug.log
 *.bak
 *.backup
 ~*
+backend/backups/
+
+Aureon_Designs/

@@ -37,6 +37,12 @@ class ProviderError(AppException):
         super().__init__(message, "PROVIDER", severity, retryable, http_status)
 
 
+class ZerodhaAuthError(ProviderError):
+    """Zerodha Kite Connect session missing or expired — user must reconnect via OAuth login."""
+    def __init__(self, message: str):
+        super().__init__(message, severity="WARNING", retryable=False, http_status=401)
+
+
 class EvaluationError(AppException):
     """AI engine evaluation pipeline exceptions."""
     def __init__(self, message: str, severity: str = "ERROR", retryable: bool = False, http_status: int = 500):

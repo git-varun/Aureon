@@ -53,7 +53,7 @@ export default function App() {
                 <Route
                     path="/*"
                     element={
-                        <RouteGuard>
+                        <RouteGuard allowNoOrg={!onboarded}>
                             {shell}
                         </RouteGuard>
                     }

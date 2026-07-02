@@ -1,0 +1,174 @@
+Based on the implementation history, audits, and remaining verified gaps, this is the backlog I would maintain going forward.
+
+# Aureon v1.x Backlog
+
+## P1 — Existing Backend Capability, Missing Frontend
+
+These are already implemented in the backend and only require frontend work.
+
+| ID     | Feature                                 | Backend | Frontend | Priority |
+| ------ | --------------------------------------- | ------- | -------- | -------- |
+| FE-001 | Asset Evaluation Scores on Asset Detail | ✅       | ❌        | High     |
+| FE-002 | Monitoring Dashboard                    | ✅       | ❌        | High     |
+| FE-003 | Organization Member Management          | ✅       | ❌        | High     |
+| FE-004 | Invitation Management                   | ✅       | ❌        | High     |
+| FE-005 | Weekly AI Briefing Trigger              | ✅       | ❌        | Medium   |
+| FE-006 | Monthly AI Briefing Trigger             | ✅       | ❌        | Medium   |
+| FE-007 | Portfolio Rename                        | ✅       | ❌        | Medium   |
+| FE-008 | Portfolio Delete                        | ✅       | ❌        | Medium   |
+
+---
+
+# P2 — Backend Enhancements
+
+Require backend implementation before UI.
+
+| ID     | Feature                           | Notes                                                                  |
+| ------ | --------------------------------- | ---------------------------------------------------------------------- |
+| BE-001 | Portfolio Historical Snapshots    | Enables historical performance charts. Current empty state is correct. |
+| BE-002 | Portfolio Performance History API | Uses accumulated snapshots.                                            |
+| BE-003 | Bulk Signals Endpoint             | Replace N individual signal requests.                                  |
+| BE-004 | Market Freshness API              | Replace derived freshness calculations.                                |
+| BE-005 | Goal Progress Service             | Monthly savings, YTD progress.                                         |
+| BE-006 | Market Pulse API                  | Populate Market Pulse widget.                                          |
+
+---
+
+# P3 — Performance Improvements
+
+Not blockers.
+
+| ID       | Improvement                           |
+| -------- | ------------------------------------- |
+| PERF-001 | Bulk signal retrieval                 |
+| PERF-002 | Reduce React Query duplicate requests |
+| PERF-003 | Virtualize large portfolio tables     |
+| PERF-004 | Lazy-load heavy analytics pages       |
+| PERF-005 | Optimize bundle splitting             |
+
+---
+
+# P4 — Admin Features
+
+| ID      | Feature                 |
+| ------- | ----------------------- |
+| ADM-001 | Monitoring Dashboard    |
+| ADM-002 | Job Queue Dashboard     |
+| ADM-003 | AI Evaluation Dashboard |
+| ADM-004 | System Health Dashboard |
+| ADM-005 | Provider Diagnostics    |
+
+---
+
+# P5 — AI Enhancements
+
+| ID     | Feature                              |
+| ------ | ------------------------------------ |
+| AI-001 | Recommendation Calibration Dashboard |
+| AI-002 | Confidence Distribution Charts       |
+| AI-003 | Recommendation Success Analytics     |
+| AI-004 | Model Comparison                     |
+| AI-005 | Prompt History                       |
+| AI-006 | AI Cost Analytics                    |
+
+---
+
+# P6 — Portfolio Features
+
+| ID     | Feature                        |
+| ------ | ------------------------------ |
+| PF-001 | Historical Snapshot Browser    |
+| PF-002 | Portfolio Timeline             |
+| PF-003 | Advanced Performance Analytics |
+| PF-004 | Benchmark Comparison           |
+| PF-005 | Attribution Analysis           |
+| PF-006 | Risk Analytics                 |
+
+---
+
+# P7 — Team & Organization
+
+| ID      | Feature                        |
+| ------- | ------------------------------ |
+| ORG-001 | Member Management              |
+| ORG-002 | Invitation Workflow            |
+| ORG-003 | Roles & Permissions UI         |
+| ORG-004 | Multi-Portfolio Administration |
+| ORG-005 | Audit Activity Feed            |
+
+---
+
+# P8 — Operational Improvements
+
+| ID      | Feature                         |
+| ------- | ------------------------------- |
+| OPS-001 | Error Boundary Coverage Audit   |
+| OPS-002 | Accessibility Audit             |
+| OPS-003 | Cross-Browser QA                |
+| OPS-004 | Mobile Responsiveness Audit     |
+| OPS-005 | Performance Benchmarking        |
+| OPS-006 | End-to-End Test Suite Expansion |
+
+---
+
+# Technical Debt
+
+## Frontend
+
+* Consolidate duplicated API wrappers.
+* Remove deprecated compatibility code after migration.
+* Remove dead components identified during audits.
+* Continue standardizing React Query keys.
+* Complete toast system replacement where applicable.
+
+## Backend
+
+* Add portfolio snapshot accumulation service.
+* Add bulk market/signal APIs where beneficial.
+* Expand monitoring endpoints.
+* Continue documenting public API contracts.
+
+---
+
+# Release Roadmap
+
+### v1.0
+
+* ✅ Core portfolio management
+* ✅ Transactions
+* ✅ Markets
+* ✅ Terminal
+* ✅ Asset Detail
+* ✅ Theme Detail
+* ✅ Watchlists
+* ✅ Decisions
+* ✅ Notifications
+* ✅ Authentication
+* ✅ Onboarding
+* ✅ Settings
+* ✅ AI integration
+* ✅ Backend integration
+
+### v1.1
+
+* Monitoring Dashboard
+* Team Management
+* Invitations
+* Portfolio Rename/Delete
+* Weekly/Monthly AI Briefings
+
+### v1.2
+
+* Historical Portfolio Snapshots
+* Performance Analytics
+* Benchmark Comparison
+* Portfolio Timeline
+
+### v1.3
+
+* Advanced AI Evaluation
+* Calibration Analytics
+* Cost Analytics
+* Model Comparison
+
+This backlog separates **missing UI for existing backend capabilities** from **new backend work**, making it easier to plan future releases without mixing enhancements with completed production work.

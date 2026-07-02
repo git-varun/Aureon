@@ -69,9 +69,8 @@ export const PortfolioProvider = ({children}) => {
         setActivePortfolio(selectedPort);
         localStorage.setItem(`active_portfolio_id_${activeOrgId}`, selectedPort.id);
 
-        // Invalidate queries under the active tenant / portfolio structure
         queryClient.invalidateQueries({
-            queryKey: [activeOrgId, portfolioId]
+            queryKey: ["org", activeOrgId]
         });
     };
 

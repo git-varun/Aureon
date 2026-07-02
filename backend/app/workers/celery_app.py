@@ -9,6 +9,7 @@ from celery.signals import (
     task_success,
     task_failure,
     worker_init,
+    worker_process_init,
     worker_ready,
 )
 import time
@@ -32,6 +33,14 @@ celery_app.conf.task_default_queue = "q_ingestion"
 celery_app.conf.timezone = "UTC"
 
 celery_app.conf.beat_schedule = {
+    "seed-market-universe": {
+        "task": "app.workers.ingestion.tasks.seed_market_universe_task",
+        "schedule": crontab(hour=7, minute=0),
+    },
+    "seed-price-history": {
+        "task": "app.workers.ingestion.tasks.seed_price_history_task",
+        "schedule": crontab(hour=2, minute=0, day_of_week="sun"),
+    },
     "daily-pipeline": {
         "task": "app.workers.ingestion.tasks.ingest_all_quotes",
         "schedule": crontab(hour=9, minute=0, day_of_week="mon-fri"),
@@ -39,7 +48,11 @@ celery_app.conf.beat_schedule = {
     "hourly-price-refresh": {
         "task": "app.workers.ingestion.tasks.ingest_all_quotes",
         "schedule": crontab(minute=0, hour="*"),
-    }
+    },
+    "news-refresh": {
+        "task": "app.workers.ingestion.tasks.fetch_news_task",
+        "schedule": crontab(minute=0, hour="*/4"),
+    },
 }
 
 
@@ -54,6 +67,12 @@ def bootstrap_worker(sender=None, conf=None, **kwargs):
     patch_all_services()
     patch_all_providers()
     logger.info("Worker bootstrap completed. Dynamic instrumentation loaded.")
+
+@worker_process_init.connect
+def reset_sqlalchemy_engine(**kwargs):
+    from app.core.database import engine
+    engine.dispose(close=False)
+    logger.info("[WORKER] SQLAlchemy engine disposed after fork")
 
 @beat_init.connect
 def bootstrap_beat(sender=None, **kwargs):
@@ -122,6 +141,7 @@ def on_task_prerun(task_id, task, *args, **kwargs):
     span.set_attribute("correlation_id", correlation_id)
     task.request.otel_span = span
 
+    short_name = task.name.split(".")[-1]
     logger.info(
         f"Worker Job RECEIVED: task={task.name} task_id={task_id} "
         f"correlation_id={correlation_id} queue={queue_name} user_id={user_id or '-'}",
@@ -129,6 +149,7 @@ def on_task_prerun(task_id, task, *args, **kwargs):
             "category": "WORKER",
             "event": "worker.task.started",
             "execution_step": "START",
+            "operation": short_name,
             "queue_name": queue_name,
             "worker_name": _worker_name
         }
@@ -160,6 +181,7 @@ def on_task_success(sender, result, **kwargs):
             "category": "WORKER",
             "event": "worker.task.completed",
             "execution_step": "FINISH",
+            "operation": sender.name.split(".")[-1],
             "duration_ms": duration_ms,
             "worker_name": _worker_name
         }
@@ -189,12 +211,13 @@ def on_task_failure(sender, task_id, exception, traceback, **kwargs):
         otel_span.record_exception(exception)
 
     logger.error(
-        f"Worker Job FAILURE: task={sender.name} task_id={task_id} - Failed - Duration: {duration_ms}ms - Error: {exception}", 
+        f"Worker Job FAILURE: task={sender.name} task_id={task_id} - {exception}",
         exc_info=True,
         extra={
             "category": "WORKER",
             "event": "worker.task.failed",
             "execution_step": "FAIL",
+            "operation": sender.name.split(".")[-1],
             "duration_ms": duration_ms,
             "worker_name": _worker_name
         }

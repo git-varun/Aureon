@@ -1,9 +1,9 @@
 /* Aureon v4 — Currency layer + Jobs layer context. */
 import React, { createContext, useContext, useState, useEffect, useMemo } from 'react';
-import { useQueryClient, useQuery } from '@tanstack/react-query';
+import { useQueryClient } from '@tanstack/react-query';
 import { apiService } from '../api/apiService';
 import { SUPPORTED_CURRENCIES, FX_PER_INR } from '../pages/aureon/marketData';
-import { AUREON_STATE_KEY } from '../hooks/useAureonData';
+import { useOrganization } from './OrganizationContext';
 
 const V4Context = createContext(null);
 export const useV4 = () => useContext(V4Context);
@@ -50,11 +50,6 @@ const _TONE_MAP = {
     Bearish: { tone: 'Cautious',     color: 'var(--crimson-500)', bg: 'rgba(201,82,82,0.10)',    border: 'rgba(201,82,82,0.28)'  },
 };
 
-const _confidenceFromAction = (action) => {
-    const map = { BUY: 0.85, HOLD: 0.72, SELL: 0.75, 'AVG DOWN': 0.68 };
-    return map[action] ?? 0.72;
-};
-
 const _parseAIResponse = (runId, ts, resp) => {
     if (resp?.status === 'cached' && resp?.data) {
         const d = resp.data;
@@ -63,7 +58,7 @@ const _parseAIResponse = (runId, ts, resp) => {
             id: runId, ts,
             ...t,
             text: d.deep_reasoning || d.key_catalyst || 'Analysis complete.',
-            confidence: _confidenceFromAction(d.recommended_action),
+            confidence: d.confidence ?? null,
         };
     }
     return {
@@ -124,23 +119,11 @@ export const V4Provider = ({ children }) => {
     const [jobHistory, setJobHistory] = useState({});
     const [aiRuns, setAiRuns] = useState({});
     const queryClient = useQueryClient();
-
-    const { data: stateData } = useQuery({
-        queryKey: AUREON_STATE_KEY,
-        queryFn: () => apiService.fetchAureonState(),
-        staleTime: 30000,
-    });
+    const {activeOrgId} = useOrganization();
 
     const effectiveRates = useMemo(() => {
-        const baseRates = fxRates || FX_PER_INR;
-        if (stateData?.fxRate) {
-            return {
-                ...baseRates,
-                USD: 1 / stateData.fxRate,
-            };
-        }
-        return baseRates;
-    }, [fxRates, stateData?.fxRate]);
+        return fxRates || FX_PER_INR;
+    }, [fxRates]);
 
     /* Map job IDs to the real API call that backs them. */
     const _jobApiCall = (jobId, ticker) => {
@@ -148,12 +131,14 @@ export const V4Provider = ({ children }) => {
             case 'j-prices':   return apiService.refreshPrices();
             case 'j-briefing': return apiService.runGlobalAI();
             case 'j-providers':return apiService.syncBrokers();
-            case 'j-signals':  return apiService.generateSignals();
+            case 'j-signals':  return apiService.generateRecommendations(activeOrgId);
             case 'j-news':     return apiService.analyzeNewsBatch();
             case 'j-analytics':return apiService.refreshPrices(); // prices are the base for all analytics
             case 'j-alerts':   return apiService.refreshPrices(); // re-evaluates price-based thresholds
-            case 'j-ai':       return Promise.resolve(null); // handled separately below with polling
-            default:           return Promise.resolve(null);
+            case 'j-ai':          return Promise.resolve(null); // handled separately below with polling
+            case 'j-market-data': return apiService.refreshMarket();
+            case 'j-themes':      return Promise.resolve(null);
+            default:              return Promise.resolve(null);
         }
     };
 
@@ -175,7 +160,7 @@ export const V4Provider = ({ children }) => {
                 setJobHistory(h => ({ ...h, [jobId]: { last: Date.now(), status: 'ok' } }));
                 // Refresh the primary data feed so the UI reflects the outcome.
                 if (jobId !== 'j-ai') {
-                    queryClient.invalidateQueries({ queryKey: AUREON_STATE_KEY });
+                    queryClient.invalidateQueries({ queryKey: ["org", activeOrgId] });
                 }
             });
 

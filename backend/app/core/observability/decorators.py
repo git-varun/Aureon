@@ -30,10 +30,11 @@ def instrument_service(service_name: str):
         def sync_wrapper(*args, **kwargs):
             start_time = time.perf_counter()
             span_name = f"Service.{service_name}.{func_name}"
-            
+            _op = f"{service_name}.{func_name}"
+
             with ContextManager(extra_fields={"service": service_name, "function": func_name, "execution_step": "START"}):
-                logger.info(f"Service Call START: {service_name}.{func_name}", extra={"event": "service.started"})
-                
+                logger.debug(f"Service Call START: {_op}", extra={"event": "service.started", "operation": _op})
+
                 with tracer.start_as_current_span(span_name) as span:
                     span.set_attribute("service", service_name)
                     span.set_attribute("function", func_name)
@@ -41,29 +42,29 @@ def instrument_service(service_name: str):
                         result = func(*args, **kwargs)
                         duration_ms = (time.perf_counter() - start_time) * 1000
                         span.set_status(StatusCode.OK)
-                        
+
                         service_execution_duration_seconds.observe(
                             duration_ms / 1000.0, service=service_name, function=func_name
                         )
-                        
+
                         with ContextManager(extra_fields={"execution_step": "FINISH", "duration_ms": int(duration_ms)}):
                             logger.info(
-                                f"Service Call FINISH: {service_name}.{func_name} - Success - Duration: {duration_ms:.2f}ms",
-                                extra={"event": "service.completed", "duration_ms": int(duration_ms)}
+                                f"Service Call FINISH: {_op}",
+                                extra={"event": "service.completed", "operation": _op, "duration_ms": int(duration_ms)}
                             )
                         return result
                     except Exception as exc:
                         duration_ms = (time.perf_counter() - start_time) * 1000
                         span.set_status(StatusCode.ERROR, str(exc))
                         span.record_exception(exc)
-                        
+
                         telemetry_errors_total.inc(category="SERVICE", error_type=type(exc).__name__)
-                        
+
                         with ContextManager(extra_fields={"execution_step": "FAIL", "duration_ms": int(duration_ms)}):
                             logger.error(
-                                f"Service Call FAIL: {service_name}.{func_name} - Failed - Duration: {duration_ms:.2f}ms - Error: {exc}",
+                                f"Service Call FAIL: {_op} - {exc}",
                                 exc_info=True,
-                                extra={"event": "service.failed", "duration_ms": int(duration_ms)}
+                                extra={"event": "service.failed", "operation": _op, "duration_ms": int(duration_ms)}
                             )
                         raise exc
 
@@ -71,10 +72,11 @@ def instrument_service(service_name: str):
         async def async_wrapper(*args, **kwargs):
             start_time = time.perf_counter()
             span_name = f"Service.{service_name}.{func_name}"
-            
+            _op = f"{service_name}.{func_name}"
+
             with ContextManager(extra_fields={"service": service_name, "function": func_name, "execution_step": "START"}):
-                logger.info(f"Service Call START: {service_name}.{func_name}", extra={"event": "service.started"})
-                
+                logger.debug(f"Service Call START: {_op}", extra={"event": "service.started", "operation": _op})
+
                 with tracer.start_as_current_span(span_name) as span:
                     span.set_attribute("service", service_name)
                     span.set_attribute("function", func_name)
@@ -82,29 +84,29 @@ def instrument_service(service_name: str):
                         result = await func(*args, **kwargs)
                         duration_ms = (time.perf_counter() - start_time) * 1000
                         span.set_status(StatusCode.OK)
-                        
+
                         service_execution_duration_seconds.observe(
                             duration_ms / 1000.0, service=service_name, function=func_name
                         )
-                        
+
                         with ContextManager(extra_fields={"execution_step": "FINISH", "duration_ms": int(duration_ms)}):
                             logger.info(
-                                f"Service Call FINISH: {service_name}.{func_name} - Success - Duration: {duration_ms:.2f}ms",
-                                extra={"event": "service.completed", "duration_ms": int(duration_ms)}
+                                f"Service Call FINISH: {_op}",
+                                extra={"event": "service.completed", "operation": _op, "duration_ms": int(duration_ms)}
                             )
                         return result
                     except Exception as exc:
                         duration_ms = (time.perf_counter() - start_time) * 1000
                         span.set_status(StatusCode.ERROR, str(exc))
                         span.record_exception(exc)
-                        
+
                         telemetry_errors_total.inc(category="SERVICE", error_type=type(exc).__name__)
-                        
+
                         with ContextManager(extra_fields={"execution_step": "FAIL", "duration_ms": int(duration_ms)}):
                             logger.error(
-                                f"Service Call FAIL: {service_name}.{func_name} - Failed - Duration: {duration_ms:.2f}ms - Error: {exc}",
+                                f"Service Call FAIL: {_op} - {exc}",
                                 exc_info=True,
-                                extra={"event": "service.failed", "duration_ms": int(duration_ms)}
+                                extra={"event": "service.failed", "operation": _op, "duration_ms": int(duration_ms)}
                             )
                         raise exc
 
@@ -188,13 +190,14 @@ def instrument_provider(provider_name: str, endpoint: str):
             symbol = args[0] if args else kwargs.get("symbol", "-")
             start_time = time.perf_counter()
             span_name = f"Provider.{provider_name}.{endpoint}"
+            _op = f"{provider_name}.{endpoint} {symbol}"
 
             with ContextManager(extra_fields={"provider": provider_name, "symbol": symbol, "execution_step": "START"}):
-                logger.info(
-                    f"Provider Call START: provider={provider_name} endpoint={endpoint} symbol={symbol}",
-                    extra={"event": "provider.request.started"}
+                logger.debug(
+                    f"Provider Call START: {_op}",
+                    extra={"event": "provider.request.started", "category": "PROVIDER", "operation": _op}
                 )
-                
+
                 with tracer.start_as_current_span(span_name) as span:
                     span.set_attribute("provider", provider_name)
                     span.set_attribute("endpoint", endpoint)
@@ -203,7 +206,7 @@ def instrument_provider(provider_name: str, endpoint: str):
                         result = func(self, *args, **kwargs)
                         duration_ms = (time.perf_counter() - start_time) * 1000
                         span.set_status(StatusCode.OK)
-                        
+
                         provider_request_duration_seconds.observe(
                             duration_ms / 1000.0, provider=provider_name, endpoint=endpoint, symbol=symbol
                         )
@@ -216,29 +219,29 @@ def instrument_provider(provider_name: str, endpoint: str):
                         if duration_ms > 1000.0:
                             from app.core.observability.slow_operations import check_slow_operation
                             check_slow_operation("Provider", duration_ms, details={"provider": provider_name, "endpoint": endpoint, "symbol": symbol})
-                        
+
                         with ContextManager(extra_fields={"execution_step": "FINISH", "duration_ms": int(duration_ms)}):
                             logger.info(
-                                f"Provider Call FINISH: provider={provider_name} endpoint={endpoint} symbol={symbol} - Success - Duration: {duration_ms:.2f}ms",
-                                extra={"event": "provider.request.completed", "duration_ms": int(duration_ms)}
+                                f"Provider Call FINISH: {_op}",
+                                extra={"event": "provider.request.completed", "category": "PROVIDER", "operation": _op, "duration_ms": int(duration_ms)}
                             )
                         return result
                     except Exception as exc:
                         duration_ms = (time.perf_counter() - start_time) * 1000
                         span.set_status(StatusCode.ERROR, str(exc))
                         span.record_exception(exc)
-                        
+
                         telemetry_errors_total.inc(category="PROVIDER", error_type=type(exc).__name__)
-                        
+
                         if duration_ms > 1000.0:
                             from app.core.observability.slow_operations import check_slow_operation
                             check_slow_operation("Provider", duration_ms, details={"provider": provider_name, "endpoint": endpoint, "symbol": symbol, "error": str(exc)})
-                        
+
                         with ContextManager(extra_fields={"execution_step": "FAIL", "duration_ms": int(duration_ms)}):
                             logger.error(
-                                f"Provider Call FAIL: provider={provider_name} endpoint={endpoint} symbol={symbol} - Failed - Duration: {duration_ms:.2f}ms - Error: {exc}",
+                                f"Provider Call FAIL: {_op} - {exc}",
                                 exc_info=True,
-                                extra={"event": "provider.request.failed", "duration_ms": int(duration_ms)}
+                                extra={"event": "provider.request.failed", "category": "PROVIDER", "operation": _op, "duration_ms": int(duration_ms)}
                             )
                         raise exc
         return wrapper

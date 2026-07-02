@@ -3,14 +3,13 @@ import uuid
 from contextlib import asynccontextmanager
 from typing import AsyncGenerator
 
-from fastapi import APIRouter, FastAPI, HTTPException, Request
+from fastapi import FastAPI, HTTPException, Request
 from fastapi.exceptions import RequestValidationError
 from fastapi.responses import JSONResponse
-from fastapi.routing import APIRoute
 
-from app.api import compatibility
 from app.api.v1 import (
     ai,
+    assets,
     auth,
     config,
     evaluation,
@@ -98,7 +97,23 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
     except Exception as e:
         logger.error(f"Failed to seed defaults: {e}")
         raise RuntimeError(f"Startup check failed: Database seeding failed. Error: {e}")
-        
+
+    # Bootstrap market universe if empty
+    try:
+        from app.core.database import SessionLocal
+        from app.domain.entities.market import Asset
+        with SessionLocal() as db:
+            asset_count = db.query(Asset).count()
+        if asset_count == 0:
+            logger.info("market.assets is empty — triggering seed_market_universe_task via Celery")
+            from app.workers.ingestion.tasks import seed_market_universe_task, seed_price_history_task
+            seed_market_universe_task.delay()
+            seed_price_history_task.delay()
+        else:
+            logger.info(f"market.assets has {asset_count} assets — skipping bootstrap seed")
+    except Exception as e:
+        logger.warning(f"Market bootstrap check failed (non-fatal): {e}")
+
     logger.info("Aureon API startup completed. Application ready.")
     yield
     
@@ -255,48 +270,20 @@ async def general_exception_handler(request: Request, exc: Exception) -> JSONRes
 
 app.include_router(health.router, prefix="/api/v1", tags=["system"])
 app.include_router(market.router, prefix="/api/v1/market", tags=["market"])
+app.include_router(assets.router, prefix="/api/v1", tags=["assets"])
 app.include_router(portfolio.router, prefix="/api/v1/portfolio", tags=["portfolio"])
 app.include_router(evaluation.router, prefix="/api/v1/evaluation", tags=["evaluation"])
 app.include_router(monitoring.router, prefix="/api/v1/monitoring", tags=["monitoring"])
 app.include_router(auth.router, prefix="/api/v1/auth", tags=["auth"])
+app.include_router(auth.users_router, prefix="/api/v1", tags=["auth"])
 app.include_router(organizations.router, prefix="/api/v1/organizations", tags=["organizations"])
 app.include_router(memberships.router, prefix="/api/v1/memberships", tags=["memberships"])
 app.include_router(invitations.router, prefix="/api/v1/invitations", tags=["invitations"])
 app.include_router(recommendation.router, prefix="/api/v1/recommendation", tags=["recommendation"])
+app.include_router(recommendation.bare_router, prefix="/api/v1", tags=["recommendation"])
 app.include_router(intelligence.router, prefix="/api/v1/intelligence", tags=["intelligence"])
 app.include_router(watchlist.router, prefix="/api/v1", tags=["watchlist"])
 app.include_router(config.router, prefix="/api/v1", tags=["config"])
 app.include_router(notification.router, prefix="/api/v1", tags=["notifications"])
 app.include_router(news.router, prefix="/api/v1", tags=["news"])
 app.include_router(ai.router, prefix="/api/v1", tags=["ai"])
-app.include_router(compatibility.router)
-
-
-v1_compat_router = APIRouter()
-for route in compatibility.router.routes:
-    if isinstance(route, APIRoute) and route.path.startswith("/api/"):
-        new_path = route.path.replace("/api/", "/api/v1/")
-        # Avoid duplicate registration if route already exists in other v1 routers
-        v1_compat_router.add_api_route(
-            new_path,
-            route.endpoint,
-            methods=route.methods,
-            response_model=route.response_model,
-            dependencies=route.dependencies,
-            summary=route.summary,
-            description=route.description,
-            response_description=route.response_description,
-            responses=route.responses,
-            deprecated=route.deprecated,
-            operation_id=route.operation_id + "_v1" if route.operation_id else None,
-            response_model_include=route.response_model_include,
-            response_model_exclude=route.response_model_exclude,
-            response_model_by_alias=route.response_model_by_alias,
-            response_model_exclude_unset=route.response_model_exclude_unset,
-            response_model_exclude_defaults=route.response_model_exclude_defaults,
-            response_model_exclude_none=route.response_model_exclude_none,
-            include_in_schema=route.include_in_schema,
-            response_class=route.response_class,
-            name=route.name,
-        )
-app.include_router(v1_compat_router)

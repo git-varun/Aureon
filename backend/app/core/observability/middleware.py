@@ -60,9 +60,10 @@ class TelemetryMiddleware(BaseHTTPMiddleware):
             parent_span_id=parent_span_id,
             extra_fields={"category": "API", "event": "api.request.started"}
         ) as ctx:
+            _op = f"{request.method} {request.url.path}"
             logger.info(
-                f"--> Request: {request.method} {request.url.path} (client: {request.client.host if request.client else 'unknown'})",
-                extra={"event": "api.request.started", "method": request.method, "path": request.url.path}
+                f"--> Request: {_op}",
+                extra={"category": "API", "event": "api.request.started", "operation": _op, "method": request.method, "path": request.url.path}
             )
             
             with tracer.start_as_current_span(span_name) as span:
@@ -104,9 +105,11 @@ class TelemetryMiddleware(BaseHTTPMiddleware):
                     
                     with ContextManager(extra_fields={"execution_step": "FINISH", "duration_ms": int(duration_ms)}):
                         logger.info(
-                            f"<-- Response: {request.method} {request.url.path} - Status: {response.status_code} - Duration: {duration_ms:.2f}ms",
+                            f"<-- Response: {_op} {response.status_code}",
                             extra={
+                                "category": "API",
                                 "event": "api.request.completed",
+                                "operation": _op,
                                 "status_code": response.status_code,
                                 "duration_ms": int(duration_ms),
                                 "method": request.method,
@@ -132,10 +135,12 @@ class TelemetryMiddleware(BaseHTTPMiddleware):
                     
                     with ContextManager(extra_fields={"execution_step": "FAIL", "duration_ms": int(duration_ms)}):
                         logger.error(
-                            f"<-- Response: {request.method} {request.url.path} - Failed - Duration: {duration_ms:.2f}ms - Error: {exc}",
+                            f"<-- Response: {_op} FAILED - {exc}",
                             exc_info=True,
                             extra={
+                                "category": "API",
                                 "event": "api.request.failed",
+                                "operation": _op,
                                 "duration_ms": int(duration_ms),
                                 "method": request.method,
                                 "path": request.url.path

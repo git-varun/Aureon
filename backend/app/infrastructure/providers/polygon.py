@@ -6,6 +6,7 @@ from typing import List
 import requests
 
 from app.core.config import settings
+from app.core.exceptions import ProviderError
 from app.domain.services.providers.models import NormalizedNews, NormalizedQuote
 from app.infrastructure.providers.base import ProviderAdapter
 
@@ -19,15 +20,7 @@ class PolygonAdapter(ProviderAdapter):
     def get_quote(self, symbol: str) -> NormalizedQuote:
         api_key = settings.POLYGON_API_KEY
         if not api_key or api_key == "your_polygon_api_key" or api_key.lower() == "none":
-            # Graceful fallback when API key is not configured (e.g. tests)
-            logger.info("Polygon API key not configured, returning mock quote")
-            return NormalizedQuote(
-                symbol=symbol,
-                provider=self.provider_name,
-                timestamp=datetime.now(timezone.utc),
-                price=Decimal("150.00"),
-                volume=Decimal("1000")
-            )
+            raise ProviderError("Polygon API key is not configured", retryable=False)
 
         try:
             res = requests.get(
@@ -40,10 +33,10 @@ class PolygonAdapter(ProviderAdapter):
             results = data.get("results")
             if not results or "p" not in results:
                 raise ValueError(f"No price returned from Polygon for symbol {symbol}")
-                
+
             price = results["p"]
             volume = results.get("s")
-            
+
             return NormalizedQuote(
                 symbol=symbol,
                 provider=self.provider_name,
@@ -51,15 +44,10 @@ class PolygonAdapter(ProviderAdapter):
                 price=Decimal(str(price)),
                 volume=Decimal(str(volume)) if volume else None
             )
+        except ProviderError:
+            raise
         except Exception as e:
-            logger.warning(f"Polygon get_quote failed for {symbol}: {e}. Returning mock fallback.")
-            return NormalizedQuote(
-                symbol=symbol,
-                provider=self.provider_name,
-                timestamp=datetime.now(timezone.utc),
-                price=Decimal("150.00"),
-                volume=Decimal("1000")
-            )
+            raise ProviderError(f"Polygon get_quote failed for {symbol}: {e}") from e
 
     def get_news(self, symbol: str) -> List[NormalizedNews]:
         api_key = settings.POLYGON_API_KEY

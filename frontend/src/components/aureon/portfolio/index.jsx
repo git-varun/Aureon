@@ -1,4 +1,13 @@
-export {AllocBar}       from './AllocBar';
-export {ClassRow}       from './ClassRow';
-export {HoldingSubRow}  from './HoldingSubRow';
-export {LogTradeModal}  from './LogTradeModal';
+export { AllocBar }            from './AllocBar';
+export { ClassRow }            from './ClassRow';
+export { HoldingSubRow }       from './HoldingSubRow';
+export { LogTradeModal }       from './LogTradeModal';
+export { PfFreshnessBar }      from './PfFreshnessBar';
+export { PfSummaryHero }       from './PfSummaryHero';
+export { PfPerformanceChart }  from './PfPerformanceChart';
+export { PfAllocationSection } from './PfAllocationSection';
+export { PfHoldingsTable }     from './PfHoldingsTable';
+export { PfActivityFeed }      from './PfActivityFeed';
+export { PfImportCenter }      from './PfImportCenter';
+export { ManualAssetModal }        from './ManualAssetModal';
+export { PfConcentrationSection }  from './PfConcentrationSection';

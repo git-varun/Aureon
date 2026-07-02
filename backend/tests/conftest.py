@@ -1,6 +1,48 @@
+# Must run before any `app.*` import anywhere in the test session: app.core.config.Settings
+# is a module-level singleton instantiated on first import, and it selects DATABASE_URL vs
+# TEST_DATABASE_URL based on this flag. Setting it here — the first thing conftest.py does —
+# guarantees no test module can import the app before the test database is selected.
+import os
+os.environ["TESTING"] = "true"
+
+from pathlib import Path
 from unittest.mock import patch
 
 import pytest
+from sqlalchemy.ext.compiler import compiles
+from sqlalchemy.schema import DropTable
+
+
+@compiles(DropTable, "postgresql")
+def _drop_table_cascade(element, compiler, **kwargs):
+    # Postgres ENUM types (e.g. jobstatus) are dropped as a separate DDL step
+    # after their owning table. Without CASCADE here, drop_all() can fail with
+    # "cannot drop type X because other objects depend on it" if that type's
+    # column hasn't been removed yet when the type-drop statement runs.
+    return compiler.visit_drop_table(element) + " CASCADE"
+
+
+@pytest.fixture(scope="session", autouse=True)
+def _migrate_test_database_to_head():
+    # The single source of schema truth for the test database is Alembic, not
+    # Base.metadata.create_all — this runs once per test session, before any test
+    # touches the database. Individual tests still use create_all/drop_all for fast
+    # per-test table resets, but the *starting* schema always comes from migrations,
+    # so drift like the config.job_logs.status column gap can't hide in tests again.
+    from app.core.config import settings
+    assert settings.TESTING is True, "conftest failed to set TESTING=true before Settings() was built"
+    assert settings.TEST_DATABASE_URL and settings.DATABASE_URL == settings.TEST_DATABASE_URL, (
+        "Refusing to run tests: DATABASE_URL does not resolve to TEST_DATABASE_URL"
+    )
+
+    from alembic import command
+    from alembic.config import Config
+
+    backend_dir = Path(__file__).resolve().parent.parent
+    cfg = Config(str(backend_dir / "alembic.ini"))
+    cfg.set_main_option("script_location", str(backend_dir / "alembic"))
+    command.upgrade(cfg, "head")
+    yield
 
 # Global dict to act as mock Redis database
 _mock_redis_db = {}

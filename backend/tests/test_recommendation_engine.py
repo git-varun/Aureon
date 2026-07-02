@@ -42,18 +42,19 @@ def setup_recommendation_data(clean_db):
     
     org = Organization(id=uuid.uuid4(), name="Test Org", slug="test-org")
     session.add(org)
-    
+    session.flush()
+
     member = OrganizationMember(organization_id=org.id, user_id=user.id, role="ADMIN")
     session.add(member)
-    
+
     portfolio = Portfolio(id=uuid.uuid4(), name="Test Portfolio", organization_id=org.id)
     session.add(portfolio)
-    
+
     # 2. Create Asset, LatestQuote, AssetSnapshot
     asset_id = uuid.uuid4()
     quote = LatestQuote(symbol="TEST_ASSET", asset_id=asset_id, price=100.0, volume=5000.0)
     session.add(quote)
-    
+
     snapshot = AssetSnapshot(
         asset_id=asset_id,
         price=100.0,
@@ -63,7 +64,8 @@ def setup_recommendation_data(clean_db):
         payload={}
     )
     session.add(snapshot)
-    
+    session.flush()
+
     # Create Features and Scores matching BUY rule: valuation >= 0.7, momentum >= 0.5, sentiment >= 0.5
     features = AssetFeatures(
         asset_id=asset_id,

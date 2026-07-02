@@ -3,3 +3,4 @@ export {ChartTab}        from './ChartTab';
 export {FundamentalsTab} from './FundamentalsTab';
 export {TechnicalTab}    from './TechnicalTab';
 export {AiTab}           from './AiTab';
+export {TerminalChart}   from './TerminalChart';

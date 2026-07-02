@@ -17,6 +17,8 @@ class AssetSnapshotRepository(BaseRepository):
         return self.session.execute(stmt).scalar_one_or_none()
 
     def upsert(self, snapshot: AssetSnapshot) -> AssetSnapshot:
+        from datetime import datetime, timezone
+        now = datetime.now(timezone.utc)
         stmt = insert(AssetSnapshot).values(
             asset_id=snapshot.asset_id,
             price=snapshot.price,
@@ -27,7 +29,8 @@ class AssetSnapshotRepository(BaseRepository):
             volatility_score=snapshot.volatility_score,
             sentiment_score=snapshot.sentiment_score,
             payload=snapshot.payload,
-            updated_at=snapshot.updated_at
+            created_at=now,
+            updated_at=snapshot.updated_at,
         )
         upsert_stmt = stmt.on_conflict_do_update(
             index_elements=['asset_id'],
@@ -40,10 +43,9 @@ class AssetSnapshotRepository(BaseRepository):
                 volatility_score=stmt.excluded.volatility_score,
                 sentiment_score=stmt.excluded.sentiment_score,
                 payload=stmt.excluded.payload,
-                updated_at=stmt.excluded.updated_at
+                updated_at=stmt.excluded.updated_at,
             )
-        ).returning(AssetSnapshot)
-        
-        result = self.session.execute(upsert_stmt).scalar_one()
+        )
+        self.session.execute(upsert_stmt)
         self.session.flush()
-        return result
+        return snapshot

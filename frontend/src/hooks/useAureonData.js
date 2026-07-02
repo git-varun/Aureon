@@ -39,8 +39,6 @@ export function useAureonData() {
         staleTime: 15000,
     });
 
-    const recommendations = recommendationsQuery.data || [];
-
     // 4. Activity/Transactions Query (Tenant-Aware)
     const transactionsQuery = useQuery({
         queryKey: ["org", activeOrgId, "portfolio", activePortfolioId, "transactions"],
@@ -110,7 +108,7 @@ export function useAureonData() {
     const holdings = useMemo(() => {
         return positions.map(pos => {
             const assetData = assetsMap[pos.symbol] || {};
-            const price = assetData.price || pos.avg_buy_price || 100.0;
+            const price = assetData.price || pos.avg_buy_price || null;
             return {
                 id: pos.symbol,
                 ticker: pos.symbol.toUpperCase().replace(/\.NS$/i, ''),
@@ -120,10 +118,10 @@ export function useAureonData() {
                 qty: pos.quantity,
                 cost: pos.avg_buy_price,
                 price: price,
-                dayPct: assetData.dayPct || 0.0,
+                dayPct: assetData.dayPct ?? null,
                 sector: assetData.sector || 'General',
                 beta: 1.0,
-                spark: [price],
+                spark: price != null ? [price] : [],
             };
         });
     }, [positions, assetsMap]);
@@ -160,8 +158,58 @@ export function useAureonData() {
         return { techWt: wt, techDriftPp: driftPp, techDriftLabel: driftLabel, techDriftProse: driftProse };
     }, [holdings]);
 
-    const signals = [];
-    const signalById = {};
+    // 8. Per-position signals from RSI/signal endpoint
+    const signalQueries = useQueries({
+        queries: positions.map(pos => ({
+            queryKey: ['signal', pos.symbol],
+            queryFn: async () => {
+                try {
+                    return await apiService.getAssetSignal(pos.symbol);
+                } catch (e) {
+                    if (e?.response?.status === 404) return null;
+                    throw e;
+                }
+            },
+            enabled: positions.length > 0 && !!pos.symbol,
+            staleTime: 120000,
+        }))
+    });
+
+    const signals = useMemo(() => {
+        return signalQueries
+            .map((q) => {
+                const raw = q.data;
+                if (!raw) return null;
+                const rsi = raw.rsi_14 ?? 50;
+                const severity = (rsi > 70 || rsi < 30) ? 'high' : (rsi > 60 || rsi < 40) ? 'med' : 'low';
+                const kind = (rsi > 70 || rsi < 30) ? 'volatility' : 'momentum';
+                return {
+                    id: `sig-${raw.symbol}`,
+                    kind,
+                    asset: raw.symbol,
+                    severity,
+                    ts: raw.created_at,
+                    text: raw.rationale || `RSI ${rsi.toFixed(0)} — ${raw.signal_type}`,
+                    linkedRec: null,
+                };
+            })
+            .filter(Boolean);
+    }, [signalQueries]);
+
+    const signalById = useMemo(() => Object.fromEntries(signals.map(s => [s.id, s])), [signals]);
+
+    // 9. Jobs query for data freshness indicators
+    const jobsQuery = useQuery({
+        queryKey: ['config', 'jobs'],
+        queryFn: () => apiService.getJobs(),
+        enabled: !!activeOrgId,
+        staleTime: 60000,
+    });
+
+    const jobsByName = useMemo(() => {
+        const list = jobsQuery.data?.jobs || [];
+        return Object.fromEntries(list.map(j => [j.job_name, j]));
+    }, [jobsQuery.data]);
 
     const loading = positionsQuery.isLoading || snapshotQuery.isLoading || recommendationsQuery.isLoading || transactionsQuery.isLoading;
     const error = positionsQuery.error || snapshotQuery.error || recommendationsQuery.error || transactionsQuery.error;
@@ -177,14 +225,16 @@ export function useAureonData() {
         signals,
         signalById,
         activity,
-        recsActive: recommendations.filter(r => r.status === 'active'),
-        recsApplied: recommendations.filter(r => r.status === 'applied'),
         portfolioRec: null,
         allocByClass,
         unreadCount: notifications.filter(n => !n.read).length,
         marketPulse: null,
         aiBriefing,
-        freshness: {},
+        freshness: {
+            refresh_prices: snapshot?.updated_at ?? null,
+            fetch_news: jobsByName['fetch_news']?.last_run_at ?? null,
+            daily_briefing: aiBriefing?.created_at ?? null,
+        },
         goalProgress: null,
         apiState: {holdings, netWorth, activity},
         techTarget,

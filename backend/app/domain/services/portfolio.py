@@ -517,3 +517,91 @@ class PortfolioService(BaseService):
             "imported_holdings": len(payloads),
             "summary": summary,
         }
+
+    def sync_zerodha_holdings(
+        self,
+        portfolio_id: uuid.UUID,
+        organization_id: uuid.UUID,
+        holdings: List[Dict[str, Any]],
+    ) -> Dict[str, Any]:
+        """Idempotent upsert of Zerodha holdings into Position/Transaction, following the same
+        one-snapshot-per-symbol pattern as import_cdsl_cas. Only affects symbols with no manual
+        (non-broker_snapshot) transactions — recalculate_position's existing fallback logic
+        prefers manual history whenever it exists, so a manually-edited symbol is left alone."""
+        self.get_portfolio(portfolio_id, organization_id)
+
+        from app.domain.entities.market import Asset
+
+        _EXCHANGE_SUFFIX = {"NSE": ".NS", "BSE": ".BO"}
+
+        seen_symbols = set()
+        for h in holdings:
+            raw_symbol = (h.get("tradingsymbol") or "").upper().strip()
+            if not raw_symbol:
+                continue
+            suffix = _EXCHANGE_SUFFIX.get((h.get("exchange") or "").upper(), "")
+            symbol = raw_symbol if raw_symbol.endswith(suffix) or not suffix else f"{raw_symbol}{suffix}"
+            quantity = float(h.get("quantity") or 0)
+            avg_price = float(h.get("average_price") or 0)
+            if quantity <= 0:
+                continue
+
+            asset_id = _ensure_asset_exists(self.session, symbol)
+
+            asset = self.session.scalar(select(Asset).filter_by(symbol=symbol))
+            if not asset:
+                self.session.add(Asset(id=asset_id, symbol=symbol, name=raw_symbol, asset_class="equity"))
+                self.session.flush()
+
+            stmt = select(Transaction).where(
+                (Transaction.portfolio_id == portfolio_id) &
+                (Transaction.symbol == symbol) &
+                (Transaction.kind == "broker_snapshot") &
+                (Transaction.broker == "zerodha")
+            )
+            existing = self.session.execute(stmt).scalars().first()
+            if existing:
+                existing.quantity = quantity
+                existing.price = avg_price
+                existing.transaction_date = datetime.now(timezone.utc)
+            else:
+                txn = Transaction(
+                    portfolio_id=portfolio_id,
+                    symbol=symbol,
+                    asset_id=asset_id,
+                    transaction_type="BUY",
+                    quantity=quantity,
+                    price=avg_price,
+                    transaction_date=datetime.now(timezone.utc),
+                    broker="zerodha",
+                    kind="broker_snapshot",
+                )
+                self.transactions_repo.create(txn)
+
+            seen_symbols.add(symbol)
+
+        # Fully-sold holdings: remove the stale broker_snapshot so recalculate_position drops the Position.
+        stale = (
+            self.session.query(Transaction)
+            .filter(
+                Transaction.portfolio_id == portfolio_id,
+                Transaction.broker == "zerodha",
+                Transaction.kind == "broker_snapshot",
+                Transaction.symbol.notin_(seen_symbols),
+            )
+            .all()
+        )
+        removed_symbols = set()
+        for t in stale:
+            removed_symbols.add(t.symbol)
+            self.session.delete(t)
+
+        for sym in seen_symbols | removed_symbols:
+            self.recalculate_position(portfolio_id, sym)
+
+        self.session.commit()
+        return {
+            "status": "success",
+            "synced_holdings": len(seen_symbols),
+            "removed": len(removed_symbols),
+        }

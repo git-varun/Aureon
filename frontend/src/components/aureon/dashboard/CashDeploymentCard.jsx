@@ -1,12 +1,18 @@
-// frontend/src/components/aureon/dashboard/CashDeploymentCard.jsx
 import React from 'react';
-import { useCardData } from '@/hooks/useCardData';
+import { useQuery } from '@tanstack/react-query';
+import { apiService } from '@/api/apiService';
+import { usePortfolio } from '@/contexts/PortfolioContext';
 import { Sk, Cerr, CS, Eyebrow } from '../ui';
 import { useFmtMoney } from '@/hooks/useFmtMoney';
 
-const stub = async () => {
-  await new Promise(r => setTimeout(r, 580 + Math.random() * 250));
-  return null;
+const transform = (raw) => {
+  if (!raw) return null;
+  return {
+    uninvestedCash: raw.cash_balance,
+    pct: raw.cash_ratio,
+    target: 0.05,
+    recommendation: raw.suggestions?.[0] ?? 'Cash is within normal range.',
+  };
 };
 
 const RefreshIcon = ({ onClick }) => (
@@ -19,7 +25,16 @@ const RefreshIcon = ({ onClick }) => (
 );
 
 export function CashDeploymentCard() {
-  const { status, data, error, refetch } = useCardData(stub);
+  const { activePortfolioId } = usePortfolio();
+  const { data: raw, isLoading, isError, error, refetch } = useQuery({
+    queryKey: ['intelligence', 'cash-opportunities', activePortfolioId],
+    queryFn: () => apiService.getCashOpportunities(activePortfolioId),
+    enabled: !!activePortfolioId,
+    staleTime: 60000,
+  });
+
+  const data = React.useMemo(() => transform(raw ?? null), [raw]);
+  const status = isLoading ? 'loading' : isError ? 'error' : !data ? 'empty' : 'ready';
   const fmt = useFmtMoney();
 
   return (
@@ -35,7 +50,7 @@ export function CashDeploymentCard() {
         </div>
       )}
 
-      {status === 'error' && <Cerr msg={error} retry={refetch} />}
+      {status === 'error' && <Cerr msg={error?.message} retry={refetch} />}
 
       {(status === 'empty' || (status === 'ready' && !data)) && (
         <div style={{ fontSize: 12, color: 'var(--ink-40)', lineHeight: 1.55 }}>

@@ -18,12 +18,29 @@ def clean_db() -> Generator[None, None, None]:
     yield
 
 def test_quote_to_snapshot_flow(clean_db: None, monkeypatch: MonkeyPatch) -> None:
+    from datetime import datetime, timezone
+    from decimal import Decimal
+
+    from app.domain.services.providers.models import NormalizedQuote
+    from app.infrastructure.providers.finnhub import FinnhubAdapter
+
     # Mock cache calls
     monkeypatch.setattr("app.workers.ingestion.tasks.cache_quote", lambda *args, **kwargs: None)
     monkeypatch.setattr("app.workers.snapshots.asset_snapshot.cache_asset_snapshot", lambda *args, **kwargs: None)
     monkeypatch.setattr("app.workers.evaluation.features.cache_asset_features", lambda *args, **kwargs: None)
     monkeypatch.setattr("app.workers.evaluation.scoring.cache_asset_scores", lambda *args, **kwargs: None)
     monkeypatch.setattr("app.workers.monitoring.asset_health.cache_asset_health", lambda *args, **kwargs: None)
+
+    def mock_get_quote(self, symbol: str):
+        return NormalizedQuote(
+            symbol=symbol,
+            provider="finnhub",
+            timestamp=datetime.now(timezone.utc),
+            price=Decimal("150.00"),
+            volume=Decimal("1000"),
+        )
+
+    monkeypatch.setattr(FinnhubAdapter, "get_quote", mock_get_quote)
 
     symbol = "TSLA"
     result = ingest_quote("finnhub", symbol)

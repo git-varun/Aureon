@@ -25,6 +25,19 @@ from app.domain.services.auth import AuthService
 
 router = APIRouter()
 
+# Bare (non-/auth-prefixed) account routes, mounted separately at /api/v1
+users_router = APIRouter()
+
+@users_router.delete("/users/me")
+def delete_account(
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    current_user.is_active = False
+    db.add(current_user)
+    db.commit()
+    return {"status": "success", "message": "Account deactivated"}
+
 @router.post("/register", response_model=AuthResponse, status_code=status.HTTP_201_CREATED)
 def register(
     payload: RegisterRequest,

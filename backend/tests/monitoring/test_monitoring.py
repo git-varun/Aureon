@@ -8,7 +8,7 @@ from fastapi.testclient import TestClient
 from app.api.main import app
 from app.core.database import SessionLocal, engine
 from app.domain.entities.base import Base
-from app.domain.entities.market import AssetHealth
+from app.domain.entities.market import AssetHealth, AssetSnapshot
 from app.domain.entities.system import FailedIngestion, Provider
 from app.workers.monitoring.asset_health import compute_asset_health
 from app.workers.monitoring.providers import monitor_providers
@@ -35,64 +35,82 @@ def test_sla_evaluation() -> None:
 
 def test_asset_health_computation(setup_monitoring_data: None) -> None:
     asset_id = uuid.uuid4()
-    compute_asset_health(asset_id)
-    
+
+    # AssetHealth.asset_id FKs to asset_snapshot.asset_id, so a snapshot must exist first.
     session = SessionLocal()
-    health = session.query(AssetHealth).filter_by(asset_id=asset_id).first()
-    assert health is not None
-    assert health.status == "UNKNOWN" # No quote
-    session.close()
+    try:
+        session.add(AssetSnapshot(asset_id=asset_id, price=None))
+        session.commit()
+    finally:
+        session.close()
+
+    compute_asset_health(asset_id)
+
+    session = SessionLocal()
+    try:
+        health = session.query(AssetHealth).filter_by(asset_id=asset_id).first()
+        assert health is not None
+        # No LatestQuote exists, so quote_age is None; the snapshot's fresh updated_at
+        # makes signal_age ~0 — quote missing + signal present computes to DEGRADED.
+        assert health.status == "DEGRADED"
+    finally:
+        session.close()
 
 def test_provider_monitoring(setup_monitoring_data: None) -> None:
     session = SessionLocal()
-    provider = Provider(name="test_prov", is_enabled=True)
-    session.add(provider)
-    session.commit()
-    
-    # Add failures
-    now = datetime.now(timezone.utc)
-    for _ in range(15):
+    try:
+        provider = Provider(name="test_prov", is_enabled=True)
+        session.add(provider)
+        session.commit()
+
+        # Add failures
+        now = datetime.now(timezone.utc)
+        for _ in range(15):
+            failure = FailedIngestion(
+                provider="test_prov",
+                payload={"test": "data"},
+                error="test error",
+                created_at=now,
+                updated_at=now
+            )
+            session.add(failure)
+        session.commit()
+
+        monitor_providers()
+
+        fetched_provider = session.query(Provider).filter_by(name="test_prov").first()
+        assert fetched_provider is not None
+        assert fetched_provider.health_status == "DEGRADED"
+    finally:
+        session.close()
+
+def test_failed_ingestion_recovery(setup_monitoring_data: None) -> None:
+    session = SessionLocal()
+    try:
+        now = datetime.now(timezone.utc)
         failure = FailedIngestion(
             provider="test_prov",
             payload={"test": "data"},
             error="test error",
-            created_at=now,
-            updated_at=now
+            created_at=now - timedelta(seconds=60), # 60s ago
+            updated_at=now - timedelta(seconds=60),
+            attempts=1
         )
         session.add(failure)
-    session.commit()
-    
-    monitor_providers()
-    
-    fetched_provider = session.query(Provider).filter_by(name="test_prov").first()
-    assert fetched_provider is not None
-    assert fetched_provider.health_status == "DEGRADED"
-    session.close()
+        session.commit()
+        failure_id = failure.id
+    finally:
+        session.close()
 
-def test_failed_ingestion_recovery(setup_monitoring_data: None) -> None:
-    session = SessionLocal()
-    now = datetime.now(timezone.utc)
-    failure = FailedIngestion(
-        provider="test_prov",
-        payload={"test": "data"},
-        error="test error",
-        created_at=now - timedelta(seconds=60), # 60s ago
-        updated_at=now - timedelta(seconds=60),
-        attempts=1
-    )
-    session.add(failure)
-    session.commit()
-    
-    failure_id = failure.id
-    session.close()
-    
     retry_failed_ingestion(failure_id)
-    
+
     session = SessionLocal()
-    updated_failure = session.query(FailedIngestion).filter_by(id=failure_id).first()
-    assert updated_failure is not None
-    assert updated_failure.attempts == 2
-    session.close()
+    try:
+        updated_failure = session.query(FailedIngestion).filter_by(id=failure_id).first()
+        assert updated_failure is not None
+        assert updated_failure.attempts == 2
+    finally:
+        session.close()
 
 def test_monitoring_api(setup_monitoring_data: None) -> None:
     resp = client.get("/api/v1/monitoring/providers")

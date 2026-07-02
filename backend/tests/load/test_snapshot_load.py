@@ -8,7 +8,6 @@ import pytest
 from httpx import ASGITransport, AsyncClient
 from sqlalchemy import create_engine, insert
 from sqlalchemy.orm import sessionmaker
-from sqlalchemy.pool import NullPool
 
 from app.api.main import app
 from app.core.config import settings
@@ -17,8 +16,14 @@ from app.core.redis import get_redis_client
 from app.domain.entities.base import Base
 from app.domain.entities.market import AssetSnapshot
 
-# Isolate test database configuration
-test_engine = create_engine(settings.DATABASE_URL, echo=False, connect_args={"check_same_thread": False}, poolclass=NullPool)
+# Isolate test database configuration.
+# A bounded pool that reuses connections — NullPool opens a brand-new physical connection per
+# checkout, and 100 concurrent requests against it reliably exhausted Postgres max_connections.
+_test_connect_args = {"check_same_thread": False} if settings.DATABASE_URL.startswith("sqlite") else {}
+test_engine = create_engine(
+    settings.DATABASE_URL, echo=False, connect_args=_test_connect_args,
+    pool_size=60, max_overflow=20, pool_timeout=60,
+)
 if test_engine.dialect.name == 'sqlite':
     test_engine = test_engine.execution_options(schema_translate_map={'system': None, 'market': None, 'portfolio': None, 'evaluation': None, 'recommendation': None, 'watchlist': None, 'config': None, 'notification': None, 'news': None, 'ai': None})
 TestSessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=test_engine)
