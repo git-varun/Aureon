@@ -6,6 +6,7 @@ from typing import List
 import requests
 
 from app.core.config import settings
+from app.core.exceptions import ProviderError
 from app.domain.services.providers.models import NormalizedNews, NormalizedQuote
 from app.infrastructure.providers.base import ProviderAdapter
 
@@ -19,15 +20,7 @@ class FinnhubAdapter(ProviderAdapter):
     def get_quote(self, symbol: str) -> NormalizedQuote:
         api_key = settings.FINNHUB_API_KEY
         if not api_key or api_key == "your_finnhub_api_key" or api_key.lower() == "none":
-            # Graceful fallback when API key is not configured (e.g. tests)
-            logger.info("Finnhub API key not configured, returning mock quote")
-            return NormalizedQuote(
-                symbol=symbol,
-                provider=self.provider_name,
-                timestamp=datetime.now(timezone.utc),
-                price=Decimal("150.00"),
-                volume=Decimal("1000")
-            )
+            raise ProviderError("Finnhub API key is not configured", retryable=False)
 
         try:
             res = requests.get(
@@ -41,7 +34,7 @@ class FinnhubAdapter(ProviderAdapter):
             if price is None or price == 0:
                 raise ValueError(f"No price returned from Finnhub for symbol {symbol}")
             volume = data.get("v")
-            
+
             return NormalizedQuote(
                 symbol=symbol,
                 provider=self.provider_name,
@@ -49,15 +42,10 @@ class FinnhubAdapter(ProviderAdapter):
                 price=Decimal(str(price)),
                 volume=Decimal(str(volume)) if volume else None
             )
+        except ProviderError:
+            raise
         except Exception as e:
-            logger.warning(f"Finnhub get_quote failed for {symbol}: {e}. Returning mock fallback.")
-            return NormalizedQuote(
-                symbol=symbol,
-                provider=self.provider_name,
-                timestamp=datetime.now(timezone.utc),
-                price=Decimal("150.00"),
-                volume=Decimal("1000")
-            )
+            raise ProviderError(f"Finnhub get_quote failed for {symbol}: {e}") from e
 
     def get_news(self, symbol: str) -> List[NormalizedNews]:
         api_key = settings.FINNHUB_API_KEY

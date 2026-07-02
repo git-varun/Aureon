@@ -17,9 +17,9 @@ export const TopHoldingsRow = ({holdings}) => {
                         <span className={s.ticker}>{h.ticker}</span>
                         <Sparkline data={h.spark?.length ? h.spark : [h.cost, h.price]} w={56} h={18}/>
                     </div>
-                    <div className={s.value}>{fmt(valueOf(h), 'USD', {dp: 0})}</div>
-                    <div className={s.dayPct} style={{color: h.dayPct >= 0 ? 'var(--sage-500)' : 'var(--crimson-500)'}}>
-                        {h.dayPct >= 0 ? '▲' : '▼'} {(Math.abs(h.dayPct) * 100).toFixed(2)}%
+                    <div className={s.value}>{h.price == null ? '—' : fmt(valueOf(h), 'USD', {dp: 0})}</div>
+                    <div className={s.dayPct} style={{color: h.dayPct == null ? 'var(--ink-50)' : h.dayPct >= 0 ? 'var(--sage-500)' : 'var(--crimson-500)'}}>
+                        {h.dayPct == null ? '—' : `${h.dayPct >= 0 ? '▲' : '▼'} ${(Math.abs(h.dayPct) * 100).toFixed(2)}%`}
                     </div>
                 </button>
             ))}

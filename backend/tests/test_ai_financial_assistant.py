@@ -171,16 +171,17 @@ def test_ai_service_ask_aureon_and_recommendation_explanations(clean_db, db_sess
     asset_id = uuid.uuid5(uuid.NAMESPACE_DNS, "AAPL")
     quote = LatestQuote(symbol="AAPL", asset_id=asset_id, price=180.0, volume=1000)
     db_session.add(quote)
-    
+    db_session.add(AssetSnapshot(asset_id=asset_id, price=180.0))
+
     rec = Recommendation(
         id=uuid.uuid4(), organization_id=org.id, asset_id=asset_id,
         recommendation_state="BUY", confidence_score=0.85, status="active"
     )
     db_session.add(rec)
     db_session.commit()
-    
+
     ai_svc = AIService(db_session)
-    
+
     # 1. Recommendation Explanation
     explanation = ai_svc.explain_recommendation(rec.id, user_id=user.id)
     assert "reasoning" in explanation
@@ -201,14 +202,15 @@ def test_api_ai_endpoints(clean_db, db_session):
     asset_id = uuid.uuid5(uuid.NAMESPACE_DNS, "AAPL")
     quote = LatestQuote(symbol="AAPL", asset_id=asset_id, price=180.0, volume=1000)
     db_session.add(quote)
-    
+    db_session.add(AssetSnapshot(asset_id=asset_id, price=180.0))
+
     rec = Recommendation(
         id=uuid.uuid4(), organization_id=org.id, asset_id=asset_id,
         recommendation_state="BUY", confidence_score=0.85, status="active"
     )
     db_session.add(rec)
     db_session.commit()
-    
+
     # 1. Post Global Briefing
     res = client.post(f"/api/v1/organizations/{org.id}/ai/global", headers=headers)
     assert res.status_code == 200

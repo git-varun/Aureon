@@ -1,4 +1,5 @@
 import uuid
+from datetime import datetime, timezone
 
 from fastapi import APIRouter, Depends, HTTPException, status
 
@@ -19,6 +20,21 @@ from app.infrastructure.repositories import (
 )
 
 router = APIRouter()
+
+@router.get("", response_model=list[InvitationResponse])
+def list_invitations(
+    org_id: uuid.UUID,
+    current_user: User = Depends(get_current_user),
+    inv_repo: InvitationsRepository = Depends(get_invitations_repo),
+    members_repo: OrganizationMembersRepository = Depends(get_members_repo),
+) -> list[Invitation]:
+    membership = members_repo.get_by_org_and_user(org_id, current_user.id)
+    if not membership or membership.role not in ("OWNER", "ADMIN"):
+        raise HTTPException(
+            status_code=403,
+            detail="Only organization owners and admins can view invitations",
+        )
+    return inv_repo.get_by_org(org_id)
 
 @router.post("", response_model=InvitationResponse, status_code=status.HTTP_201_CREATED)
 def invite_member(
@@ -43,7 +59,16 @@ def get_invitation_by_token(
     inv = inv_repo.get_by_token(token)
     if not inv:
         raise HTTPException(status_code=404, detail="Invitation not found")
-        
+
+    if inv.status != "PENDING":
+        raise HTTPException(
+            status_code=410,
+            detail=f"Invitation is no longer valid (status: {inv.status.lower()})",
+        )
+
+    if inv.expires_at.replace(tzinfo=timezone.utc) < datetime.now(timezone.utc):
+        raise HTTPException(status_code=410, detail="Invitation has expired")
+
     org = org_repo.get_by_id(inv.organization_id)
     if not org:
         raise HTTPException(status_code=404, detail="Organization not found")
@@ -80,4 +105,5 @@ def revoke_invitation(
         
     inv.status = "REVOKED"
     inv_repo.update(inv)
+    inv_repo.session.commit()
     return {"status": "success", "message": "Invitation revoked successfully"}

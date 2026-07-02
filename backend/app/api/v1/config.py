@@ -1,15 +1,20 @@
+import logging
 from datetime import datetime
 from typing import Any, Dict, List, Optional
 
 from fastapi import APIRouter, Depends, HTTPException
+from fastapi.responses import RedirectResponse
 from pydantic import BaseModel, ConfigDict, Field, model_validator
 
 from app.api.dependencies import get_config_service, get_current_user, get_members_repo
-from app.core.exceptions import NotFoundError
+from app.core.config import settings
+from app.core.exceptions import NotFoundError, ZerodhaAuthError
 from app.domain.entities.config import JobStatus
 from app.domain.entities.system import OrganizationMember, User
 from app.domain.services.config import ConfigService
 from app.infrastructure.repositories import OrganizationMembersRepository
+
+logger = logging.getLogger("api.config.zerodha_oauth")
 
 router = APIRouter(prefix="/config", tags=["config"])
 
@@ -156,6 +161,54 @@ def set_provider_key(
         raise HTTPException(status_code=404, detail=str(e))
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e))
+
+# --- Zerodha OAuth ---
+
+@router.get("/providers/zerodha/oauth/login-url")
+def get_zerodha_login_url(
+    user: User = Depends(get_current_user),
+    members_repo: OrganizationMembersRepository = Depends(get_members_repo),
+    svc: ConfigService = Depends(get_config_service),
+):
+    check_admin_access(user, members_repo)
+    api_key = svc.get_decrypted_key("zerodha", "api_key")
+    if not api_key:
+        raise HTTPException(status_code=400, detail="Zerodha api_key is not configured yet")
+
+    from app.infrastructure.providers.zerodha import ZerodhaClient
+    client = ZerodhaClient(api_key)
+    return {"login_url": client.login_url()}
+
+
+@router.get("/providers/zerodha/oauth/callback")
+def zerodha_oauth_callback(
+    request_token: Optional[str] = None,
+    status: Optional[str] = None,
+    svc: ConfigService = Depends(get_config_service),
+):
+    # Unauthenticated by necessity: Zerodha's browser redirect carries no session cookie/JWT.
+    # An attacker hitting this endpoint without our api_secret cannot forge a session — the
+    # request_token is only useful when exchanged against Zerodha's own servers with that secret.
+    logger.info("Zerodha OAuth callback hit (status=%s)", status)
+
+    if status != "success" or not request_token:
+        return RedirectResponse(f"{settings.FRONTEND_BASE_URL}/profile?zerodha=error&reason=login_failed")
+
+    api_key = svc.get_decrypted_key("zerodha", "api_key")
+    api_secret = svc.get_decrypted_key("zerodha", "api_secret")
+    if not api_key or not api_secret:
+        return RedirectResponse(f"{settings.FRONTEND_BASE_URL}/profile?zerodha=error&reason=not_configured")
+
+    from app.infrastructure.providers.zerodha import ZerodhaClient
+    client = ZerodhaClient(api_key, api_secret)
+    try:
+        client.generate_session(request_token)
+    except ZerodhaAuthError as e:
+        logger.warning("Zerodha session exchange failed: %s", e)
+        return RedirectResponse(f"{settings.FRONTEND_BASE_URL}/profile?zerodha=error&reason=exchange_failed")
+
+    svc.set_provider_key("zerodha", "access_token", client.access_token)
+    return RedirectResponse(f"{settings.FRONTEND_BASE_URL}/profile?zerodha=connected")
 
 # --- Jobs ---
 

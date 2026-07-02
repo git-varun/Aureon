@@ -94,14 +94,14 @@ export function AiTab({take, loading, sym, onRun}) {
         );
     }
 
-    const confidenceVal = take.confidence || 0.85;
+    const confidenceVal = take.confidence ?? null;
 
     return (
         <div className="layer-1" style={{padding: '20px 24px', borderRadius: 12, border: '1px solid rgba(255,255,255,0.06)', maxWidth: 580}}>
             <div style={{fontSize: 11, letterSpacing: '0.12em', textTransform: 'uppercase', color: 'var(--aurum-500)', fontWeight: 700, marginBottom: 16}}>
                 AI TAKE
             </div>
-            
+
             {/* Headline */}
             <div style={{fontFamily: 'var(--font-heading)', fontSize: 18, fontWeight: 600, color: 'var(--ink-00)', marginBottom: 12}}>
                 {take.headline || `${take.recommended_action || 'HOLD'} Outlook based on ${take.short_term_trend || 'Neutral'} Short-Term Trend`}
@@ -132,7 +132,8 @@ export function AiTab({take, loading, sym, onRun}) {
                 </div>
             </div>
 
-            {/* Confidence */}
+            {/* Confidence — only rendered when backend provides a value */}
+            {confidenceVal !== null && (
             <div style={{marginBottom: 20}}>
                 <div style={{display: 'flex', justifyContent: 'space-between', marginBottom: 6}}>
                     <span style={{fontSize: 11, color: 'var(--ink-40)', textTransform: 'uppercase', letterSpacing: '0.08em', fontWeight: 600}}>AI Confidence</span>
@@ -144,6 +145,7 @@ export function AiTab({take, loading, sym, onRun}) {
                     <div style={{width: `${confidenceVal * 100}%`, height: '100%', borderRadius: 2, background: 'var(--aurum-500)', transition: 'width 0.4s'}} />
                 </div>
             </div>
+            )}
 
             {/* Sizing (if exists) */}
             {take.position_sizing && (

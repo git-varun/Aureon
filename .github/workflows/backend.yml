@@ -10,9 +10,21 @@ jobs:
   validate:
     runs-on: ubuntu-latest
 
+    # Isolated PostgreSQL + Redis for this job only — destroyed automatically when the job ends.
     services:
-      # Optional: set up Redis service if required by any integration checks,
-      # though unit tests mock Redis, it's good practice for CI readiness.
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: aureon
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
       redis:
         image: redis:7-alpine
         ports:
@@ -23,13 +35,21 @@ jobs:
           --health-timeout 5s
           --health-retries 5
 
+    env:
+      DATABASE_URL: postgresql+psycopg://postgres:postgres@localhost:5432/aureon
+      TEST_DATABASE_URL: postgresql+psycopg://postgres:postgres@localhost:5432/aureon_test
+      REDIS_URL: redis://localhost:6379/0
+      SECRET_KEY: ci-secret-key-not-for-production-use-only-in-ci
+      BOOTSTRAP_EMAIL: admin@ci.local
+      BOOTSTRAP_PASSWORD: ci-bootstrap-password-not-for-prod
+
     steps:
     - uses: actions/checkout@v4
 
     - name: Set up Python
       uses: actions/setup-python@v5
       with:
-        python-version: '3.11'
+        python-version: '3.12'
         cache: 'pip'
 
     - name: Install dependencies
@@ -48,12 +68,21 @@ jobs:
         cd backend
         mypy .
 
-    - name: Validate Alembic Migrations
+    - name: Create isolated test database
+      run: |
+        PGPASSWORD=postgres psql -h localhost -U postgres -c "CREATE DATABASE aureon_test"
+
+    - name: Run Alembic migrations (dev database)
       run: |
         cd backend
         alembic upgrade head
 
-    - name: Run Pytest Suite
+    - name: Run bootstrap smoke test (dev database)
       run: |
         cd backend
-        pytest
+        python scripts/bootstrap.py
+
+    - name: Run Pytest Suite (isolated test database)
+      run: |
+        cd backend
+        pytest tests/ -q

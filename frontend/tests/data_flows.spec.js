@@ -12,7 +12,11 @@ const snap = async (page, name) => {
 const waitForDashboard = async (page) => {
     await page.goto('/dashboard');
     await page.waitForLoadState('networkidle');
-    await expect(page.locator('text=Net worth').first()).toBeVisible({ timeout: 12_000 });
+    const hero = page.locator('[data-testid="dashboard-hero"]');
+    const heroVisible = await hero.isVisible({ timeout: 12_000 }).catch(() => false);
+    if (!heroVisible) {
+        await expect(page.locator('text=Net worth').first()).toBeVisible({ timeout: 12_000 });
+    }
 };
 
 // ── Flow 1: Command Palette & Page Navigation ──────────────────────────────
@@ -77,10 +81,11 @@ test('Flow 3: Watchlist Workflow', async ({ page }) => {
     await snap(page, '08_watchlist_initial');
 
     // Create a new list
-    const newListBtn = page.locator('button:has-text("+ New list")');
+    const newListBtn = page.locator('[data-testid="new-watchlist-btn"]');
     if (await newListBtn.isVisible()) {
         await newListBtn.click();
-        const nameInput = page.locator('input[placeholder="List name…"]');
+        const nameInput = page.locator('[data-testid="watchlist-name-input"]');
+        await expect(nameInput).toBeVisible({ timeout: 3_000 });
         const listName = `Flow Test List ${Date.now()}`;
         await nameInput.fill(listName);
         await page.keyboard.press('Enter');

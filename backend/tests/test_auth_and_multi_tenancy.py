@@ -27,9 +27,16 @@ from app.infrastructure.repositories import (
 
 client = TestClient(app)
 
+_APP_SCHEMAS = ["system", "portfolio", "market", "news", "notification", "ai", "evaluation", "config", "recommendation", "watchlist"]
+
 @pytest.fixture
 def clean_db() -> Generator[None, None, None]:
-    Base.metadata.drop_all(bind=engine)
+    from sqlalchemy import text
+    with engine.connect() as conn:
+        for schema in _APP_SCHEMAS:
+            conn.execute(text(f"DROP SCHEMA IF EXISTS {schema} CASCADE"))
+            conn.execute(text(f"CREATE SCHEMA IF NOT EXISTS {schema}"))
+        conn.commit()
     Base.metadata.create_all(bind=engine)
     yield
 
@@ -389,7 +396,19 @@ def test_api_organization_management(clean_db: None) -> None:
     assert check_data["organization_name"] == "Stark Industries"
     assert check_data["email"] == "pepper@stark.com"
 
-    # 5. Revoke invitation
+    # 5. List invitations — owner should see all invitations for the org
+    list_resp = client.get(f"/api/v1/invitations?org_id={org_id}", headers=headers)
+    assert list_resp.status_code == 200
+    list_data = list_resp.json()
+    assert isinstance(list_data, list)
+    assert len(list_data) == 1
+    assert list_data[0]["email"] == "pepper@stark.com"
+
+    # 6. List invitations — non-member should be denied
+    list_unauth = client.get(f"/api/v1/invitations?org_id={org_id}")
+    assert list_unauth.status_code == 401
+
+    # 7. Revoke invitation
     revoke_resp = client.delete(f"/api/v1/invitations/{invite_id}", headers=headers)
     assert revoke_resp.status_code == 200
     assert revoke_resp.json()["status"] == "success"
@@ -551,6 +570,149 @@ def test_global_logout_invalidates_all_sessions(clean_db: None) -> None:
         assert sessions_repo.get_by_token("tok-session-2") is None
     finally:
         db.close()
+
+
+def test_register_rejects_revoked_invite(clean_db: None) -> None:
+    """Revoked invitation must persist across session boundary and block registration.
+
+    This test crosses a real session boundary to catch the flush-without-commit bug:
+    revoke via HTTP (session closes after response), then verify DB in a fresh session,
+    then attempt registration (must be rejected).
+    """
+    from app.core.security import hash_password as _hp
+    # Seed: owner + org + PENDING invitation + owner session
+    db = SessionLocal()
+    invite_id = None
+    invite_token = None
+    try:
+        owner = User(email="owner_revoke@test.com", password_hash=_hp("pw"), is_active=True, is_verified=True)
+        db.add(owner)
+        db.flush()
+        org = Organization(name="Revoke Org", slug="revoke-org")
+        db.add(org)
+        db.flush()
+        db.add(OrganizationMember(organization_id=org.id, user_id=owner.id, role="OWNER"))
+        sess = UserSession(user_id=owner.id, session_token="revoke-owner-tok",
+                           expires_at=datetime.now(timezone.utc) + timedelta(days=1))
+        db.add(sess)
+        inv = Invitation(
+            organization_id=org.id,
+            email="revokeme@test.com",
+            role="MEMBER",
+            invited_by_id=owner.id,
+            token="revoke-invite-tok",
+            status="PENDING",
+            expires_at=datetime.now(timezone.utc) + timedelta(days=7),
+        )
+        db.add(inv)
+        db.commit()
+        invite_id = str(inv.id)
+        invite_token = inv.token
+    finally:
+        db.close()
+
+    headers = {"Authorization": "Bearer revoke-owner-tok"}
+
+    # Revoke the invitation via the API (real request; session closes after response)
+    revoke_resp = client.delete(f"/api/v1/invitations/{invite_id}", headers=headers)
+    assert revoke_resp.status_code == 200, revoke_resp.text
+
+    # Open a FRESH session and verify the status persisted to the DB
+    fresh_db = SessionLocal()
+    try:
+        from app.infrastructure.repositories import InvitationsRepository as _IR
+        fresh_inv = _IR(fresh_db).get_by_token(invite_token)
+        assert fresh_inv is not None
+        assert fresh_inv.status == "REVOKED", (
+            f"Expected REVOKED in DB but got {fresh_inv.status} — "
+            "revoke did not commit (flush-without-commit bug)"
+        )
+    finally:
+        fresh_db.close()
+
+    # Attempt registration with the revoked token — must be rejected
+    reg_resp = client.post("/api/v1/auth/register", json={
+        "email": "revokeme@test.com",
+        "password": "Password1!",
+        "first_name": "Bad",
+        "last_name": "Actor",
+        "token": invite_token,
+    })
+    assert reg_resp.status_code in (400, 403), (
+        f"Expected 400/403 for revoked invite but got {reg_resp.status_code}: {reg_resp.text}"
+    )
+
+    # Confirm no user was created
+    fresh_db2 = SessionLocal()
+    try:
+        user_row = UsersRepository(fresh_db2).get_by_email("revokeme@test.com")
+        assert user_row is None, "User was created despite revoked invitation — security defect"
+    finally:
+        fresh_db2.close()
+
+
+def test_invite_token_lookup_rejects_non_pending(clean_db: None) -> None:
+    """GET /invitations/{token} must return 410 for accepted/revoked tokens."""
+    from app.core.security import hash_password as _hp
+    db = SessionLocal()
+    try:
+        owner = User(email="owner_lookup@test.com", password_hash=_hp("pw"), is_active=True)
+        db.add(owner)
+        db.flush()
+        org = Organization(name="Lookup Org", slug="lookup-org")
+        db.add(org)
+        db.flush()
+        db.add(OrganizationMember(organization_id=org.id, user_id=owner.id, role="OWNER"))
+        sess = UserSession(user_id=owner.id, session_token="lookup-owner-tok",
+                           expires_at=datetime.now(timezone.utc) + timedelta(days=1))
+        db.add(sess)
+        accepted_inv = Invitation(
+            organization_id=org.id,
+            email="accepted@test.com",
+            role="MEMBER",
+            invited_by_id=owner.id,
+            token="accepted-lookup-tok",
+            status="ACCEPTED",
+            expires_at=datetime.now(timezone.utc) + timedelta(days=7),
+        )
+        revoked_inv = Invitation(
+            organization_id=org.id,
+            email="revoked@test.com",
+            role="MEMBER",
+            invited_by_id=owner.id,
+            token="revoked-lookup-tok",
+            status="REVOKED",
+            expires_at=datetime.now(timezone.utc) + timedelta(days=7),
+        )
+        expired_inv = Invitation(
+            organization_id=org.id,
+            email="expired2@test.com",
+            role="MEMBER",
+            invited_by_id=owner.id,
+            token="expired-lookup-tok",
+            status="PENDING",
+            expires_at=datetime.now(timezone.utc) - timedelta(days=1),
+        )
+        db.add_all([accepted_inv, revoked_inv, expired_inv])
+        db.commit()
+    finally:
+        db.close()
+
+    # ACCEPTED → 410
+    r = client.get("/api/v1/invitations/accepted-lookup-tok")
+    assert r.status_code == 410, f"Expected 410 for accepted invite, got {r.status_code}"
+
+    # REVOKED → 410
+    r = client.get("/api/v1/invitations/revoked-lookup-tok")
+    assert r.status_code == 410, f"Expected 410 for revoked invite, got {r.status_code}"
+
+    # EXPIRED (still PENDING in DB but past expires_at) → 410
+    r = client.get("/api/v1/invitations/expired-lookup-tok")
+    assert r.status_code == 410, f"Expected 410 for expired invite, got {r.status_code}"
+
+    # INVALID → 404
+    r = client.get("/api/v1/invitations/nonexistent-tok")
+    assert r.status_code == 404, f"Expected 404 for invalid token, got {r.status_code}"
 
 
 def test_rate_limiter_logic() -> None:

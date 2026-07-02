@@ -48,7 +48,7 @@ const CreateListModal = ({onClose, onCreate}) => {
                 <button onClick={submit} disabled={!ok} className="du3-cta primary" style={{height: 36, padding: '0 16px', opacity: ok ? 1 : 0.45}}>Create</button>
             </>}>
             <div style={{fontSize: 10.5, letterSpacing: '0.12em', textTransform: 'uppercase', color: 'var(--ink-40)', fontWeight: 600, marginBottom: 8}}>List name</div>
-            <input autoFocus value={name} onChange={(e) => setName(e.target.value)} onKeyDown={(e) => { if (e.key === 'Enter') submit(); }}
+            <input data-testid="watchlist-name-input" autoFocus value={name} onChange={(e) => setName(e.target.value)} onKeyDown={(e) => { if (e.key === 'Enter') submit(); }}
                 placeholder="e.g. Dividend picks, Short-term ideas…"
                 style={{width: '100%', height: 42, padding: '0 14px', borderRadius: 8, background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(201,168,106,0.28)', color: 'var(--ink-00)', fontSize: 14, fontFamily: 'var(--font-ui)', outline: 'none'}}/>
             <div style={{fontSize: 11.5, color: 'var(--ink-50)', marginTop: 8}}>You can add assets right after creating.</div>
@@ -172,7 +172,7 @@ const WatchlistSidebar = ({lists, activeId, defaultId, onSelect, onNew, onRename
     <div style={{width: 232, flexShrink: 0, borderRight: '1px solid rgba(255,255,255,0.06)', display: 'flex', flexDirection: 'column', overflowY: 'auto', background: 'rgba(255,255,255,0.012)'}}>
         <div style={{display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '20px 14px 12px', borderBottom: '1px solid rgba(255,255,255,0.05)', flexShrink: 0}}>
             <span style={{fontSize: 10.5, fontWeight: 600, letterSpacing: '0.14em', textTransform: 'uppercase', color: 'var(--ink-40)'}}>Watchlists</span>
-            <button onClick={onNew} className="du3-cta ghost" style={{height: 26, padding: '0 10px', fontSize: 11.5, display: 'inline-flex', alignItems: 'center', gap: 4}}>
+            <button data-testid="new-watchlist-btn" onClick={onNew} className="du3-cta ghost" style={{height: 26, padding: '0 10px', fontSize: 11.5, display: 'inline-flex', alignItems: 'center', gap: 4}}>
                 <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round"><path d="M12 5v14M5 12h14"/></svg>
                 New
             </button>
@@ -492,7 +492,7 @@ const WLSearchBar = ({onAdd, listSymbols, inputRef}) => {
                 setApiResults((res.data || []).map((a) => {
                     const sym = a.symbol || a.sym || '';
                     return {
-                        u: {sym, name: a.name, class: _TYPE_TO_CLASS[a.type] || a.type, sector: a.sector, ex: a.exchange},
+                        u: {sym, name: a.name, class: a.class, sector: a.sector, ex: a.ex},
                         score: sym.toUpperCase() === q.trim().toUpperCase() ? 100 : 60,
                         exact: sym.toUpperCase() === q.trim().toUpperCase(),
                     };

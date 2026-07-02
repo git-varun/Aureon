@@ -1,17 +1,41 @@
 import React from 'react';
-import { useCardData } from '@/hooks/useCardData';
+import { useQuery } from '@tanstack/react-query';
+import { apiService } from '@/api/apiService';
+import { usePortfolio } from '@/contexts/PortfolioContext';
 import { Sk, RBtn, Cerr, Cmt, CS, Eyebrow } from '../ui';
 
 const toneCol = k =>
   k === 'pos' ? 'var(--sage-500)' : k === 'warn' ? 'var(--dusk-500)' : 'var(--crimson-500)';
 
-const stub = async () => {
-  await new Promise(r => setTimeout(r, 600 + Math.random() * 300));
-  return null; // backend not yet integrated
+const transform = (raw) => {
+  if (!raw || (raw.position_count != null ? raw.position_count === 0 : raw.diversification_score === 0)) return null;
+  const score = Math.round(raw.investor_health_score);
+  const toneKey = score >= 75 ? 'pos' : score >= 50 ? 'warn' : 'neg';
+  const label = score >= 75 ? 'Healthy' : score >= 50 ? 'Moderate' : 'Needs attention';
+  return {
+    score,
+    toneKey,
+    label,
+    checks: [
+      { ok: raw.diversification_score >= 60, text: 'Diversification', detail: `${Math.round(raw.diversification_score)}/100` },
+      { ok: raw.allocation_discipline_score >= 60, text: 'Allocation discipline', detail: `${Math.round(raw.allocation_discipline_score)}/100` },
+      { ok: raw.recommendation_outcomes_score >= 60, text: 'Decision outcomes', detail: `${Math.round(raw.recommendation_outcomes_score)}/100` },
+      { ok: raw.activity_consistency_score >= 60, text: 'Activity consistency', detail: `${Math.round(raw.activity_consistency_score)}/100` },
+    ],
+  };
 };
 
 export function PortfolioHealthCard() {
-  const { status, data, error, refetch } = useCardData(stub);
+  const { activePortfolioId } = usePortfolio();
+  const { data: raw, isLoading, isError, error, refetch } = useQuery({
+    queryKey: ['intelligence', 'portfolio-health', activePortfolioId],
+    queryFn: () => apiService.getPortfolioHealth(activePortfolioId),
+    enabled: !!activePortfolioId,
+    staleTime: 60000,
+  });
+
+  const data = React.useMemo(() => transform(raw ?? null), [raw]);
+  const status = isLoading ? 'loading' : isError ? 'error' : !data ? 'empty' : 'ready';
 
   return (
     <div style={{ ...CS }}>
@@ -31,7 +55,7 @@ export function PortfolioHealthCard() {
         </div>
       )}
 
-      {status === 'error' && <Cerr msg={error} retry={refetch} />}
+      {status === 'error' && <Cerr msg={error?.message} retry={refetch} />}
       {status === 'empty' && <Cmt msg="Health data unavailable" />}
 
       {status === 'ready' && data && (

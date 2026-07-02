@@ -20,20 +20,6 @@ import { TopHoldingsRow }           from '@/components/aureon/dashboard/TopHoldi
 import { SupportingStrip }          from '@/components/aureon/dashboard/SupportingStrip';
 import { WiredDecisionUnit }        from '@/components/aureon/dashboard/WiredDecisionUnit';
 
-/** Generate deterministic mock snapshots from a base net worth value. */
-function genSnapshots(baseValue, days = 90) {
-  if (!baseValue) return [];
-  const t0 = Date.now() - (days - 1) * 86400000;
-  const seed = baseValue * 0.86;
-  let v = seed;
-  return Array.from({ length: days }, (_, i) => {
-    // pseudo-random walk using index as seed
-    const drift = Math.sin(i * 0.37) * 0.008 + Math.cos(i * 0.23) * 0.006;
-    v = v * (1 + drift);
-    return { ts: new Date(t0 + i * 86400000), value: v };
-  });
-}
-
 export default function Dashboard() {
   const navigate = useNavigate();
   const { allRecs, active, apply, undo } = useApp();
@@ -43,11 +29,10 @@ export default function Dashboard() {
   } = useAureonData();
   const [modal, setModal] = useState(null);
 
-  // Derive portfolio summary state from existing useAureonData (no new API call)
+  // Portfolio summary state derived from backend data only — no local snapshot generation
   const portfolioSummaryState = useMemo(() => {
     if (loading) return { status: 'loading', data: null, error: null, refetch: () => {} };
     if (!netWorth && netWorth !== 0) return { status: 'empty', data: null, error: null, refetch: () => {} };
-    const snapshots = genSnapshots(netWorth, 90);
     return {
       status: 'ready',
       error: null,
@@ -57,7 +42,7 @@ export default function Dashboard() {
         dayDelta:    dayDelta?.dollars ?? 0,
         dayDeltaPct: dayDelta?.pct ?? 0,
         lastUpdated: new Date(),
-        snapshots,
+        snapshots:   [],
       },
     };
   }, [netWorth, dayDelta, loading]);

@@ -17,6 +17,8 @@ class PortfolioSnapshotRepository(BaseRepository):
         return self.session.execute(stmt).scalar_one_or_none()
 
     def upsert(self, snapshot: PortfolioSnapshot) -> PortfolioSnapshot:
+        from datetime import datetime, timezone
+        now = datetime.now(timezone.utc)
         stmt = insert(PortfolioSnapshot).values(
             portfolio_id=snapshot.portfolio_id,
             market_value=snapshot.market_value,
@@ -24,7 +26,8 @@ class PortfolioSnapshotRepository(BaseRepository):
             allocation=snapshot.allocation,
             daily_return=snapshot.daily_return,
             total_return=snapshot.total_return,
-            updated_at=snapshot.updated_at
+            created_at=now,
+            updated_at=snapshot.updated_at,
         )
         upsert_stmt = stmt.on_conflict_do_update(
             index_elements=['portfolio_id'],
@@ -34,10 +37,9 @@ class PortfolioSnapshotRepository(BaseRepository):
                 allocation=stmt.excluded.allocation,
                 daily_return=stmt.excluded.daily_return,
                 total_return=stmt.excluded.total_return,
-                updated_at=stmt.excluded.updated_at
+                updated_at=stmt.excluded.updated_at,
             )
-        ).returning(PortfolioSnapshot)
-
-        result = self.session.execute(upsert_stmt).scalar_one()
+        )
+        self.session.execute(upsert_stmt)
         self.session.flush()
-        return result
+        return snapshot

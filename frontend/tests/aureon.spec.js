@@ -5,7 +5,12 @@ import { test, expect } from '@playwright/test';
 const waitForDashboard = async (page) => {
     await page.goto('/dashboard');
     await page.waitForLoadState('networkidle');
-    await expect(page.locator('text=Net worth').first()).toBeVisible({ timeout: 12_000 });
+    // Use stable data-testid — falls back to text selector for resilience
+    const hero = page.locator('[data-testid="dashboard-hero"]');
+    const heroVisible = await hero.isVisible({ timeout: 12_000 }).catch(() => false);
+    if (!heroVisible) {
+        await expect(page.locator('text=Net worth').first()).toBeVisible({ timeout: 12_000 });
+    }
 };
 
 // ── Auth ─────────────────────────────────────────────────────────────────────
@@ -15,8 +20,7 @@ test('redirects unauthenticated users to sign-in screen', async ({ browser }) =>
     const page = await ctx.newPage();
     await page.goto('/dashboard');
     await page.waitForLoadState('networkidle');
-    // App renders sign-in UI (no /login route, checks for heading text)
-    await expect(page.locator('text=Sign in to Aureon')).toBeVisible({ timeout: 8_000 });
+    await expect(page.locator('[data-testid="signin-heading"]')).toBeVisible({ timeout: 8_000 });
     await ctx.close();
 });
 
@@ -24,7 +28,7 @@ test('redirects unauthenticated users to sign-in screen', async ({ browser }) =>
 
 test('dashboard loads and shows net worth', async ({ page }) => {
     await waitForDashboard(page);
-    await expect(page.locator('text=Net worth').first()).toBeVisible();
+    await expect(page.locator('[data-testid="dashboard-hero"]')).toBeVisible();
 });
 
 // ── Command Palette ──────────────────────────────────────────────────────────
@@ -117,14 +121,15 @@ test('watchlist creates a new list', async ({ page }) => {
     await page.goto('/watchlist');
     await page.waitForLoadState('networkidle');
 
-    const newListBtn = page.locator('button:has-text("+ New list")');
+    const newListBtn = page.locator('[data-testid="new-watchlist-btn"]');
     if (await newListBtn.isVisible().catch(() => false)) {
         await newListBtn.click();
-        const nameInput = page.locator('input[placeholder="List name…"]');
+        const nameInput = page.locator('[data-testid="watchlist-name-input"]');
+        await expect(nameInput).toBeVisible({ timeout: 3_000 });
         const listName = `Test ${Date.now()}`;
         await nameInput.fill(listName);
         await page.keyboard.press('Enter');
-        await expect(page.locator(`button:has-text("${listName}")`).first()).toBeVisible({ timeout: 5_000 });
+        await expect(page.locator(`text="${listName}"`).first()).toBeVisible({ timeout: 5_000 });
     }
 });
 

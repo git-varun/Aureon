@@ -10,7 +10,7 @@ from typing import Any, Optional
 import httpx
 from sqlalchemy.orm import Session
 
-from app.core.exceptions import NotFoundError, ValidationError
+from app.core.exceptions import NotFoundError, ProviderError, ValidationError
 from app.core.redis import get_redis_client
 from app.domain.entities.ai import AIBriefing, AIEvaluation, AIGeneration
 from app.domain.entities.evaluation import AssetScore
@@ -647,13 +647,12 @@ class AIService(BaseService):
             gemini_key = self.cfg_svc.get_decrypted_key("gemini", "api_key")
             groq_key = self.cfg_svc.get_decrypted_key("groq", "api_key")
 
-            # Try fallback if keys are missing
             if not gemini_key and not groq_key:
-                logger.warning("No AI credentials configured; falling back to mock response.")
-                response_text = self._mock_briefing(feature_name)
+                raise ProviderError("No AI credentials configured (gemini/groq)", retryable=False)
             else:
                 # 1. Try Gemini rotation
-                if gemini_key and self.cfg_repo.get_provider("gemini").enabled:
+                gemini_provider = self.cfg_repo.get_provider("gemini")
+                if gemini_key and gemini_provider and gemini_provider.enabled:
                     available_gemini = _rate_limit_tracker.filter_available(self._GEMINI_MODELS)
                     for model in available_gemini:
                         try:
@@ -667,7 +666,8 @@ class AIService(BaseService):
                             logger.error(f"Gemini {model} failed: {e}")
 
                 # 2. Try Groq rotation fallback
-                if not response_text and groq_key and self.cfg_repo.get_provider("groq").enabled:
+                groq_provider = self.cfg_repo.get_provider("groq")
+                if not response_text and groq_key and groq_provider and groq_provider.enabled:
                     available_groq = _rate_limit_tracker.filter_available(self._GROQ_MODELS)
                     for model in available_groq:
                         try:
@@ -683,8 +683,7 @@ class AIService(BaseService):
                 if not response_text:
                     error_msg = f"All models exhausted. Trace: {execution_trace}"
                     logger.error(error_msg)
-                    # Fallback to mock to maintain functionality under network issues
-                    response_text = self._mock_briefing(feature_name)
+                    raise ProviderError(error_msg)
 
         latency = int((time.monotonic() - start_time) * 1000)
 

@@ -13,6 +13,3 @@ export { DiversificationCard }   from './DiversificationCard';
 export { ConcentrationCard }     from './ConcentrationCard';
 export { AllocationDriftCard }   from './AllocationDriftCard';
 export { CashDeploymentCard }    from './CashDeploymentCard';
-// Legacy exports retained for other pages
-export { AIBriefingSection }     from './AIBriefingSection';
-export { DataFreshnessStrip }    from './DataFreshnessStrip';

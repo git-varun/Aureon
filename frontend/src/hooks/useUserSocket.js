@@ -13,6 +13,7 @@ export function useUserSocket() {
     const [lastEvent, setLastEvent] = useState(null);
     const wsRef = useRef(null);
     const backoffRef = useRef(1000);
+    const retriesRef = useRef(0);
     const mountedRef = useRef(true);
 
     useEffect(() => {
@@ -20,6 +21,8 @@ export function useUserSocket() {
 
         function connect() {
             if (!mountedRef.current) return;
+            // No backend WS endpoint registered; stop after 5 failed attempts to avoid indefinite churn
+            if (retriesRef.current >= 5) return;
 
             const token = localStorage.getItem('access_token');
             if (!token) return;
@@ -47,7 +50,7 @@ export function useUserSocket() {
             ws.onclose = (evt) => {
                 if (!mountedRef.current) return;
                 if (evt.code !== 1000 && evt.code !== 1008) {
-                    // Reconnect with exponential backoff (cap at 30s)
+                    retriesRef.current += 1;
                     const delay = Math.min(backoffRef.current, 30000);
                     backoffRef.current = Math.min(backoffRef.current * 2, 30000);
                     setTimeout(connect, delay);
@@ -56,6 +59,7 @@ export function useUserSocket() {
 
             ws.onopen = () => {
                 backoffRef.current = 1000;
+                retriesRef.current = 0;
             };
         }
 

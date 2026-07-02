@@ -49,10 +49,11 @@ def setup_intelligence_data(clean_db):
     
     org = Organization(id=uuid.uuid4(), name="Varun Org", slug="varun-org")
     session.add(org)
-    
+    session.flush()
+
     member = OrganizationMember(organization_id=org.id, user_id=user.id, role="OWNER")
     session.add(member)
-    
+
     portfolio = Portfolio(id=uuid.uuid4(), name="Default Portfolio", organization_id=org.id)
     session.add(portfolio)
     session.flush()
@@ -104,7 +105,10 @@ def setup_intelligence_data(clean_db):
     # 5. Create Snapshots, Features and Scores
     snap_stock = AssetSnapshot(asset_id=asset_stock_id, price=180.0, market_cap=2000000000.0, pe_ratio=28.0, rsi=55.0, payload={})
     session.add(snap_stock)
-    
+    snap_crypto = AssetSnapshot(asset_id=asset_crypto_id, price=60000.0, payload={})
+    session.add(snap_crypto)
+    session.flush()
+
     features_stock = AssetFeatures(
         asset_id=asset_stock_id,
         price=180.0,

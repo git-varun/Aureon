@@ -12,15 +12,34 @@ class Settings(BaseSettings):
     DATABASE_ECHO: bool = False
     REDIS_URL: str
 
-    @field_validator("DATABASE_URL", mode="before")
+    # Test isolation: when TESTING=true (set by tests/conftest.py before any app import),
+    # DATABASE_URL is forced to TEST_DATABASE_URL. There is no fallback — if TEST_DATABASE_URL
+    # is unset while TESTING=true, startup fails loudly rather than risking the dev/prod database.
+    TESTING: bool = False
+    TEST_DATABASE_URL: str | None = None
+
+    @field_validator("DATABASE_URL", "TEST_DATABASE_URL", mode="before")
     @classmethod
     def assemble_db_url(cls, v: str) -> str:
         if isinstance(v, str) and v.startswith("postgresql://"):
             return v.replace("postgresql://", "postgresql+psycopg://", 1)
         return v
 
+    @model_validator(mode="after")
+    def select_test_database(self) -> "Settings":
+        if self.TESTING:
+            if not self.TEST_DATABASE_URL:
+                raise ValueError(
+                    "TESTING=true but TEST_DATABASE_URL is not set. Refusing to fall back to "
+                    "DATABASE_URL — set TEST_DATABASE_URL to a dedicated test database."
+                )
+            self.DATABASE_URL = self.TEST_DATABASE_URL
+        return self
+
     FINNHUB_API_KEY: str | None = None
     POLYGON_API_KEY: str | None = None
+    GEMINI_API_KEY: str | None = None
+    GROQ_API_KEY: str | None = None
 
     SLA_QUOTE_MAX_AGE_SEC: int = 300
     SLA_FUNDAMENTALS_MAX_AGE_SEC: int = 86400
@@ -32,6 +51,10 @@ class Settings(BaseSettings):
     JWT_ALGORITHM: str = "HS256"
     ACCESS_TOKEN_EXPIRE_MINUTES: int = 60
     GOOGLE_CLIENT_ID: str | None = None
+
+    # Public frontend URL — used to build the redirect target after the Zerodha OAuth callback.
+    # Must match the redirect_uri registered in the Kite Developer Console once one exists.
+    FRONTEND_BASE_URL: str = "http://localhost:3000"
 
     # CORS Configuration
     CORS_ALLOWED_ORIGINS: list[str] = []

@@ -16,14 +16,21 @@ API.interceptors.request.use((config) => {
     return config;
 }, (error) => Promise.reject(error));
 
+// Public auth paths that should never trigger global logout on 401
+const AUTH_PUBLIC_PATHS = ['/auth/login', '/auth/register', '/auth/google', '/auth/forgot'];
+
 // Centralized session expiration handling: auto-logout on 401 (no JWT refresh logic remains)
 API.interceptors.response.use(
     (res) => res,
     (error) => {
         if (error.response?.status === 401) {
-            localStorage.removeItem('access_token');
-            localStorage.removeItem('user_first_name');
-            window.dispatchEvent(new Event('auth:logout'));
+            const url = error.config?.url || '';
+            const isPublicAuth = AUTH_PUBLIC_PATHS.some(p => url.includes(p));
+            if (!isPublicAuth) {
+                localStorage.removeItem('access_token');
+                localStorage.removeItem('user_first_name');
+                window.dispatchEvent(new Event('auth:logout'));
+            }
         }
         return Promise.reject(error);
     }
@@ -63,8 +70,10 @@ export const apiService = {
     updateCurrentUserProfile: (payload) => 
         handleRequest(API.put('/auth/me', payload)),
 
-    changeUserPassword: (currentPassword, newPassword) => 
+    changeUserPassword: (currentPassword, newPassword) =>
         handleRequest(API.post('/auth/me/password', {current_password: currentPassword, new_password: newPassword})),
+
+    deleteAccount: () => handleRequest(API.delete('/users/me')),
 
     // ── Organizations & Memberships (V1) ──────────────────────────────────────
     listOrganizations: () => 
@@ -76,20 +85,26 @@ export const apiService = {
     listMembers: (orgId) => 
         handleRequest(API.get(`/memberships/${orgId || getOrgId()}`)),
 
-    updateMemberRole: (orgId, userId, role) => 
+    // UI pending — member management
+    updateMemberRole: (orgId, userId, role) =>
         handleRequest(API.put(`/memberships/${orgId || getOrgId()}/users/${userId}`, {role})),
 
-    removeMember: (orgId, userId) => 
+    // UI pending — member management
+    removeMember: (orgId, userId) =>
         handleRequest(API.delete(`/memberships/${orgId || getOrgId()}/users/${userId}`)),
 
     // ── Invitations (V1) ──────────────────────────────────────────────────────
-    inviteMember: (orgId, email, role = 'MEMBER') => 
+    listInvitations: (orgId) =>
+        handleRequest(API.get(`/invitations?org_id=${orgId || getOrgId()}`)),
+
+    inviteMember: (orgId, email, role = 'MEMBER') =>
         handleRequest(API.post(`/invitations?org_id=${orgId || getOrgId()}`, {email, role})),
 
-    getInvitationByToken: (token) => 
+    // UI pending — invitation acceptance by token
+    getInvitationByToken: (token) =>
         handleRequest(API.get(`/invitations/${token}`)),
 
-    revokeInvitation: (invId) => 
+    revokeInvitation: (invId) =>
         handleRequest(API.delete(`/invitations/${invId}`)),
 
     // ── Portfolios & Transactions (V1 Multi-Tenant) ───────────────────────────
@@ -105,6 +120,7 @@ export const apiService = {
         return handleRequest(API.get(`/portfolio/organizations/${oid}/portfolios/${pid}/snapshot`));
     },
 
+    // UI pending — portfolio administration
     generatePortfolioSnapshot: (orgId, portfolioId) => {
         const oid = orgId || getOrgId();
         const pid = portfolioId || getPortfolioId(oid);
@@ -178,7 +194,8 @@ export const apiService = {
 
     dismissRecommendation: (orgId, recId, reason = '') => {
         const oid = orgId || getOrgId();
-        return handleRequest(API.post(`/recommendation/organizations/${oid}/recommendations/${recId}/dismiss`, {reason}));
+        const q = reason ? `?reason=${encodeURIComponent(reason)}` : '';
+        return handleRequest(API.post(`/recommendation/organizations/${oid}/recommendations/${recId}/dismiss${q}`));
     },
 
     undoRecommendation: (orgId, recId) => {
@@ -217,7 +234,8 @@ export const apiService = {
         handleRequest(API.delete(`/watchlist/${id}/symbols/${encodeURIComponent(symbol)}/alert`)),
 
     // ── News (V1) ─────────────────────────────────────────────────────────────
-    fetchNews: () => 
+    // UI pending — news feed
+    fetchNews: () =>
         handleRequest(API.get('/news')),
 
     fetchNewsForSymbol: (symbol) => 
@@ -237,10 +255,12 @@ export const apiService = {
     runGlobalAI: (orgId) => 
         handleRequest(API.post(`/organizations/${orgId || getOrgId()}/ai/global`)),
 
-    runWeeklyAI: (orgId) => 
+    // UI pending — AI briefing scheduling
+    runWeeklyAI: (orgId) =>
         handleRequest(API.post(`/organizations/${orgId || getOrgId()}/ai/weekly`)),
 
-    runMonthlyAI: (orgId) => 
+    // UI pending — AI briefing scheduling
+    runMonthlyAI: (orgId) =>
         handleRequest(API.post(`/organizations/${orgId || getOrgId()}/ai/monthly`)),
 
     askAboutContext: (orgId, contextType, contextId, question) => {
@@ -252,6 +272,7 @@ export const apiService = {
         }));
     },
 
+    // UI pending — recommendation analysis
     explainRecommendation: (orgId, recId) => {
         const oid = orgId || getOrgId();
         return handleRequest(API.post(`/organizations/${oid}/ai/recommendations/${recId}/explain`));
@@ -264,13 +285,14 @@ export const apiService = {
         handleRequest(API.post(`/analytics/ai/single/${symbol}`)),
 
     // ── Market Data (V1 & Dynamic Fallback routes) ───────────────────────────
-    getAssetSnapshot: (assetId) => 
+    // UI pending — asset intelligence
+    getAssetSnapshot: (assetId) =>
         handleRequest(API.get(`/market/assets/${assetId}/snapshot`)),
 
-    getAssetFeatures: (assetId) => 
+    // UI pending — asset intelligence
+    getAssetFeatures: (assetId) =>
         handleRequest(API.get(`/market/assets/${assetId}/features`)),
 
-    // Compatibility fallback mappings (aliased to v1-mirrored endpoint namespace)
     getMarketIndices: () => handleRequest(API.get('/market/indices')),
     getMarketSectors: () => handleRequest(API.get('/market/sectors')),
     getMarketMovers: () => handleRequest(API.get('/market/movers')),
@@ -280,6 +302,7 @@ export const apiService = {
     getThemeNav: (themeId, days = 365) => handleRequest(API.get(`/market/themes/${themeId}/nav?days=${days}`)),
     forkTheme: (themeId, name) => handleRequest(API.post(`/market/themes/${themeId}/fork`, {name})),
     updateTheme: (themeId, payload) => handleRequest(API.put(`/market/themes/${themeId}`, payload)),
+    // UI pending — theme management
     deleteTheme: (themeId) => handleRequest(API.delete(`/market/themes/${themeId}`)),
     getThemesForSymbol: (symbol) => handleRequest(API.get(`/market/themes-for/${encodeURIComponent(symbol)}`)),
     getMarketSectorDetail: (name) => handleRequest(API.get(`/market/sectors/${encodeURIComponent(name)}`)),
@@ -293,7 +316,7 @@ export const apiService = {
     fetchAureonAsset: (ticker) => handleRequest(API.get(`/aureon/assets/${ticker}`)),
     triggerBackfill: (symbol) => handleRequest(API.post(`/market/symbols/${encodeURIComponent(symbol)}/backfill`)),
     refreshMarket: () => handleRequest(API.post('/market/refresh')),
-    refreshPrices: () => handleRequest(API.post('/assets/price')),
+    refreshPrices: () => handleRequest(API.post('/market/refresh')),
     syncBrokers: (broker = 'zerodha') => handleRequest(API.post('/portfolio/sync', {broker})),
     getSyncStatus: () => handleRequest(API.get('/portfolio/sync/status')),
     hardRefresh: () => handleRequest(API.post('/market/refresh')),
@@ -317,6 +340,7 @@ export const apiService = {
     getProviders: () => handleRequest(API.get('/config/providers')),
     updateProvider: (providerName, payload) => handleRequest(API.put(`/config/providers/${encodeURIComponent(providerName)}`, payload)),
     setProviderKey: (providerName, keyName, value) => handleRequest(API.put(`/config/providers/${encodeURIComponent(providerName)}/keys`, {key_name: keyName, value})),
+    getZerodhaLoginUrl: () => handleRequest(API.get('/config/providers/zerodha/oauth/login-url')),
 
     // Jobs configuration
     getJobs: () => handleRequest(API.get('/config/jobs')),
@@ -324,48 +348,28 @@ export const apiService = {
     runJob: (jobName) => handleRequest(API.post(`/config/jobs/${jobName}/run`)),
     getJobLogs: (jobName, limit = 20) => handleRequest(API.get(`/config/jobs/${jobName}/logs?limit=${limit}`)),
     getAllocationTargets: () => handleRequest(API.get('/config/allocation_targets')),
+    // UI pending — portfolio administration
     upsertAllocationTarget: (assetClass, payload) => handleRequest(API.put(`/config/allocation_targets/${encodeURIComponent(assetClass)}`, payload)),
 
-    fetchBriefingHistory: async (limit = 30) => {
-        try {
-            return await handleRequest(API.get(`/analytics/ai/briefings?limit=${limit}`));
-        } catch {
-            return [];
-        }
+    fetchBriefingHistory: (limit = 30) =>
+        handleRequest(API.get(`/analytics/ai/briefings?limit=${limit}`)),
+
+    fetchPortfolioHistory: async () => {
+        // No backend history endpoint — return null so callers show their empty state
+        return null;
     },
 
-    fetchPortfolioHistory: async (days = 60) => {
-        const history = [];
-        const now = new Date();
-        let currentVal = 472500.0;
-        try {
-            const orgId = localStorage.getItem('active_org_id');
-            const portList = await apiService.listPortfolios(orgId);
-            if (portList && portList.length > 0) {
-                const pid = localStorage.getItem(`active_portfolio_id_${orgId}`) || portList[0].id;
-                const snap = await apiService.getPortfolioSnapshot(orgId, pid);
-                if (snap) {
-                    currentVal = (snap.market_value || 0) + (snap.cash_balance || 0);
-                }
-            }
-        } catch (e) {
-            console.warn('Failed to fetch snapshot for history simulation:', e);
-        }
-
-        for (let i = days - 1; i >= 0; i--) {
-            const d = new Date(now.getTime() - i * 24 * 60 * 60 * 1000);
-            const dateStr = d.toISOString().split('T')[0];
-            const variance = 1 + (Math.sin(i / 10) * 0.05) + ((i % 7 === 0 ? 0.01 : -0.01));
-            history.push({
-                date: dateStr,
-                value: Math.round(currentVal * variance * 100) / 100
-            });
-        }
-        // Dual-nature return value to support both Array and Object destructuring
-        const result = [...history];
-        result.history = history;
-        return result;
-    },
+    // ── Intelligence (per-portfolio AI analysis) ──────────────────────────────
+    getPortfolioHealth: (portfolioId) =>
+        handleRequest(API.get('/intelligence/portfolio-health', {params: {portfolio_id: portfolioId}})),
+    getPortfolioDiversification: (portfolioId) =>
+        handleRequest(API.get('/intelligence/diversification', {params: {portfolio_id: portfolioId}})),
+    getPortfolioConcentration: (portfolioId) =>
+        handleRequest(API.get('/intelligence/concentration', {params: {portfolio_id: portfolioId}})),
+    getCashOpportunities: (portfolioId) =>
+        handleRequest(API.get('/intelligence/cash-opportunities', {params: {portfolio_id: portfolioId}})),
+    getIntelligenceCalibration: (orgId) =>
+        handleRequest(API.get('/intelligence/calibration', {params: {org_id: orgId}})),
 
     cleanError: (err) => {
         let msg = err.message || 'An error occurred';

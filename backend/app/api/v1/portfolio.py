@@ -1,13 +1,21 @@
+import io
+import json
 import uuid
 from datetime import datetime, timezone
-from typing import List, Optional
+from typing import Any, Dict, List, Optional
 
-from fastapi import APIRouter, Depends, File, Form, HTTPException, UploadFile, status
+from fastapi import APIRouter, Depends, File, Form, HTTPException, Query, UploadFile, status
+from fastapi.responses import StreamingResponse
+from pydantic import BaseModel
+from sqlalchemy.orm import Session
 
 from app.api.dependencies import (
+    get_config_service,
     get_current_user,
+    get_db,
     get_members_repo,
     get_portfolio_service,
+    get_user_context,
 )
 from app.api.v1.schemas import (
     PortfolioCreate,
@@ -21,9 +29,19 @@ from app.api.v1.schemas import (
 )
 from app.core.exceptions import NotFoundError, ValidationError
 from app.core.redis import cache_portfolio_snapshot, get_cached_portfolio_snapshot
+from app.domain.entities.market import Asset, LatestQuote
+from app.domain.entities.portfolio import Position, Transaction
 from app.domain.entities.system import User
-from app.domain.services import PortfolioService
-from app.infrastructure.repositories import OrganizationMembersRepository
+from app.domain.entities.watchlist import Watchlist
+from app.domain.services import ConfigService, PortfolioService
+from app.domain.services.portfolio import _ensure_asset_exists
+from app.infrastructure.repositories import (
+    OrganizationMembersRepository,
+    PortfolioSnapshotRepository,
+    PortfoliosRepository,
+    PositionsRepository,
+    TransactionsRepository,
+)
 
 router = APIRouter()
 
@@ -360,3 +378,230 @@ async def import_cdsl_cas_pdf(
         raise HTTPException(status_code=400, detail=str(e))
     except NotFoundError as e:
         raise HTTPException(status_code=404, detail=str(e))
+
+
+# --- Manual Assets, Sync, Backup/Restore (single-user facade via get_user_context) ---
+
+class CreateManualAssetRequest(BaseModel):
+    name: str
+    symbol: str
+    asset_class: str
+    quantity: float
+    price: float
+
+@router.post("/manual-assets")
+def create_manual_asset(
+    body: CreateManualAssetRequest,
+    user: User = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    org_id, portfolio_id = get_user_context(db, user)
+
+    symbol_clean = body.symbol.upper().strip()
+    asset = db.query(Asset).filter(Asset.symbol == symbol_clean).first()
+    if not asset:
+        asset = Asset(
+            id=uuid.uuid5(uuid.NAMESPACE_DNS, symbol_clean),
+            symbol=symbol_clean,
+            name=body.name,
+            asset_class=body.asset_class,
+            metadata_payload={"sector": "Manual"}
+        )
+        db.add(asset)
+        db.flush()
+
+    _ensure_asset_exists(db, symbol_clean)
+
+    txn = Transaction(
+        portfolio_id=portfolio_id,
+        symbol=symbol_clean,
+        asset_id=asset.id,
+        transaction_type="BUY",
+        quantity=body.quantity,
+        price=body.price,
+        transaction_date=datetime.now(timezone.utc),
+        notes="Manual asset creation",
+        broker="manual",
+        kind="trade"
+    )
+    db.add(txn)
+    db.commit()
+
+    portfolio_service = PortfolioService(PortfoliosRepository(db), TransactionsRepository(db), PositionsRepository(db), PortfolioSnapshotRepository(db))
+    portfolio_service.recalculate_position(portfolio_id, symbol_clean)
+    db.commit()
+    return {"status": "success", "symbol": symbol_clean}
+
+class UpdateManualValuationRequest(BaseModel):
+    new_value: float
+    notes: Optional[str] = None
+
+@router.put("/manual-assets/{symbol}/valuation")
+def update_manual_valuation(
+    symbol: str,
+    body: UpdateManualValuationRequest,
+    user: User = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    org_id, portfolio_id = get_user_context(db, user)
+    symbol_clean = symbol.upper().strip()
+
+    pos = db.query(Position).filter(Position.portfolio_id == portfolio_id, Position.symbol == symbol_clean).first()
+    if not pos:
+        raise HTTPException(status_code=404, detail="Manual position not found")
+
+    qty = float(pos.quantity)
+    new_unit_price = body.new_value / qty if qty > 0 else body.new_value
+
+    quote = db.query(LatestQuote).filter(LatestQuote.symbol == symbol_clean).first()
+    if quote:
+        quote.price = new_unit_price
+
+    txn = Transaction(
+        portfolio_id=portfolio_id,
+        symbol=symbol_clean,
+        asset_id=pos.asset_id,
+        transaction_type="SPLIT",
+        quantity=qty,
+        price=new_unit_price,
+        transaction_date=datetime.now(timezone.utc),
+        notes=body.notes or f"Valuation update: {body.new_value}",
+        broker="manual",
+        kind="trade"
+    )
+    db.add(txn)
+    db.commit()
+    return {"status": "success", "new_price": new_unit_price}
+
+@router.post("/sync")
+def sync_brokers(
+    body: Dict[str, Any],
+    user: User = Depends(get_current_user),
+    config_svc: ConfigService = Depends(get_config_service),
+):
+    broker = (body.get("broker") or "").lower()
+    if broker == "zerodha":
+        task_id = config_svc.dispatch_job("sync_zerodha")
+    else:
+        task_id = config_svc.dispatch_job("sync_portfolio")
+    return {"status": "queued", "message": f"{broker or 'portfolio'} sync queued", "task_id": task_id}
+
+@router.get("/sync/status")
+def get_sync_status(
+    db: Session = Depends(get_db),
+    config_svc: ConfigService = Depends(get_config_service),
+):
+    results = []
+    for provider in config_svc.get_providers_by_type("broker"):
+        name = provider["provider_name"]
+        if name != "zerodha":
+            continue  # v1 scope — groww/binance/etc. have no sync implementation yet
+
+        has_token = provider["keys_status"].get("access_token", False)
+        logs = config_svc.get_job_logs("sync_zerodha", limit=1)
+        last_log = logs[0] if logs else None
+
+        if not has_token:
+            status, error = "auth_required", None
+        elif last_log and last_log["status"] == "FAILED" and "AUTH_REQUIRED" in (last_log["error_message"] or ""):
+            status, error = "auth_required", last_log["error_message"]
+        elif last_log and last_log["status"] == "FAILED":
+            status, error = "error", last_log["error_message"]
+        elif last_log and last_log["status"] == "SUCCESS":
+            status, error = "ok", None
+        else:
+            status, error = "idle", None
+
+        positions_count = (
+            db.query(Position)
+            .join(Transaction, (Transaction.portfolio_id == Position.portfolio_id) & (Transaction.symbol == Position.symbol))
+            .filter(Transaction.broker == "zerodha", Transaction.kind == "broker_snapshot")
+            .distinct()
+            .count()
+        )
+
+        results.append({
+            "provider": name,
+            "status": status,
+            "last_synced_at": last_log["ended_at"] if (last_log and status == "ok") else None,
+            "positions_count": positions_count,
+            "error": error,
+        })
+
+    return results
+
+@router.get("/backup")
+def export_backup(
+    user: User = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    org_id, portfolio_id = get_user_context(db, user)
+    txns = db.query(Transaction).filter(Transaction.portfolio_id == portfolio_id).all()
+    watchlists = db.query(Watchlist).filter(Watchlist.user_id == user.id).all()
+
+    backup = {
+        "version": "1.0.0",
+        "exported_at": datetime.now(timezone.utc).isoformat(),
+        "user_id": str(user.id),
+        "transactions": [
+            {
+                "symbol": t.symbol,
+                "type": t.transaction_type,
+                "qty": float(t.quantity),
+                "price": float(t.price),
+                "date": t.transaction_date.isoformat(),
+                "broker": t.broker,
+                "notes": t.notes
+            } for t in txns
+        ],
+        "watchlists": [
+            {
+                "name": w.name,
+                "symbols": [s.symbol for s in w.symbols]
+            } for w in watchlists
+        ]
+    }
+
+    content = json.dumps(backup, indent=2)
+    return StreamingResponse(
+        io.BytesIO(content.encode("utf-8")),
+        media_type="application/json",
+        headers={"Content-Disposition": f"attachment; filename=aureon_backup_{datetime.now(timezone.utc).strftime('%Y%m%d')}.json"}
+    )
+
+@router.post("/restore")
+def restore_backup(
+    file: UploadFile = File(...),
+    confirm: bool = Query(False),
+    user: User = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    org_id, portfolio_id = get_user_context(db, user)
+    content = file.file.read()
+    data = json.loads(content)
+
+    if not confirm:
+        return {
+            "status": "dry_run",
+            "transactions_count": len(data.get("transactions", [])),
+            "watchlists_count": len(data.get("watchlists", []))
+        }
+
+    portfolio_service = PortfolioService(PortfoliosRepository(db), TransactionsRepository(db), PositionsRepository(db), PortfolioSnapshotRepository(db))
+
+    count = 0
+    for t in data.get("transactions", []):
+        portfolio_service.record_transaction(
+            portfolio_id=portfolio_id,
+            organization_id=org_id,
+            symbol=t["symbol"],
+            transaction_type=t["type"],
+            quantity=t["qty"],
+            price=t["price"],
+            transaction_date=datetime.fromisoformat(t["date"]),
+            notes=t.get("notes"),
+            broker=t.get("broker")
+        )
+        count += 1
+
+    return {"status": "success", "imported_transactions": count}

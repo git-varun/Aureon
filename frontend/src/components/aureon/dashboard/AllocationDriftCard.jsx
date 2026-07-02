@@ -1,17 +1,34 @@
 // frontend/src/components/aureon/dashboard/AllocationDriftCard.jsx
-import React from 'react';
-import { useCardData } from '@/hooks/useCardData';
+import React, { useMemo } from 'react';
+import { useQueryClient } from '@tanstack/react-query';
+import { useAureonData } from '@/hooks/useAureonData';
+import { useOrganization } from '@/contexts/OrganizationContext';
 import { Sk, RBtn, Cerr, Cmt, CS, Eyebrow } from '../ui';
-
-const stub = async () => {
-  await new Promise(r => setTimeout(r, 490 + Math.random() * 240));
-  return null;
-};
 
 const dc = pp => Math.abs(pp) < 1 ? 'var(--ink-30)' : Math.abs(pp) < 3 ? 'var(--dusk-500)' : 'var(--crimson-500)';
 
 export function AllocationDriftCard({ onNavigatePortfolio }) {
-  const { status, data, error, refetch } = useCardData(stub);
+  const { activeOrgId } = useOrganization();
+  const queryClient = useQueryClient();
+  const { loading, error, allocByClass, classTarget, classLabel } = useAureonData();
+
+  const driftRows = useMemo(() => {
+    const keys = [...new Set([...Object.keys(allocByClass), ...Object.keys(classTarget)])];
+    return keys
+      .map(key => ({
+        key,
+        label: classLabel[key] || key,
+        actual: allocByClass[key] || 0,
+        target: classTarget[key] || 0,
+        drift: ((allocByClass[key] || 0) - (classTarget[key] || 0)) * 100,
+      }))
+      .filter(r => r.actual > 0)
+      .sort((a, b) => Math.abs(b.drift) - Math.abs(a.drift));
+  }, [allocByClass, classTarget, classLabel]);
+
+  const data = driftRows.length > 0 ? driftRows : null;
+  const status = loading ? 'loading' : error ? 'error' : !data ? 'empty' : 'ready';
+  const refetch = () => queryClient.invalidateQueries({ queryKey: ['org', activeOrgId] });
 
   return (
     <div style={{ ...CS }}>
@@ -37,7 +54,7 @@ export function AllocationDriftCard({ onNavigatePortfolio }) {
         </div>
       )}
 
-      {status === 'error' && <Cerr msg={error} retry={refetch} />}
+      {status === 'error' && <Cerr msg={error?.message} retry={refetch} />}
       {status === 'empty' && <Cmt msg="No allocation data" />}
 
       {status === 'ready' && data && (() => {

@@ -63,8 +63,8 @@ export function LogTradeModal({onClose, transaction}) {
     }, [query, transaction]);
 
     const pickTicker = (asset) => {
-        set('ticker', asset.symbol);
-        setQuery(asset.symbol);
+        set('ticker', asset.sym);
+        setQuery(asset.sym);
         setResults([]);
     };
 
@@ -82,11 +82,10 @@ export function LogTradeModal({onClose, transaction}) {
                 notes: form.notes || undefined,
             };
             if (transaction) {
-                const transactionId = parseInt(transaction.id.replace('t-', ''));
-                await apiService.updateTransaction(transactionId, payload);
+                await apiService.updateTransaction(null, null, transaction.id, payload);
                 toast.success('Transaction updated');
             } else {
-                await apiService.createTransaction(payload);
+                await apiService.createTransaction(null, null, payload);
                 toast.success(`${form.type} ${form.ticker} logged`);
             }
             onClose(true);
@@ -146,7 +145,7 @@ export function LogTradeModal({onClose, transaction}) {
                                     borderRadius: 8, overflow: 'hidden', boxShadow: '0 8px 32px rgba(0,0,0,0.40)',
                                 }}>
                                     {results.map(a => (
-                                        <button key={a.symbol} onClick={() => pickTicker(a)}
+                                        <button key={a.sym} onClick={() => pickTicker(a)}
                                                 onMouseEnter={e => e.currentTarget.style.background = 'rgba(255,255,255,0.04)'}
                                                 onMouseLeave={e => e.currentTarget.style.background = 'transparent'}
                                                 style={{
@@ -154,7 +153,7 @@ export function LogTradeModal({onClose, transaction}) {
                                                     width: '100%', padding: '8px 12px',
                                                     background: 'transparent', border: 'none', cursor: 'pointer', textAlign: 'left',
                                                 }}>
-                                            <span style={{fontFamily: 'var(--font-mono)', fontSize: 12, color: 'var(--ink-00)', fontWeight: 600, minWidth: 72}}>{a.symbol}</span>
+                                            <span style={{fontFamily: 'var(--font-mono)', fontSize: 12, color: 'var(--ink-00)', fontWeight: 600, minWidth: 72}}>{a.sym}</span>
                                             <span style={{fontSize: 12, color: 'var(--ink-30)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap'}}>{a.name}</span>
                                         </button>
                                     ))}

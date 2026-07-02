@@ -1,5 +1,8 @@
-import React, { useState, useEffect } from 'react';
+import React from 'react';
+import { useQuery } from '@tanstack/react-query';
 import { useApp } from '@/components/aureon/store';
+import { useOrganization } from '@/contexts/OrganizationContext';
+import { apiService } from '@/api/apiService';
 
 const SPIN_STYLE = `
 @keyframes aureon-cal-spin {
@@ -111,75 +114,70 @@ const CONTAINER_STYLE = {
     flexWrap: 'wrap',
 };
 
+const bandRate = (band) => {
+    if (!band || band.total_recommendations === 0) return '—';
+    return `${Math.round(band.win_rate * 100)}%`;
+};
+
+const bandColor = (band) => {
+    if (!band || band.total_recommendations === 0) return 'var(--ink-40)';
+    const r = band.win_rate;
+    return r >= 0.7 ? 'var(--sage-500)' : r >= 0.5 ? 'var(--aurum-100)' : 'var(--crimson-500)';
+};
+
 function CalibrationStrip() {
+    const { activeOrgId } = useOrganization();
     const { active, applied, dismissed, activity } = useApp();
-    const [calStatus, setCalStatus] = useState('loading');
 
-    useEffect(() => {
-        const delay = 340 + Math.random() * 180;
-        const timer = setTimeout(() => setCalStatus('ready'), delay);
-        return () => clearTimeout(timer);
-    }, []);
+    const calibQuery = useQuery({
+        queryKey: ['org', activeOrgId, 'calibration'],
+        queryFn: () => apiService.getIntelligenceCalibration(activeOrgId),
+        enabled: !!activeOrgId,
+        staleTime: 60000,
+    });
 
-    if (calStatus === 'loading') {
+    const settling = activity.filter(a => a.kind === 'applied' && a.pending).length;
+
+    if (calibQuery.isLoading) {
         return (
             <div style={CONTAINER_STYLE}>
                 <Spinner />
                 <div style={{ fontSize: 9.5, textTransform: 'uppercase', color: 'var(--aurum-100)', fontWeight: 700 }}>
                     Calibration
                 </div>
-                <div style={{ fontSize: 11, color: 'var(--ink-40)' }}>Fetching from backend…</div>
+                <div style={{ fontSize: 11, color: 'var(--ink-40)' }}>Loading…</div>
             </div>
         );
     }
 
-    const withRealized = activity.filter(a => a.realized && a.predicted && a.kind === 'applied');
-    const n = withRealized.length;
-    const successfulCount = withRealized.filter(a => {
-        const r = parseFloat(a.realized);
-        const p = parseFloat(a.predicted);
-        if (isNaN(r) || isNaN(p)) return false;
-        return Math.sign(r) === Math.sign(p);
-    }).length;
-    const accPct = n === 0 ? null : Math.round(successfulCount / n * 100);
-    const settling = activity.filter(a => a.kind === 'applied' && a.pending).length;
-
-    const accColor = accPct === null
-        ? 'var(--ink-40)'
-        : accPct >= 70
-            ? 'var(--sage-500)'
-            : accPct >= 50
-                ? 'var(--aurum-100)'
-                : 'var(--crimson-500)';
-
-    const accDisplay = accPct === null ? '—' : `${accPct}%`;
+    const cal = calibQuery.data ?? null;
 
     return (
         <div style={CONTAINER_STYLE}>
             {/* Left: logo + label */}
             <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
                 <CalibrationSVG />
-                <div>
-                    <div style={{ fontSize: 9, textTransform: 'uppercase', color: 'var(--aurum-100)', fontWeight: 700, marginBottom: 1 }}>
-                        Calibration
-                    </div>
-                    <div style={{ fontSize: 10.5, color: 'var(--ink-40)' }}>
-                        {n > 0 ? `${n} measured outcome${n === 1 ? '' : 's'}` : '—'}
-                    </div>
+                <div style={{ fontSize: 9.5, textTransform: 'uppercase', color: 'var(--aurum-100)', fontWeight: 700 }}>
+                    Calibration
                 </div>
             </div>
 
-            {/* Middle: metrics */}
+            {/* Middle: per-band win rates */}
             <div style={{ display: 'flex', gap: 22, alignItems: 'flex-end' }}>
                 <MetricCol
-                    label="Outcome accuracy"
-                    value={accDisplay}
-                    valueStyle={{ fontSize: 22, color: accColor }}
+                    label="High confidence"
+                    value={bandRate(cal?.high)}
+                    valueStyle={{ fontSize: 22, color: bandColor(cal?.high) }}
                 />
                 <MetricCol
-                    label="Avg vs predicted"
-                    value="—"
-                    valueStyle={{ fontSize: 17, color: 'var(--ink-40)' }}
+                    label="Med confidence"
+                    value={bandRate(cal?.medium)}
+                    valueStyle={{ fontSize: 17, color: bandColor(cal?.medium) }}
+                />
+                <MetricCol
+                    label="Low confidence"
+                    value={bandRate(cal?.low)}
+                    valueStyle={{ fontSize: 17, color: bandColor(cal?.low) }}
                 />
                 {settling > 0 && (
                     <MetricCol

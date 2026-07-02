@@ -87,7 +87,7 @@ class PriceHistory(Base):
     )
 
     id: Mapped[uuid.UUID] = mapped_column(primary_key=True, default=uuid.uuid4)
-    asset_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("market.asset_snapshot.asset_id", ondelete="CASCADE"), nullable=False)
+    asset_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("market.assets.id", ondelete="CASCADE"), nullable=False)
     symbol: Mapped[str] = mapped_column(String, nullable=False)
     price: Mapped[float] = mapped_column(Numeric, nullable=False)
     volume: Mapped[float | None] = mapped_column(Numeric, nullable=True)

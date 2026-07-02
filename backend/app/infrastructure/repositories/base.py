@@ -10,8 +10,7 @@ class BaseRepository:
         # Instrument all methods of the subclass at import time
         repo_name = cls.__name__
         for attr_name, attr_value in list(cls.__dict__.items()):
-            if attr_name.startswith("__") or attr_name == "session":
+            if attr_name.startswith("_"):
                 continue
-            # Instrument standard instance methods
             if callable(attr_value) and not isinstance(attr_value, (classmethod, staticmethod)):
                 setattr(cls, attr_name, instrument_repository(repo_name)(attr_value))

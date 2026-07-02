@@ -113,6 +113,7 @@ _DEFAULT_ALLOCATION_TARGETS = [
 
 _DEFAULT_JOBS = [
     {"job_name": "sync_portfolio", "cron_expression": "0 9 * * 1-5", "enabled": True, "job_tier": "user"},
+    {"job_name": "sync_zerodha", "cron_expression": "30 8 * * 1-5", "enabled": False, "job_tier": "user"},
     {"job_name": "refresh_prices", "cron_expression": "*/15 9-15 * * 1-5", "enabled": True, "job_tier": "user"},
     {"job_name": "fetch_news", "cron_expression": "0 8 * * *", "enabled": True, "job_tier": "user"},
     {"job_name": "daily_briefing", "cron_expression": "0 7 * * *", "enabled": True, "job_tier": "user"},
@@ -324,7 +325,6 @@ class ConfigService(BaseService):
                 delta = log.ended_at - started
                 log.duration_ms = int(delta.total_seconds() * 1000)
             self.repo.session.commit()
-            self.repo.session.refresh(log)
         return log
 
     def update_job_log_status_by_task_id(self, task_id: str, status: JobStatus, error: Optional[str] = None) -> bool:
@@ -378,6 +378,7 @@ class ConfigService(BaseService):
             # Map legacy job names to celery tasks we will define
             task_mapping = {
                 "sync_portfolio": "app.workers.ingestion.tasks.sync_portfolio_task",
+                "sync_zerodha": "app.workers.ingestion.tasks.sync_zerodha_task",
                 "refresh_prices": "app.workers.ingestion.tasks.refresh_prices_task",
                 "fetch_news": "app.workers.ingestion.tasks.fetch_news_task",
                 "daily_briefing": "app.workers.ingestion.tasks.daily_briefing_task",
@@ -454,6 +455,45 @@ class ConfigService(BaseService):
                 logger.info("Config defaults already seeded concurrently.")
             else:
                 raise
+
+        # Sync AI keys from environment — idempotent, only writes if slot is empty
+        env_ai_keys = [
+            ("gemini", "api_key", settings.GEMINI_API_KEY),
+            ("groq", "api_key", settings.GROQ_API_KEY),
+        ]
+        synced_any = False
+        for provider_name, key_name, env_value in env_ai_keys:
+            if not env_value:
+                continue
+            p = db.scalar(select(ProviderConfig).filter_by(provider_name=provider_name))
+            if not p:
+                continue
+            stored_keys = _safe_json_load(p.encrypted_keys, {})
+            if not stored_keys.get(key_name):
+                stored_keys[key_name] = _encrypt(env_value)
+                p.encrypted_keys = json.dumps(stored_keys)
+                synced_any = True
+                logger.info(f"AI provider key synced from environment: {provider_name}.{key_name}")
+        if synced_any:
+            try:
+                db.commit()
+            except Exception:
+                db.rollback()
+                logger.warning("Failed to persist AI keys synced from environment")
+
+        # Log AI provider readiness at startup
+        for provider_name in ("gemini", "groq"):
+            p = db.scalar(select(ProviderConfig).filter_by(provider_name=provider_name))
+            if p:
+                stored_keys = _safe_json_load(p.encrypted_keys, {})
+                has_key = bool(stored_keys.get("api_key"))
+                if not p.enabled:
+                    status = "disabled"
+                elif not has_key:
+                    status = "missing_key — set via PUT /api/v1/config/providers/{name}/keys"
+                else:
+                    status = "ready"
+                logger.info(f"AI provider status [{provider_name}]: {status}")
 
     # ── Allocation Targets ─────────────────────────────────────────────────
 

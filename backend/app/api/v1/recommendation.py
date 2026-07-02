@@ -2,11 +2,14 @@ import uuid
 from typing import Optional
 
 from fastapi import APIRouter, Depends, HTTPException, Query, status
+from sqlalchemy.orm import Session
 
 from app.api.dependencies import (
     get_current_user,
+    get_db,
     get_members_repo,
     get_recommendation_service,
+    get_user_context,
 )
 from app.core.exceptions import NotFoundError, ValidationError
 from app.domain.entities.system import User
@@ -14,6 +17,21 @@ from app.domain.services import RecommendationService
 from app.infrastructure.repositories import OrganizationMembersRepository
 
 router = APIRouter()
+
+# Bare (non-/recommendation-prefixed) route, mounted separately at /api/v1
+bare_router = APIRouter()
+
+@bare_router.post("/aureon/recommendations/seed")
+def seed_recommendations(
+    user: User = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    org_id, portfolio_id = get_user_context(db, user)
+    service = RecommendationService(db)
+    recs = service.generate_recommendations(org_id)
+    for r in recs:
+        r["ext_id"] = r["id"]
+    return {"status": "success", "count": len(recs), "items": recs}
 
 # --- Authorization Helpers ---
 

@@ -103,7 +103,7 @@ export const Sidebar = ({userName, onLogout, portfolioCount, transactionCount}) 
 
             <div className={s.spacer}/>
 
-            <div ref={menuRef} style={{position: 'relative'}}>
+            <div ref={menuRef} style={{position: 'relative', margin: '0 -14px'}}>
                 {menuOpen && (
                     <div className={s.userMenu}>
                         <div style={{

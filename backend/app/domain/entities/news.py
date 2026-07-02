@@ -44,7 +44,7 @@ class NewsAsset(Base):
         ForeignKey("news.news.id", ondelete="CASCADE"), primary_key=True
     )
     asset_id: Mapped[uuid.UUID] = mapped_column(
-        ForeignKey("market.asset_snapshot.asset_id", ondelete="CASCADE"), primary_key=True
+        ForeignKey("market.assets.id", ondelete="CASCADE"), primary_key=True
     )
 
 class AssetSentimentSnapshot(Base):
@@ -56,7 +56,7 @@ class AssetSentimentSnapshot(Base):
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True)
     asset_id: Mapped[uuid.UUID] = mapped_column(
-        ForeignKey("market.asset_snapshot.asset_id"), nullable=False
+        ForeignKey("market.assets.id"), nullable=False
     )
     snapshot_date: Mapped[datetime] = mapped_column(nullable=False)
     avg_sentiment_7d: Mapped[float | None] = mapped_column(Float, nullable=True)  # -1 to 1

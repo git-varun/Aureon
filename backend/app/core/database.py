@@ -1,4 +1,4 @@
-from typing import Generator
+from typing import Any, Generator
 import time
 import re
 from sqlalchemy import create_engine, event
@@ -9,7 +9,15 @@ from app.core.logger import logger
 from app.core.observability.metrics import db_query_duration_seconds, db_connection_pool_usage
 
 # Initialize database engine
-engine = create_engine(settings.DATABASE_URL, echo=settings.DATABASE_ECHO)
+_connect_args: dict[str, Any] = {}
+if "psycopg" in settings.DATABASE_URL:
+    _connect_args["prepare_threshold"] = None
+    # All backend timestamps are UTC. Without this, the Postgres session timezone defaults to
+    # the server's local zone, so naive TIMESTAMP WITHOUT TIME ZONE columns get silently
+    # converted on write/read — timezone conversion belongs only in presentation, never here.
+    _connect_args["options"] = "-c timezone=utc"
+
+engine = create_engine(settings.DATABASE_URL, echo=settings.DATABASE_ECHO, connect_args=_connect_args)
 if engine.dialect.name == 'sqlite':
     engine = engine.execution_options(schema_translate_map={
         'system': None, 'market': None, 'portfolio': None, 'evaluation': None, 

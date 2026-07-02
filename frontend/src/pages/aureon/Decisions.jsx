@@ -3,7 +3,8 @@ import React, {useMemo, useState} from 'react';
 import {useLocation} from 'react-router-dom';
 import {useQueryClient} from '@tanstack/react-query';
 import {useApp} from '@/components/aureon/store';
-import {useAureonData, AUREON_STATE_KEY} from '@/hooks/useAureonData';
+import {useAureonData} from '@/hooks/useAureonData';
+import {useOrganization} from '@/contexts/OrganizationContext';
 import {ActionConfirmationModal} from '@/components/aureon/flow';
 import {ErrorState} from '@/components/aureon/ds';
 import {
@@ -58,6 +59,7 @@ export default function Decisions() {
     const queryClient = useQueryClient();
     const {active, applied, dismissed, apply, dismiss} = useApp();
     const {signals, loading, error} = useAureonData();
+    const {activeOrgId} = useOrganization();
 
     const initTab = useMemo(() => {
         const p = new URLSearchParams(urlSearch).get('tab');
@@ -85,7 +87,7 @@ export default function Decisions() {
         setLineageOpen(true);
     };
 
-    const handleRetry = () => queryClient.invalidateQueries({queryKey: AUREON_STATE_KEY});
+    const handleRetry = () => queryClient.invalidateQueries({queryKey: ["org", activeOrgId, "recommendations"]});
 
     return (
         <>
