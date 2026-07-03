@@ -96,6 +96,7 @@ _DEFAULT_PROVIDERS = [
     {"provider_name": "groq", "provider_type": "ai", "key_names": '["api_key"]', "status": "ACTIVE", "capabilities": '["AI_CHAT"]', "priority": 20},
     {"provider_name": "rss", "provider_type": "news", "key_names": '[]', "status": "PLANNED", "capabilities": "[]"},
     {"provider_name": "finnhub", "provider_type": "news", "key_names": '["api_key"]', "status": "ACTIVE", "capabilities": '["PRICE","NEWS","FUNDAMENTALS"]', "priority": 20},
+    {"provider_name": "polygon", "provider_type": "price", "key_names": '["api_key"]', "status": "ACTIVE", "capabilities": '["PRICE","OHLC","CORPORATE_ACTIONS"]', "priority": 25},
     {"provider_name": "newsapi", "provider_type": "news", "key_names": '["api_key"]', "status": "PLANNED", "capabilities": "[]"},
     {"provider_name": "alphavantage", "provider_type": "news", "key_names": '["api_key"]', "status": "PLANNED", "capabilities": "[]"},
     {"provider_name": "binance_price", "provider_type": "price", "key_names": '[]', "status": "PLANNED", "capabilities": "[]"},
