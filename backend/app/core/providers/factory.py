@@ -5,17 +5,22 @@ Services should always go through ProviderFactory rather than importing a
 concrete provider class directly — that's what makes "add a provider" mean
 "implement + register" instead of "implement + register + edit every caller".
 """
-from typing import Optional
+from typing import TYPE_CHECKING, Optional
 
 from app.core.exceptions import ConfigurationError
 from app.core.providers.interfaces import ProviderProtocol
 from app.core.providers.lifecycle import ProviderStatus
 from app.core.providers.registry import registry
-from app.domain.services.config import ConfigService
+
+if TYPE_CHECKING:
+    # Deferred: app.domain.services.ai imports ProviderFactory at module scope, so an
+    # eager import here creates a circular import whenever this module loads first
+    # (e.g. `import app.core.providers.factory` as a process's first app import).
+    from app.domain.services.config import ConfigService
 
 
 class ProviderFactory:
-    def __init__(self, config_service: ConfigService):
+    def __init__(self, config_service: "ConfigService"):
         self.config_service = config_service
 
     def get(self, provider_name: str, *, required: bool = True) -> Optional[ProviderProtocol]:
