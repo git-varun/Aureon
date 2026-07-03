@@ -57,7 +57,15 @@ def _provider_to_dict(p: ProviderConfig) -> dict[str, Any]:
         "enabled": p.enabled,
         "key_names": key_names,
         "keys_status": keys_status,
-        "config": _safe_json_load(p.config, {})
+        "config": _safe_json_load(p.config, {}),
+        "status": p.status,
+        "capabilities": _safe_json_load(p.capabilities, []),
+        "priority": p.priority,
+        "health": _safe_json_load(p.health, {}),
+        "rate_limit": p.rate_limit,
+        "timeout_seconds": p.timeout_seconds,
+        "retry_policy": _safe_json_load(p.retry_policy, {}),
+        "cache_ttl_seconds": p.cache_ttl_seconds,
     }
 
 def _alloc_target_to_dict(r: AllocationTarget) -> dict[str, Any]:
@@ -69,36 +77,44 @@ def _alloc_target_to_dict(r: AllocationTarget) -> dict[str, Any]:
         "notes": r.notes,
     }
 
-# Seed lists
+# Seed lists.
+# `status`/`capabilities`/`priority` mirror app.core.providers.{lifecycle,capabilities}.
+# Only the 6 providers with a real adapter under app/infrastructure/providers/ get
+# ACTIVE/PARTIAL + a non-empty capability list. Everything else is PLANNED — kept
+# in this list (not deleted) so it stays visible in the UI as a roadmap item rather
+# than being removed or silently presented as if it worked.
 _DEFAULT_PROVIDERS = [
-    {"provider_name": "zerodha", "provider_type": "broker", "key_names": '["api_key","api_secret","access_token","request_token"]'},
-    {"provider_name": "groww", "provider_type": "broker", "key_names": '["api_key","api_secret"]'},
-    {"provider_name": "binance", "provider_type": "broker", "key_names": '["api_key","api_secret"]'},
-    {"provider_name": "coinbase", "provider_type": "broker", "key_names": '["api_key","api_secret","api_passphrase"]'},
-    {"provider_name": "custom_equity", "provider_type": "broker", "key_names": '["holdings_json"]'},
-    {"provider_name": "mf", "provider_type": "broker", "key_names": '["holdings_json"]'},
-    {"provider_name": "epf", "provider_type": "broker", "key_names": '["corpus_json"]'},
-    {"provider_name": "nps", "provider_type": "broker", "key_names": '["corpus_json"]'},
-    {"provider_name": "gemini", "provider_type": "ai", "key_names": '["api_key"]'},
-    {"provider_name": "groq", "provider_type": "ai", "key_names": '["api_key"]'},
-    {"provider_name": "rss", "provider_type": "news", "key_names": '[]'},
-    {"provider_name": "finnhub", "provider_type": "news", "key_names": '["api_key"]'},
-    {"provider_name": "newsapi", "provider_type": "news", "key_names": '["api_key"]'},
-    {"provider_name": "alphavantage", "provider_type": "news", "key_names": '["api_key"]'},
-    {"provider_name": "binance_price", "provider_type": "price", "key_names": '[]'},
-    {"provider_name": "yfinance", "provider_type": "price", "key_names": '[]'},
-    {"provider_name": "coingecko", "provider_type": "price", "key_names": '["api_key"]'},
-    {"provider_name": "coinmarketcap", "provider_type": "price", "key_names": '["api_key"]'},
-    {"provider_name": "mfapi", "provider_type": "price", "key_names": '[]'},
-    {"provider_name": "telegram", "provider_type": "notification", "key_names": '["bot_token","chat_id"]'},
-    {"provider_name": "bond_valuation", "provider_type": "valuation", "key_names": '[]', "enabled": True},
-    {"provider_name": "epf_ppf_valuation", "provider_type": "valuation", "key_names": '[]', "enabled": True},
-    {"provider_name": "eps_valuation", "provider_type": "valuation", "key_names": '[]', "enabled": True},
-    {"provider_name": "nps_valuation", "provider_type": "valuation", "key_names": '[]', "enabled": True},
-    {"provider_name": "insurance_valuation", "provider_type": "valuation", "key_names": '[]', "enabled": True},
-    {"provider_name": "real_estate_valuation", "provider_type": "valuation", "key_names": '[]', "enabled": True},
-    {"provider_name": "signal_eligibility", "provider_type": "config", "key_names": '[]', "config": '{"types": ["equity", "crypto", "commodity"]}'},
-    {"provider_name": "financial_intelligence", "provider_type": "config", "key_names": '[]', "config": '{"expected_return_default": 0.11, "expected_return_high_risk": 0.14, "expected_return_low_risk": 0.07, "benchmark_annual_return": 0.10, "single_stock_concentration_threshold": 15.0, "sector_concentration_threshold": 30.0, "theme_concentration_threshold": 25.0, "diversification_asset_count_threshold": 10.0, "diversification_sector_count_threshold": 5.0, "diversification_target_score": 80.0, "risk_high_crypto_threshold": 20.0, "risk_high_equity_threshold": 75.0, "risk_low_crypto_threshold": 5.0, "risk_low_equity_threshold": 35.0}'},
+    {"provider_name": "zerodha", "provider_type": "broker", "key_names": '["api_key","api_secret","access_token","request_token"]', "status": "PARTIAL", "capabilities": '["PORTFOLIO","HOLDINGS"]', "priority": 10},
+    {"provider_name": "groww", "provider_type": "broker", "key_names": '["api_key","api_secret"]', "status": "PLANNED", "capabilities": "[]"},
+    {"provider_name": "binance", "provider_type": "broker", "key_names": '["api_key","api_secret"]', "status": "PLANNED", "capabilities": "[]"},
+    {"provider_name": "coinbase", "provider_type": "broker", "key_names": '["api_key","api_secret","api_passphrase"]', "status": "PLANNED", "capabilities": "[]"},
+    {"provider_name": "custom_equity", "provider_type": "broker", "key_names": '["holdings_json"]', "status": "PLANNED", "capabilities": "[]"},
+    {"provider_name": "mf", "provider_type": "broker", "key_names": '["holdings_json"]', "status": "PLANNED", "capabilities": "[]"},
+    {"provider_name": "epf", "provider_type": "broker", "key_names": '["corpus_json"]', "status": "PLANNED", "capabilities": "[]"},
+    {"provider_name": "nps", "provider_type": "broker", "key_names": '["corpus_json"]', "status": "PLANNED", "capabilities": "[]"},
+    {"provider_name": "gemini", "provider_type": "ai", "key_names": '["api_key"]', "status": "ACTIVE", "capabilities": '["AI_CHAT"]', "priority": 10},
+    {"provider_name": "groq", "provider_type": "ai", "key_names": '["api_key"]', "status": "ACTIVE", "capabilities": '["AI_CHAT"]', "priority": 20},
+    {"provider_name": "rss", "provider_type": "news", "key_names": '[]', "status": "PLANNED", "capabilities": "[]"},
+    {"provider_name": "finnhub", "provider_type": "news", "key_names": '["api_key"]', "status": "ACTIVE", "capabilities": '["PRICE","NEWS","FUNDAMENTALS"]', "priority": 20},
+    {"provider_name": "newsapi", "provider_type": "news", "key_names": '["api_key"]', "status": "PLANNED", "capabilities": "[]"},
+    {"provider_name": "alphavantage", "provider_type": "news", "key_names": '["api_key"]', "status": "PLANNED", "capabilities": "[]"},
+    {"provider_name": "binance_price", "provider_type": "price", "key_names": '[]', "status": "PLANNED", "capabilities": "[]"},
+    # Was seeded as "yfinance" — renamed to "yahoo" to match YahooAdapter.provider_name
+    # (the registry key every other lookup uses). See migration a3f1c9d02b4e's follow-up
+    # data fix and docs/architecture/provider-registry.md breaking-change notes.
+    {"provider_name": "yahoo", "provider_type": "price", "key_names": '[]', "status": "ACTIVE", "capabilities": '["PRICE","NEWS","SEARCH"]', "priority": 30},
+    {"provider_name": "coingecko", "provider_type": "price", "key_names": '["api_key"]', "status": "PLANNED", "capabilities": "[]"},
+    {"provider_name": "coinmarketcap", "provider_type": "price", "key_names": '["api_key"]', "status": "PLANNED", "capabilities": "[]"},
+    {"provider_name": "mfapi", "provider_type": "price", "key_names": '[]', "status": "PLANNED", "capabilities": "[]"},
+    {"provider_name": "telegram", "provider_type": "notification", "key_names": '["bot_token","chat_id"]', "status": "PLANNED", "capabilities": "[]"},
+    {"provider_name": "bond_valuation", "provider_type": "valuation", "key_names": '[]', "enabled": True, "status": "ACTIVE", "capabilities": "[]"},
+    {"provider_name": "epf_ppf_valuation", "provider_type": "valuation", "key_names": '[]', "enabled": True, "status": "ACTIVE", "capabilities": "[]"},
+    {"provider_name": "eps_valuation", "provider_type": "valuation", "key_names": '[]', "enabled": True, "status": "ACTIVE", "capabilities": "[]"},
+    {"provider_name": "nps_valuation", "provider_type": "valuation", "key_names": '[]', "enabled": True, "status": "ACTIVE", "capabilities": "[]"},
+    {"provider_name": "insurance_valuation", "provider_type": "valuation", "key_names": '[]', "enabled": True, "status": "ACTIVE", "capabilities": "[]"},
+    {"provider_name": "real_estate_valuation", "provider_type": "valuation", "key_names": '[]', "enabled": True, "status": "ACTIVE", "capabilities": "[]"},
+    {"provider_name": "signal_eligibility", "provider_type": "config", "key_names": '[]', "config": '{"types": ["equity", "crypto", "commodity"]}', "status": "ACTIVE", "capabilities": "[]"},
+    {"provider_name": "financial_intelligence", "provider_type": "config", "key_names": '[]', "config": '{"expected_return_default": 0.11, "expected_return_high_risk": 0.14, "expected_return_low_risk": 0.07, "benchmark_annual_return": 0.10, "single_stock_concentration_threshold": 15.0, "sector_concentration_threshold": 30.0, "theme_concentration_threshold": 25.0, "diversification_asset_count_threshold": 10.0, "diversification_sector_count_threshold": 5.0, "diversification_target_score": 80.0, "risk_high_crypto_threshold": 20.0, "risk_high_equity_threshold": 75.0, "risk_low_crypto_threshold": 5.0, "risk_low_equity_threshold": 35.0}', "status": "ACTIVE", "capabilities": "[]"},
 ]
 
 _DEFAULT_ALLOCATION_TARGETS = [
@@ -428,10 +444,25 @@ class ConfigService(BaseService):
     @staticmethod
     def seed_defaults(db: Session) -> None:
         """Insert default providers, jobs, and targets on startup."""
+        # One-time rename: the price provider was originally seeded as "yfinance"
+        # even though YahooAdapter.provider_name (and therefore the registry key
+        # every ProviderFactory lookup uses) is "yahoo". Rename in place so any
+        # credentials/config a user already set are preserved under the new key.
+        stale_yfinance = db.scalar(select(ProviderConfig).filter_by(provider_name="yfinance"))
+        if stale_yfinance and not db.scalar(select(ProviderConfig).filter_by(provider_name="yahoo")):
+            stale_yfinance.provider_name = "yahoo"
+
         for p in _DEFAULT_PROVIDERS:
             exists = db.scalar(select(ProviderConfig).filter_by(provider_name=p["provider_name"]))
             if not exists:
                 db.add(ProviderConfig(**p))
+            elif exists.status == "PLANNED" and p.get("status") != "PLANNED":
+                # Backfill lifecycle/capability metadata on pre-existing rows (installs
+                # that seeded before this column existed) without touching credentials.
+                exists.status = p["status"]
+                exists.capabilities = p["capabilities"]
+                if "priority" in p:
+                    exists.priority = p["priority"]
 
         for j in _DEFAULT_JOBS:
             exists = db.scalar(select(JobConfig).filter_by(job_name=j["job_name"]))

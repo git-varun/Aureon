@@ -30,7 +30,7 @@ const PROVIDER_BRAND = {
     alphavantage:  { color: '#2E86AB', letter: 'A', name: 'Alpha Vantage',  kind: 'Data',        scope: 'Market data · news' },
     // Price
     binance_price: { color: '#F0B90B', letter: 'B', name: 'Binance Price',  kind: 'Price',       scope: 'Crypto spot prices' },
-    yfinance:      { color: '#720E9E', letter: 'Y', name: 'Yahoo Finance',  kind: 'Price',       scope: 'Equity prices · ETFs' },
+    yahoo:         { color: '#720E9E', letter: 'Y', name: 'Yahoo Finance',  kind: 'Price',       scope: 'Equity prices · ETFs' },
     coingecko:     { color: '#8DC63F', letter: 'G', name: 'CoinGecko',      kind: 'Price',       scope: 'Crypto prices · data' },
     coinmarketcap: { color: '#3861FB', letter: 'C', name: 'CoinMarketCap',  kind: 'Price',       scope: 'Crypto market data' },
     mfapi:         { color: '#C9A86A', letter: 'M', name: 'MFAPI',          kind: 'Price',       scope: 'Mutual fund NAVs' },

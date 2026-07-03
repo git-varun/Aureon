@@ -43,6 +43,37 @@ class ZerodhaAuthError(ProviderError):
         super().__init__(message, severity="WARNING", retryable=False, http_status=401)
 
 
+class RateLimitError(ProviderError):
+    """Provider returned HTTP 429 or otherwise signaled rate limiting."""
+    def __init__(self, message: str, retry_after_seconds: float | None = None):
+        super().__init__(message, severity="WARNING", retryable=True, http_status=429)
+        self.retry_after_seconds = retry_after_seconds
+
+
+class SyncError(ProviderError):
+    """A broker/portfolio sync operation failed partway through."""
+    def __init__(self, message: str, severity: str = "ERROR", retryable: bool = True):
+        super().__init__(message, severity, retryable, http_status=502)
+
+
+class ConfigurationError(ProviderError):
+    """Provider is missing required configuration (credentials, endpoints) — not retryable."""
+    def __init__(self, message: str):
+        super().__init__(message, severity="ERROR", retryable=False, http_status=400)
+
+
+class ProviderTimeoutError(ProviderError):
+    """Provider call exceeded its configured timeout."""
+    def __init__(self, message: str):
+        super().__init__(message, severity="WARNING", retryable=True, http_status=504)
+
+
+class RetryableProviderError(ProviderError):
+    """Generic transient provider failure explicitly marked retryable by the caller."""
+    def __init__(self, message: str, severity: str = "WARNING"):
+        super().__init__(message, severity, retryable=True, http_status=502)
+
+
 class EvaluationError(AppException):
     """AI engine evaluation pipeline exceptions."""
     def __init__(self, message: str, severity: str = "ERROR", retryable: bool = False, http_status: int = 500):

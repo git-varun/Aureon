@@ -38,6 +38,14 @@ class ProviderConfigResponse(BaseModel):
     key_names: List[str]
     keys_status: Dict[str, bool]
     config: Dict[str, Any]
+    status: str = "PLANNED"
+    capabilities: List[str] = []
+    priority: int = 100
+    health: Dict[str, Any] = {}
+    rate_limit: Optional[str] = None
+    timeout_seconds: int = 10
+    retry_policy: Dict[str, Any] = {}
+    cache_ttl_seconds: Optional[int] = None
 
     model_config = ConfigDict(from_attributes=True)
 
