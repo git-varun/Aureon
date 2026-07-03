@@ -25,6 +25,16 @@ class ProviderConfig(Base):
     key_names: Mapped[str] = mapped_column(Text, default="[]")  # JSON array of expected key names
     encrypted_keys: Mapped[str] = mapped_column(Text, default="{}")  # JSON dict of Fernet-encrypted key values
     config: Mapped[str] = mapped_column(Text, default="{}")  # JSON blob for non-credential settings
+    # Plugin registry metadata (app.core.providers). `status` mirrors ProviderStatus —
+    # kept as a plain String rather than a DB enum so new lifecycle values don't need a migration.
+    status: Mapped[str] = mapped_column(String(16), default="PLANNED", nullable=False)
+    capabilities: Mapped[str] = mapped_column(Text, default="[]")  # JSON array of Capability values
+    priority: Mapped[int] = mapped_column(Integer, default=100)  # lower = tried first in a fallback chain
+    health: Mapped[str] = mapped_column(Text, default="{}")  # JSON: {"ok": bool, "checked_at": iso8601}
+    rate_limit: Mapped[str | None] = mapped_column(String(64), nullable=True)  # e.g. "60/min"
+    timeout_seconds: Mapped[int] = mapped_column(Integer, default=10)
+    retry_policy: Mapped[str] = mapped_column(Text, default="{}")  # JSON: {"max_attempts": int, "backoff_base": float}
+    cache_ttl_seconds: Mapped[int | None] = mapped_column(Integer, nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
     updated_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), onupdate=func.now(), nullable=True)
 

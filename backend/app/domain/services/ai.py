@@ -7,11 +7,11 @@ import time
 import uuid
 from typing import Any, Optional
 
-import httpx
 from sqlalchemy.orm import Session
 
-from app.core.exceptions import NotFoundError, ProviderError, ValidationError
-from app.core.redis import get_redis_client
+from app.core.exceptions import NotFoundError, ProviderError, RateLimitError, ValidationError
+from app.core.providers.factory import ProviderFactory
+from app.core.providers.retry import CircuitBreaker
 from app.domain.entities.ai import AIBriefing, AIEvaluation, AIGeneration
 from app.domain.entities.evaluation import AssetScore
 from app.domain.entities.market import AssetFeatures, AssetSnapshot, LatestQuote
@@ -25,45 +25,10 @@ from app.infrastructure.repositories.config import ConfigRepository
 logger = logging.getLogger("ai.service")
 
 # ── Cooldown Tracker ──────────────────────────────────────────────────────────
+# Generalized into app.core.providers.retry.CircuitBreaker so every provider
+# (not just AI) shares the same Redis-backed cooldown mechanism.
 
-class RateLimitTracker:
-    def __init__(self):
-        self._cooldowns: dict[str, float] = {}
-
-    def _get_redis_key(self, key: str) -> str:
-        return f"ai:ratelimit:{key}"
-
-    def mark_cooldown(self, key: str, seconds: float) -> None:
-        logger.warning(f"Rate limit hit: cooling down {key} for {seconds}s")
-        try:
-            client = get_redis_client()
-            client.set(self._get_redis_key(key), "1", ex=int(seconds))
-            return
-        except Exception as e:
-            logger.warning(f"Failed to set rate limit cooldown in Redis: {e}. Falling back to memory.")
-        self._cooldowns[key] = time.monotonic() + seconds
-
-    def is_limited(self, key: str) -> bool:
-        try:
-            client = get_redis_client()
-            val = client.get(self._get_redis_key(key))
-            if val is not None:
-                return True
-        except Exception as e:
-            logger.warning(f"Failed to check rate limit cooldown in Redis: {e}. Falling back to memory.")
-        
-        expiry = self._cooldowns.get(key)
-        if expiry is None:
-            return False
-        if time.monotonic() >= expiry:
-            del self._cooldowns[key]
-            return False
-        return True
-
-    def filter_available(self, keys: list[str]) -> list[str]:
-        return [k for k in keys if not self.is_limited(k)]
-
-_rate_limit_tracker = RateLimitTracker()
+_circuit_breaker = CircuitBreaker(namespace="ai")
 
 # ── Prompts ───────────────────────────────────────────────────────────────────
 
@@ -497,61 +462,17 @@ def evaluate_response(response_text: str, context_text: str) -> dict[str, Any]:
 # ── AI Service ────────────────────────────────────────────────────────────────
 
 class AIService(BaseService):
-    _GEMINI_MODELS = [
-        "gemini-2.5-flash",
-        "gemini-2.0-flash",
-        "gemini-2.0-flash-lite",
-    ]
-    _GROQ_MODELS = [
-        "llama-3.3-70b-versatile",
-        "llama-3.1-8b-instant",
-    ]
+    """Coordinates AI briefings/Q&A. Does not call any AI vendor's HTTP API
+    directly — that lives in the GeminiProvider/GroqProvider provider classes
+    (app/infrastructure/providers/ai/); this service resolves them via
+    ProviderFactory and adds observability, persistence, and the compliance
+    evaluation pass on top."""
 
     def __init__(self, session: Session):
         self.session = session
         self.cfg_repo = ConfigRepository(session)
         self.cfg_svc = ConfigService(self.cfg_repo)
-
-    def _call_gemini(self, model: str, api_key: str, prompt: str, json_mode: bool) -> str:
-        url = f"https://generativelanguage.googleapis.com/v1beta/models/{model}:generateContent?key={api_key}"
-        headers = {"Content-Type": "application/json"}
-        config = {}
-        if json_mode:
-            config["responseMimeType"] = "application/json"
-            
-        payload = {
-            "contents": [{"parts": [{"text": prompt}]}],
-            "generationConfig": config
-        }
-        
-        resp = httpx.post(url, json=payload, headers=headers, timeout=60.0)
-        if resp.status_code == 429:
-            _rate_limit_tracker.mark_cooldown(f"gemini:{model}", 60.0)
-            raise httpx.HTTPStatusError("429 Too Many Requests", request=resp.request, response=resp)
-        resp.raise_for_status()
-        
-        data = resp.json()
-        return data["candidates"][0]["content"]["parts"][0]["text"]
-
-    def _call_groq(self, model: str, api_key: str, prompt: str) -> str:
-        url = "https://api.groq.com/openai/v1/chat/completions"
-        headers = {
-            "Authorization": f"Bearer {api_key}",
-            "Content-Type": "application/json"
-        }
-        payload = {
-            "model": model,
-            "messages": [{"role": "user", "content": prompt}],
-            "temperature": 0.2
-        }
-        resp = httpx.post(url, json=payload, headers=headers, timeout=60.0)
-        if resp.status_code == 429:
-            _rate_limit_tracker.mark_cooldown(f"groq:{model}", 60.0)
-            raise httpx.HTTPStatusError("429 Too Many Requests", request=resp.request, response=resp)
-        resp.raise_for_status()
-        
-        data = resp.json()
-        return data["choices"][0]["message"]["content"]
+        self.provider_factory = ProviderFactory(self.cfg_svc)
 
     def _mock_briefing(self, briefing_type: str) -> str:
         if briefing_type == "global":
@@ -649,41 +570,41 @@ class AIService(BaseService):
 
             if not gemini_key and not groq_key:
                 raise ProviderError("No AI credentials configured (gemini/groq)", retryable=False)
-            else:
-                # 1. Try Gemini rotation
-                gemini_provider = self.cfg_repo.get_provider("gemini")
-                if gemini_key and gemini_provider and gemini_provider.enabled:
-                    available_gemini = _rate_limit_tracker.filter_available(self._GEMINI_MODELS)
-                    for model in available_gemini:
-                        try:
-                            logger.info(f"Attempting Gemini model: {model}")
-                            response_text = self._call_gemini(model, gemini_key, prompt, json_mode)
-                            model_used = model
-                            provider_used = "gemini"
-                            break
-                        except Exception as e:
-                            execution_trace[f"gemini:{model}"] = str(e)
-                            logger.error(f"Gemini {model} failed: {e}")
 
-                # 2. Try Groq rotation fallback
-                groq_provider = self.cfg_repo.get_provider("groq")
-                if not response_text and groq_key and groq_provider and groq_provider.enabled:
-                    available_groq = _rate_limit_tracker.filter_available(self._GROQ_MODELS)
-                    for model in available_groq:
-                        try:
-                            logger.info(f"Attempting Groq model: {model}")
-                            response_text = self._call_groq(model, groq_key, prompt)
-                            model_used = model
-                            provider_used = "groq"
-                            break
-                        except Exception as e:
-                            execution_trace[f"groq:{model}"] = str(e)
-                            logger.error(f"Groq {model} failed: {e}")
+            from app.infrastructure.providers.ai.gemini.provider import MODELS as GEMINI_MODELS
+            from app.infrastructure.providers.ai.groq.provider import MODELS as GROQ_MODELS
 
-                if not response_text:
-                    error_msg = f"All models exhausted. Trace: {execution_trace}"
-                    logger.error(error_msg)
-                    raise ProviderError(error_msg)
+            # Fallback chain is a registry-level concern: try every model of every
+            # AI provider, in priority order, skipping whichever the circuit
+            # breaker currently has cooled down.
+            for pname, models, key in (("gemini", GEMINI_MODELS, gemini_key), ("groq", GROQ_MODELS, groq_key)):
+                if response_text or not key:
+                    continue
+                provider = self.provider_factory.get(pname, required=False)
+                if provider is None:
+                    continue
+                for model in models:
+                    cooldown_key = f"{pname}:{model}"
+                    if _circuit_breaker.is_open(cooldown_key):
+                        continue
+                    try:
+                        logger.info(f"Attempting {pname} model: {model}")
+                        response_text = provider.fetch(prompt, json_mode=json_mode, model=model)
+                        model_used = model
+                        provider_used = pname
+                        break
+                    except RateLimitError as e:
+                        _circuit_breaker.trip(cooldown_key, e.retry_after_seconds or 60.0)
+                        execution_trace[cooldown_key] = str(e)
+                        logger.error(f"{pname} {model} rate limited: {e}")
+                    except Exception as e:
+                        execution_trace[cooldown_key] = str(e)
+                        logger.error(f"{pname} {model} failed: {e}")
+
+            if not response_text:
+                error_msg = f"All models exhausted. Trace: {execution_trace}"
+                logger.error(error_msg)
+                raise ProviderError(error_msg)
 
         latency = int((time.monotonic() - start_time) * 1000)
 
