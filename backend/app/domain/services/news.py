@@ -5,8 +5,13 @@ from typing import Any
 
 from sqlalchemy import select
 
+from app.core.providers.capabilities import Capability
+from app.core.providers.factory import ProviderFactory
+from app.core.providers.registry import registry
 from app.domain.entities.market import LatestQuote
 from app.domain.entities.news import News, NewsAsset
+from app.domain.services.config import ConfigService
+from app.infrastructure.repositories.config import ConfigRepository
 from app.infrastructure.repositories.news import NewsRepository
 
 logger = logging.getLogger("news.service")
@@ -14,13 +19,9 @@ logger = logging.getLogger("news.service")
 class NewsService(BaseService):
     def __init__(self, repo: NewsRepository):
         self.repo = repo
-        # Initialize adapters inside constructor to prevent circular import
-        from app.infrastructure.providers.finnhub import FinnhubAdapter
-        from app.infrastructure.providers.yahoo import YahooAdapter
-        self.adapters = {
-            "yahoo": YahooAdapter(),
-            "finnhub": FinnhubAdapter()
-        }
+        cfg_repo = ConfigRepository(repo.session)
+        cfg_svc = ConfigService(cfg_repo)
+        self.provider_factory = ProviderFactory(cfg_svc)
 
     def fetch_and_store(self, symbol: str, is_crypto: bool = False) -> int:
         symbol = symbol.upper().strip()
@@ -29,11 +30,14 @@ class NewsService(BaseService):
         all_payloads = []
         seen_urls = set()
 
-        for name, adapter in self.adapters.items():
+        news_providers = registry.list(Capability.NEWS)
+        for provider in news_providers:
+            name = provider.provider_name
             try:
-                # Check provider is enabled (from provider_configs) via helper
-                # For now, we fetch from adapters directly or fall back
-                headlines = adapter.get_news(symbol)
+                live = self.provider_factory.get(name, required=False)
+                if live is None:
+                    continue
+                headlines = live.get_news(symbol)
                 for hl in headlines:
                     if hl.url and hl.url not in seen_urls:
                         seen_urls.add(hl.url)

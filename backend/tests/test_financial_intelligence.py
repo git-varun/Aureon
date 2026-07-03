@@ -350,5 +350,38 @@ def test_financial_health_and_goals(setup_intelligence_data):
     goals = service.get_goal_progress_metrics(portfolio_id, org_id, user_id)
     assert goals["wealth_goals"]["current_net_worth"] == 7360.0
     assert goals["wealth_goals"]["projected_months_to_target"] > 0
-    
+
+    session.close()
+
+def test_dashboard_aggregation_and_trends(setup_intelligence_data):
+    org_id = setup_intelligence_data["organization_id"]
+    portfolio_id = setup_intelligence_data["portfolio_id"]
+    user_id = setup_intelligence_data["user_id"]
+
+    session = SessionLocal()
+    service = FinancialIntelligenceService(session)
+
+    dashboard = service.get_dashboard_aggregation(portfolio_id, org_id, user_id)
+    assert "investor_health" in dashboard
+    assert "diversification" in dashboard
+    assert "concentration" in dashboard
+    assert "cash_opportunities" in dashboard
+    assert "recommendation_summary" in dashboard
+    assert "goal_progress" in dashboard
+
+    health_trend = service.get_portfolio_health_trend(portfolio_id, org_id, days=5)
+    assert len(health_trend) == 5
+    assert "investor_health_score" in health_trend[-1]
+
+    div_trend = service.get_diversification_trend(portfolio_id, days=5)
+    assert len(div_trend) == 5
+    assert "diversification_score" in div_trend[-1]
+
+    rec_trend = service.get_recommendation_performance_trend(org_id, days=5)
+    assert len(rec_trend) == 5
+
+    goals_trend = service.get_goal_progress_trend(portfolio_id, org_id, user_id, days=5)
+    assert len(goals_trend) == 5
+    assert "net_worth" in goals_trend[-1]
+
     session.close()

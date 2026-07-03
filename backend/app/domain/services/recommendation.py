@@ -11,9 +11,7 @@ from app.core.redis import (
     get_cached_org_recommendations,
     invalidate_org_recommendations,
 )
-from app.domain.entities.evaluation import AssetScore
-from app.domain.entities.market import AssetFeatures, AssetSnapshot, LatestQuote
-from app.domain.entities.portfolio import Portfolio, Transaction
+from app.domain.entities.portfolio import Transaction
 from app.domain.entities.recommendation import (
     Recommendation,
     RecommendationExplanation,
@@ -26,7 +24,7 @@ def serialize_recommendation(rec: Recommendation, session: Session) -> dict[str,
     repo = RecommendationRepository(session)
     expl = repo.get_explanation(rec.id)
     out = repo.get_outcome(rec.id)
-    quote = session.query(LatestQuote).filter(LatestQuote.asset_id == rec.asset_id).first()
+    quote = repo.get_quote_by_asset(rec.asset_id)
     symbol = quote.symbol if quote else None
     
     return {
@@ -61,13 +59,13 @@ class RecommendationService(BaseService):
         self.repo = RecommendationRepository(session)
 
     def generate_recommendations(self, organization_id: uuid.UUID) -> list[dict[str, Any]]:
-        snapshots = self.session.query(AssetSnapshot).all()
+        snapshots = self.repo.list_all_snapshots()
         recs_created = []
-        
+
         for snap in snapshots:
             asset_id = snap.asset_id
-            features = self.session.query(AssetFeatures).filter(AssetFeatures.asset_id == asset_id).first()
-            scores = self.session.query(AssetScore).filter(AssetScore.asset_id == asset_id).order_by(AssetScore.generated_at.desc()).first()
+            features = self.repo.get_features(asset_id)
+            scores = self.repo.get_latest_score(asset_id)
             
             if not features or not scores:
                 continue
@@ -111,13 +109,8 @@ class RecommendationService(BaseService):
                 confidence_factors = {"quality": 0.5, "volatility": 0.5}
                 confidence_score = 0.5 * quality + 0.5 * (1.0 - volatility)
                 
-            existing_rec = self.session.query(Recommendation).filter(
-                Recommendation.organization_id == organization_id,
-                Recommendation.asset_id == asset_id,
-                Recommendation.version == "v2.0.0",
-                Recommendation.status == "active"
-            ).first()
-            
+            existing_rec = self.repo.get_active_recommendation(organization_id, asset_id, "v2.0.0")
+
             rec_id = existing_rec.id if existing_rec else uuid.uuid4()
             
             rec = Recommendation(
@@ -180,19 +173,19 @@ class RecommendationService(BaseService):
             raise ValidationError(f"Recommendation is already {rec.status}")
             
         if not portfolio_id:
-            portfolio = self.session.query(Portfolio).filter(Portfolio.organization_id == rec.organization_id).first()
+            portfolio = self.repo.get_portfolio_by_org(rec.organization_id)
             if not portfolio:
                 raise ValidationError("No portfolios found for this organization to apply recommendation")
             portfolio_id = portfolio.id
         else:
-            portfolio = self.session.query(Portfolio).filter(Portfolio.id == portfolio_id, Portfolio.organization_id == rec.organization_id).first()
+            portfolio = self.repo.get_portfolio(portfolio_id, rec.organization_id)
             if not portfolio:
                 raise ValidationError("Invalid portfolio for this organization")
-                
-        quote = self.session.query(LatestQuote).filter(LatestQuote.asset_id == rec.asset_id).first()
+
+        quote = self.repo.get_quote_by_asset(rec.asset_id)
         symbol = quote.symbol if quote else "UNKNOWN"
         price = float(quote.price) if quote else 0.0
-        
+
         txn = Transaction(
             id=uuid.uuid4(),
             portfolio_id=portfolio_id,
@@ -208,8 +201,7 @@ class RecommendationService(BaseService):
             broker="aureon",
             kind="trade"
         )
-        self.session.add(txn)
-        self.session.flush()
+        self.repo.add_transaction(txn)
         
         rec.status = "applied"
         rec.updated_at = datetime.now(timezone.utc)
@@ -308,9 +300,9 @@ class RecommendationService(BaseService):
             
         out = self.repo.get_outcome(recommendation_id)
         if out and out.ledger_transaction_id:
-            txn = self.session.query(Transaction).filter(Transaction.id == out.ledger_transaction_id).first()
+            txn = self.repo.get_transaction(out.ledger_transaction_id)
             if txn:
-                self.session.delete(txn)
+                self.repo.delete_transaction(txn)
                 
         rec.status = "active"
         rec.updated_at = datetime.now(timezone.utc)

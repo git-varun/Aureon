@@ -2,13 +2,13 @@ import uuid
 from typing import Optional
 
 from fastapi import APIRouter, Depends, HTTPException, Query
-from sqlalchemy.orm import Session
 
 from app.api.dependencies import (
     get_current_user,
-    get_db,
     get_intelligence_service,
     get_members_repo,
+    get_portfolios_repo,
+    get_recommendation_repo,
     get_recommendation_service,
 )
 from app.core.redis import (
@@ -23,10 +23,13 @@ from app.core.redis import (
     get_cached_intelligence_portfolio,
     get_cached_intelligence_recommendations,
 )
-from app.domain.entities.portfolio import Portfolio
 from app.domain.entities.system import User
 from app.domain.services import FinancialIntelligenceService, RecommendationService
-from app.infrastructure.repositories import OrganizationMembersRepository
+from app.infrastructure.repositories import (
+    OrganizationMembersRepository,
+    PortfoliosRepository,
+    RecommendationRepository,
+)
 
 router = APIRouter()
 
@@ -38,8 +41,8 @@ def check_org_read_access(org_id: uuid.UUID, user_id: uuid.UUID, members_repo: O
         raise HTTPException(status_code=403, detail="Not authorized to access this organization")
     return membership
 
-def get_org_id_for_portfolio(portfolio_id: uuid.UUID, db: Session) -> uuid.UUID:
-    portfolio = db.query(Portfolio).filter(Portfolio.id == portfolio_id).first()
+def get_org_id_for_portfolio(portfolio_id: uuid.UUID, portfolios_repo: PortfoliosRepository) -> uuid.UUID:
+    portfolio = portfolios_repo.get_by_id(portfolio_id)
     if not portfolio:
         raise HTTPException(status_code=404, detail="Portfolio not found")
     return portfolio.organization_id
@@ -52,10 +55,10 @@ def get_recommendations(
     status: Optional[str] = Query(None, description="Filter by status (active, applied, dismissed)"),
     current_user: User = Depends(get_current_user),
     members_repo: OrganizationMembersRepository = Depends(get_members_repo),
-    db: Session = Depends(get_db),
+    portfolios_repo: PortfoliosRepository = Depends(get_portfolios_repo),
     rec_service: RecommendationService = Depends(get_recommendation_service),
 ):
-    org_id = get_org_id_for_portfolio(portfolio_id, db)
+    org_id = get_org_id_for_portfolio(portfolio_id, portfolios_repo)
     check_org_read_access(org_id, current_user.id, members_repo)
     
     # Check cache
@@ -79,19 +82,18 @@ def get_recommendation_by_id(
     recommendation_id: uuid.UUID,
     current_user: User = Depends(get_current_user),
     members_repo: OrganizationMembersRepository = Depends(get_members_repo),
-    db: Session = Depends(get_db),
+    recommendation_repo: RecommendationRepository = Depends(get_recommendation_repo),
     rec_service: RecommendationService = Depends(get_recommendation_service),
 ):
     # Retrieve recommendation to check org read access
-    from app.domain.entities.recommendation import Recommendation
-    rec = db.query(Recommendation).filter(Recommendation.id == recommendation_id).first()
+    rec = recommendation_repo.get(recommendation_id)
     if not rec:
         raise HTTPException(status_code=404, detail="Recommendation not found")
-        
+
     check_org_read_access(rec.organization_id, current_user.id, members_repo)
-    
+
     from app.domain.services.recommendation import serialize_recommendation
-    return serialize_recommendation(rec, db)
+    return serialize_recommendation(rec, recommendation_repo.session)
 
 
 @router.get("/outcomes")
@@ -99,10 +101,10 @@ def get_outcomes(
     portfolio_id: uuid.UUID = Query(..., description="Target portfolio ID"),
     current_user: User = Depends(get_current_user),
     members_repo: OrganizationMembersRepository = Depends(get_members_repo),
-    db: Session = Depends(get_db),
+    portfolios_repo: PortfoliosRepository = Depends(get_portfolios_repo),
     intel_service: FinancialIntelligenceService = Depends(get_intelligence_service),
 ):
-    org_id = get_org_id_for_portfolio(portfolio_id, db)
+    org_id = get_org_id_for_portfolio(portfolio_id, portfolios_repo)
     check_org_read_access(org_id, current_user.id, members_repo)
 
     cached = get_cached_intelligence_outcomes(str(portfolio_id))
@@ -136,10 +138,10 @@ def get_portfolio_health(
     portfolio_id: uuid.UUID = Query(..., description="Portfolio ID"),
     current_user: User = Depends(get_current_user),
     members_repo: OrganizationMembersRepository = Depends(get_members_repo),
-    db: Session = Depends(get_db),
+    portfolios_repo: PortfoliosRepository = Depends(get_portfolios_repo),
     intel_service: FinancialIntelligenceService = Depends(get_intelligence_service),
 ):
-    org_id = get_org_id_for_portfolio(portfolio_id, db)
+    org_id = get_org_id_for_portfolio(portfolio_id, portfolios_repo)
     check_org_read_access(org_id, current_user.id, members_repo)
 
     cached = get_cached_intelligence_health(str(portfolio_id))
@@ -156,10 +158,10 @@ def get_diversification(
     portfolio_id: uuid.UUID = Query(..., description="Portfolio ID"),
     current_user: User = Depends(get_current_user),
     members_repo: OrganizationMembersRepository = Depends(get_members_repo),
-    db: Session = Depends(get_db),
+    portfolios_repo: PortfoliosRepository = Depends(get_portfolios_repo),
     intel_service: FinancialIntelligenceService = Depends(get_intelligence_service),
 ):
-    org_id = get_org_id_for_portfolio(portfolio_id, db)
+    org_id = get_org_id_for_portfolio(portfolio_id, portfolios_repo)
     check_org_read_access(org_id, current_user.id, members_repo)
 
     # Use portfolio cache to store diversification/concentration/cash-opportunities combined or separately
@@ -183,10 +185,10 @@ def get_concentration(
     portfolio_id: uuid.UUID = Query(..., description="Portfolio ID"),
     current_user: User = Depends(get_current_user),
     members_repo: OrganizationMembersRepository = Depends(get_members_repo),
-    db: Session = Depends(get_db),
+    portfolios_repo: PortfoliosRepository = Depends(get_portfolios_repo),
     intel_service: FinancialIntelligenceService = Depends(get_intelligence_service),
 ):
-    org_id = get_org_id_for_portfolio(portfolio_id, db)
+    org_id = get_org_id_for_portfolio(portfolio_id, portfolios_repo)
     check_org_read_access(org_id, current_user.id, members_repo)
 
     cached = get_cached_intelligence_portfolio(str(portfolio_id))
@@ -207,10 +209,10 @@ def get_goals(
     portfolio_id: uuid.UUID = Query(..., description="Portfolio ID"),
     current_user: User = Depends(get_current_user),
     members_repo: OrganizationMembersRepository = Depends(get_members_repo),
-    db: Session = Depends(get_db),
+    portfolios_repo: PortfoliosRepository = Depends(get_portfolios_repo),
     intel_service: FinancialIntelligenceService = Depends(get_intelligence_service),
 ):
-    org_id = get_org_id_for_portfolio(portfolio_id, db)
+    org_id = get_org_id_for_portfolio(portfolio_id, portfolios_repo)
     check_org_read_access(org_id, current_user.id, members_repo)
     return intel_service.get_goal_progress_metrics(portfolio_id, org_id, current_user.id)
 
@@ -220,10 +222,10 @@ def get_cash_opportunities(
     portfolio_id: uuid.UUID = Query(..., description="Portfolio ID"),
     current_user: User = Depends(get_current_user),
     members_repo: OrganizationMembersRepository = Depends(get_members_repo),
-    db: Session = Depends(get_db),
+    portfolios_repo: PortfoliosRepository = Depends(get_portfolios_repo),
     intel_service: FinancialIntelligenceService = Depends(get_intelligence_service),
 ):
-    org_id = get_org_id_for_portfolio(portfolio_id, db)
+    org_id = get_org_id_for_portfolio(portfolio_id, portfolios_repo)
     check_org_read_access(org_id, current_user.id, members_repo)
 
     cached = get_cached_intelligence_portfolio(str(portfolio_id))
@@ -244,10 +246,10 @@ def get_dashboard(
     portfolio_id: uuid.UUID = Query(..., description="Portfolio ID"),
     current_user: User = Depends(get_current_user),
     members_repo: OrganizationMembersRepository = Depends(get_members_repo),
-    db: Session = Depends(get_db),
+    portfolios_repo: PortfoliosRepository = Depends(get_portfolios_repo),
     intel_service: FinancialIntelligenceService = Depends(get_intelligence_service),
 ):
-    org_id = get_org_id_for_portfolio(portfolio_id, db)
+    org_id = get_org_id_for_portfolio(portfolio_id, portfolios_repo)
     check_org_read_access(org_id, current_user.id, members_repo)
 
     # Check cache for dashboard using org_id
@@ -268,10 +270,10 @@ def get_health_trend(
     days: int = Query(30, description="Number of historical days"),
     current_user: User = Depends(get_current_user),
     members_repo: OrganizationMembersRepository = Depends(get_members_repo),
-    db: Session = Depends(get_db),
+    portfolios_repo: PortfoliosRepository = Depends(get_portfolios_repo),
     intel_service: FinancialIntelligenceService = Depends(get_intelligence_service),
 ):
-    org_id = get_org_id_for_portfolio(portfolio_id, db)
+    org_id = get_org_id_for_portfolio(portfolio_id, portfolios_repo)
     check_org_read_access(org_id, current_user.id, members_repo)
     return intel_service.get_portfolio_health_trend(portfolio_id, org_id, days)
 
@@ -282,10 +284,10 @@ def get_diversification_trend(
     days: int = Query(30, description="Number of historical days"),
     current_user: User = Depends(get_current_user),
     members_repo: OrganizationMembersRepository = Depends(get_members_repo),
-    db: Session = Depends(get_db),
+    portfolios_repo: PortfoliosRepository = Depends(get_portfolios_repo),
     intel_service: FinancialIntelligenceService = Depends(get_intelligence_service),
 ):
-    org_id = get_org_id_for_portfolio(portfolio_id, db)
+    org_id = get_org_id_for_portfolio(portfolio_id, portfolios_repo)
     check_org_read_access(org_id, current_user.id, members_repo)
     return intel_service.get_diversification_trend(portfolio_id, days)
 
@@ -308,9 +310,9 @@ def get_goals_trend(
     days: int = Query(30, description="Number of historical days"),
     current_user: User = Depends(get_current_user),
     members_repo: OrganizationMembersRepository = Depends(get_members_repo),
-    db: Session = Depends(get_db),
+    portfolios_repo: PortfoliosRepository = Depends(get_portfolios_repo),
     intel_service: FinancialIntelligenceService = Depends(get_intelligence_service),
 ):
-    org_id = get_org_id_for_portfolio(portfolio_id, db)
+    org_id = get_org_id_for_portfolio(portfolio_id, portfolios_repo)
     check_org_read_access(org_id, current_user.id, members_repo)
     return intel_service.get_goal_progress_trend(portfolio_id, org_id, current_user.id, days)
