@@ -5,6 +5,9 @@ from sqlalchemy import select
 from sqlalchemy.dialects.postgresql import insert
 from sqlalchemy.orm import Session
 
+from app.domain.entities.evaluation import AssetScore
+from app.domain.entities.market import AssetFeatures, AssetSnapshot, LatestQuote
+from app.domain.entities.portfolio import Portfolio, Transaction
 from app.domain.entities.recommendation import (
     Recommendation,
     RecommendationExplanation,
@@ -25,6 +28,56 @@ class RecommendationRepository(BaseRepository):
         if status:
             stmt = stmt.where(Recommendation.status == status)
         return list(self.session.execute(stmt).scalars().all())
+
+    def get_active_recommendation(self, organization_id: uuid.UUID, asset_id: uuid.UUID, version: str) -> Recommendation | None:
+        return (
+            self.session.query(Recommendation)
+            .filter(
+                Recommendation.organization_id == organization_id,
+                Recommendation.asset_id == asset_id,
+                Recommendation.version == version,
+                Recommendation.status == "active",
+            )
+            .first()
+        )
+
+    def list_all_snapshots(self) -> list[AssetSnapshot]:
+        return self.session.query(AssetSnapshot).all()
+
+    def get_features(self, asset_id: uuid.UUID) -> AssetFeatures | None:
+        return self.session.query(AssetFeatures).filter(AssetFeatures.asset_id == asset_id).first()
+
+    def get_latest_score(self, asset_id: uuid.UUID) -> AssetScore | None:
+        return (
+            self.session.query(AssetScore)
+            .filter(AssetScore.asset_id == asset_id)
+            .order_by(AssetScore.generated_at.desc())
+            .first()
+        )
+
+    def get_quote_by_asset(self, asset_id: uuid.UUID) -> LatestQuote | None:
+        return self.session.query(LatestQuote).filter(LatestQuote.asset_id == asset_id).first()
+
+    def get_portfolio_by_org(self, organization_id: uuid.UUID) -> Portfolio | None:
+        return self.session.query(Portfolio).filter(Portfolio.organization_id == organization_id).first()
+
+    def get_portfolio(self, portfolio_id: uuid.UUID, organization_id: uuid.UUID) -> Portfolio | None:
+        return (
+            self.session.query(Portfolio)
+            .filter(Portfolio.id == portfolio_id, Portfolio.organization_id == organization_id)
+            .first()
+        )
+
+    def get_transaction(self, transaction_id: uuid.UUID) -> Transaction | None:
+        return self.session.query(Transaction).filter(Transaction.id == transaction_id).first()
+
+    def add_transaction(self, txn: Transaction) -> Transaction:
+        self.session.add(txn)
+        self.session.flush()
+        return txn
+
+    def delete_transaction(self, txn: Transaction) -> None:
+        self.session.delete(txn)
 
     def upsert(self, rec: Recommendation) -> Recommendation:
         stmt = insert(Recommendation).values(

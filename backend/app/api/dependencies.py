@@ -18,9 +18,18 @@ from app.domain.services import (
     RecommendationService,
     WatchlistService,
 )
+from app.domain.services.assets import AssetsService
+from app.domain.services.evaluation import EvaluationService
+from app.domain.services.market import MarketService
+from app.domain.services.monitoring import MonitoringService
 from app.infrastructure.repositories import (
+    AssetHealthRepository,
+    AssetScoresRepository,
+    AssetsRepository,
     ConfigRepository,
     InvitationsRepository,
+    MarketRepository,
+    MonitoringRepository,
     NewsRepository,
     OrganizationMembersRepository,
     OrganizationsRepository,
@@ -128,8 +137,41 @@ def get_config_service(repo: ConfigRepository = Depends(get_config_repo)) -> Con
 def get_notification_service(repo: WebNotificationsRepository = Depends(get_notification_repo)) -> NotificationService:
     return NotificationService(repo)
 
+def get_market_repo(db: Session = Depends(get_db)) -> MarketRepository:
+    return MarketRepository(db)
+
+def get_market_service(repo: MarketRepository = Depends(get_market_repo)) -> MarketService:
+    return MarketService(repo)
+
+def get_assets_repo(db: Session = Depends(get_db)) -> AssetsRepository:
+    return AssetsRepository(db)
+
+def get_assets_service(
+    repo: AssetsRepository = Depends(get_assets_repo),
+    market_svc: MarketService = Depends(get_market_service),
+) -> AssetsService:
+    return AssetsService(repo, market_svc)
+
+def get_monitoring_repo(db: Session = Depends(get_db)) -> MonitoringRepository:
+    return MonitoringRepository(db)
+
+def get_asset_health_repo(db: Session = Depends(get_db)) -> AssetHealthRepository:
+    return AssetHealthRepository(db)
+
+def get_monitoring_service(
+    repo: MonitoringRepository = Depends(get_monitoring_repo),
+    asset_health_repo: AssetHealthRepository = Depends(get_asset_health_repo),
+) -> MonitoringService:
+    return MonitoringService(repo, asset_health_repo)
+
 def get_news_service(repo: NewsRepository = Depends(get_news_repo)) -> NewsService:
     return NewsService(repo)
+
+def get_asset_scores_repo(db: Session = Depends(get_db)) -> AssetScoresRepository:
+    return AssetScoresRepository(db)
+
+def get_evaluation_service(repo: AssetScoresRepository = Depends(get_asset_scores_repo)) -> EvaluationService:
+    return EvaluationService(repo)
 
 
 # Security/Authentication dependencies

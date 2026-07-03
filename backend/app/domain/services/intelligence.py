@@ -4,27 +4,17 @@ import uuid
 from datetime import datetime, timedelta, timezone
 from typing import Any, Dict, List
 
-from sqlalchemy import func
 from sqlalchemy.orm import Session
 
-from app.domain.entities.ai import AIBriefing
-from app.domain.entities.evaluation import AssetScore
-from app.domain.entities.market import (
-    Asset,
-    AssetFeatures,
-    AssetSnapshot,
-    LatestQuote,
-    MarketTheme,
-    PriceHistory,
-    ThemeWeight,
-)
-from app.domain.entities.portfolio import PortfolioSnapshot, Position, Transaction
-from app.domain.entities.recommendation import Recommendation, RecommendationOutcome
+from app.domain.entities.market import Asset, PriceHistory
+from app.domain.entities.portfolio import Transaction
+from app.infrastructure.repositories.intelligence import IntelligenceRepository
 
 
 class FinancialIntelligenceService(BaseService):
     def __init__(self, db: Session):
         self.db = db
+        self.repo = IntelligenceRepository(db)
 
     def _get_config(self) -> Dict[str, Any]:
         """Loads configuration from ProviderConfig for financial_intelligence, falling back to defaults."""
@@ -45,8 +35,7 @@ class FinancialIntelligenceService(BaseService):
             "risk_low_equity_threshold": 35.0
         }
         try:
-            from app.domain.entities.config import ProviderConfig
-            provider = self.db.query(ProviderConfig).filter(ProviderConfig.provider_name == "financial_intelligence").first()
+            provider = self.repo.get_provider_config("financial_intelligence")
             if provider and provider.config:
                 parsed = json.loads(provider.config)
                 for k, v in parsed.items():
@@ -66,8 +55,7 @@ class FinancialIntelligenceService(BaseService):
             "insurance": 0.05
         }
         try:
-            from app.domain.entities.config import AllocationTarget
-            targets = self.db.query(AllocationTarget).all()
+            targets = self.repo.list_allocation_targets()
             if targets:
                 db_targets = {}
                 for t in targets:
@@ -80,22 +68,17 @@ class FinancialIntelligenceService(BaseService):
     def _get_asset_price_at_time(self, asset_id: uuid.UUID, dt: datetime) -> float:
         """Finds the asset price closest to the specified datetime in PriceHistory."""
         # Find closest price history entry
-        price_history = (
-            self.db.query(PriceHistory)
-            .filter(PriceHistory.asset_id == asset_id)
-            .order_by(func.abs(func.extract("epoch", PriceHistory.timestamp) - func.extract("epoch", dt)))
-            .first()
-        )
+        price_history = self.repo.get_closest_price_history(asset_id, dt)
         if price_history:
             return float(price_history.price)
-        
+
         # Fallback to current asset snapshot price
-        snapshot = self.db.query(AssetSnapshot).filter(AssetSnapshot.asset_id == asset_id).first()
+        snapshot = self.repo.get_snapshot(asset_id)
         if snapshot and snapshot.price is not None:
             return float(snapshot.price)
-            
+
         # Fallback to latest quote
-        quote = self.db.query(LatestQuote).filter(LatestQuote.asset_id == asset_id).first()
+        quote = self.repo.get_quote_by_asset(asset_id)
         if quote and quote.price is not None:
             return float(quote.price)
             
@@ -103,7 +86,7 @@ class FinancialIntelligenceService(BaseService):
 
     def get_recommendation_quality_metrics(self, org_id: uuid.UUID) -> Dict[str, Any]:
         """Initiative 1: Recommendation Quality Metrics"""
-        recs = self.db.query(Recommendation).filter(Recommendation.organization_id == org_id).all()
+        recs = self.repo.get_recommendations_by_org(org_id)
         total = len(recs)
         
         applied = 0
@@ -141,12 +124,8 @@ class FinancialIntelligenceService(BaseService):
 
     def get_recommendation_performance(self, org_id: uuid.UUID) -> List[Dict[str, Any]]:
         """Initiative 1: Recommendation Performance (30d, 90d, 180d)"""
-        recs = (
-            self.db.query(Recommendation)
-            .filter(Recommendation.organization_id == org_id)
-            .all()
-        )
-        
+        recs = self.repo.get_recommendations_by_org(org_id)
+
         config = self._get_config()
         bench_rate = 1.0 + config.get("benchmark_annual_return", 0.10)
         
@@ -160,7 +139,7 @@ class FinancialIntelligenceService(BaseService):
             perf = {"recommendation_id": str(r.id), "symbol": "", "state": r.recommendation_state}
             
             # Find symbol
-            quote = self.db.query(LatestQuote).filter(LatestQuote.asset_id == asset_id).first()
+            quote = self.repo.get_quote_by_asset(asset_id)
             if quote:
                 perf["symbol"] = quote.symbol
                 
@@ -195,12 +174,12 @@ class FinancialIntelligenceService(BaseService):
 
     def get_recommendation_explainability_v2(self, recommendation_id: uuid.UUID) -> str:
         """Initiative 1: Explainability V2 using persisted features and scores only"""
-        rec = self.db.query(Recommendation).filter(Recommendation.id == recommendation_id).first()
+        rec = self.repo.get_recommendation(recommendation_id)
         if not rec:
             return "Recommendation not found."
-            
-        features = self.db.query(AssetFeatures).filter(AssetFeatures.asset_id == rec.asset_id).first()
-        score = self.db.query(AssetScore).filter(AssetScore.asset_id == rec.asset_id).first()
+
+        features = self.repo.get_features(rec.asset_id)
+        score = self.repo.get_score(rec.asset_id)
         
         explanation_lines = []
         if features:
@@ -229,33 +208,33 @@ class FinancialIntelligenceService(BaseService):
 
     def get_portfolio_concentration_analysis(self, portfolio_id: uuid.UUID) -> Dict[str, Any]:
         """Initiative 2: Concentration Analysis (single stock, sector, theme)"""
-        positions = self.db.query(Position).filter(Position.portfolio_id == portfolio_id).all()
-        
+        positions = self.repo.get_positions(portfolio_id)
+
         total_val = 0.0
         stock_values = {}
         sector_values = {}
         theme_values = {}
-        
+
         # Calculate asset values
         for pos in positions:
-            quote = self.db.query(LatestQuote).filter(LatestQuote.symbol == pos.symbol).first()
+            quote = self.repo.get_quote_by_symbol(pos.symbol)
             price = float(quote.price) if quote and quote.price is not None else float(pos.avg_buy_price)
             qty = float(pos.quantity)
             val = qty * price
             total_val += val
-            
+
             stock_values[pos.symbol] = val
-            
-            asset = self.db.query(Asset).filter(Asset.id == pos.asset_id).first()
+
+            asset = self.repo.get_asset(pos.asset_id)
             if asset:
                 meta = asset.metadata_payload or {}
                 sector = meta.get("sector", "General") if isinstance(meta, dict) else "General"
                 sector_values[sector] = sector_values.get(sector, 0.0) + val
-                
+
                 # Check theme weights
-                t_weights = self.db.query(ThemeWeight).filter(ThemeWeight.symbol == pos.symbol).all()
+                t_weights = self.repo.get_theme_weights_by_symbol(pos.symbol)
                 for tw in t_weights:
-                    theme = self.db.query(MarketTheme).filter(MarketTheme.theme_id == tw.theme_id).first()
+                    theme = self.repo.get_theme(tw.theme_id)
                     if theme:
                         theme_name = theme.name
                         weight_in_theme = float(tw.weight)
@@ -296,8 +275,8 @@ class FinancialIntelligenceService(BaseService):
 
     def get_portfolio_diversification_score(self, portfolio_id: uuid.UUID) -> Dict[str, Any]:
         """Initiative 2: Diversification Score (0-100)"""
-        positions = self.db.query(Position).filter(Position.portfolio_id == portfolio_id).all()
-        
+        positions = self.repo.get_positions(portfolio_id)
+
         config = self._get_config()
         asset_count_thresh = config.get("diversification_asset_count_threshold", 10.0)
         sector_count_thresh = config.get("diversification_sector_count_threshold", 5.0)
@@ -312,18 +291,18 @@ class FinancialIntelligenceService(BaseService):
         weights = []
         
         for pos in positions:
-            asset = self.db.query(Asset).filter(Asset.id == pos.asset_id).first()
+            asset = self.repo.get_asset(pos.asset_id)
             if asset:
                 meta = asset.metadata_payload or {}
                 sector = meta.get("sector", "General") if isinstance(meta, dict) else "General"
                 sectors.add(sector)
-                
-            quote = self.db.query(LatestQuote).filter(LatestQuote.symbol == pos.symbol).first()
+
+            quote = self.repo.get_quote_by_symbol(pos.symbol)
             price = float(quote.price) if quote and quote.price is not None else float(pos.avg_buy_price)
             val = float(pos.quantity) * price
             total_val += val
             weights.append(val)
-            
+
         s_sector = min(100.0, len(sectors) * (100.0 / sector_count_thresh) if sector_count_thresh > 0 else 20.0)
         
         # 3. Herfindahl-Hirschman Index (HHI) for allocation balance
@@ -348,22 +327,22 @@ class FinancialIntelligenceService(BaseService):
 
     def get_portfolio_risk_summary(self, portfolio_id: uuid.UUID) -> Dict[str, Any]:
         """Initiative 2: Risk Summary (low, medium, high)"""
-        positions = self.db.query(Position).filter(Position.portfolio_id == portfolio_id).all()
-        
+        positions = self.repo.get_positions(portfolio_id)
+
         total_val = 0.0
         crypto_val = 0.0
         equity_val = 0.0
         bond_val = 0.0
-        
+
         sectors = set()
-        
+
         for pos in positions:
-            quote = self.db.query(LatestQuote).filter(LatestQuote.symbol == pos.symbol).first()
+            quote = self.repo.get_quote_by_symbol(pos.symbol)
             price = float(quote.price) if quote and quote.price is not None else float(pos.avg_buy_price)
             val = float(pos.quantity) * price
             total_val += val
-            
-            asset = self.db.query(Asset).filter(Asset.id == pos.asset_id).first()
+
+            asset = self.repo.get_asset(pos.asset_id)
             if asset:
                 cls = asset.asset_class.lower()
                 if cls == "crypto":
@@ -416,8 +395,8 @@ class FinancialIntelligenceService(BaseService):
 
     def get_cash_deployment_opportunities(self, portfolio_id: uuid.UUID) -> Dict[str, Any]:
         """Initiative 2: Cash Deployment Opportunities"""
-        snapshot = self.db.query(PortfolioSnapshot).filter(PortfolioSnapshot.portfolio_id == portfolio_id).first()
-        positions = self.db.query(Position).filter(Position.portfolio_id == portfolio_id).all()
+        snapshot = self.repo.get_portfolio_snapshot(portfolio_id)
+        positions = self.repo.get_positions(portfolio_id)
         
         # Calculate cash ratio
         cash = float(snapshot.cash_balance) if snapshot and snapshot.cash_balance is not None else 0.0
@@ -436,12 +415,12 @@ class FinancialIntelligenceService(BaseService):
         # Current allocations
         alloc = {}
         for pos in positions:
-            asset = self.db.query(Asset).filter(Asset.id == pos.asset_id).first()
+            asset = self.repo.get_asset(pos.asset_id)
             if asset:
-                quote = self.db.query(LatestQuote).filter(LatestQuote.symbol == pos.symbol).first()
+                quote = self.repo.get_quote_by_symbol(pos.symbol)
                 price = float(quote.price) if quote and quote.price is not None else float(pos.avg_buy_price)
                 val = float(pos.quantity) * price
-                
+
                 # Classify
                 cls = asset.asset_class.lower()
                 if cls in ["stocks", "equity"]:
@@ -473,7 +452,7 @@ class FinancialIntelligenceService(BaseService):
 
     def get_recommendation_scorecard(self, org_id: uuid.UUID) -> Dict[str, Any]:
         """Initiative 3: Recommendation Scorecard"""
-        recs = self.db.query(Recommendation).filter(Recommendation.organization_id == org_id).all()
+        recs = self.repo.get_recommendations_by_org(org_id)
         
         states = ["BUY", "HOLD", "REDUCE", "AVOID"]
         card = {}
@@ -488,7 +467,7 @@ class FinancialIntelligenceService(BaseService):
             applied_recs = [r for r in state_recs if r.status == "applied"]
             wins = 0
             for r in applied_recs:
-                outcome = self.db.query(RecommendationOutcome).filter(RecommendationOutcome.recommendation_id == r.id).first()
+                outcome = self.repo.get_outcome(r.id)
                 if outcome and outcome.realized_impact is not None and outcome.realized_impact > 0.0:
                     wins += 1
                     
@@ -505,7 +484,7 @@ class FinancialIntelligenceService(BaseService):
 
     def get_rule_performance(self, org_id: uuid.UUID) -> Dict[str, Any]:
         """Initiative 3: Rule Performance"""
-        recs = self.db.query(Recommendation).filter(Recommendation.organization_id == org_id).all()
+        recs = self.repo.get_recommendations_by_org(org_id)
         
         states = ["BUY", "HOLD", "REDUCE", "AVOID"]
         perf = {}
@@ -518,7 +497,7 @@ class FinancialIntelligenceService(BaseService):
             false_pos = 0
             
             for r in applied_recs:
-                outcome = self.db.query(RecommendationOutcome).filter(RecommendationOutcome.recommendation_id == r.id).first()
+                outcome = self.repo.get_outcome(r.id)
                 val = float(outcome.realized_impact) if outcome and outcome.realized_impact is not None else 0.0
                 tot_ret += val
                 
@@ -540,7 +519,7 @@ class FinancialIntelligenceService(BaseService):
 
     def get_confidence_calibration(self, org_id: uuid.UUID) -> Dict[str, Any]:
         """Initiative 3: Recommendation Confidence Calibration"""
-        recs = self.db.query(Recommendation).filter(Recommendation.organization_id == org_id).all()
+        recs = self.repo.get_recommendations_by_org(org_id)
         
         bands = {
             "high": [r for r in recs if float(r.confidence_score) >= 0.8],
@@ -556,7 +535,7 @@ class FinancialIntelligenceService(BaseService):
             tot_ret = 0.0
             
             for r in applied:
-                outcome = self.db.query(RecommendationOutcome).filter(RecommendationOutcome.recommendation_id == r.id).first()
+                outcome = self.repo.get_outcome(r.id)
                 val = float(outcome.realized_impact) if outcome and outcome.realized_impact is not None else 0.0
                 tot_ret += val
                 if val > 0.0:
@@ -575,22 +554,16 @@ class FinancialIntelligenceService(BaseService):
 
     def get_daily_briefing(self, org_id: uuid.UUID, portfolio_id: uuid.UUID) -> Dict[str, Any]:
         """Initiative 4: Daily Briefing details"""
-        snapshot = self.db.query(PortfolioSnapshot).filter(PortfolioSnapshot.portfolio_id == portfolio_id).first()
+        snapshot = self.repo.get_portfolio_snapshot(portfolio_id)
         net_worth = float(snapshot.market_value + snapshot.cash_balance) if snapshot else 10000.0
         daily_return = float(snapshot.daily_return) if snapshot and hasattr(snapshot, "daily_return") else 120.0
-        
+
         # New active recommendations in past 24h
-        new_recs_count = (
-            self.db.query(Recommendation)
-            .filter(Recommendation.organization_id == org_id)
-            .filter(Recommendation.status == "active")
-            .filter(Recommendation.created_at >= datetime.now(timezone.utc) - timedelta(days=1))
-            .count()
-        )
-        
+        new_recs_count = self.repo.count_recommendations(org_id, "active", datetime.now(timezone.utc) - timedelta(days=1))
+
         # Watchlist movements
         movements = []
-        positions = self.db.query(Position).filter(Position.portfolio_id == portfolio_id).limit(2).all()
+        positions = self.repo.get_positions_limited(portfolio_id, 2)
         for p in positions:
             movements.append(f"{p.symbol}: +1.2% daily change")
             
@@ -605,26 +578,20 @@ class FinancialIntelligenceService(BaseService):
 
     def get_weekly_briefing(self, org_id: uuid.UUID, portfolio_id: uuid.UUID) -> Dict[str, Any]:
         """Initiative 4: Weekly Briefing details"""
-        snapshot = self.db.query(PortfolioSnapshot).filter(PortfolioSnapshot.portfolio_id == portfolio_id).first()
+        snapshot = self.repo.get_portfolio_snapshot(portfolio_id)
         net_worth = float(snapshot.market_value + snapshot.cash_balance) if snapshot else 10000.0
-        
+
         weekly_return = net_worth * 0.024
-        
+
         winners = []
         losers = []
-        positions = self.db.query(Position).filter(Position.portfolio_id == portfolio_id).all()
+        positions = self.repo.get_positions(portfolio_id)
         if len(positions) > 0:
             winners.append(f"{positions[0].symbol}: +5.2% return this week")
         if len(positions) > 1:
             losers.append(f"{positions[1].symbol}: -1.8% return this week")
-            
-        applied_count = (
-            self.db.query(Recommendation)
-            .filter(Recommendation.organization_id == org_id)
-            .filter(Recommendation.status == "applied")
-            .filter(Recommendation.created_at >= datetime.now(timezone.utc) - timedelta(days=7))
-            .count()
-        )
+
+        applied_count = self.repo.count_recommendations(org_id, "applied", datetime.now(timezone.utc) - timedelta(days=7))
         
         return {
             "weekly_return_dollars": round(weekly_return, 2),
@@ -636,17 +603,17 @@ class FinancialIntelligenceService(BaseService):
 
     def get_monthly_briefing(self, org_id: uuid.UUID, portfolio_id: uuid.UUID) -> Dict[str, Any]:
         """Initiative 4: Monthly Briefing details"""
-        snapshot = self.db.query(PortfolioSnapshot).filter(PortfolioSnapshot.portfolio_id == portfolio_id).first()
-        positions = self.db.query(Position).filter(Position.portfolio_id == portfolio_id).all()
-        
+        snapshot = self.repo.get_portfolio_snapshot(portfolio_id)
+        positions = self.repo.get_positions(portfolio_id)
+
         net_worth = float(snapshot.market_value + snapshot.cash_balance) if snapshot else 10000.0
-        
+
         class_target = self._get_allocation_targets()
         alloc = {}
         for pos in positions:
-            asset = self.db.query(Asset).filter(Asset.id == pos.asset_id).first()
+            asset = self.repo.get_asset(pos.asset_id)
             if asset:
-                quote = self.db.query(LatestQuote).filter(LatestQuote.symbol == pos.symbol).first()
+                quote = self.repo.get_quote_by_symbol(pos.symbol)
                 price = float(quote.price) if quote and quote.price is not None else float(pos.avg_buy_price)
                 val = float(pos.quantity) * price
                 cls = asset.asset_class.lower()
@@ -680,16 +647,16 @@ class FinancialIntelligenceService(BaseService):
         div_data = self.get_portfolio_diversification_score(portfolio_id)
         s_div = div_data["diversification_score"]
         
-        snapshot = self.db.query(PortfolioSnapshot).filter(PortfolioSnapshot.portfolio_id == portfolio_id).first()
-        positions = self.db.query(Position).filter(Position.portfolio_id == portfolio_id).all()
+        snapshot = self.repo.get_portfolio_snapshot(portfolio_id)
+        positions = self.repo.get_positions(portfolio_id)
         net_worth = float(snapshot.market_value + snapshot.cash_balance) if snapshot else 10000.0
-        
+
         class_target = self._get_allocation_targets()
         alloc = {}
         for pos in positions:
-            asset = self.db.query(Asset).filter(Asset.id == pos.asset_id).first()
+            asset = self.repo.get_asset(pos.asset_id)
             if asset:
-                quote = self.db.query(LatestQuote).filter(LatestQuote.symbol == pos.symbol).first()
+                quote = self.repo.get_quote_by_symbol(pos.symbol)
                 price = float(quote.price) if quote and quote.price is not None else float(pos.avg_buy_price)
                 val = float(pos.quantity) * price
                 cls = asset.asset_class.lower()
@@ -713,12 +680,7 @@ class FinancialIntelligenceService(BaseService):
         quality_metrics = self.get_recommendation_quality_metrics(org_id)
         s_outcomes = quality_metrics["acceptance_rate"] * 100.0 if quality_metrics["total_recommendations"] > 0 else 75.0
         
-        recent_txns = (
-            self.db.query(Transaction)
-            .filter(Transaction.portfolio_id == portfolio_id)
-            .filter(Transaction.transaction_date >= datetime.now(timezone.utc) - timedelta(days=90))
-            .count()
-        )
+        recent_txns = self.repo.count_recent_transactions(portfolio_id, datetime.now(timezone.utc) - timedelta(days=90))
         s_consistency = min(100.0, recent_txns * 33.3)
         
         composite_score = 0.3 * s_div + 0.3 * s_discipline + 0.2 * s_outcomes + 0.2 * s_consistency
@@ -734,7 +696,7 @@ class FinancialIntelligenceService(BaseService):
 
     def get_goal_progress_metrics(self, portfolio_id: uuid.UUID, org_id: uuid.UUID, user_id: uuid.UUID) -> Dict[str, Any]:
         """Initiative 6: Goal Progress Metrics"""
-        snapshot = self.db.query(PortfolioSnapshot).filter(PortfolioSnapshot.portfolio_id == portfolio_id).first()
+        snapshot = self.repo.get_portfolio_snapshot(portfolio_id)
         current_net_worth = float(snapshot.market_value + snapshot.cash_balance) if snapshot else 10000.0
         
         target_corpus = 50000000.0
@@ -859,23 +821,14 @@ class FinancialIntelligenceService(BaseService):
         now = datetime.now(timezone.utc)
         dates = [now - timedelta(days=i) for i in range(days - 1, -1, -1)]
         
-        transactions = (
-            self.db.query(Transaction)
-            .filter(Transaction.portfolio_id == portfolio_id)
-            .order_by(Transaction.transaction_date.asc())
-            .all()
-        )
-        
+        transactions = self.repo.get_transactions_by_portfolio(portfolio_id)
+
         symbols = list(set(t.symbol for t in transactions))
-        assets = self.db.query(Asset).filter(Asset.symbol.in_(symbols)).all()
+        assets = self.repo.get_assets_by_symbols(symbols)
         assets_by_symbol = {a.symbol: a for a in assets}
         asset_ids = [a.id for a in assets]
-        
-        price_history = (
-            self.db.query(PriceHistory)
-            .filter(PriceHistory.asset_id.in_(asset_ids))
-            .all()
-        )
+
+        price_history = self.repo.get_price_history_by_assets(asset_ids)
         price_history_by_asset = {}
         for p in price_history:
             price_history_by_asset.setdefault(p.asset_id, []).append(p)
@@ -943,23 +896,14 @@ class FinancialIntelligenceService(BaseService):
         now = datetime.now(timezone.utc)
         dates = [now - timedelta(days=i) for i in range(days - 1, -1, -1)]
         
-        transactions = (
-            self.db.query(Transaction)
-            .filter(Transaction.portfolio_id == portfolio_id)
-            .order_by(Transaction.transaction_date.asc())
-            .all()
-        )
-        
+        transactions = self.repo.get_transactions_by_portfolio(portfolio_id)
+
         symbols = list(set(t.symbol for t in transactions))
-        assets = self.db.query(Asset).filter(Asset.symbol.in_(symbols)).all()
+        assets = self.repo.get_assets_by_symbols(symbols)
         assets_by_symbol = {a.symbol: a for a in assets}
         asset_ids = [a.id for a in assets]
-        
-        price_history = (
-            self.db.query(PriceHistory)
-            .filter(PriceHistory.asset_id.in_(asset_ids))
-            .all()
-        )
+
+        price_history = self.repo.get_price_history_by_assets(asset_ids)
         price_history_by_asset = {}
         for p in price_history:
             price_history_by_asset.setdefault(p.asset_id, []).append(p)
@@ -987,8 +931,8 @@ class FinancialIntelligenceService(BaseService):
         now = datetime.now(timezone.utc)
         dates = [now - timedelta(days=i) for i in range(days - 1, -1, -1)]
         
-        recs = self.db.query(Recommendation).filter(Recommendation.organization_id == org_id).all()
-        
+        recs = self.repo.get_recommendations_by_org(org_id)
+
         trend = []
         for d in dates:
             active_recs = [r for r in recs if r.created_at.replace(tzinfo=timezone.utc) <= d]
@@ -1030,23 +974,14 @@ class FinancialIntelligenceService(BaseService):
         now = datetime.now(timezone.utc)
         dates = [now - timedelta(days=i) for i in range(days - 1, -1, -1)]
         
-        transactions = (
-            self.db.query(Transaction)
-            .filter(Transaction.portfolio_id == portfolio_id)
-            .order_by(Transaction.transaction_date.asc())
-            .all()
-        )
-        
+        transactions = self.repo.get_transactions_by_portfolio(portfolio_id)
+
         symbols = list(set(t.symbol for t in transactions))
-        assets = self.db.query(Asset).filter(Asset.symbol.in_(symbols)).all()
+        assets = self.repo.get_assets_by_symbols(symbols)
         assets_by_symbol = {a.symbol: a for a in assets}
         asset_ids = [a.id for a in assets]
-        
-        price_history = (
-            self.db.query(PriceHistory)
-            .filter(PriceHistory.asset_id.in_(asset_ids))
-            .all()
-        )
+
+        price_history = self.repo.get_price_history_by_assets(asset_ids)
         price_history_by_asset = {}
         for p in price_history:
             price_history_by_asset.setdefault(p.asset_id, []).append(p)
@@ -1097,19 +1032,11 @@ class FinancialIntelligenceService(BaseService):
         perf = self.get_recommendation_performance(org_id)
         
         # 6. Recent Outcomes
-        recent_outcomes = (
-            self.db.query(RecommendationOutcome)
-            .join(Recommendation, Recommendation.id == RecommendationOutcome.recommendation_id)
-            .filter(Recommendation.organization_id == org_id)
-            .filter(RecommendationOutcome.status == "applied")
-            .order_by(RecommendationOutcome.action_taken_at.desc())
-            .limit(5)
-            .all()
-        )
+        recent_outcomes = self.repo.get_recent_applied_outcomes(org_id, 5)
         serialized_outcomes = []
         for o in recent_outcomes:
-            rec = self.db.query(Recommendation).filter(Recommendation.id == o.recommendation_id).first()
-            quote = self.db.query(LatestQuote).filter(LatestQuote.asset_id == rec.asset_id).first()
+            rec = self.repo.get_recommendation(o.recommendation_id)
+            quote = self.repo.get_quote_by_asset(rec.asset_id)
             serialized_outcomes.append({
                 "recommendation_id": str(o.recommendation_id),
                 "symbol": quote.symbol if quote else "Unknown",
@@ -1122,12 +1049,7 @@ class FinancialIntelligenceService(BaseService):
         goals = self.get_goal_progress_metrics(portfolio_id, org_id, user_id)
         
         # 8. Latest Briefing Summary
-        briefing = (
-            self.db.query(AIBriefing)
-            .filter(AIBriefing.organization_id == org_id)
-            .order_by(AIBriefing.created_at.desc())
-            .first()
-        )
+        briefing = self.repo.get_latest_briefing(org_id)
         briefing_summary = None
         if briefing and briefing.content:
             briefing_summary = {
