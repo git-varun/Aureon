@@ -205,6 +205,36 @@ class ConfigService(BaseService):
         self.repo.session.commit()
         return True
 
+    def remove_provider_key(self, provider_name: str, key_name: str, actor_id: Optional[uuid.UUID] = None) -> bool:
+        """Actually deletes a stored credential rather than overwriting it with an
+        empty string — set_provider_key("", ...) leaves a blank entry behind
+        forever; this removes the key from encrypted_keys entirely."""
+        p = self.repo.get_provider(provider_name)
+        if not p:
+            raise NotFoundError(f"Provider {provider_name} not found")
+
+        allowed_keys = _safe_json_load(p.key_names, [])
+        if key_name not in allowed_keys:
+            raise ValueError(f"Invalid key name {key_name} for provider {provider_name}")
+
+        keys = _safe_json_load(p.encrypted_keys, {})
+        if key_name not in keys:
+            return False
+        del keys[key_name]
+        p.encrypted_keys = json.dumps(keys)
+        self.repo.session.flush()
+        from app.domain.services.audit import log_audit_action
+        log_audit_action(
+            self.repo.session,
+            action="config_provider_key_removed",
+            entity_type="provider_config",
+            entity_id=provider_name,
+            actor_id=actor_id,
+            details={"key_name": key_name}
+        )
+        self.repo.session.commit()
+        return True
+
     def set_provider_keys_bulk(self, provider_name: str, keys: dict[str, str], actor_id: Optional[uuid.UUID] = None) -> bool:
         p = self.repo.get_provider(provider_name)
         if not p:
@@ -217,6 +247,7 @@ class ConfigService(BaseService):
                 raise ValueError(f"Invalid key name {key_name} for provider {provider_name}")
             stored[key_name] = _encrypt(value) if value else ""
         p.encrypted_keys = json.dumps(stored)
+        p.enabled = True
         self.repo.session.flush()
         from app.domain.services.audit import log_audit_action
         log_audit_action(

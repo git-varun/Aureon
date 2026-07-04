@@ -31,7 +31,7 @@ const inputStyle = {
     boxSizing: 'border-box',
 };
 
-function ProviderRow({provider, onToggle, onSetKey}) {
+function ProviderRow({provider, onToggle, onSetKey, onRemoveKey}) {
     const [expanded, setExpanded] = useState(false);
     const [toggling, setToggling] = useState(false);
     const [keyDrafts, setKeyDrafts] = useState({});
@@ -66,9 +66,22 @@ function ProviderRow({provider, onToggle, onSetKey}) {
         try {
             await onSetKey(provider.provider_name, keyName, val);
             setKeyDrafts(d => ({...d, [keyName]: ''}));
-            toast.success(val ? `${KEY_LABELS[keyName] || keyName} saved.` : `${KEY_LABELS[keyName] || keyName} cleared.`);
+            toast.success(`${KEY_LABELS[keyName] || keyName} saved.`);
         } catch {
             toast.error('Failed to save key.');
+        } finally {
+            setSaving(s => ({...s, [keyName]: false}));
+        }
+    };
+
+    const handleRemoveKey = async (keyName) => {
+        setSaving(s => ({...s, [keyName]: true}));
+        try {
+            await onRemoveKey(provider.provider_name, keyName);
+            setKeyDrafts(d => ({...d, [keyName]: ''}));
+            toast.success(`${KEY_LABELS[keyName] || keyName} removed.`);
+        } catch {
+            toast.error('Failed to remove key.');
         } finally {
             setSaving(s => ({...s, [keyName]: false}));
         }
@@ -153,12 +166,12 @@ function ProviderRow({provider, onToggle, onSetKey}) {
                                         </button>
                                     </div>
                                     <button
-                                        onClick={() => handleSetKey(keyName)}
-                                        disabled={saving[keyName]}
+                                        onClick={() => (draft === '' && isSet ? handleRemoveKey(keyName) : handleSetKey(keyName))}
+                                        disabled={saving[keyName] || (draft === '' && !isSet)}
                                         className="du3-cta primary"
                                         style={{height: 34, padding: '0 14px', whiteSpace: 'nowrap'}}
                                     >
-                                        {saving[keyName] ? 'Saving…' : (draft === '' && isSet ? 'Clear' : 'Save')}
+                                        {saving[keyName] ? '…' : (draft === '' && isSet ? 'Remove' : 'Save')}
                                     </button>
                                 </div>
                             </div>
@@ -315,6 +328,11 @@ export default function ProviderConfig() {
         setProviders(prev => prev.map(p => p.provider_name === providerName ? res.provider : p));
     };
 
+    const handleRemoveKey = async (providerName, keyName) => {
+        const res = await apiService.removeProviderKey(providerName, keyName);
+        setProviders(prev => prev.map(p => p.provider_name === providerName ? res.provider : p));
+    };
+
     const grouped = providers.reduce((acc, p) => {
         const k = p.provider_type;
         if (!acc[k]) acc[k] = [];
@@ -352,7 +370,7 @@ export default function ProviderConfig() {
                                 : null;
                             return (
                                 <div key={p.provider_name}>
-                                    <ProviderRow provider={p} onToggle={handleToggle} onSetKey={handleSetKey}/>
+                                    <ProviderRow provider={p} onToggle={handleToggle} onSetKey={handleSetKey} onRemoveKey={handleRemoveKey}/>
                                     {syncEntry && <SyncStatusRow syncEntry={syncEntry} onSync={handleBrokerSync} onConnect={handleBrokerConnect}/>}
                                 </div>
                             );

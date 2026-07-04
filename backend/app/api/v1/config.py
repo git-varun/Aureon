@@ -167,6 +167,26 @@ def set_provider_key(
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e))
 
+@router.delete("/providers/{provider_name}/keys/{key_name}", response_model=ProviderKeyResponse)
+def remove_provider_key(
+    provider_name: str,
+    key_name: str,
+    user: User = Depends(get_current_user),
+    members_repo: OrganizationMembersRepository = Depends(get_members_repo),
+    svc: ConfigService = Depends(get_config_service)
+):
+    check_admin_access(user, members_repo)
+    try:
+        svc.remove_provider_key(provider_name, key_name, actor_id=user.id)
+        p_dict = svc.get_provider_dict(provider_name)
+        if not p_dict:
+            raise HTTPException(status_code=404, detail=f"Provider {provider_name} not found")
+        return {"provider": p_dict}
+    except NotFoundError as e:
+        raise HTTPException(status_code=404, detail=str(e))
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+
 # --- Zerodha OAuth ---
 
 @router.get("/providers/zerodha/oauth/login-url")
