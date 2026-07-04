@@ -438,49 +438,69 @@ class ConfigService(BaseService):
 
     @staticmethod
     def seed_defaults(db: Session) -> None:
-        """Insert default providers, jobs, and targets on startup."""
+        """Insert default providers, jobs, and targets on startup.
+
+        Each block below commits independently. A concurrent seed race in one
+        block (e.g. two processes racing the yfinance->yahoo rename) must not
+        roll back and silently discard the others — that's what previously
+        masked provider status backfills (a rename conflict would abort the
+        whole transaction, including unrelated PLANNED->PARTIAL/ACTIVE fixes,
+        while still logging "seeded successfully").
+        """
+        from sqlalchemy.exc import IntegrityError
+
         # One-time rename: the price provider was originally seeded as "yfinance"
         # even though YahooAdapter.provider_name (and therefore the registry key
         # every ProviderFactory lookup uses) is "yahoo". Rename in place so any
         # credentials/config a user already set are preserved under the new key.
-        stale_yfinance = db.scalar(select(ProviderConfig).filter_by(provider_name="yfinance"))
-        if stale_yfinance and not db.scalar(select(ProviderConfig).filter_by(provider_name="yahoo")):
-            stale_yfinance.provider_name = "yahoo"
-
-        for p in _DEFAULT_PROVIDERS:
-            exists = db.scalar(select(ProviderConfig).filter_by(provider_name=p["provider_name"]))
-            if not exists:
-                db.add(ProviderConfig(**p))
-            elif exists.status == "PLANNED" and p.get("status") != "PLANNED":
-                # Backfill lifecycle/capability metadata on pre-existing rows (installs
-                # that seeded before this column existed) without touching credentials.
-                exists.status = p["status"]
-                exists.capabilities = p["capabilities"]
-                if "priority" in p:
-                    exists.priority = p["priority"]
-
-        for j in _DEFAULT_JOBS:
-            exists = db.scalar(select(JobConfig).filter_by(job_name=j["job_name"]))
-            if not exists:
-                db.add(JobConfig(**j))
-            elif not exists.job_tier:
-                exists.job_tier = j.get("job_tier", "user")
-
-        for t in _DEFAULT_ALLOCATION_TARGETS:
-            exists = db.scalar(select(AllocationTarget).filter_by(asset_class=t["asset_class"]))
-            if not exists:
-                db.add(AllocationTarget(**t))
+        try:
+            stale_yfinance = db.scalar(select(ProviderConfig).filter_by(provider_name="yfinance"))
+            if stale_yfinance and not db.scalar(select(ProviderConfig).filter_by(provider_name="yahoo")):
+                stale_yfinance.provider_name = "yahoo"
+            db.commit()
+        except IntegrityError:
+            db.rollback()
+            logger.info("yfinance->yahoo rename raced concurrently; skipping.")
 
         try:
+            for p in _DEFAULT_PROVIDERS:
+                exists = db.scalar(select(ProviderConfig).filter_by(provider_name=p["provider_name"]))
+                if not exists:
+                    db.add(ProviderConfig(**p))
+                elif exists.status == "PLANNED" and p.get("status") != "PLANNED":
+                    # Backfill lifecycle/capability metadata on pre-existing rows (installs
+                    # that seeded before this column existed) without touching credentials.
+                    exists.status = p["status"]
+                    exists.capabilities = p["capabilities"]
+                    if "priority" in p:
+                        exists.priority = p["priority"]
+            db.commit()
+        except IntegrityError:
+            db.rollback()
+            logger.info("Provider defaults already seeded concurrently.")
+
+        try:
+            for j in _DEFAULT_JOBS:
+                exists = db.scalar(select(JobConfig).filter_by(job_name=j["job_name"]))
+                if not exists:
+                    db.add(JobConfig(**j))
+                elif not exists.job_tier:
+                    exists.job_tier = j.get("job_tier", "user")
+            db.commit()
+        except IntegrityError:
+            db.rollback()
+            logger.info("Job defaults already seeded concurrently.")
+
+        try:
+            for t in _DEFAULT_ALLOCATION_TARGETS:
+                exists = db.scalar(select(AllocationTarget).filter_by(asset_class=t["asset_class"]))
+                if not exists:
+                    db.add(AllocationTarget(**t))
             db.commit()
             logger.info("Config defaults seeded successfully")
-        except Exception as e:
+        except IntegrityError:
             db.rollback()
-            from sqlalchemy.exc import IntegrityError
-            if isinstance(e, IntegrityError):
-                logger.info("Config defaults already seeded concurrently.")
-            else:
-                raise
+            logger.info("Allocation target defaults already seeded concurrently.")
 
         # Sync AI keys from environment — idempotent, only writes if slot is empty
         env_ai_keys = [
