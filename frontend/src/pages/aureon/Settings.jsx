@@ -650,10 +650,7 @@ function ConnectionStatusSection() {
 // ── Job helpers ───────────────────────────────────────────────────────────────
 const JOB_LABEL_MAP = {
     sync_portfolio: 'Portfolio Sync', refresh_prices: 'Price Refresh', fetch_news: 'News Scraper',
-    daily_briefing: 'AI Briefing', run_signals: 'Signal Generation', seed_price_history: 'Price History Seed',
-    aggregate_sentiment: 'Sentiment Roll-up', seed_fundamentals: 'Fundamentals Seed', fetch_fx_rate: 'FX Rate Fetch',
-    compute_state: 'State Compute', accrue_epf: 'EPF Accrual', accrue_eps: 'EPS Accrual',
-    bond_mtm: 'Bond MTM', insurance_premium: 'Insurance Premium',
+    daily_briefing: 'AI Briefing', seed_price_history: 'Price History Seed',
 };
 
 const fmtTs = (iso) => {

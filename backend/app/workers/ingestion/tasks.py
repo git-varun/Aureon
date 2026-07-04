@@ -11,15 +11,11 @@ from app.core.logger import logger
 from app.core.redis import cache_quote
 from app.domain.entities.market import LatestQuote
 from app.domain.entities.system import FailedIngestion, Provider, ProviderUsage
-from app.infrastructure.providers.finnhub import FinnhubAdapter
-from app.infrastructure.providers.polygon import PolygonAdapter
-from app.infrastructure.providers.yahoo import YahooAdapter
 
-adapters = {
-    "finnhub": FinnhubAdapter(),
-    "polygon": PolygonAdapter(),
-    "yahoo": YahooAdapter(),
-}
+# Provider names ingest_quote accepts — resolution itself always goes through
+# ProviderFactory -> ProviderRegistry -> ProviderProtocol (see ingest_quote below);
+# this set only preserves the original "unknown provider" validation surface.
+_MARKET_DATA_PROVIDERS = {"finnhub", "polygon", "yahoo"}
 
 def _track_usage(db: Session, provider_id: uuid.UUID, endpoint: str) -> None:
     usage = ProviderUsage(
@@ -41,16 +37,20 @@ def _get_or_create_provider(db: Session, provider_name: str) -> Provider:
 
 @shared_task(name="app.workers.ingestion.tasks.ingest_quote")  # type: ignore
 def ingest_quote(provider_name: str, symbol: str) -> bool:
-    adapter = adapters.get(provider_name)
-    if not adapter:
+    if provider_name not in _MARKET_DATA_PROVIDERS:
         raise ValueError(f"Unknown provider {provider_name}")
 
     db = SessionLocal()
     try:
         provider_record = _get_or_create_provider(db, provider_name)
         _track_usage(db, provider_record.id, "get_quote")
-        
+
         try:
+            from app.core.providers.factory import ProviderFactory
+            from app.domain.services.config import ConfigService
+            from app.infrastructure.repositories.config import ConfigRepository
+
+            adapter = ProviderFactory(ConfigService(ConfigRepository(db))).get(provider_name)
             quote = adapter.get_quote(symbol)
 
             # Resolve asset_id via the assets registry table
@@ -209,25 +209,17 @@ def sync_portfolio_task(log_id: int | None = None, **kwargs) -> None:
 @shared_task(name="app.workers.ingestion.tasks.sync_zerodha_task")
 def sync_zerodha_task(log_id: int | None = None, **kwargs) -> None:
     def _run_sync():
+        from app.core.providers.factory import ProviderFactory
         from app.domain.services.config import ConfigService
         from app.infrastructure.repositories.config import ConfigRepository
-        from app.infrastructure.providers.zerodha import ZerodhaClient
-        from app.core.exceptions import ZerodhaAuthError
 
         db = SessionLocal()
         try:
-            cfg_svc = ConfigService(ConfigRepository(db))
-            api_key = cfg_svc.get_decrypted_key("zerodha", "api_key")
-            api_secret = cfg_svc.get_decrypted_key("zerodha", "api_secret")
-            access_token = cfg_svc.get_decrypted_key("zerodha", "access_token")
+            provider = ProviderFactory(ConfigService(ConfigRepository(db))).get("zerodha")
         finally:
             db.close()
 
-        if not api_key or not access_token:
-            raise ZerodhaAuthError("AUTH_REQUIRED: Zerodha is not connected")
-
-        client = ZerodhaClient(api_key, api_secret, access_token)
-        holdings = client.get_holdings()  # raises ZerodhaAuthError("AUTH_REQUIRED: ...") on expired token
+        holdings = provider.sync()  # raises ZerodhaAuthError("AUTH_REQUIRED: ...") if not connected / on expired token
 
         from app.domain.entities.portfolio import Portfolio
         from app.domain.services.portfolio import PortfolioService
@@ -345,11 +337,6 @@ def monthly_briefing_task(log_id: int | None = None, **kwargs) -> None:
 
 
 
-@shared_task(name="app.workers.ingestion.tasks.run_signals_task")
-def run_signals_task(log_id: int | None = None, **kwargs) -> None:
-    _wrap_job_execution("run_signals", log_id, lambda: None)
-
-
 def _run_seed_price_history() -> None:
     import yfinance as yf
     from sqlalchemy.dialects.postgresql import insert as pg_insert
@@ -410,61 +397,6 @@ def _run_seed_price_history() -> None:
 @shared_task(name="app.workers.ingestion.tasks.seed_price_history_task")
 def seed_price_history_task(log_id: int | None = None, **kwargs) -> None:
     _wrap_job_execution("seed_price_history", log_id, _run_seed_price_history)
-
-
-@shared_task(name="app.workers.ingestion.tasks.aggregate_sentiment_task")
-def aggregate_sentiment_task(log_id: int | None = None, **kwargs) -> None:
-    _wrap_job_execution("aggregate_sentiment", log_id, lambda: None)
-
-
-@shared_task(name="app.workers.ingestion.tasks.seed_fundamentals_task")
-def seed_fundamentals_task(log_id: int | None = None, **kwargs) -> None:
-    _wrap_job_execution("seed_fundamentals", log_id, lambda: None)
-
-
-@shared_task(name="app.workers.ingestion.tasks.fetch_fx_rate_task")
-def fetch_fx_rate_task(log_id: int | None = None, **kwargs) -> None:
-    _wrap_job_execution("fetch_fx_rate", log_id, lambda: None)
-
-
-@shared_task(name="app.workers.ingestion.tasks.compute_state_task")
-def compute_state_task(log_id: int | None = None, **kwargs) -> None:
-    _wrap_job_execution("compute_state", log_id, lambda: None)
-
-
-@shared_task(name="app.workers.ingestion.tasks.accrue_epf_task")
-def accrue_epf_task(log_id: int | None = None, **kwargs) -> None:
-    _wrap_job_execution("accrue_epf", log_id, lambda: None)
-
-
-@shared_task(name="app.workers.ingestion.tasks.accrue_eps_task")
-def accrue_eps_task(log_id: int | None = None, **kwargs) -> None:
-    _wrap_job_execution("accrue_eps", log_id, lambda: None)
-
-
-@shared_task(name="app.workers.ingestion.tasks.bond_mtm_task")
-def bond_mtm_task(log_id: int | None = None, **kwargs) -> None:
-    _wrap_job_execution("bond_mtm", log_id, lambda: None)
-
-
-@shared_task(name="app.workers.ingestion.tasks.insurance_premium_task")
-def insurance_premium_task(log_id: int | None = None, **kwargs) -> None:
-    _wrap_job_execution("insurance_premium", log_id, lambda: None)
-
-
-@shared_task(name="app.workers.ingestion.tasks.compute_technicals_task")
-def compute_technicals_task(log_id: int | None = None, **kwargs) -> None:
-    _wrap_job_execution("compute_technicals", log_id, lambda: None)
-
-
-@shared_task(name="app.workers.ingestion.tasks.notify_daily_summary_task")
-def notify_daily_summary_task(log_id: int | None = None, **kwargs) -> None:
-    _wrap_job_execution("notify_daily_summary", log_id, lambda: None)
-
-
-@shared_task(name="app.workers.ingestion.tasks.clean_stale_signals_task")
-def clean_stale_signals_task(log_id: int | None = None, **kwargs) -> None:
-    _wrap_job_execution("clean_stale_signals", log_id, lambda: None)
 
 
 _CANONICAL_ASSETS: list[tuple[str, str, str]] = [
@@ -566,11 +498,6 @@ def _link_existing_news(db) -> None:
 @shared_task(name="app.workers.ingestion.tasks.seed_market_universe_task")
 def seed_market_universe_task(log_id: int | None = None, **kwargs) -> None:
     _wrap_job_execution("seed_market_universe", log_id, _run_seed_market_universe)
-
-
-@shared_task(name="app.workers.ingestion.tasks.refresh_watchlist_prices_task")
-def refresh_watchlist_prices_task(log_id: int | None = None, **kwargs) -> None:
-    _wrap_job_execution("refresh_watchlist_prices", log_id, lambda: None)
 
 
 @shared_task(name="app.workers.ingestion.tasks.recompute_features")

@@ -13,6 +13,7 @@ from app.domain.entities.recommendation import (
     RecommendationExplanation,
     RecommendationOutcome,
 )
+from app.domain.entities.system import Organization, OrganizationMember
 
 
 class RecommendationRepository(BaseRepository):
@@ -44,6 +45,15 @@ class RecommendationRepository(BaseRepository):
     def list_all_snapshots(self) -> list[AssetSnapshot]:
         return self.session.query(AssetSnapshot).all()
 
+    def get_snapshot(self, asset_id: uuid.UUID) -> AssetSnapshot | None:
+        return self.session.query(AssetSnapshot).filter(AssetSnapshot.asset_id == asset_id).first()
+
+    def list_organizations(self) -> list[Organization]:
+        return self.session.query(Organization).all()
+
+    def get_first_member_by_org(self, organization_id: uuid.UUID) -> OrganizationMember | None:
+        return self.session.query(OrganizationMember).filter(OrganizationMember.organization_id == organization_id).first()
+
     def get_features(self, asset_id: uuid.UUID) -> AssetFeatures | None:
         return self.session.query(AssetFeatures).filter(AssetFeatures.asset_id == asset_id).first()
 
@@ -60,6 +70,18 @@ class RecommendationRepository(BaseRepository):
 
     def get_portfolio_by_org(self, organization_id: uuid.UUID) -> Portfolio | None:
         return self.session.query(Portfolio).filter(Portfolio.organization_id == organization_id).first()
+
+    def list_portfolios_by_org(self, organization_id: uuid.UUID) -> list[Portfolio]:
+        return self.session.query(Portfolio).filter(Portfolio.organization_id == organization_id).all()
+
+    def get_applied_outcomes_by_org(self, organization_id: uuid.UUID) -> list[RecommendationOutcome]:
+        return (
+            self.session.query(RecommendationOutcome)
+            .join(Recommendation, Recommendation.id == RecommendationOutcome.recommendation_id)
+            .filter(Recommendation.organization_id == organization_id)
+            .filter(RecommendationOutcome.status == "applied")
+            .all()
+        )
 
     def get_portfolio(self, portfolio_id: uuid.UUID, organization_id: uuid.UUID) -> Portfolio | None:
         return (

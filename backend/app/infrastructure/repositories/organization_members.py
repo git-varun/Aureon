@@ -35,6 +35,13 @@ class OrganizationMembersRepository(BaseRepository):
         stmt = select(OrganizationMember).where(OrganizationMember.user_id == user_id)
         return list(self.session.execute(stmt).scalars().all())
 
+    def get_admin_memberships_by_user(self, user_id: uuid.UUID) -> list[OrganizationMember]:
+        stmt = select(OrganizationMember).where(
+            OrganizationMember.user_id == user_id,
+            OrganizationMember.role.in_(["OWNER", "ADMIN"])
+        )
+        return list(self.session.execute(stmt).scalars().all())
+
     def update(self, member: OrganizationMember) -> OrganizationMember:
         self.session.flush()
         return member

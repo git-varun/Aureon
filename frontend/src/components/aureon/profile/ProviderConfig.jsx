@@ -193,7 +193,7 @@ function SyncStatusRow({syncEntry, onSync, onConnect}) {
     const text = status === 'ok'
         ? `Last synced ${relativeTime(last_synced_at)} · ${positions_count} positions`
         : status === 'error' ? (error || 'Sync error')
-        : authRequired ? (error ? 'Access token expired — reconnect' : 'Connect Zerodha to sync')
+        : authRequired ? (error ? 'Access expired — reconnect' : `Connect ${provider} to sync`)
         : 'Never synced — click Sync to connect';
 
     const handleSync = async () => {
@@ -269,14 +269,20 @@ export default function ProviderConfig() {
     }, []);
 
     const handleBrokerConnect = useCallback(async (provider) => {
-        if (provider !== 'zerodha') return;
-        try {
-            const {login_url} = await apiService.getZerodhaLoginUrl();
-            window.location.href = login_url;
-        } catch (e) {
-            toast.error(e.message || 'Could not start Zerodha login');
+        if (provider === 'zerodha') {
+            try {
+                const {login_url} = await apiService.getZerodhaLoginUrl();
+                window.location.href = login_url;
+            } catch (e) {
+                toast.error(e.message || 'Could not start Zerodha login');
+            }
+            return;
         }
-    }, []);
+        // api_key/api_secret brokers (groww, binance) authenticate per-sync from the
+        // credentials saved above — there's no separate OAuth exchange, so "Connect" just
+        // retries the sync using whatever keys are currently stored.
+        await handleBrokerSync(provider);
+    }, [handleBrokerSync]);
 
     useEffect(() => { load(); }, [load]);
 

@@ -605,3 +605,93 @@ class PortfolioService(BaseService):
             "synced_holdings": len(seen_symbols),
             "removed": len(removed_symbols),
         }
+
+    def create_manual_asset(
+        self,
+        portfolio_id: uuid.UUID,
+        name: str,
+        symbol: str,
+        asset_class: str,
+        quantity: float,
+        price: float,
+    ) -> str:
+        from app.domain.entities.market import Asset
+
+        symbol_clean = symbol.upper().strip()
+        asset = self.session.scalar(select(Asset).filter_by(symbol=symbol_clean))
+        if not asset:
+            asset = Asset(
+                id=uuid.uuid5(uuid.NAMESPACE_DNS, symbol_clean),
+                symbol=symbol_clean,
+                name=name,
+                asset_class=asset_class,
+                metadata_payload={"sector": "Manual"}
+            )
+            self.session.add(asset)
+            self.session.flush()
+
+        _ensure_asset_exists(self.session, symbol_clean)
+
+        txn = Transaction(
+            portfolio_id=portfolio_id,
+            symbol=symbol_clean,
+            asset_id=asset.id,
+            transaction_type="BUY",
+            quantity=quantity,
+            price=price,
+            transaction_date=datetime.now(timezone.utc),
+            notes="Manual asset creation",
+            broker="manual",
+            kind="trade"
+        )
+        self.transactions_repo.create(txn)
+        self.session.commit()
+
+        self.recalculate_position(portfolio_id, symbol_clean)
+        self.session.commit()
+        return symbol_clean
+
+    def update_manual_valuation(
+        self,
+        portfolio_id: uuid.UUID,
+        symbol: str,
+        new_value: float,
+        notes: Optional[str] = None,
+    ) -> float:
+        symbol_clean = symbol.upper().strip()
+
+        pos = self.positions_repo.get_by_portfolio_symbol(portfolio_id, symbol_clean)
+        if not pos:
+            raise NotFoundError("Manual position not found")
+
+        qty = float(pos.quantity)
+        new_unit_price = new_value / qty if qty > 0 else new_value
+
+        quote = self.session.scalar(select(LatestQuote).filter_by(symbol=symbol_clean))
+        if quote:
+            quote.price = new_unit_price
+
+        txn = Transaction(
+            portfolio_id=portfolio_id,
+            symbol=symbol_clean,
+            asset_id=pos.asset_id,
+            transaction_type="SPLIT",
+            quantity=qty,
+            price=new_unit_price,
+            transaction_date=datetime.now(timezone.utc),
+            notes=notes or f"Valuation update: {new_value}",
+            broker="manual",
+            kind="trade"
+        )
+        self.transactions_repo.create(txn)
+        self.session.commit()
+        return new_unit_price
+
+    def count_broker_positions(self, broker: str) -> int:
+        return (
+            self.session.query(Position)
+            .join(Transaction, (Transaction.portfolio_id == Position.portfolio_id) & (Transaction.symbol == Position.symbol))
+            .filter(Transaction.broker == broker, Transaction.kind == "broker_snapshot")
+            .distinct()
+            .count()
+        )

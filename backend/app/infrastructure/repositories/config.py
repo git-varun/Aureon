@@ -27,11 +27,6 @@ class ConfigRepository(BaseRepository):
         stmt = select(ProviderConfig).where(ProviderConfig.provider_type == provider_type)
         return list(self.session.execute(stmt).scalars().all())
 
-    def save_provider(self, provider: ProviderConfig) -> ProviderConfig:
-        self.session.add(provider)
-        self.session.flush()
-        return provider
-
     # Job Configs
     def get_job(self, job_name: str) -> JobConfig | None:
         stmt = select(JobConfig).where(JobConfig.job_name == job_name)
@@ -40,11 +35,6 @@ class ConfigRepository(BaseRepository):
     def list_all_jobs(self) -> list[JobConfig]:
         stmt = select(JobConfig)
         return list(self.session.execute(stmt).scalars().all())
-
-    def save_job(self, job: JobConfig) -> JobConfig:
-        self.session.add(job)
-        self.session.flush()
-        return job
 
     # Allocation Targets
     def get_allocation_target(self, asset_class: str) -> AllocationTarget | None:

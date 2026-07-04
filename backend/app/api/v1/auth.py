@@ -2,15 +2,14 @@ from typing import Optional
 
 from fastapi import APIRouter, Depends, HTTPException, Request, status
 from pydantic import BaseModel
-from sqlalchemy.orm import Session
 
 from app.api.dependencies import (
     get_auth_service,
     get_current_session,
     get_current_user,
-    get_db,
     get_users_repo,
 )
+from app.core.exceptions import AuthenticationError
 from app.core.rate_limit import check_auth_rate_limit
 from app.api.v1.schemas import (
     AuthResponse,
@@ -19,7 +18,6 @@ from app.api.v1.schemas import (
     RegisterRequest,
     UserResponse,
 )
-from app.core.security import hash_password, verify_password
 from app.domain.entities.system import User, UserSession
 from app.domain.services.auth import AuthService
 
@@ -31,11 +29,9 @@ users_router = APIRouter()
 @users_router.delete("/users/me")
 def delete_account(
     current_user: User = Depends(get_current_user),
-    db: Session = Depends(get_db)
+    auth_service: AuthService = Depends(get_auth_service),
 ):
-    current_user.is_active = False
-    db.add(current_user)
-    db.commit()
+    auth_service.deactivate_account(current_user)
     return {"status": "success", "message": "Account deactivated"}
 
 @router.post("/register", response_model=AuthResponse, status_code=status.HTTP_201_CREATED)
@@ -135,29 +131,24 @@ def get_me(
 def update_me(
     payload: UpdateProfileRequest,
     current_user: User = Depends(get_current_user),
-    db: Session = Depends(get_db)
+    auth_service: AuthService = Depends(get_auth_service),
 ) -> User:
-    if payload.first_name is not None:
-        current_user.first_name = payload.first_name
-    if payload.last_name is not None:
-        current_user.last_name = payload.last_name
-    if payload.profile_picture is not None:
-        current_user.profile_picture = payload.profile_picture
-    db.add(current_user)
-    db.commit()
-    db.refresh(current_user)
-    return current_user
+    return auth_service.update_profile(
+        current_user,
+        first_name=payload.first_name,
+        last_name=payload.last_name,
+        profile_picture=payload.profile_picture,
+    )
 
 @router.post("/me/password", status_code=status.HTTP_200_OK)
 def change_password(
     payload: ChangePasswordRequest,
     current_user: User = Depends(get_current_user),
-    db: Session = Depends(get_db)
+    auth_service: AuthService = Depends(get_auth_service),
 ) -> dict:
-    if not current_user.password_hash or not verify_password(payload.current_password, current_user.password_hash):
-        raise HTTPException(status_code=400, detail="Invalid current password")
-    current_user.password_hash = hash_password(payload.new_password)
-    db.add(current_user)
-    db.commit()
+    try:
+        auth_service.change_password(current_user, payload.current_password, payload.new_password)
+    except AuthenticationError as e:
+        raise HTTPException(status_code=400, detail=str(e))
     return {"status": "success", "message": "Password updated successfully"}
 

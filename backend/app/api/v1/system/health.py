@@ -4,12 +4,13 @@ from typing import Any
 
 from fastapi import APIRouter, Depends
 from pydantic import BaseModel
-from sqlalchemy import text
 from sqlalchemy.orm import Session
 
+from app.api.dependencies import get_monitoring_repo
 from app.core.config import settings
 from app.core.database import get_db
 from app.core.redis import check_redis_health
+from app.infrastructure.repositories.monitoring import MonitoringRepository
 
 router = APIRouter()
 
@@ -45,11 +46,14 @@ def _check_celery_sync() -> str:
 
 
 @router.get("/health", response_model=HealthResponse)
-async def health_check(db: Session = Depends(get_db)) -> HealthResponse:
+async def health_check(
+    db: Session = Depends(get_db),
+    monitoring_repo: MonitoringRepository = Depends(get_monitoring_repo),
+) -> HealthResponse:
     # 1. Database check
     postgres_status = "healthy"
     try:
-        db.execute(text("SELECT 1")).scalar()
+        monitoring_repo.ping_postgres()
     except Exception as e:
         postgres_status = f"unhealthy: {str(e)}"
 
@@ -63,8 +67,7 @@ async def health_check(db: Session = Depends(get_db)) -> HealthResponse:
     # 4. Providers health
     providers_summary: dict[str, str] = {}
     try:
-        from app.domain.entities.system import Provider
-        providers = db.query(Provider).all()
+        providers = monitoring_repo.list_providers()
         providers_summary = {p.name: (p.health_status or "unknown") for p in providers}
     except Exception as e:
         providers_summary["error"] = f"failed to retrieve providers: {str(e)}"
@@ -91,7 +94,7 @@ async def health_check(db: Session = Depends(get_db)) -> HealthResponse:
     # 5. Migration version
     migration_version = "unknown"
     try:
-        mig_val = db.execute(text("SELECT version_num FROM alembic_version")).scalar()
+        mig_val = monitoring_repo.get_migration_version()
         migration_version = str(mig_val) if mig_val else "none"
     except Exception:
         migration_version = "none" # Table might not exist yet if not migrated
