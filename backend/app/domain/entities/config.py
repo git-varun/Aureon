@@ -26,7 +26,10 @@ class ProviderConfig(Base):
     encrypted_keys: Mapped[str] = mapped_column(Text, default="{}")  # JSON dict of Fernet-encrypted key values
     config: Mapped[str] = mapped_column(Text, default="{}")  # JSON blob for non-credential settings
     # Plugin registry metadata (app.core.providers). `status` mirrors ProviderStatus —
-    # kept as a plain String rather than a DB enum so new lifecycle values don't need a migration.
+    # kept as a plain String column (not a native DB enum type), but constrained by
+    # ck_provider_configs_status_valid (see migration b7c2e4f19a3d) to the values
+    # ProviderStatus actually defines. Adding a new lifecycle value requires updating
+    # both the enum and that constraint.
     status: Mapped[str] = mapped_column(String(16), default="PLANNED", nullable=False)
     capabilities: Mapped[str] = mapped_column(Text, default="[]")  # JSON array of Capability values
     priority: Mapped[int] = mapped_column(Integer, default=100)  # lower = tried first in a fallback chain
