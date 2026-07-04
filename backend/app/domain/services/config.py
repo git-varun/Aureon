@@ -25,13 +25,13 @@ logger = logging.getLogger("config.service")
 
 # ── Encryption helpers ────────────────────────────────────────────────────────
 
-def _fernet() -> Fernet:
-    raw = settings.SECRET_KEY.encode()
+def _fernet(secret: Optional[str] = None) -> Fernet:
+    raw = (secret if secret is not None else settings.SECRET_KEY).encode()
     key = base64.urlsafe_b64encode(raw.ljust(32)[:32])
     return Fernet(key)
 
-def _encrypt(value: str) -> str:
-    return _fernet().encrypt(value.encode()).decode()
+def _encrypt(value: str, secret: Optional[str] = None) -> str:
+    return _fernet(secret).encrypt(value.encode()).decode()
 
 def _decrypt(token: str, context: str = "") -> str:
     try:
@@ -39,6 +39,12 @@ def _decrypt(token: str, context: str = "") -> str:
     except Exception as e:
         logger.error(f"Decryption failed [{context}] — {type(e).__name__}")
         return ""
+
+def _decrypt_strict(token: str, secret: str) -> str:
+    """Like _decrypt but raises instead of swallowing — used by key rotation,
+    where a silent "" would look like a legitimately-empty credential instead
+    of a rotation failure."""
+    return _fernet(secret).decrypt(token.encode()).decode()
 
 def _safe_json_load(data: str, default: Any) -> Any:
     try:
@@ -260,6 +266,68 @@ class ConfigService(BaseService):
         )
         self.repo.session.commit()
         return True
+
+    def rotate_encryption_key(self, old_secret: str, new_secret: str, actor_id: Optional[uuid.UUID] = None) -> dict[str, Any]:
+        """Re-encrypts every stored provider credential from old_secret to new_secret.
+
+        Rotating settings.SECRET_KEY without this would silently blank every stored
+        credential the next time it's read (_decrypt swallows failures and returns
+        ""), with no error surfaced anywhere. This must run — and succeed — before
+        SECRET_KEY is actually changed in the environment: call it with the current
+        (old) key and the key you're about to deploy, then deploy the new key once
+        this reports zero failures.
+
+        Best-effort per provider: a decrypt failure on one key is recorded and
+        skipped rather than aborting the whole rotation, since a partial rotation
+        (with a clear failure report) is more recoverable than an all-or-nothing
+        transaction spanning every provider.
+        """
+        providers = self.repo.list_all_providers()
+        rotated_count = 0
+        skipped_empty = 0
+        failures: list[dict[str, str]] = []
+
+        for p in providers:
+            keys = _safe_json_load(p.encrypted_keys, {})
+            if not keys:
+                continue
+            changed = False
+            for key_name, token in keys.items():
+                if not token:
+                    skipped_empty += 1
+                    continue
+                try:
+                    plaintext = _decrypt_strict(token, old_secret)
+                    keys[key_name] = _encrypt(plaintext, new_secret)
+                    changed = True
+                    rotated_count += 1
+                except Exception as e:
+                    failures.append({
+                        "provider_name": p.provider_name,
+                        "key_name": key_name,
+                        "error": type(e).__name__,
+                    })
+            if changed:
+                p.encrypted_keys = json.dumps(keys)
+
+        self.repo.session.flush()
+        from app.domain.services.audit import log_audit_action
+        log_audit_action(
+            self.repo.session,
+            action="config_encryption_key_rotated",
+            entity_type="provider_config",
+            entity_id="*",
+            actor_id=actor_id,
+            details={"rotated_count": rotated_count, "skipped_empty": skipped_empty, "failure_count": len(failures)}
+        )
+        self.repo.session.commit()
+
+        if failures:
+            logger.error(f"Key rotation completed with {len(failures)} failures: {failures}")
+        else:
+            logger.info(f"Key rotation completed: {rotated_count} keys rotated, {skipped_empty} empty skipped")
+
+        return {"rotated_count": rotated_count, "skipped_empty": skipped_empty, "failures": failures}
 
     def get_decrypted_key(self, provider_name: str, key_name: str) -> Optional[str]:
         p = self.repo.get_provider(provider_name)
