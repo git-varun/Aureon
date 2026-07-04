@@ -131,69 +131,84 @@ def sync_portfolio_task(log_id: int | None = None, **kwargs) -> None:
     _wrap_job_execution("sync_portfolio", log_id, _run_sync)
 
 
-@shared_task(name="app.workers.ingestion.tasks.sync_zerodha_task")
-def sync_zerodha_task(log_id: int | None = None, **kwargs) -> None:
-    def _run_sync():
-        from app.core.providers.factory import ProviderFactory
-        from app.domain.services.config import ConfigService
-        from app.infrastructure.repositories.config import ConfigRepository
+def _run_broker_sync(job_name: str, provider_name: str, sync_method_name: str) -> None:
+    """Shared body for sync_<broker>_task: resolve the provider, fetch holdings,
+    upsert them into every portfolio via PortfolioService.<sync_method_name>, then
+    refresh quotes and snapshots. Used by sync_zerodha_task/sync_binance_task/
+    sync_groww_task — they differ only in which provider/service method to call."""
+    from app.core.providers.factory import ProviderFactory
+    from app.domain.services.config import ConfigService
+    from app.infrastructure.repositories.config import ConfigRepository
 
+    db = SessionLocal()
+    try:
+        provider = ProviderFactory(ConfigService(ConfigRepository(db))).get(provider_name, required=False)
+    finally:
+        db.close()
+
+    if provider is None:
+        logger.warning(f"{job_name}: skipped — {provider_name} provider is not configured/enabled")
+        return
+
+    holdings = provider.sync()  # raises <Provider>AuthError("AUTH_REQUIRED: ...") if not connected / expired
+
+    from app.domain.services.portfolio import PortfolioService
+    from app.infrastructure.repositories import (
+        PortfolioSnapshotRepository,
+        PortfoliosRepository,
+        PositionsRepository,
+        TransactionsRepository,
+    )
+
+    for portfolio_id, organization_id in _list_portfolio_entries():
         db = SessionLocal()
         try:
-            provider = ProviderFactory(ConfigService(ConfigRepository(db))).get("zerodha", required=False)
+            svc = PortfolioService(
+                PortfoliosRepository(db),
+                TransactionsRepository(db),
+                PositionsRepository(db),
+                PortfolioSnapshotRepository(db),
+            )
+            getattr(svc, sync_method_name)(portfolio_id, organization_id, holdings)
+            logger.info(f"{job_name}: holdings synced for portfolio {portfolio_id}")
+        except Exception as e:
+            db.rollback()
+            logger.warning(f"{job_name}: sync failed for portfolio {portfolio_id}: {e}")
         finally:
             db.close()
 
-        if provider is None:
-            logger.warning("sync_zerodha: skipped — zerodha provider is not configured/enabled")
-            return
+    ingest_all_quotes()
 
-        holdings = provider.sync()  # raises ZerodhaAuthError("AUTH_REQUIRED: ...") if not connected / on expired token
+    for portfolio_id, organization_id in _list_portfolio_entries():
+        db = SessionLocal()
+        try:
+            svc = PortfolioService(
+                PortfoliosRepository(db),
+                TransactionsRepository(db),
+                PositionsRepository(db),
+                PortfolioSnapshotRepository(db),
+            )
+            svc.generate_portfolio_snapshot(portfolio_id, organization_id)
+        except Exception as e:
+            db.rollback()
+            logger.warning(f"{job_name}: snapshot failed for portfolio {portfolio_id}: {e}")
+        finally:
+            db.close()
 
-        from app.domain.services.portfolio import PortfolioService
-        from app.infrastructure.repositories import (
-            PortfolioSnapshotRepository,
-            PortfoliosRepository,
-            PositionsRepository,
-            TransactionsRepository,
-        )
 
-        for portfolio_id, organization_id in _list_portfolio_entries():
-            db = SessionLocal()
-            try:
-                svc = PortfolioService(
-                    PortfoliosRepository(db),
-                    TransactionsRepository(db),
-                    PositionsRepository(db),
-                    PortfolioSnapshotRepository(db),
-                )
-                svc.sync_zerodha_holdings(portfolio_id, organization_id, holdings)
-                logger.info(f"sync_zerodha: holdings synced for portfolio {portfolio_id}")
-            except Exception as e:
-                db.rollback()
-                logger.warning(f"sync_zerodha: sync failed for portfolio {portfolio_id}: {e}")
-            finally:
-                db.close()
+@shared_task(name="app.workers.ingestion.tasks.sync_zerodha_task")
+def sync_zerodha_task(log_id: int | None = None, **kwargs) -> None:
+    _wrap_job_execution("sync_zerodha", log_id, _run_broker_sync, "sync_zerodha", "zerodha", "sync_zerodha_holdings")
 
-        ingest_all_quotes()
 
-        for portfolio_id, organization_id in _list_portfolio_entries():
-            db = SessionLocal()
-            try:
-                svc = PortfolioService(
-                    PortfoliosRepository(db),
-                    TransactionsRepository(db),
-                    PositionsRepository(db),
-                    PortfolioSnapshotRepository(db),
-                )
-                svc.generate_portfolio_snapshot(portfolio_id, organization_id)
-            except Exception as e:
-                db.rollback()
-                logger.warning(f"sync_zerodha: snapshot failed for portfolio {portfolio_id}: {e}")
-            finally:
-                db.close()
+@shared_task(name="app.workers.ingestion.tasks.sync_binance_task")
+def sync_binance_task(log_id: int | None = None, **kwargs) -> None:
+    _wrap_job_execution("sync_binance", log_id, _run_broker_sync, "sync_binance", "binance", "sync_binance_holdings")
 
-    _wrap_job_execution("sync_zerodha", log_id, _run_sync)
+
+@shared_task(name="app.workers.ingestion.tasks.sync_groww_task")
+def sync_groww_task(log_id: int | None = None, **kwargs) -> None:
+    _wrap_job_execution("sync_groww", log_id, _run_broker_sync, "sync_groww", "groww", "sync_groww_holdings")
 
 
 @shared_task(name="app.workers.ingestion.tasks.refresh_prices_task")

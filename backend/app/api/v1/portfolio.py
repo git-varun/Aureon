@@ -432,10 +432,8 @@ def sync_brokers(
     config_svc: ConfigService = Depends(get_config_service),
 ):
     broker = (body.get("broker") or "").lower()
-    if broker == "zerodha":
-        task_id = config_svc.dispatch_job("sync_zerodha")
-    else:
-        task_id = config_svc.dispatch_job("sync_portfolio")
+    job_name = {"zerodha": "sync_zerodha", "binance": "sync_binance", "groww": "sync_groww"}.get(broker, "sync_portfolio")
+    task_id = config_svc.dispatch_job(job_name)
     return {"status": "queued", "message": f"{broker or 'portfolio'} sync queued", "task_id": task_id}
 
 @router.get("/sync/status")
@@ -443,14 +441,22 @@ def get_sync_status(
     config_svc: ConfigService = Depends(get_config_service),
     service: PortfolioService = Depends(get_portfolio_service),
 ):
+    # provider_name -> (job_name, keys required to consider it "connected")
+    _SYNCABLE_BROKERS = {
+        "zerodha": ("sync_zerodha", ["access_token"]),
+        "binance": ("sync_binance", ["api_key", "api_secret"]),
+        "groww": ("sync_groww", ["api_key", "api_secret"]),
+    }
+
     results = []
     for provider in config_svc.get_providers_by_type("broker"):
         name = provider["provider_name"]
-        if name != "zerodha":
-            continue  # v1 scope — groww/binance/etc. have no sync implementation yet
+        if name not in _SYNCABLE_BROKERS:
+            continue  # no sync implementation yet for this broker
 
-        has_token = provider["keys_status"].get("access_token", False)
-        logs = config_svc.get_job_logs("sync_zerodha", limit=1)
+        job_name, required_keys = _SYNCABLE_BROKERS[name]
+        has_token = all(provider["keys_status"].get(k, False) for k in required_keys)
+        logs = config_svc.get_job_logs(job_name, limit=1)
         last_log = logs[0] if logs else None
 
         if not has_token:
@@ -464,7 +470,7 @@ def get_sync_status(
         else:
             status, error = "idle", None
 
-        positions_count = service.count_broker_positions(broker="zerodha")
+        positions_count = service.count_broker_positions(broker=name)
 
         results.append({
             "provider": name,

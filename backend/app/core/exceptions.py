@@ -43,6 +43,19 @@ class ZerodhaAuthError(ProviderError):
         super().__init__(message, severity="WARNING", retryable=False, http_status=401)
 
 
+class BinanceAuthError(ProviderError):
+    """Binance API key/secret missing or rejected — user must reconfigure credentials."""
+    def __init__(self, message: str):
+        super().__init__(message, severity="WARNING", retryable=False, http_status=401)
+
+
+class GrowwAuthError(ProviderError):
+    """Groww API key/secret missing or rejected, or the daily access-token approval
+    has not been granted in the Groww app — user must reconfigure/re-approve."""
+    def __init__(self, message: str):
+        super().__init__(message, severity="WARNING", retryable=False, http_status=401)
+
+
 class RateLimitError(ProviderError):
     """Provider returned HTTP 429 or otherwise signaled rate limiting."""
     def __init__(self, message: str, retry_after_seconds: float | None = None):
