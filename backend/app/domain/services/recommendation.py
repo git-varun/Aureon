@@ -346,7 +346,7 @@ class RecommendationService(BaseService):
         """Validates an asset's latest features, computes recommendation/quality/valuation
         scores, persists a FeatureSnapshot + AssetScore, caches the result, and materializes
         recommendations from it. Returns False (no-op) if the asset has no features yet."""
-        from app.workers.evaluation.validation import validate_features
+        from app.domain.services.evaluation import validate_features
 
         evaluation_id = str(uuid.uuid4())
         with ContextManager(extra_fields={"evaluation_id": evaluation_id, "asset_id": str(asset_id), "module": "evaluation"}):
