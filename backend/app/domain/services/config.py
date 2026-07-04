@@ -85,14 +85,14 @@ def _alloc_target_to_dict(r: AllocationTarget) -> dict[str, Any]:
 
 # Seed lists.
 # `status`/`capabilities`/`priority` mirror app.core.providers.{lifecycle,capabilities}.
-# Only the 6 providers with a real adapter under app/infrastructure/providers/ get
+# Only the providers with a real adapter under app/infrastructure/providers/ get
 # ACTIVE/PARTIAL + a non-empty capability list. Everything else is PLANNED — kept
 # in this list (not deleted) so it stays visible in the UI as a roadmap item rather
 # than being removed or silently presented as if it worked.
 _DEFAULT_PROVIDERS = [
     {"provider_name": "zerodha", "provider_type": "broker", "key_names": '["api_key","api_secret","access_token","request_token"]', "status": "PARTIAL", "capabilities": '["PORTFOLIO","HOLDINGS"]', "priority": 10},
-    {"provider_name": "groww", "provider_type": "broker", "key_names": '["api_key","api_secret"]', "status": "PLANNED", "capabilities": "[]"},
-    {"provider_name": "binance", "provider_type": "broker", "key_names": '["api_key","api_secret"]', "status": "PLANNED", "capabilities": "[]"},
+    {"provider_name": "groww", "provider_type": "broker", "key_names": '["api_key","api_secret"]', "status": "PARTIAL", "capabilities": '["PORTFOLIO","HOLDINGS"]', "priority": 11},
+    {"provider_name": "binance", "provider_type": "broker", "key_names": '["api_key","api_secret"]', "status": "PARTIAL", "capabilities": '["PORTFOLIO","HOLDINGS"]', "priority": 12},
     {"provider_name": "coinbase", "provider_type": "broker", "key_names": '["api_key","api_secret","api_passphrase"]', "status": "PLANNED", "capabilities": "[]"},
     {"provider_name": "custom_equity", "provider_type": "broker", "key_names": '["holdings_json"]', "status": "PLANNED", "capabilities": "[]"},
     {"provider_name": "mf", "provider_type": "broker", "key_names": '["holdings_json"]', "status": "PLANNED", "capabilities": "[]"},
@@ -137,6 +137,8 @@ _DEFAULT_ALLOCATION_TARGETS = [
 _DEFAULT_JOBS = [
     {"job_name": "sync_portfolio", "cron_expression": "0 9 * * 1-5", "enabled": True, "job_tier": "user"},
     {"job_name": "sync_zerodha", "cron_expression": "30 8 * * 1-5", "enabled": False, "job_tier": "user"},
+    {"job_name": "sync_binance", "cron_expression": "35 8 * * 1-5", "enabled": False, "job_tier": "user"},
+    {"job_name": "sync_groww", "cron_expression": "40 8 * * 1-5", "enabled": False, "job_tier": "user"},
     {"job_name": "refresh_prices", "cron_expression": "*/15 9-15 * * 1-5", "enabled": True, "job_tier": "user"},
     {"job_name": "fetch_news", "cron_expression": "0 8 * * *", "enabled": True, "job_tier": "user"},
     {"job_name": "daily_briefing", "cron_expression": "0 7 * * *", "enabled": True, "job_tier": "user"},
@@ -471,6 +473,8 @@ class ConfigService(BaseService):
     # entry instead of a task that reaches the worker only to fail.
     _PROVIDER_REQUIRED_JOBS: dict[str, str] = {
         "sync_zerodha": "zerodha",
+        "sync_binance": "binance",
+        "sync_groww": "groww",
     }
 
     def dispatch_job(self, job_name: str, log_id: Optional[int] = None, user_id: Optional[uuid.UUID] = None) -> Optional[str]:
@@ -501,6 +505,8 @@ class ConfigService(BaseService):
             task_mapping = {
                 "sync_portfolio": "app.workers.ingestion.tasks.sync_portfolio_task",
                 "sync_zerodha": "app.workers.ingestion.tasks.sync_zerodha_task",
+                "sync_binance": "app.workers.ingestion.tasks.sync_binance_task",
+                "sync_groww": "app.workers.ingestion.tasks.sync_groww_task",
                 "refresh_prices": "app.workers.ingestion.tasks.refresh_prices_task",
                 "fetch_news": "app.workers.ingestion.tasks.fetch_news_task",
                 "daily_briefing": "app.workers.ingestion.tasks.daily_briefing_task",

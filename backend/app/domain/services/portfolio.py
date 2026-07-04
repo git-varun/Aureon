@@ -518,46 +518,42 @@ class PortfolioService(BaseService):
             "summary": summary,
         }
 
-    def sync_zerodha_holdings(
+    def _sync_broker_snapshot(
         self,
         portfolio_id: uuid.UUID,
-        organization_id: uuid.UUID,
-        holdings: List[Dict[str, Any]],
+        broker: str,
+        rows: List[Dict[str, Any]],
     ) -> Dict[str, Any]:
-        """Idempotent upsert of Zerodha holdings into Position/Transaction, following the same
-        one-snapshot-per-symbol pattern as import_cdsl_cas. Only affects symbols with no manual
-        (non-broker_snapshot) transactions — recalculate_position's existing fallback logic
-        prefers manual history whenever it exists, so a manually-edited symbol is left alone."""
-        self.get_portfolio(portfolio_id, organization_id)
+        """Idempotent upsert of normalized broker holdings into Position/Transaction,
+        following the same one-snapshot-per-symbol pattern as import_cdsl_cas. Only
+        affects symbols with no manual (non-broker_snapshot) transactions —
+        recalculate_position's existing fallback logic prefers manual history
+        whenever it exists, so a manually-edited symbol is left alone.
 
+        Each row: {"symbol": str, "quantity": float, "avg_price": float, "name": str,
+        "asset_class": str}. Rows with quantity <= 0 are skipped (fully-sold/empty)."""
         from app.domain.entities.market import Asset
 
-        _EXCHANGE_SUFFIX = {"NSE": ".NS", "BSE": ".BO"}
-
         seen_symbols = set()
-        for h in holdings:
-            raw_symbol = (h.get("tradingsymbol") or "").upper().strip()
-            if not raw_symbol:
-                continue
-            suffix = _EXCHANGE_SUFFIX.get((h.get("exchange") or "").upper(), "")
-            symbol = raw_symbol if raw_symbol.endswith(suffix) or not suffix else f"{raw_symbol}{suffix}"
-            quantity = float(h.get("quantity") or 0)
-            avg_price = float(h.get("average_price") or 0)
+        for row in rows:
+            symbol = row["symbol"]
+            quantity = row["quantity"]
             if quantity <= 0:
                 continue
+            avg_price = row["avg_price"]
 
             asset_id = _ensure_asset_exists(self.session, symbol)
 
             asset = self.session.scalar(select(Asset).filter_by(symbol=symbol))
             if not asset:
-                self.session.add(Asset(id=asset_id, symbol=symbol, name=raw_symbol, asset_class="equity"))
+                self.session.add(Asset(id=asset_id, symbol=symbol, name=row.get("name", symbol), asset_class=row.get("asset_class", "equity")))
                 self.session.flush()
 
             stmt = select(Transaction).where(
                 (Transaction.portfolio_id == portfolio_id) &
                 (Transaction.symbol == symbol) &
                 (Transaction.kind == "broker_snapshot") &
-                (Transaction.broker == "zerodha")
+                (Transaction.broker == broker)
             )
             existing = self.session.execute(stmt).scalars().first()
             if existing:
@@ -573,7 +569,7 @@ class PortfolioService(BaseService):
                     quantity=quantity,
                     price=avg_price,
                     transaction_date=datetime.now(timezone.utc),
-                    broker="zerodha",
+                    broker=broker,
                     kind="broker_snapshot",
                 )
                 self.transactions_repo.create(txn)
@@ -585,7 +581,7 @@ class PortfolioService(BaseService):
             self.session.query(Transaction)
             .filter(
                 Transaction.portfolio_id == portfolio_id,
-                Transaction.broker == "zerodha",
+                Transaction.broker == broker,
                 Transaction.kind == "broker_snapshot",
                 Transaction.symbol.notin_(seen_symbols),
             )
@@ -605,6 +601,86 @@ class PortfolioService(BaseService):
             "synced_holdings": len(seen_symbols),
             "removed": len(removed_symbols),
         }
+
+    def sync_zerodha_holdings(
+        self,
+        portfolio_id: uuid.UUID,
+        organization_id: uuid.UUID,
+        holdings: List[Dict[str, Any]],
+    ) -> Dict[str, Any]:
+        self.get_portfolio(portfolio_id, organization_id)
+
+        _EXCHANGE_SUFFIX = {"NSE": ".NS", "BSE": ".BO"}
+        rows = []
+        for h in holdings:
+            raw_symbol = (h.get("tradingsymbol") or "").upper().strip()
+            if not raw_symbol:
+                continue
+            suffix = _EXCHANGE_SUFFIX.get((h.get("exchange") or "").upper(), "")
+            symbol = raw_symbol if raw_symbol.endswith(suffix) or not suffix else f"{raw_symbol}{suffix}"
+            rows.append({
+                "symbol": symbol,
+                "quantity": float(h.get("quantity") or 0),
+                "avg_price": float(h.get("average_price") or 0),
+                "name": raw_symbol,
+                "asset_class": "equity",
+            })
+
+        return self._sync_broker_snapshot(portfolio_id, "zerodha", rows)
+
+    def sync_binance_holdings(
+        self,
+        portfolio_id: uuid.UUID,
+        organization_id: uuid.UUID,
+        balances: List[Dict[str, Any]],
+    ) -> Dict[str, Any]:
+        """balances: Binance /api/v3/account "balances" list — each {"asset": str,
+        "free": str, "locked": str}. Binance's account endpoint reports current
+        balance only, not cost basis, so avg_price is 0 — accurate P&L for these
+        positions requires importing trade history via the CSV/XLSX importer."""
+        self.get_portfolio(portfolio_id, organization_id)
+
+        rows = []
+        for b in balances:
+            asset = (b.get("asset") or "").upper().strip()
+            if not asset or asset in ("USDT", "USD", "BUSD", "USDC"):
+                continue
+            quantity = float(b.get("free") or 0) + float(b.get("locked") or 0)
+            rows.append({
+                "symbol": f"{asset}-USD",
+                "quantity": quantity,
+                "avg_price": 0.0,
+                "name": asset,
+                "asset_class": "crypto",
+            })
+
+        return self._sync_broker_snapshot(portfolio_id, "binance", rows)
+
+    def sync_groww_holdings(
+        self,
+        portfolio_id: uuid.UUID,
+        organization_id: uuid.UUID,
+        holdings: List[Dict[str, Any]],
+    ) -> Dict[str, Any]:
+        """holdings: Groww GET /holdings/user "holdings" list — each includes
+        trading_symbol, quantity, average_price (see GrowwClient.get_holdings)."""
+        self.get_portfolio(portfolio_id, organization_id)
+
+        rows = []
+        for h in holdings:
+            raw_symbol = (h.get("trading_symbol") or "").upper().strip()
+            if not raw_symbol:
+                continue
+            symbol = raw_symbol if raw_symbol.endswith(".NS") or raw_symbol.endswith(".BO") else f"{raw_symbol}.NS"
+            rows.append({
+                "symbol": symbol,
+                "quantity": float(h.get("quantity") or 0),
+                "avg_price": float(h.get("average_price") or 0),
+                "name": raw_symbol,
+                "asset_class": "equity",
+            })
+
+        return self._sync_broker_snapshot(portfolio_id, "groww", rows)
 
     def create_manual_asset(
         self,
