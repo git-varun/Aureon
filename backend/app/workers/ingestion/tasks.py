@@ -1,124 +1,44 @@
-import uuid
-from datetime import datetime, timedelta, timezone
-
 from celery import shared_task
-from sqlalchemy import select
-from sqlalchemy.dialects.postgresql import insert
-from sqlalchemy.orm import Session
 
 from app.core.database import SessionLocal
 from app.core.logger import logger
 from app.core.redis import cache_quote
-from app.domain.entities.market import LatestQuote
-from app.domain.entities.system import FailedIngestion, Provider, ProviderUsage
 
 # Provider names ingest_quote accepts — resolution itself always goes through
 # ProviderFactory -> ProviderRegistry -> ProviderProtocol (see ingest_quote below);
 # this set only preserves the original "unknown provider" validation surface.
 _MARKET_DATA_PROVIDERS = {"finnhub", "polygon", "yahoo"}
 
-def _track_usage(db: Session, provider_id: uuid.UUID, endpoint: str) -> None:
-    usage = ProviderUsage(
-        provider_id=provider_id,
-        endpoint=endpoint,
-        request_count=1,
-        recorded_at=datetime.now(timezone.utc)
-    )
-    db.add(usage)
-
-def _get_or_create_provider(db: Session, provider_name: str) -> Provider:
-    provider = db.scalar(select(Provider).filter_by(name=provider_name))
-    if not provider:
-        provider = Provider(name=provider_name)
-        db.add(provider)
-        db.commit()
-        db.refresh(provider)
-    return provider
-
 @shared_task(name="app.workers.ingestion.tasks.ingest_quote")  # type: ignore
 def ingest_quote(provider_name: str, symbol: str) -> bool:
     if provider_name not in _MARKET_DATA_PROVIDERS:
         raise ValueError(f"Unknown provider {provider_name}")
 
+    from app.core.providers.factory import ProviderFactory
+    from app.domain.services.config import ConfigService
+    from app.domain.services.ingestion import QuoteIngestionService
+    from app.infrastructure.repositories.config import ConfigRepository
+    from app.infrastructure.repositories.ingestion import IngestionRepository
+
     db = SessionLocal()
     try:
-        provider_record = _get_or_create_provider(db, provider_name)
-        _track_usage(db, provider_record.id, "get_quote")
-
+        ingestion_svc = QuoteIngestionService(IngestionRepository(db))
         try:
-            from app.core.providers.factory import ProviderFactory
-            from app.domain.services.config import ConfigService
-            from app.infrastructure.repositories.config import ConfigRepository
-
             adapter = ProviderFactory(ConfigService(ConfigRepository(db))).get(provider_name)
             quote = adapter.get_quote(symbol)
 
-            # Resolve asset_id via the assets registry table
-            from app.domain.entities.market import Asset
-            asset = db.scalar(select(Asset).filter_by(symbol=quote.symbol))
-            if not asset:
-                asset_id = uuid.uuid5(uuid.NAMESPACE_DNS, quote.symbol)
-                asset = Asset(
-                    id=asset_id,
-                    symbol=quote.symbol,
-                    name=quote.symbol,
-                    asset_class="equity"
-                )
-                db.add(asset)
-                db.flush()
-            else:
-                asset_id = asset.id
-
-            stmt = insert(LatestQuote).values(
-                symbol=quote.symbol,
-                asset_id=asset_id,
-                price=quote.price,
-                volume=quote.volume,
-                created_at=datetime.now(timezone.utc),
-                updated_at=datetime.now(timezone.utc)
-            )
-            update_stmt = stmt.on_conflict_do_update(
-                index_elements=['symbol'],
-                set_={
-                    'price': stmt.excluded.price,
-                    'volume': stmt.excluded.volume,
-                    'asset_id': stmt.excluded.asset_id,
-                    'updated_at': stmt.excluded.updated_at
-                }
-            )
-            db.execute(update_stmt)
-            db.commit()  # Commit quote first
-
-            # Update provider health in a separate best-effort transaction
-            try:
-                db.refresh(provider_record)
-                provider_record.last_success_at = datetime.now(timezone.utc)
-                provider_record.health_status = "healthy"
-                db.commit()
-            except Exception:
-                db.rollback()
-
+            asset_id = ingestion_svc.save_quote(provider_name, quote)
             cache_quote(quote.symbol, quote.model_dump())
 
-            # Trigger downstream: snapshot → price history → features → signals
-            from app.domain.events import quote_saved
-            quote_saved(asset_id)
+            # Trigger downstream: snapshot → features → signals → scores → health
+            from app.workers.snapshots.asset_snapshot import process_asset_snapshot
+            process_asset_snapshot.delay(str(asset_id))
 
             return True
 
         except Exception as e:
             db.rollback()
-            try:
-                failure = FailedIngestion(
-                    provider=provider_name,
-                    payload={"symbol": symbol},
-                    error=str(e)
-                )
-                db.add(failure)
-                provider_record.health_status = "degraded"
-                db.commit()
-            except Exception:
-                db.rollback()
+            ingestion_svc.record_failure(provider_name, symbol, str(e))
             return False
     finally:
         db.close()
@@ -126,17 +46,19 @@ def ingest_quote(provider_name: str, symbol: str) -> bool:
 
 @shared_task(name="app.workers.ingestion.tasks.ingest_all_quotes")
 def ingest_all_quotes() -> None:
+    from app.infrastructure.repositories.ingestion import IngestionRepository
+
     db = SessionLocal()
     try:
-        from app.domain.entities.market import Asset
-        symbols = [r[0] for r in db.query(Asset.symbol).distinct().all()]
-        if not symbols:
-            logger.warning("ingest_all_quotes: market.assets is empty — run seed_market_universe_task first")
-            return
-        for symbol in symbols:
-            ingest_quote.delay("yahoo", symbol)
+        symbols = IngestionRepository(db).list_asset_symbols()
     finally:
         db.close()
+
+    if not symbols:
+        logger.warning("ingest_all_quotes: market.assets is empty — run seed_market_universe_task first")
+        return
+    for symbol in symbols:
+        ingest_quote.delay("yahoo", symbol)
 
 
 def _wrap_job_execution(job_name: str, log_id: int | None, fn, *args, **kwargs) -> None:
@@ -164,12 +86,23 @@ def _wrap_job_execution(job_name: str, log_id: int | None, fn, *args, **kwargs) 
         db.close()
 
 
+def _list_portfolio_entries() -> list[tuple]:
+    """Loads (portfolio_id, organization_id) pairs in a short-lived read session
+    so a later rollback elsewhere cannot expire these values."""
+    from app.infrastructure.repositories.portfolios import PortfoliosRepository
+
+    db = SessionLocal()
+    try:
+        return [(pf.id, pf.organization_id) for pf in PortfoliosRepository(db).list_all()]
+    finally:
+        db.close()
+
+
 @shared_task(name="app.workers.ingestion.tasks.sync_portfolio_task")
 def sync_portfolio_task(log_id: int | None = None, **kwargs) -> None:
     def _run_sync():
         ingest_all_quotes()
 
-        from app.domain.entities.portfolio import Portfolio
         from app.domain.services.portfolio import PortfolioService
         from app.infrastructure.repositories import (
             PortfolioSnapshotRepository,
@@ -178,15 +111,7 @@ def sync_portfolio_task(log_id: int | None = None, **kwargs) -> None:
             TransactionsRepository,
         )
 
-        # Load portfolio IDs in a short-lived read session so a later rollback
-        # cannot expire these values.
-        db = SessionLocal()
-        try:
-            portfolio_entries = [(pf.id, pf.organization_id) for pf in db.query(Portfolio).all()]
-        finally:
-            db.close()
-
-        for portfolio_id, organization_id in portfolio_entries:
+        for portfolio_id, organization_id in _list_portfolio_entries():
             db = SessionLocal()
             try:
                 svc = PortfolioService(
@@ -221,7 +146,6 @@ def sync_zerodha_task(log_id: int | None = None, **kwargs) -> None:
 
         holdings = provider.sync()  # raises ZerodhaAuthError("AUTH_REQUIRED: ...") if not connected / on expired token
 
-        from app.domain.entities.portfolio import Portfolio
         from app.domain.services.portfolio import PortfolioService
         from app.infrastructure.repositories import (
             PortfolioSnapshotRepository,
@@ -230,13 +154,7 @@ def sync_zerodha_task(log_id: int | None = None, **kwargs) -> None:
             TransactionsRepository,
         )
 
-        db = SessionLocal()
-        try:
-            portfolio_entries = [(pf.id, pf.organization_id) for pf in db.query(Portfolio).all()]
-        finally:
-            db.close()
-
-        for portfolio_id, organization_id in portfolio_entries:
+        for portfolio_id, organization_id in _list_portfolio_entries():
             db = SessionLocal()
             try:
                 svc = PortfolioService(
@@ -255,13 +173,7 @@ def sync_zerodha_task(log_id: int | None = None, **kwargs) -> None:
 
         ingest_all_quotes()
 
-        db = SessionLocal()
-        try:
-            portfolio_entries = [(pf.id, pf.organization_id) for pf in db.query(Portfolio).all()]
-        finally:
-            db.close()
-
-        for portfolio_id, organization_id in portfolio_entries:
+        for portfolio_id, organization_id in _list_portfolio_entries():
             db = SessionLocal()
             try:
                 svc = PortfolioService(
@@ -291,15 +203,14 @@ def fetch_news_task(log_id: int | None = None, **kwargs) -> None:
         db = SessionLocal()
         try:
             from app.domain.services.news import NewsService
+            from app.infrastructure.repositories.ingestion import IngestionRepository
             from app.infrastructure.repositories.news import NewsRepository
-            
-            symbols_query = db.query(LatestQuote.symbol).limit(10).all()
-            symbols = [s[0] for s in symbols_query]
+
+            symbols = IngestionRepository(db).list_quoted_symbols(limit=10)
             if not symbols:
                 symbols = ["AAPL", "TSLA", "RELIANCE.NS"]
-            
-            news_repo = NewsRepository(db)
-            news_svc = NewsService(news_repo)
+
+            news_svc = NewsService(NewsRepository(db))
             for sym in symbols:
                 news_svc.fetch_and_store(sym)
         finally:
@@ -308,11 +219,12 @@ def fetch_news_task(log_id: int | None = None, **kwargs) -> None:
 
 
 def _run_briefing(briefing_type: str):
+    from app.infrastructure.repositories.organizations import OrganizationsRepository
+
     db = SessionLocal()
     try:
-        from app.domain.entities.system import Organization
         from app.domain.services.ai import AIService
-        orgs = db.query(Organization).all()
+        orgs = OrganizationsRepository(db).list_all()
         ai_svc = AIService(db)
         for org in orgs:
             try:
@@ -337,201 +249,69 @@ def monthly_briefing_task(log_id: int | None = None, **kwargs) -> None:
 
 
 
-def _run_seed_price_history() -> None:
-    import yfinance as yf
-    from sqlalchemy.dialects.postgresql import insert as pg_insert
-    from app.domain.entities.market import Asset
-
-    db = SessionLocal()
-    try:
-        assets = db.query(Asset).all()
-        if not assets:
-            logger.warning("seed_price_history: no assets found, run seed_market_universe_task first")
-            return
-        asset_symbols = [(a.id, a.symbol) for a in assets]
-    finally:
-        db.close()
-
-    total_rows = 0
-    for asset_id, symbol in asset_symbols:
-        # Use a fresh session per asset to avoid psycopg prepared-statement conflicts
-        session = SessionLocal()
-        try:
-            ticker = yf.Ticker(symbol)
-            hist = ticker.history(period="3mo", interval="1d")
-            if hist.empty:
-                logger.warning(f"seed_price_history: no history for {symbol}")
-                continue
-
-            rows = []
-            for ts, row in hist.iterrows():
-                close_price = float(row["Close"])
-                volume = float(row["Volume"]) if row.get("Volume") else None
-                row_id = uuid.uuid5(uuid.NAMESPACE_DNS, f"{symbol}-{ts.date()}")
-                rows.append({
-                    "id": row_id,
-                    "asset_id": asset_id,
-                    "symbol": symbol,
-                    "price": close_price,
-                    "volume": volume,
-                    "timestamp": ts.to_pydatetime(),
-                })
-
-            if rows:
-                from app.domain.entities.market import PriceHistory
-                stmt = pg_insert(PriceHistory).values(rows)
-                stmt = stmt.on_conflict_do_nothing(index_elements=["id"])
-                session.execute(stmt)
-                session.commit()
-                total_rows += len(rows)
-                logger.info(f"seed_price_history: {symbol} — {len(rows)} rows inserted")
-        except Exception as e:
-            session.rollback()
-            logger.warning(f"seed_price_history: failed for {symbol}: {e}")
-        finally:
-            session.close()
-
-    logger.info(f"seed_price_history: completed — total new rows: {total_rows}")
-
-
 @shared_task(name="app.workers.ingestion.tasks.seed_price_history_task")
 def seed_price_history_task(log_id: int | None = None, **kwargs) -> None:
-    _wrap_job_execution("seed_price_history", log_id, _run_seed_price_history)
+    def _run():
+        from app.domain.services.data_maintenance import MarketSeedService
+        from app.infrastructure.repositories.ingestion import IngestionRepository
+        from app.infrastructure.repositories.market import MarketRepository
+        from app.infrastructure.repositories.news import NewsRepository
 
-
-_CANONICAL_ASSETS: list[tuple[str, str, str]] = [
-    # (symbol, name, asset_class)
-    ("AAPL", "Apple Inc.", "equity"),
-    ("MSFT", "Microsoft Corp.", "equity"),
-    ("NVDA", "NVIDIA Corp.", "equity"),
-    ("TSLA", "Tesla Inc.", "equity"),
-    ("GOOGL", "Alphabet Inc.", "equity"),
-    ("AMZN", "Amazon.com Inc.", "equity"),
-    ("META", "Meta Platforms Inc.", "equity"),
-    ("RELIANCE.NS", "Reliance Industries", "equity"),
-    ("TCS.NS", "Tata Consultancy Services", "equity"),
-    ("HDFCBANK.NS", "HDFC Bank", "equity"),
-    ("INFY.NS", "Infosys Ltd.", "equity"),
-    ("ICICIBANK.NS", "ICICI Bank", "equity"),
-    ("BTC-USD", "Bitcoin", "crypto"),
-    ("ETH-USD", "Ethereum", "crypto"),
-    # Indices — power the real /market/indices endpoint (app/api/v1/market.py's _INDEX_META)
-    ("^NSEI", "NIFTY 50", "index"),
-    ("^BSESN", "SENSEX", "index"),
-    ("^NSEBANK", "BANK NIFTY", "index"),
-    ("^CNXIT", "NIFTY IT", "index"),
-    ("^GSPC", "S&P 500", "index"),
-    ("^IXIC", "NASDAQ", "index"),
-    ("^FTSE", "FTSE 100", "index"),
-    ("^N225", "NIKKEI 225", "index"),
-    # Additional equities — power real /market/sectors, /market/movers, and theme NAV
-    # (app/api/v1/market.py's _SYMBOL_SECTOR_MAP and SYSTEM_THEMES constituents)
-    ("SBIN.NS", "State Bank of India", "equity"),
-    ("LT.NS", "Larsen & Toubro", "equity"),
-    ("BHEL.NS", "Bharat Heavy Electricals", "equity"),
-    ("SIEMENS.NS", "Siemens Ltd", "equity"),
-    ("ABB.NS", "ABB India", "equity"),
-    ("WIPRO.NS", "Wipro Ltd", "equity"),
-    ("HCLTECH.NS", "HCL Technologies", "equity"),
-    ("ADANIGREEN.NS", "Adani Green Energy", "equity"),
-    ("TATAPOWER.NS", "Tata Power", "equity"),
-    ("SUZLON.NS", "Suzlon Energy", "equity"),
-    ("HINDUNILVR.NS", "Hindustan Unilever", "equity"),
-    ("ITC.NS", "ITC Ltd", "equity"),
-    ("DABUR.NS", "Dabur India", "equity"),
-    ("MARICO.NS", "Marico Ltd", "equity"),
-    ("BHARTIARTL.NS", "Bharti Airtel", "equity"),
-    ("ASIANPAINT.NS", "Asian Paints", "equity"),
-    ("SGOV", "iShares 0-3 Month Treasury Bond ETF", "equity"),
-]
-
-
-def _run_seed_market_universe() -> None:
-    from app.domain.entities.market import Asset
-    db = SessionLocal()
-    try:
-        for symbol, name, asset_class in _CANONICAL_ASSETS:
-            existing = db.scalar(select(Asset).filter_by(symbol=symbol))
-            if not existing:
-                asset_id = uuid.uuid5(uuid.NAMESPACE_DNS, symbol)
-                db.add(Asset(id=asset_id, symbol=symbol, name=name, asset_class=asset_class))
-        db.commit()
-        logger.info(f"seed_market_universe: upserted {len(_CANONICAL_ASSETS)} canonical assets")
-
-        # Trigger quote ingestion for every asset in the registry
-        ingest_all_quotes.delay()
-
-        # Link existing news articles to the assets we just seeded
-        _link_existing_news(db)
-        db.commit()
-    finally:
-        db.close()
-
-
-def _link_existing_news(db) -> None:
-    from app.domain.entities.market import Asset
-    from app.domain.entities.news import News, NewsAsset
-    assets = db.query(Asset).all()
-    asset_by_symbol = {a.symbol: a for a in assets}
-    news_rows = db.query(News).all()
-    linked = 0
-    for article in news_rows:
-        # news.symbols may be a single symbol or a comma-separated list
-        syms = [s.strip() for s in (article.symbols or "").split(",") if s.strip()]
-        for sym in syms:
-            asset = asset_by_symbol.get(sym)
-            if not asset:
-                continue
-            from sqlalchemy import select as sa_select
-            exists = db.scalar(
-                sa_select(NewsAsset).where(
-                    NewsAsset.news_id == article.id,
-                    NewsAsset.asset_id == asset.id
-                )
-            )
-            if not exists:
-                db.add(NewsAsset(news_id=article.id, asset_id=asset.id))
-                linked += 1
-    logger.info(f"_link_existing_news: created {linked} news_asset rows")
+        db = SessionLocal()
+        try:
+            MarketSeedService(IngestionRepository(db), MarketRepository(db), NewsRepository(db)).seed_price_history()
+        finally:
+            db.close()
+    _wrap_job_execution("seed_price_history", log_id, _run)
 
 
 @shared_task(name="app.workers.ingestion.tasks.seed_market_universe_task")
 def seed_market_universe_task(log_id: int | None = None, **kwargs) -> None:
-    _wrap_job_execution("seed_market_universe", log_id, _run_seed_market_universe)
+    def _run():
+        from app.domain.services.data_maintenance import MarketSeedService
+        from app.infrastructure.repositories.ingestion import IngestionRepository
+        from app.infrastructure.repositories.market import MarketRepository
+        from app.infrastructure.repositories.news import NewsRepository
+
+        db = SessionLocal()
+        try:
+            MarketSeedService(IngestionRepository(db), MarketRepository(db), NewsRepository(db)).seed_market_universe()
+        finally:
+            db.close()
+        ingest_all_quotes.delay()
+    _wrap_job_execution("seed_market_universe", log_id, _run)
 
 
 @shared_task(name="app.workers.ingestion.tasks.recompute_features")
 def recompute_features(asset_id: str) -> None:
     from app.workers.evaluation.features import generate_features
-    uid = uuid.UUID(asset_id) if isinstance(asset_id, str) else asset_id
-    generate_features(uid)
+    generate_features.delay(asset_id)
 
 
 @shared_task(name="app.workers.ingestion.tasks.recompute_signals")
 def recompute_signals(asset_id: str) -> None:
     from app.workers.evaluation.signals import generate_signals
-    uid = uuid.UUID(asset_id) if isinstance(asset_id, str) else asset_id
-    generate_signals(uid)
+    generate_signals.delay(asset_id)
 
 
 @shared_task(name="app.workers.ingestion.tasks.recompute_scores")
 def recompute_scores(asset_id: str) -> None:
     from app.workers.evaluation.scoring import generate_scores
-    uid = uuid.UUID(asset_id) if isinstance(asset_id, str) else asset_id
-    generate_scores(uid)
+    generate_scores.delay(asset_id)
 
 
 @shared_task(name="app.workers.ingestion.tasks.admin_reprocess_all_assets")
 def admin_reprocess_all_assets(log_id: int | None = None, **kwargs) -> None:
     def _run():
+        from app.infrastructure.repositories.ingestion import IngestionRepository
+
         db = SessionLocal()
         try:
-            # Find all distinct asset_ids
-            asset_ids = [r[0] for r in db.query(LatestQuote.asset_id).distinct().all() if r[0] is not None]
-            for aid in asset_ids:
-                recompute_features.delay(str(aid))
+            asset_ids = IngestionRepository(db).list_asset_ids_with_quotes()
         finally:
             db.close()
+        for aid in asset_ids:
+            recompute_features.delay(str(aid))
     _wrap_job_execution("admin_reprocess_all", log_id, _run)
 
 
@@ -544,60 +324,42 @@ def admin_backfill_assets(asset_ids: list[str]) -> None:
 @shared_task(name="app.workers.ingestion.tasks.admin_repair_jobs")
 def admin_repair_jobs(log_id: int | None = None, **kwargs) -> None:
     def _run():
+        from app.domain.services.data_maintenance import ReprocessService
+        from app.infrastructure.repositories.asset_features import AssetFeaturesRepository
+        from app.infrastructure.repositories.asset_scores import AssetScoresRepository
+        from app.infrastructure.repositories.recommendation import RecommendationRepository
+
         db = SessionLocal()
         try:
-            from app.domain.entities.evaluation import AssetScore
-            from app.domain.entities.market import AssetFeatures, AssetSnapshot
-            snapshots = db.query(AssetSnapshot).all()
-            for snap in snapshots:
-                feat = db.query(AssetFeatures).filter(AssetFeatures.asset_id == snap.asset_id).first()
-                score = db.query(AssetScore).filter(AssetScore.asset_id == snap.asset_id).first()
-                if not feat or not score:
-                    recompute_features.delay(str(snap.asset_id))
+            missing = ReprocessService(
+                RecommendationRepository(db),
+                AssetFeaturesRepository(db),
+                AssetScoresRepository(db),
+            ).find_assets_missing_features_or_scores()
         finally:
             db.close()
+        for asset_id in missing:
+            recompute_features.delay(str(asset_id))
     _wrap_job_execution("admin_repair", log_id, _run)
 
 
 @shared_task(name="app.workers.ingestion.tasks.validate_data_quality_task")
 def validate_data_quality_task(log_id: int | None = None, **kwargs) -> None:
     def _run():
+        from app.domain.services.data_maintenance import DataQualityService
+        from app.infrastructure.repositories.market import MarketRepository
+        from app.infrastructure.repositories.monitoring import MonitoringRepository
+
         db = SessionLocal()
         try:
-            errors = []
-            from app.domain.entities.market import AssetSnapshot, LatestQuote
-            from app.domain.entities.recommendation import Recommendation
-            
-            # 1. Audit orphan assets / snapshots
-            quotes = db.query(LatestQuote).all()
-            for q in quotes:
-                if not q.asset_id:
-                    errors.append(f"LatestQuote {q.symbol} has no asset_id associated.")
-                else:
-                    snap = db.query(AssetSnapshot).filter(AssetSnapshot.asset_id == q.asset_id).first()
-                    if not snap:
-                        errors.append(f"LatestQuote {q.symbol} has asset_id {q.asset_id} but no AssetSnapshot exists.")
-            
-            # 2. Check stale quotes (> 3 days old)
-            stale_cutoff = datetime.now(timezone.utc) - timedelta(days=3)
-            for q in quotes:
-                if q.updated_at and q.updated_at.replace(tzinfo=timezone.utc) < stale_cutoff:
-                    errors.append(f"LatestQuote {q.symbol} is stale. Last updated: {q.updated_at}")
-                    
-            # 3. Check recommendations with invalid asset_id
-            recs = db.query(Recommendation).all()
-            for r in recs:
-                snap = db.query(AssetSnapshot).filter(AssetSnapshot.asset_id == r.asset_id).first()
-                if not snap:
-                    errors.append(f"Recommendation {r.id} references invalid/deleted asset_id {r.asset_id}.")
-            
-            if errors:
-                logger.error(f"Data Quality Audit found {len(errors)} issues: {'; '.join(errors[:10])}")
-            else:
-                logger.info("Data Quality Validation completed successfully. No issues found.")
+            errors = DataQualityService(MonitoringRepository(db), MarketRepository(db)).validate()
         finally:
             db.close()
-            
+
+        if errors:
+            logger.error(f"Data Quality Audit found {len(errors)} issues: {'; '.join(errors[:10])}")
+        else:
+            logger.info("Data Quality Validation completed successfully. No issues found.")
     _wrap_job_execution("validate_data_quality", log_id, _run)
 
 

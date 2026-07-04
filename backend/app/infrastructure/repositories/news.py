@@ -30,6 +30,9 @@ class NewsRepository(BaseRepository):
         stmt = select(News).order_by(News.published_at.desc()).limit(limit)
         return list(self.session.execute(stmt).scalars().all())
 
+    def list_all(self) -> list[News]:
+        return list(self.session.execute(select(News)).scalars().all())
+
     def save_news(self, news: News) -> News:
         self.session.add(news)
         self.session.flush()

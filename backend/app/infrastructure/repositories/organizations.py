@@ -24,6 +24,9 @@ class OrganizationsRepository(BaseRepository):
         stmt = select(Organization).where(Organization.slug == slug)
         return self.session.execute(stmt).scalar_one_or_none()
 
+    def list_all(self) -> list[Organization]:
+        return list(self.session.execute(select(Organization)).scalars().all())
+
     def update(self, org: Organization) -> Organization:
         self.session.flush()
         return org

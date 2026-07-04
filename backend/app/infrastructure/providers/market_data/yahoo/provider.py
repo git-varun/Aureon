@@ -1,8 +1,10 @@
 import logging
 from datetime import datetime, timezone
 from decimal import Decimal
-from typing import List
+from typing import Any, List
 
+import numpy as np
+import pandas as pd
 import yfinance as yf
 
 from app.core.providers.capabilities import Capability
@@ -11,6 +13,26 @@ from app.core.providers.registry import registry
 from app.domain.services.providers.models import NormalizedNews, NormalizedQuote
 
 logger = logging.getLogger("providers.yahoo")
+
+
+def _calculate_rsi(series: pd.Series, period: int = 14) -> pd.Series:
+    delta = series.diff()
+    up = delta.clip(lower=0)
+    down = -delta.clip(upper=0)
+
+    ema_up = up.ewm(com=period - 1, adjust=False).mean()
+    ema_down = down.ewm(com=period - 1, adjust=False).mean()
+
+    rs = ema_up / ema_down
+    return 100 - (100 / (1 + rs))
+
+
+def _calculate_macd(series: pd.Series, fast: int = 12, slow: int = 26, signal: int = 9) -> tuple[pd.Series, pd.Series, pd.Series]:
+    exp1 = series.ewm(span=fast, adjust=False).mean()
+    exp2 = series.ewm(span=slow, adjust=False).mean()
+    macd_line = exp1 - exp2
+    signal_line = macd_line.ewm(span=signal, adjust=False).mean()
+    return macd_line, signal_line, macd_line - signal_line
 
 
 def _parse_yahoo_news_item(item: dict, provider_name: str) -> NormalizedNews | None:
@@ -106,6 +128,70 @@ class YahooAdapter(MarketDataProvider):
         except Exception as e:
             logger.warning("Yahoo get_news failed for %s: %s", symbol, e)
         return results
+
+    def get_technical_indicators(self, symbol: str) -> dict[str, Any]:
+        try:
+            ticker = yf.Ticker(symbol)
+            hist = ticker.history(period="1mo")
+            if not hist.empty and len(hist) >= 14:
+                closes = hist["Close"]
+
+                rsi_series = _calculate_rsi(closes)
+                rsi_val = float(rsi_series.iloc[-1])
+                if np.isnan(rsi_val):
+                    rsi_val = None
+
+                macd_line, signal_line, _ = _calculate_macd(closes)
+                macd_val = float(macd_line.iloc[-1])
+                macd_sig = float(signal_line.iloc[-1])
+
+                returns = closes.pct_change().dropna()
+                volatility_val = float(returns.std()) if not returns.empty else None
+
+                action = "SELL" if (rsi_val or 50) > 70 else "BUY" if (rsi_val or 50) < 30 else "HOLD"
+                trend = "Overbought" if (rsi_val or 50) > 70 else "Oversold" if (rsi_val or 50) < 30 else "Neutral"
+
+                news = ticker.news
+                pos_words = {"buy", "bullish", "profit", "grow", "upgrade", "beat", "positive", "strong", "higher"}
+                neg_words = {"sell", "bearish", "loss", "decline", "downgrade", "miss", "negative", "weak", "lower"}
+                pos_count = 0
+                neg_count = 0
+                latest_news_ts = 0
+                for item in news:
+                    title_lower = str(item.get("title", "")).lower()
+                    pos_count += sum(1 for w in pos_words if w in title_lower)
+                    neg_count += sum(1 for w in neg_words if w in title_lower)
+                    ts = item.get("providerPublishTime") or item.get("publishTime") or item.get("published_at")
+                    if ts:
+                        try:
+                            latest_news_ts = max(latest_news_ts, int(ts))
+                        except Exception:
+                            pass
+
+                news_ts = latest_news_ts if latest_news_ts > 0 else (int(datetime.now(timezone.utc).timestamp()) if news else None)
+                total = pos_count + neg_count
+                sentiment_val = max(0.0, min(1.0, 0.5 + 0.1 * (pos_count - neg_count))) if total > 0 else None
+
+                return {
+                    "rsi": rsi_val,
+                    "macd": macd_val,
+                    "macd_signal": macd_sig,
+                    "volatility": volatility_val,
+                    "sentiment": sentiment_val,
+                    "action": action,
+                    "trend": trend,
+                    "source": "yfinance",
+                    "news_timestamp": news_ts,
+                }
+        except Exception as e:
+            logger.warning(f"Failed to compute indicators for {symbol}: {e}")
+
+        return {
+            "rsi": None, "macd": None, "macd_signal": None,
+            "volatility": None, "sentiment": None,
+            "action": None, "trend": None,
+            "source": "unavailable", "news_timestamp": None,
+        }
 
     def health_check(self) -> bool:
         try:

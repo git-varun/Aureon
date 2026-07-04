@@ -75,6 +75,11 @@ class MarketDataProvider(ProviderProtocol):
     def get_news(self, symbol: str) -> List["NormalizedNews"]:
         ...
 
+    def get_technical_indicators(self, symbol: str) -> dict[str, Any]:
+        """Optional — RSI/MACD/volatility/sentiment derived from historical OHLC + news.
+        Only Yahoo implements this today; other providers may leave it unsupported."""
+        raise NotImplementedError(f"{self.provider_name} does not support technical indicators")
+
 
 class NewsProvider(ProviderProtocol):
     """Dedicated news-only providers (NewsAPI, Moneycontrol, RSS — none implemented yet)."""

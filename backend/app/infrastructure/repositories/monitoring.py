@@ -2,6 +2,7 @@ from sqlalchemy import text
 
 from app.domain.entities.market import LatestQuote
 from app.domain.entities.portfolio import Position, Transaction
+from app.domain.entities.recommendation import Recommendation
 from app.domain.entities.system import FailedIngestion, Provider
 from app.infrastructure.repositories.base import BaseRepository
 
@@ -9,6 +10,12 @@ from app.infrastructure.repositories.base import BaseRepository
 class MonitoringRepository(BaseRepository):
     def list_providers(self) -> list[Provider]:
         return self.session.query(Provider).all()
+
+    def list_all_quotes(self) -> list[LatestQuote]:
+        return self.session.query(LatestQuote).all()
+
+    def list_all_recommendations(self) -> list[Recommendation]:
+        return self.session.query(Recommendation).all()
 
     def list_failed_ingestions(self, limit: int, offset: int) -> list[FailedIngestion]:
         return (

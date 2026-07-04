@@ -12,6 +12,18 @@ class MarketRepository(BaseRepository):
     def get_quote_by_symbol(self, symbol: str) -> LatestQuote | None:
         return self.session.query(LatestQuote).filter(LatestQuote.symbol == symbol).first()
 
+    def get_quote_by_asset_id(self, asset_id: uuid.UUID) -> LatestQuote | None:
+        return self.session.query(LatestQuote).filter(LatestQuote.asset_id == asset_id).first()
+
+    def add_price_history(self, price_history: PriceHistory) -> None:
+        self.session.add(price_history)
+
+    def bulk_insert_price_history(self, rows: list[dict]) -> None:
+        from sqlalchemy.dialects.postgresql import insert as pg_insert
+        stmt = pg_insert(PriceHistory).values(rows)
+        stmt = stmt.on_conflict_do_nothing(index_elements=["id"])
+        self.session.execute(stmt)
+
     def get_asset_by_symbol(self, symbol: str) -> Asset | None:
         return self.session.query(Asset).filter(Asset.symbol == symbol).first()
 

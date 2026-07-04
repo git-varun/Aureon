@@ -24,6 +24,9 @@ class PortfoliosRepository(BaseRepository):
         stmt = select(Portfolio).where(Portfolio.organization_id == org_id)
         return list(self.session.execute(stmt).scalars().all())
 
+    def list_all(self) -> list[Portfolio]:
+        return list(self.session.execute(select(Portfolio)).scalars().all())
+
     def update(self, portfolio: Portfolio) -> Portfolio:
         self.session.flush()
         return portfolio
