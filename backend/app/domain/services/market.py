@@ -12,8 +12,6 @@ from app.infrastructure.repositories.asset_snapshot import AssetSnapshotReposito
 from app.infrastructure.repositories.market import MarketRepository
 
 # Ticker -> (display name, region) for indices seeded via app.workers.ingestion.tasks._INDEX_ASSETS.
-# Kept separate from the legacy SEED_INDICES literal below (still used by AssetsService's
-# degraded-fallback paths) to avoid touching that behavior in this change.
 INDEX_META: list[tuple[str, str, str]] = [
     ("^NSEI",    "NIFTY 50",   "IN"),
     ("^BSESN",   "SENSEX",     "IN"),
@@ -37,33 +35,6 @@ SYMBOL_SECTOR_MAP: dict[str, str] = {
     "LT.NS": "Capital goods", "BHEL.NS": "Capital goods", "SIEMENS.NS": "Capital goods", "ABB.NS": "Capital goods",
     "BHARTIARTL.NS": "Telecom",
 }
-
-# Legacy fallback data — still referenced by AssetsService's degraded-data paths
-# (get_quote/get_signal/get_chart) when a symbol has no LatestQuote yet.
-# Not used by the real /indices endpoint below.
-SEED_INDICES = [
-    {"sym": "NIFTY 50",   "region": "IN", "value": 24218.40, "dayPct": 0.0064},
-    {"sym": "SENSEX",     "region": "IN", "value": 79842.10, "dayPct": 0.0048},
-    {"sym": "BANK NIFTY", "region": "IN", "value": 51842.30, "dayPct": 0.0091},
-    {"sym": "NIFTY IT",   "region": "IN", "value": 36284.10, "dayPct": 0.0118},
-    {"sym": "S&P 500",    "region": "US", "value": 5284.10,  "dayPct": 0.0036},
-    {"sym": "NASDAQ",     "region": "US", "value": 16842.10, "dayPct": 0.0118},
-    {"sym": "FTSE 100",   "region": "EU", "value": 8214.30,  "dayPct": -0.0024},
-    {"sym": "NIKKEI 225", "region": "AS", "value": 38842.10, "dayPct": 0.0094},
-]
-
-SEED_SECTORS = [
-    {"name": "IT",            "wt": 0.144, "dayPct": 0.0118},
-    {"name": "Financials",    "wt": 0.342, "dayPct": 0.0064},
-    {"name": "Energy",        "wt": 0.118, "dayPct": 0.0042},
-    {"name": "FMCG",          "wt": 0.082, "dayPct": -0.0036},
-    {"name": "Auto",          "wt": 0.064, "dayPct": -0.0182},
-    {"name": "Pharma",        "wt": 0.058, "dayPct": 0.0084},
-    {"name": "Metals",        "wt": 0.038, "dayPct": -0.0042},
-    {"name": "Realty",        "wt": 0.022, "dayPct": 0.0212},
-    {"name": "Telecom",       "wt": 0.034, "dayPct": 0.0212},
-    {"name": "Capital goods", "wt": 0.044, "dayPct": 0.0148},
-]
 
 SYSTEM_THEMES = {
     "rate-cut": {

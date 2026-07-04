@@ -14,7 +14,10 @@ def search_assets(search: str = Query(...), svc: AssetsService = Depends(get_ass
 
 @router.get("/assets/{symbol}/quote")
 def get_asset_quote(symbol: str, svc: AssetsService = Depends(get_assets_service)):
-    return svc.get_quote(symbol)
+    try:
+        return svc.get_quote(symbol)
+    except NotFoundError as e:
+        raise HTTPException(status_code=404, detail=str(e.message)) from e
 
 @router.get("/assets/{symbol}/fundamentals")
 def get_asset_fundamentals(

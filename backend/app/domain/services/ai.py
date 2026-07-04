@@ -801,3 +801,34 @@ class AIService(BaseService):
         )
         self.session.commit()
         return parsed
+
+    def get_briefing_history(self, organization_id: uuid.UUID, limit: int = 30) -> list:
+        briefs = (
+            self.session.query(AIBriefing)
+            .filter(AIBriefing.organization_id == organization_id, AIBriefing.briefing_type == "global")
+            .order_by(AIBriefing.created_at.desc())
+            .limit(limit)
+            .all()
+        )
+        return [b.content for b in briefs]
+
+    def get_single_asset_take(self, symbol: str, user_id: Optional[uuid.UUID] = None) -> dict[str, Any]:
+        symbol = symbol.upper().strip()
+
+        quote = self.session.query(LatestQuote).filter(LatestQuote.symbol == symbol).first()
+        context = ""
+        if quote:
+            snap = self.session.query(AssetSnapshot).filter(AssetSnapshot.asset_id == quote.asset_id).first()
+            rsi = float(snap.rsi) if snap and snap.rsi is not None else 50.0
+            pe = float(snap.pe_ratio) if snap and snap.pe_ratio is not None else 25.0
+            context = f"Asset: {symbol} | Price: {quote.price} | RSI: {rsi:.1f} | PE Ratio: {pe:.1f}"
+
+        prompt = f"Role: Investment Advisor.\nAnalyze this asset: {symbol}.\nContext:\n{context}\n\nProvide 3 sentences of technical/fundamental analysis. Return JSON only with key: 'take'."
+
+        try:
+            ans = self.execute_completion(prompt, "single", user_id=user_id, json_mode=True)
+            res = json.loads(ans)
+        except Exception:
+            res = {"take": f"The technical signals for {symbol} suggest a neutral momentum structure. Fundamentals show support around current valuation bands."}
+
+        return res

@@ -23,10 +23,6 @@ class WatchlistsRepository(BaseRepository):
         stmt = select(Watchlist).where(Watchlist.user_id == user_id)
         return list(self.session.execute(stmt).scalars().all())
 
-    def list_by_org(self, organization_id: uuid.UUID) -> list[Watchlist]:
-        stmt = select(Watchlist).where(Watchlist.organization_id == organization_id)
-        return list(self.session.execute(stmt).scalars().all())
-
     def save(self, watchlist: Watchlist) -> Watchlist:
         self.session.add(watchlist)
         self.session.flush()

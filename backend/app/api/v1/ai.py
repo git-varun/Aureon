@@ -1,4 +1,3 @@
-import json
 import uuid
 
 from fastapi import APIRouter, Depends, HTTPException, Query
@@ -13,7 +12,6 @@ from app.api.dependencies import (
     get_user_context,
 )
 from app.api.v1.recommendation import check_org_read_access
-from app.domain.entities.ai import AIBriefing
 from app.domain.entities.system import User
 from app.domain.services.ai import AIService
 from app.infrastructure.repositories import OrganizationMembersRepository
@@ -100,11 +98,11 @@ def explain_recommendation(
 def fetch_briefing_history(
     limit: int = Query(30),
     user: User = Depends(get_current_user),
-    db: Session = Depends(get_db)
+    db: Session = Depends(get_db),
+    ai_service: AIService = Depends(get_ai_service),
 ):
     org_id, portfolio_id = get_user_context(db, user)
-    briefs = db.query(AIBriefing).filter(AIBriefing.organization_id == org_id, AIBriefing.briefing_type == "global").order_by(AIBriefing.created_at.desc()).limit(limit).all()
-    return [b.content for b in briefs]
+    return ai_service.get_briefing_history(org_id, limit=limit)
 
 @router.get("/analytics/ai/single/{symbol}")
 @router.post("/analytics/ai/single/{symbol}")
@@ -114,27 +112,8 @@ def get_ai_take(
     db: Session = Depends(get_db),
     ai_service: AIService = Depends(get_ai_service)
 ):
-    org_id, portfolio_id = get_user_context(db, user)
-    symbol = symbol.upper().strip()
-
-    from app.domain.entities.market import AssetSnapshot, LatestQuote
-    quote = db.query(LatestQuote).filter(LatestQuote.symbol == symbol).first()
-    context = ""
-    if quote:
-        snap = db.query(AssetSnapshot).filter(AssetSnapshot.asset_id == quote.asset_id).first()
-        rsi = float(snap.rsi) if snap and snap.rsi is not None else 50.0
-        pe = float(snap.pe_ratio) if snap and snap.pe_ratio is not None else 25.0
-        context = f"Asset: {symbol} | Price: {quote.price} | RSI: {rsi:.1f} | PE Ratio: {pe:.1f}"
-
-    prompt = f"Role: Investment Advisor.\nAnalyze this asset: {symbol}.\nContext:\n{context}\n\nProvide 3 sentences of technical/fundamental analysis. Return JSON only with key: 'take'."
-
-    try:
-        ans = ai_service.execute_completion(prompt, "single", user_id=user.id, json_mode=True)
-        res = json.loads(ans)
-    except Exception:
-        res = {"take": f"The technical signals for {symbol} suggest a neutral momentum structure. Fundamentals show support around current valuation bands."}
-
-    return res
+    get_user_context(db, user)  # ensures Personal Org/Portfolio exist
+    return ai_service.get_single_asset_take(symbol, user_id=user.id)
 
 @router.post("/analytics/ai/news/batch")
 def analyze_news_batch():

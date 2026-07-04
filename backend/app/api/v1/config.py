@@ -10,7 +10,7 @@ from app.api.dependencies import get_config_service, get_current_user, get_membe
 from app.core.config import settings
 from app.core.exceptions import NotFoundError, ZerodhaAuthError
 from app.domain.entities.config import JobStatus
-from app.domain.entities.system import OrganizationMember, User
+from app.domain.entities.system import User
 from app.domain.services.config import ConfigService
 from app.infrastructure.repositories import OrganizationMembersRepository
 
@@ -22,10 +22,7 @@ router = APIRouter(prefix="/config", tags=["config"])
 
 def check_admin_access(current_user: User, members_repo: OrganizationMembersRepository):
     # Only users who are OWNER or ADMIN in at least one organization can perform admin/config operations.
-    memberships = members_repo.session.query(OrganizationMember).filter(
-        OrganizationMember.user_id == current_user.id,
-        OrganizationMember.role.in_(["OWNER", "ADMIN"])
-    ).all()
+    memberships = members_repo.get_admin_memberships_by_user(current_user.id)
     if not memberships:
         raise HTTPException(status_code=403, detail="Admin access required")
 
@@ -183,7 +180,7 @@ def get_zerodha_login_url(
     if not api_key:
         raise HTTPException(status_code=400, detail="Zerodha api_key is not configured yet")
 
-    from app.infrastructure.providers.zerodha import ZerodhaClient
+    from app.infrastructure.providers.broker.zerodha.provider import ZerodhaClient
     client = ZerodhaClient(api_key)
     return {"login_url": client.login_url()}
 
@@ -207,7 +204,7 @@ def zerodha_oauth_callback(
     if not api_key or not api_secret:
         return RedirectResponse(f"{settings.FRONTEND_BASE_URL}/profile?zerodha=error&reason=not_configured")
 
-    from app.infrastructure.providers.zerodha import ZerodhaClient
+    from app.infrastructure.providers.broker.zerodha.provider import ZerodhaClient
     client = ZerodhaClient(api_key, api_secret)
     try:
         client.generate_session(request_token)

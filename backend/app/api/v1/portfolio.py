@@ -16,6 +16,7 @@ from app.api.dependencies import (
     get_members_repo,
     get_portfolio_service,
     get_user_context,
+    get_watchlist_repo,
 )
 from app.api.v1.schemas import (
     PortfolioCreate,
@@ -29,18 +30,11 @@ from app.api.v1.schemas import (
 )
 from app.core.exceptions import NotFoundError, ValidationError
 from app.core.redis import cache_portfolio_snapshot, get_cached_portfolio_snapshot
-from app.domain.entities.market import Asset, LatestQuote
-from app.domain.entities.portfolio import Position, Transaction
 from app.domain.entities.system import User
-from app.domain.entities.watchlist import Watchlist
 from app.domain.services import ConfigService, PortfolioService
-from app.domain.services.portfolio import _ensure_asset_exists
 from app.infrastructure.repositories import (
     OrganizationMembersRepository,
-    PortfolioSnapshotRepository,
-    PortfoliosRepository,
-    PositionsRepository,
-    TransactionsRepository,
+    WatchlistsRepository,
 )
 
 router = APIRouter()
@@ -393,44 +387,19 @@ class CreateManualAssetRequest(BaseModel):
 def create_manual_asset(
     body: CreateManualAssetRequest,
     user: User = Depends(get_current_user),
-    db: Session = Depends(get_db)
+    db: Session = Depends(get_db),
+    service: PortfolioService = Depends(get_portfolio_service),
 ):
     org_id, portfolio_id = get_user_context(db, user)
-
-    symbol_clean = body.symbol.upper().strip()
-    asset = db.query(Asset).filter(Asset.symbol == symbol_clean).first()
-    if not asset:
-        asset = Asset(
-            id=uuid.uuid5(uuid.NAMESPACE_DNS, symbol_clean),
-            symbol=symbol_clean,
-            name=body.name,
-            asset_class=body.asset_class,
-            metadata_payload={"sector": "Manual"}
-        )
-        db.add(asset)
-        db.flush()
-
-    _ensure_asset_exists(db, symbol_clean)
-
-    txn = Transaction(
+    symbol = service.create_manual_asset(
         portfolio_id=portfolio_id,
-        symbol=symbol_clean,
-        asset_id=asset.id,
-        transaction_type="BUY",
+        name=body.name,
+        symbol=body.symbol,
+        asset_class=body.asset_class,
         quantity=body.quantity,
         price=body.price,
-        transaction_date=datetime.now(timezone.utc),
-        notes="Manual asset creation",
-        broker="manual",
-        kind="trade"
     )
-    db.add(txn)
-    db.commit()
-
-    portfolio_service = PortfolioService(PortfoliosRepository(db), TransactionsRepository(db), PositionsRepository(db), PortfolioSnapshotRepository(db))
-    portfolio_service.recalculate_position(portfolio_id, symbol_clean)
-    db.commit()
-    return {"status": "success", "symbol": symbol_clean}
+    return {"status": "success", "symbol": symbol}
 
 class UpdateManualValuationRequest(BaseModel):
     new_value: float
@@ -441,37 +410,20 @@ def update_manual_valuation(
     symbol: str,
     body: UpdateManualValuationRequest,
     user: User = Depends(get_current_user),
-    db: Session = Depends(get_db)
+    db: Session = Depends(get_db),
+    service: PortfolioService = Depends(get_portfolio_service),
 ):
     org_id, portfolio_id = get_user_context(db, user)
-    symbol_clean = symbol.upper().strip()
-
-    pos = db.query(Position).filter(Position.portfolio_id == portfolio_id, Position.symbol == symbol_clean).first()
-    if not pos:
-        raise HTTPException(status_code=404, detail="Manual position not found")
-
-    qty = float(pos.quantity)
-    new_unit_price = body.new_value / qty if qty > 0 else body.new_value
-
-    quote = db.query(LatestQuote).filter(LatestQuote.symbol == symbol_clean).first()
-    if quote:
-        quote.price = new_unit_price
-
-    txn = Transaction(
-        portfolio_id=portfolio_id,
-        symbol=symbol_clean,
-        asset_id=pos.asset_id,
-        transaction_type="SPLIT",
-        quantity=qty,
-        price=new_unit_price,
-        transaction_date=datetime.now(timezone.utc),
-        notes=body.notes or f"Valuation update: {body.new_value}",
-        broker="manual",
-        kind="trade"
-    )
-    db.add(txn)
-    db.commit()
-    return {"status": "success", "new_price": new_unit_price}
+    try:
+        new_price = service.update_manual_valuation(
+            portfolio_id=portfolio_id,
+            symbol=symbol,
+            new_value=body.new_value,
+            notes=body.notes,
+        )
+    except NotFoundError as e:
+        raise HTTPException(status_code=404, detail=str(e))
+    return {"status": "success", "new_price": new_price}
 
 @router.post("/sync")
 def sync_brokers(
@@ -488,8 +440,8 @@ def sync_brokers(
 
 @router.get("/sync/status")
 def get_sync_status(
-    db: Session = Depends(get_db),
     config_svc: ConfigService = Depends(get_config_service),
+    service: PortfolioService = Depends(get_portfolio_service),
 ):
     results = []
     for provider in config_svc.get_providers_by_type("broker"):
@@ -512,13 +464,7 @@ def get_sync_status(
         else:
             status, error = "idle", None
 
-        positions_count = (
-            db.query(Position)
-            .join(Transaction, (Transaction.portfolio_id == Position.portfolio_id) & (Transaction.symbol == Position.symbol))
-            .filter(Transaction.broker == "zerodha", Transaction.kind == "broker_snapshot")
-            .distinct()
-            .count()
-        )
+        positions_count = service.count_broker_positions(broker="zerodha")
 
         results.append({
             "provider": name,
@@ -533,11 +479,13 @@ def get_sync_status(
 @router.get("/backup")
 def export_backup(
     user: User = Depends(get_current_user),
-    db: Session = Depends(get_db)
+    db: Session = Depends(get_db),
+    service: PortfolioService = Depends(get_portfolio_service),
+    watchlists_repo: WatchlistsRepository = Depends(get_watchlist_repo),
 ):
     org_id, portfolio_id = get_user_context(db, user)
-    txns = db.query(Transaction).filter(Transaction.portfolio_id == portfolio_id).all()
-    watchlists = db.query(Watchlist).filter(Watchlist.user_id == user.id).all()
+    txns = service.transactions_repo.get_by_portfolio(portfolio_id)
+    watchlists = watchlists_repo.list_by_user(user.id)
 
     backup = {
         "version": "1.0.0",
@@ -574,7 +522,8 @@ def restore_backup(
     file: UploadFile = File(...),
     confirm: bool = Query(False),
     user: User = Depends(get_current_user),
-    db: Session = Depends(get_db)
+    db: Session = Depends(get_db),
+    service: PortfolioService = Depends(get_portfolio_service),
 ):
     org_id, portfolio_id = get_user_context(db, user)
     content = file.file.read()
@@ -587,11 +536,9 @@ def restore_backup(
             "watchlists_count": len(data.get("watchlists", []))
         }
 
-    portfolio_service = PortfolioService(PortfoliosRepository(db), TransactionsRepository(db), PositionsRepository(db), PortfolioSnapshotRepository(db))
-
     count = 0
     for t in data.get("transactions", []):
-        portfolio_service.record_transaction(
+        service.record_transaction(
             portfolio_id=portfolio_id,
             organization_id=org_id,
             symbol=t["symbol"],

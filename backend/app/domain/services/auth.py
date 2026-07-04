@@ -221,3 +221,33 @@ class AuthService(BaseService):
     def logout_all(self, user_id: uuid.UUID) -> None:
         self.sessions_repo.delete_all_for_user(user_id)
         self.sessions_repo.session.commit()
+
+    def deactivate_account(self, user: User) -> None:
+        user.is_active = False
+        self.users_repo.update(user)
+        self.users_repo.session.commit()
+
+    def update_profile(
+        self,
+        user: User,
+        first_name: str | None = None,
+        last_name: str | None = None,
+        profile_picture: str | None = None,
+    ) -> User:
+        if first_name is not None:
+            user.first_name = first_name
+        if last_name is not None:
+            user.last_name = last_name
+        if profile_picture is not None:
+            user.profile_picture = profile_picture
+        self.users_repo.update(user)
+        self.users_repo.session.commit()
+        self.users_repo.session.refresh(user)
+        return user
+
+    def change_password(self, user: User, current_password: str, new_password: str) -> None:
+        if not user.password_hash or not verify_password(current_password, user.password_hash):
+            raise AuthenticationError("Invalid current password")
+        user.password_hash = hash_password(new_password)
+        self.users_repo.update(user)
+        self.users_repo.session.commit()

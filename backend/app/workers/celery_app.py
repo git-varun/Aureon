@@ -118,7 +118,7 @@ def on_task_prerun(task_id, task, *args, **kwargs):
         correlation_id = task_id
         
     # Bind variables to context variables for logs tracing
-    from app.core.request_context import ctx_request_id, ctx_correlation_id, ctx_user_id, ctx_job_id
+    from app.core.observability.request_context import ctx_request_id, ctx_correlation_id, ctx_user_id, ctx_job_id
     ctx_request_id.set(correlation_id)
     ctx_correlation_id.set(correlation_id)
     ctx_job_id.set(task_id)

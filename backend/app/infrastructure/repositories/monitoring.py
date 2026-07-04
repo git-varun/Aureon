@@ -30,3 +30,6 @@ class MonitoringRepository(BaseRepository):
 
     def get_quote_by_symbol(self, symbol: str) -> LatestQuote | None:
         return self.session.query(LatestQuote).filter(LatestQuote.symbol == symbol).first()
+
+    def get_migration_version(self) -> str | None:
+        return self.session.execute(text("SELECT version_num FROM alembic_version")).scalar()

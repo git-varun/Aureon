@@ -176,7 +176,7 @@ class CalendarProvider(ProviderProtocol):
 
 
 class RetirementProvider(ProviderProtocol):
-    """EPF/NPS accrual providers — no implementation yet (accrue_epf_task is currently a no-op)."""
+    """EPF/NPS accrual providers — no implementation yet."""
 
     @abstractmethod
     def sync(self, **kwargs: Any) -> Any:

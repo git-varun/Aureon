@@ -7,16 +7,7 @@ const JOB_LABELS = {
     refresh_prices: {label: 'Price Refresh', desc: 'Fetch live prices and update portfolio values'},
     fetch_news: {label: 'News Scraper', desc: 'Scrape headlines and run AI sentiment analysis'},
     daily_briefing: {label: 'AI Briefing', desc: 'Generate alpha briefing and send alerts'},
-    run_signals: {label: 'Signal Generation', desc: 'Generate trading signals across holdings'},
     seed_price_history: {label: 'Price History Seed', desc: 'Backfill 1-year OHLCV price history'},
-    aggregate_sentiment: {label: 'Sentiment Roll-up', desc: 'Aggregate news sentiment across portfolio'},
-    seed_fundamentals: {label: 'Fundamentals Seed', desc: 'Refresh PE, EPS, and balance sheet data'},
-    fetch_fx_rate: {label: 'FX Rate Fetch', desc: 'Update USD/INR and other FX rates'},
-    compute_state: {label: 'State Compute', desc: 'Recompute portfolio positions and values'},
-    accrue_epf: {label: 'EPF Accrual', desc: 'Credit monthly EPF interest'},
-    accrue_eps: {label: 'EPS Accrual', desc: 'Credit monthly EPS employer contribution (8.33% × min salary, ₹15k)'},
-    bond_mtm: {label: 'Bond MTM', desc: 'Mark-to-market bond positions'},
-    insurance_premium: {label: 'Insurance Premium', desc: 'Log weekly insurance premium deductions'},
 };
 
 const fmt = (iso) => {

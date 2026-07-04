@@ -1,11 +1,10 @@
 from app.infrastructure.repositories.base import BaseRepository
 import uuid
-from datetime import datetime
 
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
-from app.domain.entities.news import AssetSentimentSnapshot, News, NewsAsset
+from app.domain.entities.news import News, NewsAsset
 
 
 class NewsRepository(BaseRepository):
@@ -44,15 +43,3 @@ class NewsRepository(BaseRepository):
         self.session.add(na)
         self.session.flush()
         return na
-
-    def get_asset_sentiment_snapshot(self, asset_id: uuid.UUID, snapshot_date: datetime) -> AssetSentimentSnapshot | None:
-        stmt = select(AssetSentimentSnapshot).where(
-            AssetSentimentSnapshot.asset_id == asset_id,
-            AssetSentimentSnapshot.snapshot_date == snapshot_date
-        )
-        return self.session.execute(stmt).scalar_one_or_none()
-
-    def save_asset_sentiment_snapshot(self, snap: AssetSentimentSnapshot) -> AssetSentimentSnapshot:
-        self.session.add(snap)
-        self.session.flush()
-        return snap

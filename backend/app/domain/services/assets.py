@@ -1,11 +1,10 @@
-import random
 from datetime import datetime, timedelta, timezone
 from typing import Any, Optional
 from uuid import UUID
 
 from app.core.exceptions import NotFoundError
 from app.domain.services.base import BaseService
-from app.domain.services.market import SEED_INDICES, MarketService, classify
+from app.domain.services.market import MarketService, classify
 from app.infrastructure.repositories.assets import AssetsRepository
 
 
@@ -21,12 +20,10 @@ class AssetsService(BaseService):
     def get_quote(self, symbol: str) -> dict[str, Any]:
         symbol = symbol.upper().strip()
         quote = self.repo.get_quote(symbol)
+        if not quote:
+            raise NotFoundError("Asset not found")
 
-        seed_idx = next((i for i in SEED_INDICES if i["sym"] == symbol), None)
-        price = float(quote.price) if quote else (seed_idx["value"] if seed_idx else 100.0)
-        day_pct = seed_idx["dayPct"] if seed_idx else 0.0
-
-        open_price = round(price / (1 + day_pct), 2) if day_pct != -1 else price
+        price = float(quote.price)
         high = round(price * 1.005, 2)
         low = round(price * 0.995, 2)
 
@@ -34,8 +31,8 @@ class AssetsService(BaseService):
             "symbol": symbol,
             "price": price,
             "last_price": price,
-            "open": open_price,
-            "previous_close": open_price,
+            "open": price,
+            "previous_close": price,
             "high": high,
             "low": low,
             "high_52w": round(price * 1.18, 2),
@@ -50,29 +47,28 @@ class AssetsService(BaseService):
             raise NotFoundError("Asset not found")
 
         snap = self.repo.get_snapshot(quote.asset_id)
-        pe = float(snap.pe_ratio) if snap and snap.pe_ratio is not None else 25.4
-        rsi = float(snap.rsi) if snap and snap.rsi is not None else 54.2
 
         return {
             "symbol": symbol,
-            "pe_ratio": pe,
-            "rsi": rsi,
-            "market_cap": float(snap.market_cap) if snap and snap.market_cap is not None else 15000000000.0,
-            "momentum_score": float(snap.momentum_score) if snap and snap.momentum_score is not None else 0.65,
-            "volatility_score": float(snap.volatility_score) if snap and snap.volatility_score is not None else 0.22,
-            "sentiment_score": float(snap.sentiment_score) if snap and snap.sentiment_score is not None else 0.75,
+            "pe_ratio": float(snap.pe_ratio) if snap and snap.pe_ratio is not None else None,
+            "rsi": float(snap.rsi) if snap and snap.rsi is not None else None,
+            "market_cap": float(snap.market_cap) if snap and snap.market_cap is not None else None,
+            "momentum_score": float(snap.momentum_score) if snap and snap.momentum_score is not None else None,
+            "volatility_score": float(snap.volatility_score) if snap and snap.volatility_score is not None else None,
+            "sentiment_score": float(snap.sentiment_score) if snap and snap.sentiment_score is not None else None,
         }
 
     def get_signal(self, symbol: str) -> dict[str, Any]:
         symbol = symbol.upper().strip()
         quote = self.repo.get_quote(symbol)
-
-        seed_idx = next((i for i in SEED_INDICES if i["sym"] == symbol), None)
-        if not quote and not seed_idx:
+        if not quote:
             raise NotFoundError("Signal not found")
 
-        snap = self.repo.get_snapshot(quote.asset_id) if quote else None
-        rsi = float(snap.rsi) if snap and snap.rsi is not None else 55.0
+        snap = self.repo.get_snapshot(quote.asset_id)
+        if not snap or snap.rsi is None:
+            raise NotFoundError("Signal not available yet")
+
+        rsi = float(snap.rsi)
         signal_type = "BUY" if rsi < 40 else "SELL" if rsi > 70 else "HOLD"
 
         return {
@@ -86,40 +82,22 @@ class AssetsService(BaseService):
     def get_chart(self, symbol: str, days: int) -> list[dict[str, Any]]:
         symbol = symbol.upper().strip()
         quote = self.repo.get_quote(symbol)
-
-        seed_idx = next((i for i in SEED_INDICES if i["sym"] == symbol), None)
-        if not quote and not seed_idx:
+        if not quote:
             raise NotFoundError("Asset not found")
 
-        points = []
-        if quote:
-            cutoff = datetime.now(timezone.utc) - timedelta(days=days)
-            history = self.repo.get_price_history_since(quote.asset_id, cutoff)
-            for h in history:
-                close = float(h.price)
-                points.append({
-                    "date": h.timestamp.strftime("%Y-%m-%d"),
-                    "close": close,
-                    "open": round(close * 0.998, 2),
-                    "high": round(close * 1.003, 2),
-                    "low": round(close * 0.997, 2),
-                })
+        cutoff = datetime.now(timezone.utc) - timedelta(days=days)
+        history = self.repo.get_price_history_since(quote.asset_id, cutoff)
 
-        if not points:
-            seed_price = float(quote.price) if quote and quote.price else (seed_idx["value"] if seed_idx else 100.0)
-            random.seed(symbol)
-            current = seed_price
-            for i in range(days):
-                dt = datetime.now(timezone.utc) - timedelta(days=days - i)
-                current *= (1.0 + random.uniform(-0.015, 0.015))
-                close = round(current, 2)
-                points.append({
-                    "date": dt.strftime("%Y-%m-%d"),
-                    "close": close,
-                    "open": round(close * 0.998, 2),
-                    "high": round(close * 1.004, 2),
-                    "low": round(close * 0.996, 2),
-                })
+        points = []
+        for h in history:
+            close = float(h.price)
+            points.append({
+                "date": h.timestamp.strftime("%Y-%m-%d"),
+                "close": close,
+                "open": round(close * 0.998, 2),
+                "high": round(close * 1.003, 2),
+                "low": round(close * 0.997, 2),
+            })
 
         return points
 
