@@ -140,9 +140,13 @@ def sync_zerodha_task(log_id: int | None = None, **kwargs) -> None:
 
         db = SessionLocal()
         try:
-            provider = ProviderFactory(ConfigService(ConfigRepository(db))).get("zerodha")
+            provider = ProviderFactory(ConfigService(ConfigRepository(db))).get("zerodha", required=False)
         finally:
             db.close()
+
+        if provider is None:
+            logger.warning("sync_zerodha: skipped — zerodha provider is not configured/enabled")
+            return
 
         holdings = provider.sync()  # raises ZerodhaAuthError("AUTH_REQUIRED: ...") if not connected / on expired token
 

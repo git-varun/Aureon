@@ -366,6 +366,14 @@ class ConfigService(BaseService):
 
     # ── Job Dispatching ───────────────────────────────────────────────────
 
+    # Jobs that call out to a specific provider — dispatch_job checks the
+    # provider is configured *before* queuing the Celery task, so an
+    # unconfigured provider surfaces as one clean "not configured" job log
+    # entry instead of a task that reaches the worker only to fail.
+    _PROVIDER_REQUIRED_JOBS: dict[str, str] = {
+        "sync_zerodha": "zerodha",
+    }
+
     def dispatch_job(self, job_name: str, log_id: Optional[int] = None, user_id: Optional[uuid.UUID] = None) -> Optional[str]:
         # Pre-assign a task ID and log start
         task_id = str(uuid.uuid4())
@@ -374,6 +382,17 @@ class ConfigService(BaseService):
             log_id = log.id
         else:
             self.attach_task_id(log_id, task_id)
+
+        required_provider = self._PROVIDER_REQUIRED_JOBS.get(job_name)
+        if required_provider:
+            cfg = self.get_provider(required_provider)
+            from app.core.providers.lifecycle import ProviderStatus
+            if cfg is None or not cfg.enabled or cfg.status in (ProviderStatus.PLANNED.value, ProviderStatus.DISABLED.value):
+                status = cfg.status if cfg else "NOT_FOUND"
+                message = f"Provider '{required_provider}' is not configured (status={status}) — job not dispatched"
+                logger.warning(message)
+                self.log_job_end(log_id, JobStatus.FAILED, error=message, task_id=task_id)
+                return None
 
         try:
             from celery import Celery
