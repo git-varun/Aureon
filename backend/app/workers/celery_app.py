@@ -22,11 +22,21 @@ celery_app = Celery(
     "aureon_workers",
     broker=settings.REDIS_URL,
     backend=settings.REDIS_URL,
-    include=["app.workers.ingestion.tasks"]
+    include=[
+        "app.workers.ingestion.tasks",
+        "app.workers.snapshots.asset_snapshot",
+        "app.workers.evaluation.features",
+        "app.workers.evaluation.signals",
+        "app.workers.evaluation.scoring",
+        "app.workers.monitoring.asset_health",
+    ]
 )
 
 celery_app.conf.task_routes = {
-    "app.workers.ingestion.tasks.*": {"queue": "q_ingestion"}
+    "app.workers.ingestion.tasks.*": {"queue": "q_ingestion"},
+    "app.workers.snapshots.asset_snapshot.*": {"queue": "q_ingestion"},
+    "app.workers.evaluation.*": {"queue": "q_ingestion"},
+    "app.workers.monitoring.asset_health.*": {"queue": "q_ingestion"},
 }
 celery_app.conf.task_default_queue = "q_ingestion"
 
