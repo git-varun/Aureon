@@ -62,7 +62,7 @@ def get_aureon_asset(
     db: Session = Depends(get_db),
     svc: AssetsService = Depends(get_assets_service),
 ):
-    _org_id, portfolio_id = get_user_context(db, user)
+    portfolio_id = get_user_context(db, user)
     try:
         return svc.get_aureon_asset(ticker, portfolio_id)
     except NotFoundError as e:

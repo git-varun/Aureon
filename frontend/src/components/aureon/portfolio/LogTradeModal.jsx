@@ -82,10 +82,10 @@ export function LogTradeModal({onClose, transaction}) {
                 notes: form.notes || undefined,
             };
             if (transaction) {
-                await apiService.updateTransaction(null, null, transaction.id, payload);
+                await apiService.updateTransaction(null, transaction.id, payload);
                 toast.success('Transaction updated');
             } else {
-                await apiService.createTransaction(null, null, payload);
+                await apiService.createTransaction(null, payload);
                 toast.success(`${form.type} ${form.ticker} logged`);
             }
             onClose(true);

@@ -1,5 +1,4 @@
 import uuid
-from typing import Optional
 
 from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel
@@ -13,7 +12,6 @@ router = APIRouter(prefix="/watchlist", tags=["watchlist"])
 
 class CreateWatchlistIn(BaseModel):
     name: str
-    organization_id: Optional[uuid.UUID] = None
 
 class RenameWatchlistIn(BaseModel):
     name: str
@@ -45,7 +43,7 @@ def create_watchlist(
     user: User = Depends(get_current_user),
     service: WatchlistService = Depends(get_watchlist_service)
 ):
-    return _handle(service.create_watchlist, user.id, body.name, body.organization_id)
+    return _handle(service.create_watchlist, user.id, body.name)
 
 @router.put("/{watchlist_id}")
 def rename_watchlist(

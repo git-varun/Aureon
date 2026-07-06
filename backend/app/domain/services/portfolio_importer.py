@@ -136,7 +136,7 @@ def _rows_from_records(records: List[Dict[str, Any]], broker: Optional[str] = No
     if records:
         found_cols = list(records[0].keys())
         recognised = [c for c in found_cols if _COL_MAP.get(c.strip().lower())]
-        logger.debug("importer columns found=%s recognised=%s broker=%s", found_cols, recognised, broker)
+        logger.debug(f"importer columns found={found_cols} recognised={recognised} broker={broker}")
         if not recognised:
             return [], [
                 f"No recognised columns found. File headers: {found_cols}."

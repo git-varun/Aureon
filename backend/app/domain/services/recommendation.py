@@ -19,6 +19,8 @@ from app.core.redis import (
     get_cached_org_recommendations,
     invalidate_org_recommendations,
 )
+
+RECOMMENDATIONS_CACHE_KEY = "global"
 from app.domain.entities.evaluation import AssetScore, FeatureSnapshot
 from app.domain.entities.portfolio import Transaction
 from app.domain.entities.recommendation import (
@@ -41,7 +43,6 @@ def serialize_recommendation(rec: Recommendation, session: Session) -> dict[str,
     
     return {
         "id": str(rec.id),
-        "organization_id": str(rec.organization_id),
         "asset_id": str(rec.asset_id),
         "symbol": symbol,
         "recommendation_state": rec.recommendation_state,
@@ -70,7 +71,7 @@ class RecommendationService(BaseService):
         self.session = session
         self.repo = RecommendationRepository(session)
 
-    def generate_recommendations(self, organization_id: uuid.UUID) -> list[dict[str, Any]]:
+    def generate_recommendations(self) -> list[dict[str, Any]]:
         snapshots = self.repo.list_all_snapshots()
         recs_created = []
 
@@ -121,13 +122,12 @@ class RecommendationService(BaseService):
                 confidence_factors = {"quality": 0.5, "volatility": 0.5}
                 confidence_score = 0.5 * quality + 0.5 * (1.0 - volatility)
                 
-            existing_rec = self.repo.get_active_recommendation(organization_id, asset_id, "v2.0.0")
+            existing_rec = self.repo.get_active_recommendation(asset_id, "v2.0.0")
 
             rec_id = existing_rec.id if existing_rec else uuid.uuid4()
-            
+
             rec = Recommendation(
                 id=rec_id,
-                organization_id=organization_id,
                 asset_id=asset_id,
                 recommendation_state=rec_state,
                 confidence_score=confidence_score,
@@ -137,7 +137,7 @@ class RecommendationService(BaseService):
                 updated_at=datetime.now(timezone.utc)
             )
             self.repo.upsert(rec)
-            
+
             expl = RecommendationExplanation(
                 recommendation_id=rec_id,
                 rules_matched=rules_matched,
@@ -145,7 +145,7 @@ class RecommendationService(BaseService):
                 confidence_factors=confidence_factors
             )
             self.repo.upsert_explanation(expl)
-            
+
             existing_outcome = self.repo.get_outcome(rec_id)
             if not existing_outcome:
                 out = RecommendationOutcome(
@@ -154,24 +154,24 @@ class RecommendationService(BaseService):
                     action_taken_at=datetime.now(timezone.utc)
                 )
                 self.repo.upsert_outcome(out)
-                
+
             recs_created.append(rec)
-            
+
         self.session.commit()
-        invalidate_org_recommendations(str(organization_id))
+        invalidate_org_recommendations(RECOMMENDATIONS_CACHE_KEY)
         return [serialize_recommendation(r, self.session) for r in recs_created]
 
-    def get_recommendations(self, organization_id: uuid.UUID, status: str | None = None) -> list[dict[str, Any]]:
-        cached = get_cached_org_recommendations(str(organization_id))
+    def get_recommendations(self, status: str | None = None) -> list[dict[str, Any]]:
+        cached = get_cached_org_recommendations(RECOMMENDATIONS_CACHE_KEY)
         if cached is not None:
             if status:
                 return [r for r in cached if r.get("status") == status]
             return cached
-            
-        recs = self.repo.get_by_org(organization_id)
+
+        recs = self.repo.get_all()
         serialized = [serialize_recommendation(r, self.session) for r in recs]
-        cache_org_recommendations(str(organization_id), serialized)
-        
+        cache_org_recommendations(RECOMMENDATIONS_CACHE_KEY, serialized)
+
         if status:
             return [r for r in serialized if r.get("status") == status]
         return serialized
@@ -185,14 +185,14 @@ class RecommendationService(BaseService):
             raise ValidationError(f"Recommendation is already {rec.status}")
             
         if not portfolio_id:
-            portfolio = self.repo.get_portfolio_by_org(rec.organization_id)
+            portfolio = self.repo.get_default_portfolio()
             if not portfolio:
-                raise ValidationError("No portfolios found for this organization to apply recommendation")
+                raise ValidationError("No portfolios found to apply recommendation")
             portfolio_id = portfolio.id
         else:
-            portfolio = self.repo.get_portfolio(portfolio_id, rec.organization_id)
+            portfolio = self.repo.get_portfolio(portfolio_id)
             if not portfolio:
-                raise ValidationError("Invalid portfolio for this organization")
+                raise ValidationError("Invalid portfolio")
 
         quote = self.repo.get_quote_by_asset(rec.asset_id)
         symbol = quote.symbol if quote else "UNKNOWN"
@@ -239,14 +239,14 @@ class RecommendationService(BaseService):
             entity_type="recommendation",
             entity_id=str(recommendation_id),
             actor_id=actor_id,
-            details={"recommendation_state": rec.recommendation_state, "portfolio_id": str(portfolio_id), "organization_id": str(rec.organization_id)}
+            details={"recommendation_state": rec.recommendation_state, "portfolio_id": str(portfolio_id)}
         )
-        
+
         self.session.commit()
-        invalidate_org_recommendations(str(rec.organization_id))
+        invalidate_org_recommendations(RECOMMENDATIONS_CACHE_KEY)
 
         try:
-            self.update_financial_intelligence_pipeline(rec.organization_id)
+            self.update_financial_intelligence_pipeline()
         except Exception:
             pass
 
@@ -283,14 +283,14 @@ class RecommendationService(BaseService):
             entity_type="recommendation",
             entity_id=str(recommendation_id),
             actor_id=actor_id,
-            details={"reason": reason, "organization_id": str(rec.organization_id)}
+            details={"reason": reason}
         )
-        
+
         self.session.commit()
-        invalidate_org_recommendations(str(rec.organization_id))
+        invalidate_org_recommendations(RECOMMENDATIONS_CACHE_KEY)
 
         try:
-            self.update_financial_intelligence_pipeline(rec.organization_id)
+            self.update_financial_intelligence_pipeline()
         except Exception:
             pass
 
@@ -328,14 +328,14 @@ class RecommendationService(BaseService):
             entity_type="recommendation",
             entity_id=str(recommendation_id),
             actor_id=actor_id,
-            details={"previous_status": rec.status, "organization_id": str(rec.organization_id)}
+            details={"previous_status": rec.status}
         )
-            
+
         self.session.commit()
-        invalidate_org_recommendations(str(rec.organization_id))
+        invalidate_org_recommendations(RECOMMENDATIONS_CACHE_KEY)
 
         try:
-            self.update_financial_intelligence_pipeline(rec.organization_id)
+            self.update_financial_intelligence_pipeline()
         except Exception:
             pass
 
@@ -486,59 +486,55 @@ class RecommendationService(BaseService):
                 f"rules_matched={list(rules_matched.keys())} confidence={confidence_score:.4f}"
             )
 
-            orgs = self.repo.list_organizations()
+            existing_rec = self.repo.get_active_recommendation(asset_id, "v2.0.0")
 
-            for org in orgs:
-                existing_rec = self.repo.get_active_recommendation(org.id, asset_id, "v2.0.0")
+            rec_id = existing_rec.id if existing_rec else uuid.uuid4()
 
-                rec_id = existing_rec.id if existing_rec else uuid.uuid4()
+            rec = Recommendation(
+                id=rec_id,
+                asset_id=asset_id,
+                recommendation_state=rec_state,
+                confidence_score=confidence_score,
+                status="active",
+                version="v2.0.0",
+                created_at=existing_rec.created_at if existing_rec else datetime.now(timezone.utc),
+                updated_at=datetime.now(timezone.utc)
+            )
+            self.repo.upsert(rec)
 
-                rec = Recommendation(
-                    id=rec_id,
-                    organization_id=org.id,
-                    asset_id=asset_id,
-                    recommendation_state=rec_state,
-                    confidence_score=confidence_score,
-                    status="active",
-                    version="v2.0.0",
-                    created_at=existing_rec.created_at if existing_rec else datetime.now(timezone.utc),
-                    updated_at=datetime.now(timezone.utc)
-                )
-                self.repo.upsert(rec)
+            expl = RecommendationExplanation(
+                recommendation_id=rec_id,
+                rules_matched=rules_matched,
+                reasoning=reasoning,
+                confidence_factors=confidence_factors
+            )
+            self.repo.upsert_explanation(expl)
 
-                expl = RecommendationExplanation(
+            existing_outcome = self.repo.get_outcome(rec_id)
+            if not existing_outcome:
+                out = RecommendationOutcome(
                     recommendation_id=rec_id,
-                    rules_matched=rules_matched,
-                    reasoning=reasoning,
-                    confidence_factors=confidence_factors
+                    status="active",
+                    action_taken_at=datetime.now(timezone.utc)
                 )
-                self.repo.upsert_explanation(expl)
+                self.repo.upsert_outcome(out)
 
-                existing_outcome = self.repo.get_outcome(rec_id)
-                if not existing_outcome:
-                    out = RecommendationOutcome(
-                        recommendation_id=rec_id,
-                        status="active",
-                        action_taken_at=datetime.now(timezone.utc)
-                    )
-                    self.repo.upsert_outcome(out)
+            # Invalidate Cache
+            invalidate_org_recommendations(RECOMMENDATIONS_CACHE_KEY)
 
-                # Invalidate Cache
-                invalidate_org_recommendations(str(org.id))
-
-                # Downstream intelligence pipeline update
-                self.update_financial_intelligence_pipeline(org.id)
+            # Downstream intelligence pipeline update
+            self.update_financial_intelligence_pipeline()
 
             logger.info(f"AI Recommendation materialization completed: state={rec_state} rules_matched={list(rules_matched.keys())}")
 
-    def update_financial_intelligence_pipeline(self, organization_id: uuid.UUID) -> None:
+    def update_financial_intelligence_pipeline(self) -> None:
         """Automatic downstream updates for outcomes, portfolio intelligence, health, and dashboard."""
         from app.domain.services.intelligence import FinancialIntelligenceService
 
         intel_svc = FinancialIntelligenceService(self.session)
 
         # 1. Outcome Updates
-        applied_outcomes = self.repo.get_applied_outcomes_by_org(organization_id)
+        applied_outcomes = self.repo.get_applied_outcomes()
         for o in applied_outcomes:
             rec = self.repo.get(o.recommendation_id)
             if not rec:
@@ -561,7 +557,7 @@ class RecommendationService(BaseService):
         self.session.commit()
 
         # 2. Portfolio Intelligence, Financial Health, and Dashboard Cache
-        portfolios = self.repo.list_portfolios_by_org(organization_id)
+        portfolios = self.repo.list_portfolios()
         for portfolio in portfolios:
             portfolio_id = portfolio.id
             pid_str = str(portfolio_id)
@@ -579,17 +575,17 @@ class RecommendationService(BaseService):
             cache_intelligence_portfolio(pid_str, portfolio_data)
 
             # Financial Health
-            health = intel_svc.get_investor_health_score(portfolio_id, organization_id)
+            health = intel_svc.get_investor_health_score(portfolio_id)
             cache_intelligence_health(pid_str, health)
 
             # Cache Recommendations
-            recs = self.repo.get_by_org(organization_id)
+            recs = self.repo.get_all()
             serialized_recs = [serialize_recommendation(r, self.session) for r in recs]
             cache_intelligence_recommendations(pid_str, serialized_recs)
 
             # Cache Outcomes
-            quality_metrics = intel_svc.get_recommendation_quality_metrics(organization_id)
-            performance = intel_svc.get_recommendation_performance(organization_id)
+            quality_metrics = intel_svc.get_recommendation_quality_metrics()
+            performance = intel_svc.get_recommendation_performance()
             outcomes_data = {
                 "quality_metrics": quality_metrics,
                 "performance": performance
@@ -597,8 +593,7 @@ class RecommendationService(BaseService):
             cache_intelligence_outcomes(pid_str, outcomes_data)
 
             # 3. Dashboard Cache
-            member = self.repo.get_first_member_by_org(organization_id)
-            user_id = member.user_id if member else uuid.UUID("00000000-0000-0000-0000-000000000000")
+            user_id = uuid.UUID("00000000-0000-0000-0000-000000000000")
 
-            dashboard = intel_svc.get_dashboard_aggregation(portfolio_id, organization_id, user_id)
-            cache_intelligence_dashboard(str(organization_id), dashboard)
+            dashboard = intel_svc.get_dashboard_aggregation(portfolio_id, user_id)
+            cache_intelligence_dashboard(RECOMMENDATIONS_CACHE_KEY, dashboard)

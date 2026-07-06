@@ -10,19 +10,16 @@ from fastapi.responses import JSONResponse
 from app.api.v1 import (
     ai,
     assets,
-    auth,
     config,
     evaluation,
     intelligence,
-    invitations,
     market,
-    memberships,
     monitoring,
     news,
     notification,
-    organizations,
     portfolio,
     recommendation,
+    users,
     watchlist,
 )
 from app.api.v1.system import health
@@ -251,11 +248,6 @@ app.include_router(assets.router, prefix="/api/v1", tags=["assets"])
 app.include_router(portfolio.router, prefix="/api/v1/portfolio", tags=["portfolio"])
 app.include_router(evaluation.router, prefix="/api/v1/evaluation", tags=["evaluation"])
 app.include_router(monitoring.router, prefix="/api/v1/monitoring", tags=["monitoring"])
-app.include_router(auth.router, prefix="/api/v1/auth", tags=["auth"])
-app.include_router(auth.users_router, prefix="/api/v1", tags=["auth"])
-app.include_router(organizations.router, prefix="/api/v1/organizations", tags=["organizations"])
-app.include_router(memberships.router, prefix="/api/v1/memberships", tags=["memberships"])
-app.include_router(invitations.router, prefix="/api/v1/invitations", tags=["invitations"])
 app.include_router(recommendation.router, prefix="/api/v1/recommendation", tags=["recommendation"])
 app.include_router(recommendation.bare_router, prefix="/api/v1", tags=["recommendation"])
 app.include_router(intelligence.router, prefix="/api/v1/intelligence", tags=["intelligence"])
@@ -264,3 +256,4 @@ app.include_router(config.router, prefix="/api/v1", tags=["config"])
 app.include_router(notification.router, prefix="/api/v1", tags=["notifications"])
 app.include_router(news.router, prefix="/api/v1", tags=["news"])
 app.include_router(ai.router, prefix="/api/v1", tags=["ai"])
+app.include_router(users.router, prefix="/api/v1", tags=["users"])

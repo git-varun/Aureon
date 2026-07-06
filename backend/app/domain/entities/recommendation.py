@@ -12,14 +12,11 @@ from app.domain.entities.base import Base, TimestampMixin, UUIDMixin
 class Recommendation(UUIDMixin, TimestampMixin, Base):
     __tablename__ = "recommendations"
     __table_args__ = (
-        Index("idx_recommendations_org_status", "organization_id", "status"),
+        Index("idx_recommendations_status", "status"),
         Index("idx_recommendations_asset", "asset_id"),
         {"schema": "recommendation"}
     )
 
-    organization_id: Mapped[uuid.UUID] = mapped_column(
-        ForeignKey("system.organizations.id", ondelete="CASCADE"), nullable=False
-    )
     asset_id: Mapped[uuid.UUID] = mapped_column(
         ForeignKey("market.asset_snapshot.asset_id", ondelete="CASCADE"), nullable=False
     )

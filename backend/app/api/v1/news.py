@@ -2,8 +2,7 @@ from typing import Any, Dict, List
 
 from fastapi import APIRouter, Depends
 
-from app.api.dependencies import get_current_user, get_news_service
-from app.domain.entities.system import User
+from app.api.dependencies import get_news_service
 from app.domain.services.news import NewsService
 
 router = APIRouter(prefix="/news", tags=["news"])
@@ -14,7 +13,6 @@ def news_health():
 
 @router.get("")
 def get_all_news(
-    user: User = Depends(get_current_user),
     service: NewsService = Depends(get_news_service)
 ) -> Dict[str, Any]:
     return service.get_all_recent(limit=30)
@@ -22,7 +20,6 @@ def get_all_news(
 @router.get("/{symbol}")
 def get_news_for_symbol(
     symbol: str,
-    user: User = Depends(get_current_user),
     service: NewsService = Depends(get_news_service)
 ) -> List[Dict[str, Any]]:
     return service.get_recent_news(symbol, limit=10)

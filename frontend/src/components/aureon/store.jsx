@@ -4,7 +4,6 @@ import React, {createContext, useCallback, useContext, useEffect, useMemo, useRe
 import {useQuery, useQueryClient} from '@tanstack/react-query';
 import {apiService} from '../../api/apiService';
 
-import {useOrganization} from '../../contexts/OrganizationContext';
 import {usePortfolio} from '../../contexts/PortfolioContext';
 
 const AppContext = createContext(null);
@@ -68,20 +67,18 @@ const apiRecToFE = (r) => ({
 
 export const AppProvider = ({children}) => {
     const queryClient = useQueryClient();
-    const {activeOrgId} = useOrganization();
     const {activePortfolioId} = usePortfolio();
 
     const {data: recsData, isSuccess: recsSuccess} = useQuery({
-        queryKey: ["org", activeOrgId, "recommendations"],
-        queryFn: () => apiService.listRecommendations(activeOrgId),
-        enabled: !!activeOrgId,
+        queryKey: ["recommendations"],
+        queryFn: () => apiService.listRecommendations(),
         staleTime: 15000,
     });
 
     const {data: activityData, isSuccess: activitySuccess} = useQuery({
-        queryKey: ["org", activeOrgId, "portfolio", activePortfolioId, "transactions"],
-        queryFn: () => apiService.listTransactions(activeOrgId, activePortfolioId),
-        enabled: !!activeOrgId && !!activePortfolioId,
+        queryKey: ["portfolio", activePortfolioId, "transactions"],
+        queryFn: () => apiService.listTransactions(activePortfolioId),
+        enabled: !!activePortfolioId,
         staleTime: 10000,
     });
 
@@ -251,9 +248,9 @@ export const AppProvider = ({children}) => {
         setActivity(act => act.filter(a => a.extId !== id && a.refId !== id));
         _showToast(null);
         if (!hydrated) return;
-        apiService.undoRecommendation(activeOrgId, id)
+        apiService.undoRecommendation(id)
             .then(() => {
-                queryClient.invalidateQueries({ queryKey: ["org", activeOrgId, "recommendations"] });
+                queryClient.invalidateQueries({ queryKey: ["recommendations"] });
             })
             .catch(err => {
                 setActive(prevActive);
@@ -262,7 +259,7 @@ export const AppProvider = ({children}) => {
                 setActivity(prevActivity);
                 _showToast({text: `Undo failed: ${err?.message || 'network error'}`});
             });
-    }, [active, applied, dismissed, activity, hydrated, activeOrgId, queryClient, _showToast]);
+    }, [active, applied, dismissed, activity, hydrated, queryClient, _showToast]);
 
     const apply = useCallback((id, opts = {}) => {
         const r = recById(id);
@@ -290,10 +287,10 @@ export const AppProvider = ({children}) => {
         }
         
         if (!hydrated) return;
-        apiService.applyRecommendation(activeOrgId, id, activePortfolioId)
+        apiService.applyRecommendation(id, activePortfolioId)
             .then(() => {
-                queryClient.invalidateQueries({ queryKey: ["org", activeOrgId, "recommendations"] });
-                queryClient.invalidateQueries({ queryKey: ["org", activeOrgId, "portfolio", activePortfolioId, "transactions"] });
+                queryClient.invalidateQueries({ queryKey: ["recommendations"] });
+                queryClient.invalidateQueries({ queryKey: ["portfolio", activePortfolioId, "transactions"] });
             })
             .catch(err => {
                 setActive(prevActive);
@@ -301,7 +298,7 @@ export const AppProvider = ({children}) => {
                 setActivity(prevActivity);
                 _showToast({text: `Apply failed: ${err?.response?.data?.message || err?.message || 'network error'}`});
             });
-    }, [active, applied, activity, hydrated, activeOrgId, activePortfolioId, recById, queryClient, _showToast]);
+    }, [active, applied, activity, hydrated, activePortfolioId, recById, queryClient, _showToast]);
 
     // C6: applyBatch commits staged basket and fires a single toast
     const applyBatch = useCallback((ids) => {
@@ -338,10 +335,10 @@ export const AppProvider = ({children}) => {
         _showToast({ key: toastKey, text: `${valid.length} ${valid.length === 1 ? 'decision' : 'decisions'} applied`, undoId: null });
         
         if (!hydrated) return;
-        Promise.all(valid.map(id => apiService.applyRecommendation(activeOrgId, id, activePortfolioId)))
+        Promise.all(valid.map(id => apiService.applyRecommendation(id, activePortfolioId)))
             .then(() => {
-                queryClient.invalidateQueries({ queryKey: ["org", activeOrgId, "recommendations"] });
-                queryClient.invalidateQueries({ queryKey: ["org", activeOrgId, "portfolio", activePortfolioId, "transactions"] });
+                queryClient.invalidateQueries({ queryKey: ["recommendations"] });
+                queryClient.invalidateQueries({ queryKey: ["portfolio", activePortfolioId, "transactions"] });
             })
             .catch(err => {
                 setActive(prevActive);
@@ -349,7 +346,7 @@ export const AppProvider = ({children}) => {
                 setActivity(prevActivity);
                 _showToast({ text: `Batch apply failed: ${err?.message || 'network error'}` });
             });
-    }, [active, applied, activity, hydrated, activeOrgId, activePortfolioId, recById, queryClient, _showToast]);
+    }, [active, applied, activity, hydrated, activePortfolioId, recById, queryClient, _showToast]);
 
     const dismiss = useCallback((id, reason = 'User dismissed') => {
         const r = recById(id);
@@ -366,9 +363,9 @@ export const AppProvider = ({children}) => {
             detail: `declined — ${reason.toLowerCase()}`,
         }, ...act]);
         if (!hydrated) return;
-        apiService.dismissRecommendation(activeOrgId, id, reason)
+        apiService.dismissRecommendation(id, reason)
             .then(() => {
-                queryClient.invalidateQueries({ queryKey: ["org", activeOrgId, "recommendations"] });
+                queryClient.invalidateQueries({ queryKey: ["recommendations"] });
             })
             .catch(err => {
                 setActive(prevActive);
@@ -376,7 +373,7 @@ export const AppProvider = ({children}) => {
                 setActivity(prevActivity);
                 _showToast({text: `Dismiss failed: ${err?.message || 'network error'}`});
             });
-    }, [active, dismissed, activity, hydrated, activeOrgId, recById, queryClient, _showToast]);
+    }, [active, dismissed, activity, hydrated, recById, queryClient, _showToast]);
 
     const value = useMemo(() => ({
         allRecs, active, applied, dismissed,

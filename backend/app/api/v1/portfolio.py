@@ -6,14 +6,13 @@ from typing import Any, Dict, List, Optional
 
 from fastapi import APIRouter, Depends, File, Form, HTTPException, Query, UploadFile, status
 from fastapi.responses import StreamingResponse
-from pydantic import BaseModel
+from pydantic import BaseModel, model_validator
 from sqlalchemy.orm import Session
 
 from app.api.dependencies import (
     get_config_service,
     get_current_user,
     get_db,
-    get_members_repo,
     get_portfolio_service,
     get_user_context,
     get_watchlist_repo,
@@ -32,93 +31,58 @@ from app.core.exceptions import NotFoundError, ValidationError
 from app.core.redis import cache_portfolio_snapshot, get_cached_portfolio_snapshot
 from app.domain.entities.system import User
 from app.domain.services import ConfigService, PortfolioService
-from app.infrastructure.repositories import (
-    OrganizationMembersRepository,
-    WatchlistsRepository,
-)
+from app.infrastructure.repositories import WatchlistsRepository
 
 router = APIRouter()
 
-# --- Authorization Helpers ---
-
-def check_org_write_access(org_id: uuid.UUID, user_id: uuid.UUID, members_repo: OrganizationMembersRepository):
-    membership = members_repo.get_by_org_and_user(org_id, user_id)
-    if not membership:
-        raise HTTPException(status_code=403, detail="Not authorized to access this organization")
-    if membership.role == "READ_ONLY":
-        raise HTTPException(status_code=403, detail="Read-only members cannot modify resources")
-    return membership
-
-def check_org_read_access(org_id: uuid.UUID, user_id: uuid.UUID, members_repo: OrganizationMembersRepository):
-    membership = members_repo.get_by_org_and_user(org_id, user_id)
-    if not membership:
-        raise HTTPException(status_code=403, detail="Not authorized to access this organization")
-    return membership
-
-
 # --- Portfolio CRUD ---
 
-@router.post("/organizations/{org_id}/portfolios", response_model=PortfolioResponse, status_code=status.HTTP_201_CREATED)
+@router.post("/portfolios", response_model=PortfolioResponse, status_code=status.HTTP_201_CREATED)
 def create_portfolio(
-    org_id: uuid.UUID,
     req: PortfolioCreate,
     current_user: User = Depends(get_current_user),
-    members_repo: OrganizationMembersRepository = Depends(get_members_repo),
     service: PortfolioService = Depends(get_portfolio_service),
 ):
-    check_org_write_access(org_id, current_user.id, members_repo)
-    return service.create_portfolio(name=req.name, organization_id=org_id, actor_id=current_user.id)
+    return service.create_portfolio(name=req.name, actor_id=current_user.id)
 
-@router.get("/organizations/{org_id}/portfolios", response_model=List[PortfolioResponse])
+@router.get("/portfolios", response_model=List[PortfolioResponse])
 def list_portfolios(
-    org_id: uuid.UUID,
     current_user: User = Depends(get_current_user),
-    members_repo: OrganizationMembersRepository = Depends(get_members_repo),
     service: PortfolioService = Depends(get_portfolio_service),
 ):
-    check_org_read_access(org_id, current_user.id, members_repo)
-    return service.list_portfolios(org_id)
+    return service.list_portfolios()
 
-@router.get("/organizations/{org_id}/portfolios/{portfolio_id}", response_model=PortfolioResponse)
+@router.get("/portfolios/{portfolio_id}", response_model=PortfolioResponse)
 def get_portfolio(
-    org_id: uuid.UUID,
     portfolio_id: uuid.UUID,
     current_user: User = Depends(get_current_user),
-    members_repo: OrganizationMembersRepository = Depends(get_members_repo),
     service: PortfolioService = Depends(get_portfolio_service),
 ):
-    check_org_read_access(org_id, current_user.id, members_repo)
     try:
-        return service.get_portfolio(portfolio_id, org_id)
+        return service.get_portfolio(portfolio_id)
     except NotFoundError as e:
         raise HTTPException(status_code=404, detail=str(e))
 
-@router.put("/organizations/{org_id}/portfolios/{portfolio_id}", response_model=PortfolioResponse)
+@router.put("/portfolios/{portfolio_id}", response_model=PortfolioResponse)
 def update_portfolio(
-    org_id: uuid.UUID,
     portfolio_id: uuid.UUID,
     req: PortfolioUpdate,
     current_user: User = Depends(get_current_user),
-    members_repo: OrganizationMembersRepository = Depends(get_members_repo),
     service: PortfolioService = Depends(get_portfolio_service),
 ):
-    check_org_write_access(org_id, current_user.id, members_repo)
     try:
-        return service.update_portfolio(portfolio_id, org_id, name=req.name, actor_id=current_user.id)
+        return service.update_portfolio(portfolio_id, name=req.name, actor_id=current_user.id)
     except NotFoundError as e:
         raise HTTPException(status_code=404, detail=str(e))
 
-@router.delete("/organizations/{org_id}/portfolios/{portfolio_id}")
+@router.delete("/portfolios/{portfolio_id}")
 def delete_portfolio(
-    org_id: uuid.UUID,
     portfolio_id: uuid.UUID,
     current_user: User = Depends(get_current_user),
-    members_repo: OrganizationMembersRepository = Depends(get_members_repo),
     service: PortfolioService = Depends(get_portfolio_service),
 ):
-    check_org_write_access(org_id, current_user.id, members_repo)
     try:
-        deleted = service.delete_portfolio(portfolio_id, org_id, actor_id=current_user.id)
+        deleted = service.delete_portfolio(portfolio_id, actor_id=current_user.id)
         return {"success": deleted}
     except NotFoundError as e:
         raise HTTPException(status_code=404, detail=str(e))
@@ -126,20 +90,16 @@ def delete_portfolio(
 
 # --- Transaction CRUD ---
 
-@router.post("/organizations/{org_id}/portfolios/{portfolio_id}/transactions", response_model=TransactionResponse, status_code=status.HTTP_201_CREATED)
+@router.post("/portfolios/{portfolio_id}/transactions", response_model=TransactionResponse, status_code=status.HTTP_201_CREATED)
 def create_transaction(
-    org_id: uuid.UUID,
     portfolio_id: uuid.UUID,
     req: TransactionCreate,
     current_user: User = Depends(get_current_user),
-    members_repo: OrganizationMembersRepository = Depends(get_members_repo),
     service: PortfolioService = Depends(get_portfolio_service),
 ):
-    check_org_write_access(org_id, current_user.id, members_repo)
     try:
         return service.record_transaction(
             portfolio_id=portfolio_id,
-            organization_id=org_id,
             symbol=req.symbol,
             transaction_type=req.transaction_type,
             quantity=req.quantity,
@@ -157,58 +117,48 @@ def create_transaction(
     except ValidationError as e:
         raise HTTPException(status_code=400, detail=str(e))
 
-@router.get("/organizations/{org_id}/portfolios/{portfolio_id}/transactions", response_model=List[TransactionResponse])
+@router.get("/portfolios/{portfolio_id}/transactions", response_model=List[TransactionResponse])
 def list_transactions(
-    org_id: uuid.UUID,
     portfolio_id: uuid.UUID,
     current_user: User = Depends(get_current_user),
-    members_repo: OrganizationMembersRepository = Depends(get_members_repo),
     service: PortfolioService = Depends(get_portfolio_service),
 ):
-    check_org_read_access(org_id, current_user.id, members_repo)
     try:
-        return service.list_transactions(portfolio_id, org_id)
+        return service.list_transactions(portfolio_id)
     except NotFoundError as e:
         raise HTTPException(status_code=404, detail=str(e))
 
-@router.get("/organizations/{org_id}/portfolios/{portfolio_id}/transactions/{txn_id}", response_model=TransactionResponse)
+@router.get("/portfolios/{portfolio_id}/transactions/{txn_id}", response_model=TransactionResponse)
 def get_transaction(
-    org_id: uuid.UUID,
     portfolio_id: uuid.UUID,
     txn_id: uuid.UUID,
     current_user: User = Depends(get_current_user),
-    members_repo: OrganizationMembersRepository = Depends(get_members_repo),
     service: PortfolioService = Depends(get_portfolio_service),
 ):
-    check_org_read_access(org_id, current_user.id, members_repo)
     try:
-        txn = service.get_transaction(txn_id, org_id)
+        txn = service.get_transaction(txn_id)
         if txn.portfolio_id != portfolio_id:
             raise HTTPException(status_code=404, detail="Transaction not found in this portfolio")
         return txn
     except NotFoundError as e:
         raise HTTPException(status_code=404, detail=str(e))
 
-@router.put("/organizations/{org_id}/portfolios/{portfolio_id}/transactions/{txn_id}", response_model=TransactionResponse)
+@router.put("/portfolios/{portfolio_id}/transactions/{txn_id}", response_model=TransactionResponse)
 def update_transaction(
-    org_id: uuid.UUID,
     portfolio_id: uuid.UUID,
     txn_id: uuid.UUID,
     req: TransactionUpdate,
     current_user: User = Depends(get_current_user),
-    members_repo: OrganizationMembersRepository = Depends(get_members_repo),
     service: PortfolioService = Depends(get_portfolio_service),
 ):
-    check_org_write_access(org_id, current_user.id, members_repo)
     try:
         # Verify transaction portfolio matches url portfolio
-        txn = service.get_transaction(txn_id, org_id)
+        txn = service.get_transaction(txn_id)
         if txn.portfolio_id != portfolio_id:
             raise HTTPException(status_code=404, detail="Transaction not found in this portfolio")
 
         return service.update_transaction(
             txn_id=txn_id,
-            organization_id=org_id,
             symbol=req.symbol,
             transaction_type=req.transaction_type,
             quantity=req.quantity,
@@ -225,23 +175,20 @@ def update_transaction(
     except ValidationError as e:
         raise HTTPException(status_code=400, detail=str(e))
 
-@router.delete("/organizations/{org_id}/portfolios/{portfolio_id}/transactions/{txn_id}")
+@router.delete("/portfolios/{portfolio_id}/transactions/{txn_id}")
 def delete_transaction(
-    org_id: uuid.UUID,
     portfolio_id: uuid.UUID,
     txn_id: uuid.UUID,
     current_user: User = Depends(get_current_user),
-    members_repo: OrganizationMembersRepository = Depends(get_members_repo),
     service: PortfolioService = Depends(get_portfolio_service),
 ):
-    check_org_write_access(org_id, current_user.id, members_repo)
     try:
         # Verify transaction portfolio matches url portfolio
-        txn = service.get_transaction(txn_id, org_id)
+        txn = service.get_transaction(txn_id)
         if txn.portfolio_id != portfolio_id:
             raise HTTPException(status_code=404, detail="Transaction not found in this portfolio")
 
-        deleted = service.delete_transaction(txn_id, org_id)
+        deleted = service.delete_transaction(txn_id)
         return {"success": deleted}
     except NotFoundError as e:
         raise HTTPException(status_code=404, detail=str(e))
@@ -249,30 +196,24 @@ def delete_transaction(
 
 # --- Positions & Snapshots ---
 
-@router.get("/organizations/{org_id}/portfolios/{portfolio_id}/positions", response_model=List[PositionResponse])
+@router.get("/portfolios/{portfolio_id}/positions", response_model=List[PositionResponse])
 def get_positions(
-    org_id: uuid.UUID,
     portfolio_id: uuid.UUID,
     current_user: User = Depends(get_current_user),
-    members_repo: OrganizationMembersRepository = Depends(get_members_repo),
     service: PortfolioService = Depends(get_portfolio_service),
 ):
-    check_org_read_access(org_id, current_user.id, members_repo)
     # Ensure portfolio exists
-    service.get_portfolio(portfolio_id, org_id)
+    service.get_portfolio(portfolio_id)
     return service.positions_repo.get_by_portfolio(portfolio_id)
 
-@router.get("/organizations/{org_id}/portfolios/{portfolio_id}/snapshot", response_model=SnapshotResponse)
+@router.get("/portfolios/{portfolio_id}/snapshot", response_model=SnapshotResponse)
 def get_portfolio_snapshot_route(
-    org_id: uuid.UUID,
     portfolio_id: uuid.UUID,
     current_user: User = Depends(get_current_user),
-    members_repo: OrganizationMembersRepository = Depends(get_members_repo),
     service: PortfolioService = Depends(get_portfolio_service),
 ):
-    check_org_read_access(org_id, current_user.id, members_repo)
     # Ensure portfolio exists
-    service.get_portfolio(portfolio_id, org_id)
+    service.get_portfolio(portfolio_id)
 
     # Check cache first
     cached = get_cached_portfolio_snapshot(str(portfolio_id))
@@ -290,22 +231,19 @@ def get_portfolio_snapshot_route(
     try:
         snapshot = service.snapshot_repo.get(portfolio_id)
         if not snapshot:
-            snapshot = service.generate_portfolio_snapshot(portfolio_id, org_id)
+            snapshot = service.generate_portfolio_snapshot(portfolio_id)
         return snapshot
     except NotFoundError as e:
         raise HTTPException(status_code=404, detail=str(e))
 
-@router.post("/organizations/{org_id}/portfolios/{portfolio_id}/snapshot", response_model=SnapshotResponse)
+@router.post("/portfolios/{portfolio_id}/snapshot", response_model=SnapshotResponse)
 def generate_portfolio_snapshot_route(
-    org_id: uuid.UUID,
     portfolio_id: uuid.UUID,
     current_user: User = Depends(get_current_user),
-    members_repo: OrganizationMembersRepository = Depends(get_members_repo),
     service: PortfolioService = Depends(get_portfolio_service),
 ):
-    check_org_write_access(org_id, current_user.id, members_repo)
     try:
-        snapshot = service.generate_portfolio_snapshot(portfolio_id, org_id)
+        snapshot = service.generate_portfolio_snapshot(portfolio_id)
         # Update cache
         cache_data = {
             "portfolio_id": str(snapshot.portfolio_id),
@@ -324,22 +262,18 @@ def generate_portfolio_snapshot_route(
 
 # --- File Importers ---
 
-@router.post("/organizations/{org_id}/portfolios/{portfolio_id}/import")
+@router.post("/portfolios/{portfolio_id}/import")
 async def import_file(
-    org_id: uuid.UUID,
     portfolio_id: uuid.UUID,
     file: UploadFile = File(...),
     broker: Optional[str] = Form(None),
     current_user: User = Depends(get_current_user),
-    members_repo: OrganizationMembersRepository = Depends(get_members_repo),
     service: PortfolioService = Depends(get_portfolio_service),
 ):
-    check_org_write_access(org_id, current_user.id, members_repo)
     content = await file.read()
     try:
         return service.import_transaction_file(
             portfolio_id=portfolio_id,
-            organization_id=org_id,
             file_bytes=content,
             filename=file.filename or "import.csv",
             broker=broker
@@ -349,22 +283,18 @@ async def import_file(
     except NotFoundError as e:
         raise HTTPException(status_code=404, detail=str(e))
 
-@router.post("/organizations/{org_id}/portfolios/{portfolio_id}/import/cdsl")
+@router.post("/portfolios/{portfolio_id}/import/cdsl")
 async def import_cdsl_cas_pdf(
-    org_id: uuid.UUID,
     portfolio_id: uuid.UUID,
     file: UploadFile = File(...),
     password: Optional[str] = Form(None),
     current_user: User = Depends(get_current_user),
-    members_repo: OrganizationMembersRepository = Depends(get_members_repo),
     service: PortfolioService = Depends(get_portfolio_service),
 ):
-    check_org_write_access(org_id, current_user.id, members_repo)
     content = await file.read()
     try:
         return service.import_cdsl_cas(
             portfolio_id=portfolio_id,
-            organization_id=org_id,
             file_bytes=content,
             password=password
         )
@@ -376,12 +306,35 @@ async def import_cdsl_cas_pdf(
 
 # --- Manual Assets, Sync, Backup/Restore (single-user facade via get_user_context) ---
 
+# Asset classes that represent a tradeable unit with a per-unit price (a ticker/ISIN
+# you hold N of). Everything else (real estate, EPF/PPF/NPS, insurance, etc.) is
+# valued as a single lump sum and has no meaningful quantity/price split.
+_TRADEABLE_ASSET_CLASSES = {"stock", "stocks", "equity", "mutual_fund", "etf", "crypto"}
+
 class CreateManualAssetRequest(BaseModel):
     name: str
-    symbol: str
     asset_class: str
-    quantity: float
-    price: float
+    symbol: Optional[str] = None
+    quantity: Optional[float] = None
+    price: Optional[float] = None
+    current_value: Optional[float] = None
+    cost_basis: Optional[float] = None
+    valuation_date: Optional[str] = None
+    notes: Optional[str] = None
+
+    @model_validator(mode="after")
+    def _validate_fields_for_asset_class(self):
+        if self.asset_class in _TRADEABLE_ASSET_CLASSES:
+            missing = [f for f in ("symbol", "quantity", "price") if getattr(self, f) is None]
+            if missing:
+                raise ValueError(
+                    f"{', '.join(missing)} required for tradeable asset_class={self.asset_class!r}"
+                )
+        elif self.current_value is None:
+            raise ValueError(
+                f"current_value required for manually-valued asset_class={self.asset_class!r}"
+            )
+        return self
 
 @router.post("/manual-assets")
 def create_manual_asset(
@@ -390,14 +343,23 @@ def create_manual_asset(
     db: Session = Depends(get_db),
     service: PortfolioService = Depends(get_portfolio_service),
 ):
-    org_id, portfolio_id = get_user_context(db, user)
+    portfolio_id = get_user_context(db, user)
+    is_tradeable = body.asset_class in _TRADEABLE_ASSET_CLASSES
+    transaction_date = None
+    if body.valuation_date:
+        try:
+            transaction_date = datetime.fromisoformat(body.valuation_date)
+        except ValueError:
+            raise HTTPException(status_code=400, detail=f"Invalid valuation_date: {body.valuation_date!r}")
     symbol = service.create_manual_asset(
         portfolio_id=portfolio_id,
         name=body.name,
-        symbol=body.symbol,
+        symbol=body.symbol if is_tradeable else (body.symbol or f"MANUAL-{uuid.uuid4().hex[:8].upper()}"),
         asset_class=body.asset_class,
-        quantity=body.quantity,
-        price=body.price,
+        quantity=body.quantity if is_tradeable else 1.0,
+        price=body.price if is_tradeable else body.current_value,
+        transaction_date=transaction_date,
+        notes=body.notes,
     )
     return {"status": "success", "symbol": symbol}
 
@@ -413,7 +375,7 @@ def update_manual_valuation(
     db: Session = Depends(get_db),
     service: PortfolioService = Depends(get_portfolio_service),
 ):
-    org_id, portfolio_id = get_user_context(db, user)
+    portfolio_id = get_user_context(db, user)
     try:
         new_price = service.update_manual_valuation(
             portfolio_id=portfolio_id,
@@ -489,7 +451,7 @@ def export_backup(
     service: PortfolioService = Depends(get_portfolio_service),
     watchlists_repo: WatchlistsRepository = Depends(get_watchlist_repo),
 ):
-    org_id, portfolio_id = get_user_context(db, user)
+    portfolio_id = get_user_context(db, user)
     txns = service.transactions_repo.get_by_portfolio(portfolio_id)
     watchlists = watchlists_repo.list_by_user(user.id)
 
@@ -531,7 +493,7 @@ def restore_backup(
     db: Session = Depends(get_db),
     service: PortfolioService = Depends(get_portfolio_service),
 ):
-    org_id, portfolio_id = get_user_context(db, user)
+    portfolio_id = get_user_context(db, user)
     content = file.file.read()
     data = json.loads(content)
 
@@ -546,7 +508,6 @@ def restore_backup(
     for t in data.get("transactions", []):
         service.record_transaction(
             portfolio_id=portfolio_id,
-            organization_id=org_id,
             symbol=t["symbol"],
             transaction_type=t["type"],
             quantity=t["qty"],

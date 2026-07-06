@@ -34,15 +34,11 @@ from app.domain.entities.recommendation import (
 from app.domain.entities.system import (
     AuditLog,
     FailedIngestion,
-    Invitation,
     JobRun,
-    Organization,
-    OrganizationMember,
     Provider,
     ProviderUsage,
     User,
     UserPreference,
-    UserSession,
 )
 from app.domain.entities.watchlist import Watchlist, WatchlistSymbol
 

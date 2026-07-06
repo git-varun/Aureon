@@ -3,7 +3,6 @@ import { useQueryClient } from '@tanstack/react-query';
 import { toast } from 'react-hot-toast';
 import { useApp } from '@/components/aureon/store';
 import { Eyebrow } from '@/components/aureon/ui';
-import { useOrganization } from '@/contexts/OrganizationContext';
 import { usePortfolio } from '@/contexts/PortfolioContext';
 import { LogTradeModal } from '@/components/aureon/portfolio/LogTradeModal';
 import { apiService } from '@/api/apiService';
@@ -11,7 +10,6 @@ import { apiService } from '@/api/apiService';
 export default function ActivityTab({ onViewLineage }) {
     const {activity, undo} = useApp();
     const queryClient = useQueryClient();
-    const {activeOrgId} = useOrganization();
     const {activePortfolioId} = usePortfolio();
     const [kind, setKind] = useState('all');
     const [undoneIds, setUndoneIds] = useState(new Set());
@@ -21,9 +19,9 @@ export default function ActivityTab({ onViewLineage }) {
     const handleDelete = async (a) => {
         if (!window.confirm(`Delete the transaction for ${a.asset}?`)) return;
         try {
-            await apiService.deleteTransaction(null, null, a.id);
+            await apiService.deleteTransaction(activePortfolioId, a.id);
             toast.success('Transaction deleted');
-            queryClient.invalidateQueries({queryKey: ["org", activeOrgId, "portfolio", activePortfolioId, "transactions"]});
+            queryClient.invalidateQueries({queryKey: ["portfolio", activePortfolioId, "transactions"]});
         } catch (err) {
             toast.error(apiService.cleanError(err));
         }
@@ -51,7 +49,7 @@ export default function ActivityTab({ onViewLineage }) {
 
     return (
         <>
-            {editingTxn && <LogTradeModal transaction={editingTxn} onClose={(refresh) => { setEditingTxn(null); if (refresh) { queryClient.invalidateQueries({queryKey: ["org", activeOrgId, "portfolio", activePortfolioId, "transactions"]}); } }}/>}
+            {editingTxn && <LogTradeModal transaction={editingTxn} onClose={(refresh) => { setEditingTxn(null); if (refresh) { queryClient.invalidateQueries({queryKey: ["portfolio", activePortfolioId, "transactions"]}); } }}/>}
 
             {/* Info banner */}
             <div style={{display: 'flex', alignItems: 'flex-start', gap: 12, padding: '12px 16px', borderRadius: 10, background: 'rgba(255,255,255,0.025)', border: '1px solid rgba(255,255,255,0.06)', marginBottom: 20}}>

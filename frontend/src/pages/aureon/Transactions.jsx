@@ -3,7 +3,6 @@ import React, { useState, useMemo, useCallback, useEffect } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { toast } from 'react-hot-toast';
 import { apiService } from '@/api/apiService';
-import { useOrganization } from '@/contexts/OrganizationContext';
 import { usePortfolio } from '@/contexts/PortfolioContext';
 
 /* ── tone maps ──────────────────────────────────────────────────────────── */
@@ -345,10 +344,10 @@ function TransactionDrawer({ mode, txn, onClose, onSaved }) {
         };
       }
       if (isEdit) {
-        await apiService.updateTransaction(null, null, txn.id, payload);
+        await apiService.updateTransaction(null, txn.id, payload);
         toast.success(`${payload.symbol} updated`);
       } else {
-        await apiService.createTransaction(null, null, payload);
+        await apiService.createTransaction(null, payload);
         toast.success(`${(payload.symbol||'').toUpperCase()} ${payload.transaction_type.toUpperCase()} logged`);
       }
       onSaved();
@@ -600,7 +599,7 @@ function TransactionsLedger({ txns, isLoading, isError, refetch, onAdd, onMutate
     if (!confirm || deleting) return;
     setDeleting(true);
     try {
-      await apiService.deleteTransaction(null, null, confirm.id);
+      await apiService.deleteTransaction(null, confirm.id);
       toast.success(`${displayType(confirm.transaction_type)} ${confirm.symbol} deleted`);
       onMutated?.();
       setConfirm(null);
@@ -685,23 +684,22 @@ const SUB_TABS = [
 
 export default function Transactions() {
   const qc = useQueryClient();
-  const { activeOrgId } = useOrganization();
   const { activePortfolioId } = usePortfolio();
   const [subTab, setSubTab] = useState('confirmed');
   const [showDrawer, setShowDrawer] = useState(false);
 
-  const TXN_QUERY_KEY = ["org", activeOrgId, "portfolio", activePortfolioId, "transactions"];
+  const TXN_QUERY_KEY = ["portfolio", activePortfolioId, "transactions"];
 
   const { data: txns = [], isLoading, isError, refetch } = useQuery({
     queryKey: TXN_QUERY_KEY,
-    queryFn:  () => apiService.listTransactions(activeOrgId, activePortfolioId),
-    enabled:  !!activeOrgId && !!activePortfolioId,
+    queryFn:  () => apiService.listTransactions(activePortfolioId),
+    enabled:  !!activePortfolioId,
   });
 
   const handleSaved = useCallback(() => {
     qc.invalidateQueries({ queryKey: TXN_QUERY_KEY });
     setShowDrawer(false);
-  }, [qc, activeOrgId, activePortfolioId]);
+  }, [qc, activePortfolioId]);
 
   return (
     <>

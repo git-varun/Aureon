@@ -2,90 +2,7 @@ import uuid
 from datetime import datetime
 from typing import Any, Optional
 
-from pydantic import BaseModel, ConfigDict, EmailStr, Field
-
-# --- Request Schemas ---
-
-class RegisterRequest(BaseModel):
-    email: EmailStr
-    password: str = Field(..., min_length=6, description="Password must be at least 6 characters")
-    first_name: Optional[str] = None
-    last_name: Optional[str] = None
-    token: str = Field(..., description="Invitation token required for registration")
-
-class LoginRequest(BaseModel):
-    email: EmailStr
-    password: str
-
-class GoogleAuthRequest(BaseModel):
-    id_token: str
-
-class OrganizationCreate(BaseModel):
-    name: str = Field(..., min_length=1, max_length=100)
-    slug: str = Field(..., min_length=1, max_length=50, pattern=r"^[a-z0-9-]+$")
-
-class InvitationCreate(BaseModel):
-    email: EmailStr
-    role: str = Field("MEMBER", description="Role: OWNER, ADMIN, MEMBER, READ_ONLY")
-
-class RoleUpdate(BaseModel):
-    role: str = Field(..., description="New role: OWNER, ADMIN, MEMBER, READ_ONLY")
-
-
-# --- Response Schemas ---
-
-class UserResponse(BaseModel):
-    model_config = ConfigDict(from_attributes=True)
-
-    id: uuid.UUID
-    email: str
-    first_name: Optional[str] = None
-    last_name: Optional[str] = None
-    is_active: bool
-    profile_picture: Optional[str] = None
-    google_id: Optional[str] = None
-
-class SessionResponse(BaseModel):
-    model_config = ConfigDict(from_attributes=True)
-
-    session_token: str
-    user_id: uuid.UUID
-    expires_at: datetime
-
-class AuthResponse(BaseModel):
-    session: SessionResponse
-    user: UserResponse
-
-class OrganizationResponse(BaseModel):
-    model_config = ConfigDict(from_attributes=True)
-
-    id: uuid.UUID
-    name: str
-    slug: str
-    created_at: datetime
-
-class MemberResponse(BaseModel):
-    model_config = ConfigDict(from_attributes=True)
-
-    id: uuid.UUID
-    organization_id: uuid.UUID
-    user_id: uuid.UUID
-    role: str
-    created_at: datetime
-
-class InvitationResponse(BaseModel):
-    model_config = ConfigDict(from_attributes=True)
-
-    id: uuid.UUID
-    organization_id: uuid.UUID
-    email: str
-    role: str
-    invited_by_id: uuid.UUID
-    token: str
-    status: str
-    expires_at: datetime
-    created_at: datetime
-
+from pydantic import BaseModel, ConfigDict, Field
 
 # --- Portfolio Schemas ---
 
@@ -100,7 +17,6 @@ class PortfolioResponse(BaseModel):
 
     id: uuid.UUID
     name: str
-    organization_id: uuid.UUID
     created_at: datetime
     updated_at: datetime
 

@@ -2,7 +2,6 @@ import React, { useState } from 'react';
 import { apiService } from '@/api/apiService';
 
 const ONB_STEPS = [
-    { id: 'org',       label: 'Organisation' },
     { id: 'portfolio', label: 'Portfolio' },
     { id: 'providers', label: 'Providers' },
     { id: 'import',    label: 'Import' },
@@ -58,9 +57,6 @@ const deriveStatus = (p) => {
     const allKeysSet = keyNames.length === 0 || keyNames.every(k => keysStatus[k]);
     return allKeysSet ? 'connected' : 'reauth';
 };
-
-/* Slugify org name */
-const slugify = (s) => s.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '').slice(0, 60) || 'org';
 
 /* ── Shared typography ───────────────────────────────────────── */
 const OnbEyebrow = ({ children }) => (
@@ -178,41 +174,14 @@ const OnbRadioGroup = ({ label, options, value, onChange }) => (
 );
 
 /* ════════════════════════════════════════════════════════════
-   STEP 1 — Create Organisation
-   ════════════════════════════════════════════════════════════ */
-const StepOrg = ({ org, setOrg, touched }) => {
-    const set = (k, v) => setOrg(o => ({ ...o, [k]: v }));
-    const nameError = touched && !org.name.trim() ? 'Organisation name is required' : null;
-    return (
-        <div style={{ maxWidth: 640 }}>
-            <OnbEyebrow>Step 1 of 5</OnbEyebrow>
-            <OnbHeading>Create your organisation</OnbHeading>
-            <OnbSub>Your organisation is the top-level container for all portfolios, users and provider connections.</OnbSub>
-            <div className="layer-1" style={{ padding: '22px 24px', marginTop: 24 }}>
-                <OnbInput label="Organisation name" value={org.name} onChange={v => set('name', v)}
-                    placeholder="e.g. Vihaan Agarwal Family Office"
-                    hint="This will appear in reports and shared views."
-                    error={nameError}/>
-                <OnbRadioGroup label="Organisation type" value={org.type} onChange={v => set('type', v)}
-                    options={[
-                        ['personal',      'Personal',      'Individual investor — one or more accounts'],
-                        ['family',        'Family office', 'Shared across household members'],
-                        ['institutional', 'Institutional', 'Firm, HNI or corporate treasury'],
-                    ]}/>
-            </div>
-        </div>
-    );
-};
-
-/* ════════════════════════════════════════════════════════════
-   STEP 2 — Create Portfolio
+   STEP 1 — Create Portfolio
    ════════════════════════════════════════════════════════════ */
 const StepPortfolio = ({ portfolio, setPortfolio, touched }) => {
     const set = (k, v) => setPortfolio(p => ({ ...p, [k]: v }));
     const nameError = touched && !portfolio.name.trim() ? 'Portfolio name is required' : null;
     return (
         <div style={{ maxWidth: 640 }}>
-            <OnbEyebrow>Step 2 of 5</OnbEyebrow>
+            <OnbEyebrow>Step 1 of 4</OnbEyebrow>
             <OnbHeading>Create a portfolio</OnbHeading>
             <OnbSub>A portfolio groups related holdings for allocation tracking, goal anchoring and unified reporting.</OnbSub>
             <div className="layer-1" style={{ padding: '22px 24px', marginTop: 24 }}>
@@ -247,7 +216,7 @@ const StepProviders = ({ phase, providers, onRetry }) => {
 
     if (phase === 'loading') return (
         <div style={{ maxWidth: 740 }}>
-            <OnbEyebrow>Step 3 of 5</OnbEyebrow>
+            <OnbEyebrow>Step 2 of 4</OnbEyebrow>
             <OnbHeading>Configure providers</OnbHeading>
             <OnbSub>Loading provider status from backend…</OnbSub>
             <div style={{ marginTop: 24 }}><OnbSkeleton rows={4}/></div>
@@ -256,7 +225,7 @@ const StepProviders = ({ phase, providers, onRetry }) => {
 
     if (phase === 'error') return (
         <div style={{ maxWidth: 740 }}>
-            <OnbEyebrow>Step 3 of 5</OnbEyebrow>
+            <OnbEyebrow>Step 2 of 4</OnbEyebrow>
             <OnbHeading>Configure providers</OnbHeading>
             <OnbError onRetry={onRetry}/>
         </div>
@@ -264,7 +233,7 @@ const StepProviders = ({ phase, providers, onRetry }) => {
 
     return (
         <div style={{ maxWidth: 740 }}>
-            <OnbEyebrow>Step 3 of 5</OnbEyebrow>
+            <OnbEyebrow>Step 2 of 4</OnbEyebrow>
             <OnbHeading>Configure providers</OnbHeading>
             <OnbSub>Review the connection status of your data providers. Providers marked as <strong style={{ color: 'var(--dusk-500)' }}>Re-auth required</strong> or <strong style={{ color: 'var(--ink-30)' }}>Not connected</strong> can be configured in Settings after onboarding.</OnbSub>
 
@@ -368,7 +337,7 @@ const StepImport = ({ importState, setImportState }) => {
 
     return (
         <div style={{ maxWidth: 720 }}>
-            <OnbEyebrow>Step 4 of 5</OnbEyebrow>
+            <OnbEyebrow>Step 3 of 4</OnbEyebrow>
             <OnbHeading>Import portfolio</OnbHeading>
             <OnbSub>Import your existing holdings. This step is optional — you can skip and add holdings manually after onboarding.</OnbSub>
 
@@ -562,7 +531,7 @@ const SummaryRow = ({ label, value, mono, color }) => (
 /* ════════════════════════════════════════════════════════════
    STEP 5 — Review Summary
    ════════════════════════════════════════════════════════════ */
-const StepSummary = ({ org, portfolio, providers, importState, submitError }) => {
+const StepSummary = ({ portfolio, providers, importState, submitError }) => {
     const connected = providers.filter(p => p.status === 'connected');
 
     const importLabel = (() => {
@@ -577,16 +546,11 @@ const StepSummary = ({ org, portfolio, providers, importState, submitError }) =>
 
     return (
         <div style={{ maxWidth: 660 }}>
-            <OnbEyebrow>Step 5 of 5</OnbEyebrow>
+            <OnbEyebrow>Step 4 of 4</OnbEyebrow>
             <OnbHeading>Review summary</OnbHeading>
             <OnbSub>Confirm the details below. Everything can be updated later in Settings.</OnbSub>
 
             <div style={{ marginTop: 24 }}>
-                <SummaryCard eyebrow="Organisation" accent="rgba(201,168,106,0.40)">
-                    <SummaryRow label="Name" value={org.name || '—'}/>
-                    <SummaryRow label="Type" value={org.type ? org.type.charAt(0).toUpperCase() + org.type.slice(1) : '—'}/>
-                </SummaryCard>
-
                 <SummaryCard eyebrow="Portfolio" accent="rgba(122,168,212,0.35)">
                     <SummaryRow label="Name"     value={portfolio.name || '—'}/>
                     <SummaryRow label="Currency" value={portfolio.currency} mono/>
@@ -662,7 +626,6 @@ export default function Onboarding({ onDone }) {
     const [step, setStep] = useState(0);
     const [touched, setTouched] = useState(false);
 
-    const [org,         setOrg]         = useState({ name: '', type: 'personal' });
     const [portfolio,   setPortfolio]   = useState({ name: '', currency: 'INR', type: 'investment' });
     const [importState, setImportState] = useState({ mode: 'csv', csvFile: null, casFile: null, manualRows: [EMPTY_ROW()] });
 
@@ -706,8 +669,7 @@ export default function Onboarding({ onDone }) {
 
     /* Validation */
     const canContinue = () => {
-        if (step === 0) return org.name.trim().length > 0;
-        if (step === 1) return portfolio.name.trim().length > 0;
+        if (step === 0) return portfolio.name.trim().length > 0;
         return true;
     };
 
@@ -716,7 +678,7 @@ export default function Onboarding({ onDone }) {
         setTouched(false);
         const nextStep = Math.min(ONB_STEPS.length - 1, step + 1);
         setStep(nextStep);
-        if (nextStep === 2 && provPhase === 'idle') loadProviders();
+        if (nextStep === 1 && provPhase === 'idle') loadProviders();
     };
     const prev = () => { setTouched(false); setStep(s => Math.max(0, s - 1)); };
 
@@ -725,18 +687,14 @@ export default function Onboarding({ onDone }) {
         setSubmitting(true);
         setSubmitError(null);
         try {
-            const orgRes = await apiService.createOrganization(org.name.trim(), slugify(org.name));
-            const orgId  = orgRes.id;
-            localStorage.setItem('active_org_id', orgId);
-
-            const pfRes  = await apiService.createPortfolio(orgId, portfolio.name.trim());
-            const pfId   = pfRes.id;
-            localStorage.setItem(`active_portfolio_id_${orgId}`, pfId);
+            const pfRes = await apiService.createPortfolio(portfolio.name.trim());
+            const pfId  = pfRes.id;
+            localStorage.setItem('active_portfolio_id', pfId);
 
             if (importState.mode === 'csv' && importState.csvFile) {
-                await apiService.importTransactions(orgId, pfId, importState.csvFile).catch(() => {});
+                await apiService.importTransactions(pfId, importState.csvFile).catch(() => {});
             } else if (importState.mode === 'cas' && importState.casFile) {
-                await apiService.importCAS(orgId, pfId, importState.casFile).catch(() => {});
+                await apiService.importCAS(pfId, importState.casFile).catch(() => {});
             }
 
             onDone();
@@ -752,11 +710,10 @@ export default function Onboarding({ onDone }) {
     /* Rendering */
     const renderStep = () => {
         switch (step) {
-            case 0: return <StepOrg       org={org}             setOrg={setOrg}             touched={touched}/>;
-            case 1: return <StepPortfolio portfolio={portfolio} setPortfolio={setPortfolio} touched={touched}/>;
-            case 2: return <StepProviders phase={provPhase}     providers={providers}        onRetry={retryProviders}/>;
-            case 3: return <StepImport    importState={importState} setImportState={setImportState}/>;
-            case 4: return <StepSummary   org={org} portfolio={portfolio} providers={providers} importState={importState} submitError={submitError}/>;
+            case 0: return <StepPortfolio portfolio={portfolio} setPortfolio={setPortfolio} touched={touched}/>;
+            case 1: return <StepProviders phase={provPhase}     providers={providers}        onRetry={retryProviders}/>;
+            case 2: return <StepImport    importState={importState} setImportState={setImportState}/>;
+            case 3: return <StepSummary   portfolio={portfolio} providers={providers} importState={importState} submitError={submitError}/>;
             default: return null;
         }
     };

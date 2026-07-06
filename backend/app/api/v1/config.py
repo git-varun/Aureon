@@ -5,24 +5,15 @@ from fastapi import APIRouter, Depends, HTTPException
 from fastapi.responses import RedirectResponse
 from pydantic import BaseModel, ConfigDict, Field, model_validator
 
-from app.api.dependencies import get_config_service, get_current_user, get_members_repo
+from app.api.dependencies import get_config_service, get_current_user
 from app.core.config import settings
 from app.core.exceptions import NotFoundError, ZerodhaAuthError
 from app.core.logging import logger
 from app.domain.entities.config import JobStatus
 from app.domain.entities.system import User
 from app.domain.services.config import ConfigService
-from app.infrastructure.repositories import OrganizationMembersRepository
 
 router = APIRouter(prefix="/config", tags=["config"])
-
-# --- Authorization Helper ---
-
-def check_admin_access(current_user: User, members_repo: OrganizationMembersRepository):
-    # Only users who are OWNER or ADMIN in at least one organization can perform admin/config operations.
-    memberships = members_repo.get_admin_memberships_by_user(current_user.id)
-    if not memberships:
-        raise HTTPException(status_code=403, detail="Admin access required")
 
 # --- Schemas ---
 
@@ -124,10 +115,8 @@ class AllocationTargetUpsert(BaseModel):
 @router.get("/providers", response_model=ProvidersListResponse)
 def get_providers(
     user: User = Depends(get_current_user),
-    members_repo: OrganizationMembersRepository = Depends(get_members_repo),
     svc: ConfigService = Depends(get_config_service)
 ):
-    check_admin_access(user, members_repo)
     return {"providers": svc.get_all_providers()}
 
 @router.put("/providers/{provider_name}", response_model=ProvidersListResponse)
@@ -135,10 +124,8 @@ def update_provider(
     provider_name: str,
     payload: ProviderEnableToggle,
     user: User = Depends(get_current_user),
-    members_repo: OrganizationMembersRepository = Depends(get_members_repo),
     svc: ConfigService = Depends(get_config_service)
 ):
-    check_admin_access(user, members_repo)
     try:
         svc.update_provider(provider_name, enabled=payload.enabled, actor_id=user.id)
     except NotFoundError as e:
@@ -150,10 +137,8 @@ def set_provider_key(
     provider_name: str,
     payload: SetProviderKeyRequest,
     user: User = Depends(get_current_user),
-    members_repo: OrganizationMembersRepository = Depends(get_members_repo),
     svc: ConfigService = Depends(get_config_service)
 ):
-    check_admin_access(user, members_repo)
     try:
         svc.set_provider_key(provider_name, payload.key_name, payload.value, actor_id=user.id)
         p_dict = svc.get_provider_dict(provider_name)
@@ -170,10 +155,8 @@ def remove_provider_key(
     provider_name: str,
     key_name: str,
     user: User = Depends(get_current_user),
-    members_repo: OrganizationMembersRepository = Depends(get_members_repo),
     svc: ConfigService = Depends(get_config_service)
 ):
-    check_admin_access(user, members_repo)
     try:
         svc.remove_provider_key(provider_name, key_name, actor_id=user.id)
         p_dict = svc.get_provider_dict(provider_name)
@@ -190,10 +173,8 @@ def remove_provider_key(
 @router.get("/providers/zerodha/oauth/login-url")
 def get_zerodha_login_url(
     user: User = Depends(get_current_user),
-    members_repo: OrganizationMembersRepository = Depends(get_members_repo),
     svc: ConfigService = Depends(get_config_service),
 ):
-    check_admin_access(user, members_repo)
     api_key = svc.get_decrypted_key("zerodha", "api_key")
     if not api_key:
         raise HTTPException(status_code=400, detail="Zerodha api_key is not configured yet")
@@ -212,7 +193,7 @@ def zerodha_oauth_callback(
     # Unauthenticated by necessity: Zerodha's browser redirect carries no session cookie/JWT.
     # An attacker hitting this endpoint without our api_secret cannot forge a session — the
     # request_token is only useful when exchanged against Zerodha's own servers with that secret.
-    logger.info("Zerodha OAuth callback hit (status=%s)", status)
+    logger.info(f"Zerodha OAuth callback hit (status={status})")
 
     if status != "success" or not request_token:
         return RedirectResponse(f"{settings.FRONTEND_BASE_URL}/profile?zerodha=error&reason=login_failed")
@@ -227,7 +208,7 @@ def zerodha_oauth_callback(
     try:
         client.generate_session(request_token)
     except ZerodhaAuthError as e:
-        logger.warning("Zerodha session exchange failed: %s", e)
+        logger.warning(f"Zerodha session exchange failed: {e}")
         return RedirectResponse(f"{settings.FRONTEND_BASE_URL}/profile?zerodha=error&reason=exchange_failed")
 
     svc.set_provider_key("zerodha", "access_token", client.access_token)
@@ -238,10 +219,8 @@ def zerodha_oauth_callback(
 @router.get("/jobs", response_model=JobsListResponse)
 def get_jobs(
     user: User = Depends(get_current_user),
-    members_repo: OrganizationMembersRepository = Depends(get_members_repo),
     svc: ConfigService = Depends(get_config_service)
 ):
-    check_admin_access(user, members_repo)
     return {"jobs": svc.get_all_jobs()}
 
 @router.put("/jobs/{job_name}", response_model=JobsListResponse)
@@ -249,10 +228,8 @@ def update_job(
     job_name: str,
     payload: JobUpdateRequest,
     user: User = Depends(get_current_user),
-    members_repo: OrganizationMembersRepository = Depends(get_members_repo),
     svc: ConfigService = Depends(get_config_service)
 ):
-    check_admin_access(user, members_repo)
     job = svc.get_job(job_name)
     if not job:
         raise HTTPException(status_code=404, detail=f"Job {job_name} not found")
@@ -268,10 +245,8 @@ def update_job(
 def run_job(
     job_name: str,
     user: User = Depends(get_current_user),
-    members_repo: OrganizationMembersRepository = Depends(get_members_repo),
     svc: ConfigService = Depends(get_config_service)
 ):
-    check_admin_access(user, members_repo)
     if not svc.get_job(job_name):
         raise HTTPException(status_code=404, detail=f"Job {job_name} not found")
 
@@ -290,10 +265,8 @@ def get_job_logs(
     job_name: str,
     limit: int = 50,
     user: User = Depends(get_current_user),
-    members_repo: OrganizationMembersRepository = Depends(get_members_repo),
     svc: ConfigService = Depends(get_config_service)
 ):
-    check_admin_access(user, members_repo)
     return {"job_name": job_name, "logs": svc.get_job_logs(job_name, limit=limit)}
 
 # --- Allocation Targets ---
@@ -311,10 +284,8 @@ def upsert_allocation_target(
     asset_class: str,
     payload: AllocationTargetUpsert,
     user: User = Depends(get_current_user),
-    members_repo: OrganizationMembersRepository = Depends(get_members_repo),
     svc: ConfigService = Depends(get_config_service)
 ):
-    check_admin_access(user, members_repo)
     svc.upsert_allocation_target(
         asset_class,
         target_pct=payload.target_pct,

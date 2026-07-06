@@ -14,9 +14,6 @@ class Portfolio(UUIDMixin, TimestampMixin, Base):
     __table_args__ = {"schema": "portfolio"}
 
     name: Mapped[str] = mapped_column(String, nullable=False)
-    organization_id: Mapped[uuid.UUID] = mapped_column(
-        ForeignKey("system.organizations.id", ondelete="CASCADE"), nullable=False
-    )
 
 
 class Transaction(UUIDMixin, TimestampMixin, Base):

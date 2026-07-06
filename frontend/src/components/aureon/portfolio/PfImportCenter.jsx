@@ -20,7 +20,7 @@ export function PfImportCenter() {
     setCsvSt('processing');
     setCsvErr('');
     try {
-      const result = await apiService.importTransactions(null, null, file);
+      const result = await apiService.importTransactions(null, file);
       setCsvRes(result);
       setCsvSt('done');
     } catch (err) {
@@ -34,7 +34,7 @@ export function PfImportCenter() {
     setCasSt('processing');
     setCasErr('');
     try {
-      const result = await apiService.importCAS(null, null, casFile, null);
+      const result = await apiService.importCAS(null, casFile, null);
       setCasRes(result);
       setCasSt('done');
     } catch (err) {

@@ -17,9 +17,6 @@ class Watchlist(UUIDMixin, TimestampMixin, Base):
     user_id: Mapped[uuid.UUID] = mapped_column(
         ForeignKey("system.users.id", ondelete="CASCADE"), nullable=False, index=True
     )
-    organization_id: Mapped[uuid.UUID | None] = mapped_column(
-        ForeignKey("system.organizations.id", ondelete="CASCADE"), nullable=True, index=True
-    )
     name: Mapped[str] = mapped_column(String(120), nullable=False)
 
     symbols: Mapped[list["WatchlistSymbol"]] = relationship(

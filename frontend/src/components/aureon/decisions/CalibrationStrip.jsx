@@ -1,7 +1,6 @@
 import React from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { useApp } from '@/components/aureon/store';
-import { useOrganization } from '@/contexts/OrganizationContext';
 import { apiService } from '@/api/apiService';
 
 const SPIN_STYLE = `
@@ -126,13 +125,11 @@ const bandColor = (band) => {
 };
 
 function CalibrationStrip() {
-    const { activeOrgId } = useOrganization();
     const { active, applied, dismissed, activity } = useApp();
 
     const calibQuery = useQuery({
-        queryKey: ['org', activeOrgId, 'calibration'],
-        queryFn: () => apiService.getIntelligenceCalibration(activeOrgId),
-        enabled: !!activeOrgId,
+        queryKey: ['calibration'],
+        queryFn: () => apiService.getIntelligenceCalibration(),
         staleTime: 60000,
     });
 

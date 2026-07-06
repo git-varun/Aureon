@@ -11,13 +11,10 @@ from app.domain.entities.base import Base, TimestampMixin, UUIDMixin
 class AIBriefing(UUIDMixin, TimestampMixin, Base):
     __tablename__ = "ai_briefings"
     __table_args__ = (
-        Index("idx_ai_briefings_org_type", "organization_id", "briefing_type"),
+        Index("idx_ai_briefings_type", "briefing_type"),
         {"schema": "ai"}
     )
 
-    organization_id: Mapped[uuid.UUID] = mapped_column(
-        ForeignKey("system.organizations.id", ondelete="CASCADE"), nullable=False
-    )
     briefing_type: Mapped[str] = mapped_column(String(30), nullable=False)  # global, weekly, monthly, single
     symbol: Mapped[str | None] = mapped_column(String(30), nullable=True)
     content: Mapped[dict[str, Any]] = mapped_column(JSON().with_variant(JSONB, "postgresql"), nullable=False)

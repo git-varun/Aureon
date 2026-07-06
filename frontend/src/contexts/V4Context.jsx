@@ -3,7 +3,6 @@ import React, { createContext, useContext, useState, useEffect, useMemo } from '
 import { useQueryClient } from '@tanstack/react-query';
 import { apiService } from '../api/apiService';
 import { SUPPORTED_CURRENCIES, FX_PER_INR } from '../pages/aureon/marketData';
-import { useOrganization } from './OrganizationContext';
 
 const V4Context = createContext(null);
 export const useV4 = () => useContext(V4Context);
@@ -119,7 +118,6 @@ export const V4Provider = ({ children }) => {
     const [jobHistory, setJobHistory] = useState({});
     const [aiRuns, setAiRuns] = useState({});
     const queryClient = useQueryClient();
-    const {activeOrgId} = useOrganization();
 
     const effectiveRates = useMemo(() => {
         return fxRates || FX_PER_INR;
@@ -131,7 +129,7 @@ export const V4Provider = ({ children }) => {
             case 'j-prices':   return apiService.refreshPrices();
             case 'j-briefing': return apiService.runGlobalAI();
             case 'j-providers':return apiService.syncBrokers();
-            case 'j-signals':  return apiService.generateRecommendations(activeOrgId);
+            case 'j-signals':  return apiService.generateRecommendations();
             case 'j-news':     return apiService.analyzeNewsBatch();
             case 'j-analytics':return apiService.refreshPrices(); // prices are the base for all analytics
             case 'j-alerts':   return apiService.refreshPrices(); // re-evaluates price-based thresholds
@@ -160,7 +158,7 @@ export const V4Provider = ({ children }) => {
                 setJobHistory(h => ({ ...h, [jobId]: { last: Date.now(), status: 'ok' } }));
                 // Refresh the primary data feed so the UI reflects the outcome.
                 if (jobId !== 'j-ai') {
-                    queryClient.invalidateQueries({ queryKey: ["org", activeOrgId] });
+                    queryClient.invalidateQueries();
                 }
             });
 

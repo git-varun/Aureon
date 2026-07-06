@@ -67,12 +67,12 @@ class WatchlistService(BaseService):
         info = _fetch_asset_info(self.repo.session, all_symbols)
         return [_to_dict(w, info) for w in rows]
 
-    def create_watchlist(self, user_id: uuid.UUID, name: str, organization_id: uuid.UUID | None = None) -> dict[str, Any]:
+    def create_watchlist(self, user_id: uuid.UUID, name: str) -> dict[str, Any]:
         existing = self.repo.get_by_user_and_name(user_id, name)
         if existing:
             raise ConflictError(f"Watchlist '{name}' already exists")
-        
-        wl = Watchlist(user_id=user_id, name=name, organization_id=organization_id)
+
+        wl = Watchlist(user_id=user_id, name=name)
         self.repo.save(wl)
         self.repo.session.commit()
         self.repo.session.refresh(wl)

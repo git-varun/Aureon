@@ -8,13 +8,10 @@ from app.api.dependencies import (
     get_ai_service,
     get_current_user,
     get_db,
-    get_members_repo,
     get_user_context,
 )
-from app.api.v1.recommendation import check_org_read_access
 from app.domain.entities.system import User
 from app.domain.services.ai import AIService
-from app.infrastructure.repositories import OrganizationMembersRepository
 
 router = APIRouter()
 
@@ -23,76 +20,61 @@ class AskAureonRequest(BaseModel):
     context_id: uuid.UUID
     question: str
 
-@router.post("/organizations/{org_id}/ai/global")
+@router.post("/ai/global")
 def generate_global_briefing(
-    org_id: uuid.UUID,
     current_user: User = Depends(get_current_user),
-    members_repo: OrganizationMembersRepository = Depends(get_members_repo),
     ai_service: AIService = Depends(get_ai_service)
 ):
-    check_org_read_access(org_id, current_user.id, members_repo)
     try:
-        return ai_service.generate_briefing(org_id, "global", user_id=current_user.id)
+        return ai_service.generate_briefing("global", user_id=current_user.id)
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
-@router.post("/organizations/{org_id}/ai/weekly")
+@router.post("/ai/weekly")
 def generate_weekly_briefing(
-    org_id: uuid.UUID,
     current_user: User = Depends(get_current_user),
-    members_repo: OrganizationMembersRepository = Depends(get_members_repo),
     ai_service: AIService = Depends(get_ai_service)
 ):
-    check_org_read_access(org_id, current_user.id, members_repo)
     try:
-        return ai_service.generate_briefing(org_id, "weekly", user_id=current_user.id)
+        return ai_service.generate_briefing("weekly", user_id=current_user.id)
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
-@router.post("/organizations/{org_id}/ai/monthly")
+@router.post("/ai/monthly")
 def generate_monthly_briefing(
-    org_id: uuid.UUID,
     current_user: User = Depends(get_current_user),
-    members_repo: OrganizationMembersRepository = Depends(get_members_repo),
     ai_service: AIService = Depends(get_ai_service)
 ):
-    check_org_read_access(org_id, current_user.id, members_repo)
     try:
-        return ai_service.generate_briefing(org_id, "monthly", user_id=current_user.id)
+        return ai_service.generate_briefing("monthly", user_id=current_user.id)
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
-@router.post("/organizations/{org_id}/ai/qa")
+@router.post("/ai/qa")
 def ask_aureon(
-    org_id: uuid.UUID,
     req: AskAureonRequest,
     current_user: User = Depends(get_current_user),
-    members_repo: OrganizationMembersRepository = Depends(get_members_repo),
     ai_service: AIService = Depends(get_ai_service)
 ):
-    check_org_read_access(org_id, current_user.id, members_repo)
     try:
         response = ai_service.ask_aureon(req.context_type, req.context_id, req.question, user_id=current_user.id)
         return {"response": response}
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
-@router.post("/organizations/{org_id}/ai/recommendations/{recommendation_id}/explain")
+@router.post("/ai/recommendations/{recommendation_id}/explain")
 def explain_recommendation(
-    org_id: uuid.UUID,
     recommendation_id: uuid.UUID,
     current_user: User = Depends(get_current_user),
-    members_repo: OrganizationMembersRepository = Depends(get_members_repo),
     ai_service: AIService = Depends(get_ai_service)
 ):
-    check_org_read_access(org_id, current_user.id, members_repo)
     try:
         return ai_service.explain_recommendation(recommendation_id, user_id=current_user.id)
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
 
-# --- Bare (non-org-scoped) analytics endpoints, single-user facade via get_user_context ---
+# --- Bare analytics endpoints, single-user facade via get_user_context ---
 
 @router.get("/analytics/ai/briefings")
 def fetch_briefing_history(
@@ -101,8 +83,8 @@ def fetch_briefing_history(
     db: Session = Depends(get_db),
     ai_service: AIService = Depends(get_ai_service),
 ):
-    org_id, portfolio_id = get_user_context(db, user)
-    return ai_service.get_briefing_history(org_id, limit=limit)
+    get_user_context(db, user)
+    return ai_service.get_briefing_history(limit=limit)
 
 @router.get("/analytics/ai/single/{symbol}")
 @router.post("/analytics/ai/single/{symbol}")
@@ -112,7 +94,7 @@ def get_ai_take(
     db: Session = Depends(get_db),
     ai_service: AIService = Depends(get_ai_service)
 ):
-    get_user_context(db, user)  # ensures Personal Org/Portfolio exist
+    get_user_context(db, user)  # ensures default Portfolio exists
     return ai_service.get_single_asset_take(symbol, user_id=user.id)
 
 @router.post("/analytics/ai/news/batch")

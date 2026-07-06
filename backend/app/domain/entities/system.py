@@ -69,14 +69,11 @@ class User(UUIDMixin, TimestampMixin, Base):
     __table_args__ = {"schema": "system"}
 
     email: Mapped[str] = mapped_column(String, unique=True, nullable=False, index=True)
-    password_hash: Mapped[str | None] = mapped_column(String, nullable=True)
     first_name: Mapped[str | None] = mapped_column(String, nullable=True)
     last_name: Mapped[str | None] = mapped_column(String, nullable=True)
     phone: Mapped[str | None] = mapped_column(String, nullable=True, index=True)
     is_active: Mapped[bool] = mapped_column(Boolean, default=True)
-    is_verified: Mapped[bool] = mapped_column(Boolean, default=False)
     profile_picture: Mapped[str | None] = mapped_column(String, nullable=True)
-    google_id: Mapped[str | None] = mapped_column(String, unique=True, nullable=True, index=True)
 
 
 class UserPreference(UUIDMixin, TimestampMixin, Base):
@@ -93,60 +90,6 @@ class UserPreference(UUIDMixin, TimestampMixin, Base):
     swing_trading_enabled: Mapped[bool] = mapped_column(Boolean, default=True)
     bio: Mapped[str | None] = mapped_column(String, nullable=True)
 
-
-
-class Organization(UUIDMixin, TimestampMixin, Base):
-    __tablename__ = "organizations"
-    __table_args__ = {"schema": "system"}
-
-    name: Mapped[str] = mapped_column(String, nullable=False)
-    slug: Mapped[str] = mapped_column(String, unique=True, nullable=False, index=True)
-
-
-class OrganizationMember(UUIDMixin, TimestampMixin, Base):
-    __tablename__ = "organization_members"
-    __table_args__ = (
-        Index("idx_org_members_org_user", "organization_id", "user_id", unique=True),
-        {"schema": "system"}
-    )
-
-    organization_id: Mapped[uuid.UUID] = mapped_column(
-        ForeignKey("system.organizations.id", ondelete="CASCADE"), nullable=False
-    )
-    user_id: Mapped[uuid.UUID] = mapped_column(
-        ForeignKey("system.users.id", ondelete="CASCADE"), nullable=False
-    )
-    role: Mapped[str] = mapped_column(String, nullable=False)  # OWNER, ADMIN, MEMBER, READ_ONLY
-
-
-class Invitation(UUIDMixin, TimestampMixin, Base):
-    __tablename__ = "invitations"
-    __table_args__ = {"schema": "system"}
-
-    organization_id: Mapped[uuid.UUID] = mapped_column(
-        ForeignKey("system.organizations.id", ondelete="CASCADE"), nullable=False
-    )
-    email: Mapped[str] = mapped_column(String, nullable=False, index=True)
-    role: Mapped[str] = mapped_column(String, nullable=False, default="MEMBER")
-    invited_by_id: Mapped[uuid.UUID] = mapped_column(
-        ForeignKey("system.users.id", ondelete="CASCADE"), nullable=False
-    )
-    token: Mapped[str] = mapped_column(String, unique=True, nullable=False, index=True)
-    status: Mapped[str] = mapped_column(String, nullable=False, default="PENDING")  # PENDING, ACCEPTED, REVOKED, EXPIRED
-    expires_at: Mapped[datetime] = mapped_column(nullable=False)
-
-
-class UserSession(UUIDMixin, TimestampMixin, Base):
-    __tablename__ = "sessions"
-    __table_args__ = {"schema": "system"}
-
-    user_id: Mapped[uuid.UUID] = mapped_column(
-        ForeignKey("system.users.id", ondelete="CASCADE"), nullable=False
-    )
-    session_token: Mapped[str] = mapped_column(String, unique=True, nullable=False, index=True)
-    expires_at: Mapped[datetime] = mapped_column(nullable=False)
-    ip_address: Mapped[str | None] = mapped_column(String, nullable=True)
-    user_agent: Mapped[str | None] = mapped_column(String, nullable=True)
 
 
 class AuditLog(Base):
