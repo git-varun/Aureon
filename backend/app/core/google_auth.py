@@ -1,9 +1,6 @@
-import logging
-
 from app.core.config import settings
 from app.core.exceptions import AuthenticationError, ValidationError
-
-logger = logging.getLogger("app.core.google_auth")
+from app.core.logging import logger
 
 def verify_google_token(id_token: str) -> dict:
     """Verify a Google ID token and return the parsed profile.

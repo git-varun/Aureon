@@ -1,10 +1,10 @@
 from app.domain.services.base import BaseService
-import logging
 from datetime import datetime, timezone
 from typing import Any
 
 from sqlalchemy import select
 
+from app.core.logging import logger
 from app.core.providers.capabilities import Capability
 from app.core.providers.factory import ProviderFactory
 from app.core.providers.registry import registry
@@ -13,8 +13,6 @@ from app.domain.entities.news import News, NewsAsset
 from app.domain.services.config import ConfigService
 from app.infrastructure.repositories.config import ConfigRepository
 from app.infrastructure.repositories.news import NewsRepository
-
-logger = logging.getLogger("news.service")
 
 class NewsService(BaseService):
     def __init__(self, repo: NewsRepository):

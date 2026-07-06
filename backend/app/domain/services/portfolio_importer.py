@@ -1,12 +1,11 @@
 """Transaction and holding file parsers (CDSL CAS, Groww, Zerodha)."""
 
 import io
-import logging
 import re
 from datetime import datetime, timezone
 from typing import Any, Dict, List, Optional, Tuple
 
-logger = logging.getLogger("portfolio.importer")
+from app.core.logging import logger
 
 # Accepted column names (case-insensitive) -> internal key
 _COL_MAP = {
@@ -79,10 +78,12 @@ def _mf_symbol(name: str) -> str:
     return slug[:40].rstrip("_") + "_MF"
 
 def _normalise_binance_symbol(pair: str) -> str:
-    for quote in ("USDT", "BUSD", "USDC", "BTC", "ETH", "BNB"):
-        if len(pair) > len(quote) and pair.endswith(quote):
-            return pair[:-len(quote)] + "-" + quote
-    return pair
+    from app.core.binance import split_quote_asset
+
+    base, quote = split_quote_asset(pair)
+    if base is None:
+        return pair
+    return f"{base}-{quote}"
 
 def _normalise_type(raw: str) -> str:
     v = raw.strip().lower()

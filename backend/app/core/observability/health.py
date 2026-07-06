@@ -119,13 +119,6 @@ class HealthScoreEngine:
 
         # Bound score between 0 and 100
         score = max(0.0, min(100.0, score))
-        
-        # Populate health metrics gauge
-        try:
-            from app.core.observability.metrics import slo_availability
-            slo_availability.set(1.0 if score >= 70.0 else 0.0)
-        except Exception:
-            pass
 
         return {
             "health_score_percent": score,

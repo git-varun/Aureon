@@ -1,6 +1,5 @@
 from app.domain.services.base import BaseService
 import json
-import logging
 import os
 import re
 import time
@@ -10,6 +9,7 @@ from typing import Any, Optional
 from sqlalchemy.orm import Session
 
 from app.core.exceptions import NotFoundError, ProviderError, RateLimitError, ValidationError
+from app.core.logging import logger
 from app.core.providers.factory import ProviderFactory
 from app.core.providers.retry import CircuitBreaker
 from app.domain.entities.ai import AIBriefing, AIEvaluation, AIGeneration
@@ -21,8 +21,6 @@ from app.domain.entities.recommendation import Recommendation, RecommendationExp
 from app.domain.entities.system import Organization
 from app.domain.services.config import ConfigService
 from app.infrastructure.repositories.config import ConfigRepository
-
-logger = logging.getLogger("ai.service")
 
 # ── Cooldown Tracker ──────────────────────────────────────────────────────────
 # Generalized into app.core.providers.retry.CircuitBreaker so every provider
@@ -607,18 +605,6 @@ class AIService(BaseService):
                 raise ProviderError(error_msg)
 
         latency = int((time.monotonic() - start_time) * 1000)
-
-        # Record AI metrics and check slow warning
-        try:
-            from app.core.observability.metrics import ai_evaluation_duration_seconds, slo_evaluation_sla_status
-            ai_evaluation_duration_seconds.observe(latency / 1000.0, feature_name=feature_name, model=model_used)
-            slo_evaluation_sla_status.set(1.0 if latency <= 2000.0 else 0.0, feature_name=feature_name)
-        except Exception:
-            pass
-
-        if latency > 2000.0:
-            from app.core.observability.slow_operations import check_slow_operation
-            check_slow_operation("Evaluation", latency, details={"feature_name": feature_name, "model": model_used})
 
         # Observability Log
         import hashlib

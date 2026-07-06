@@ -5,13 +5,11 @@ app/domain/services/ai.py — the same Redis-backed cooldown pattern now
 applies to any provider (market data, broker, AI, ...).
 """
 import functools
-import logging
 import time
 from typing import Callable, TypeVar
 
 from app.core.exceptions import ProviderError, RateLimitError
-
-logger = logging.getLogger("providers.retry")
+from app.core.logging import logger
 
 T = TypeVar("T")
 

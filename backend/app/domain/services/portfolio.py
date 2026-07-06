@@ -1,7 +1,6 @@
 from app.domain.services.base import BaseService
 """Portfolio domain services."""
 
-import logging
 import uuid
 from datetime import datetime, timezone
 from typing import Any, Dict, List, Optional
@@ -9,7 +8,9 @@ from typing import Any, Dict, List, Optional
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
+from app.core.binance import STABLECOIN_ASSETS, WALLET_SUFFIXES, split_quote_asset
 from app.core.exceptions import NotFoundError, ValidationError
+from app.core.logging import logger
 from app.domain.entities.market import AssetSnapshot, LatestQuote
 from app.domain.entities.portfolio import (
     Portfolio,
@@ -23,8 +24,6 @@ from app.infrastructure.repositories import (
     PositionsRepository,
     TransactionsRepository,
 )
-
-logger = logging.getLogger("portfolio.service")
 
 def _ensure_asset_exists(session: Session, symbol: str) -> uuid.UUID:
     symbol = symbol.upper().strip()
@@ -262,14 +261,19 @@ class PortfolioService(BaseService):
     def recalculate_position(self, portfolio_id: uuid.UUID, symbol: str) -> None:
         symbol = symbol.upper().strip()
         
-        # Query manual transactions (kind != broker_snapshot)
+        # Query manual/imported transactions (kind == "trade"). Explicitly excludes
+        # both "broker_snapshot" (a live-balance snapshot, not a ledger) and
+        # "broker_trade" (best-effort/partial live trade-history import — see
+        # _import_broker_trades — which only ever feeds cost basis via
+        # _apply_trade_cost_basis, never quantity, since it can't be trusted to be
+        # a complete ledger).
         txns = (
             self.session.query(Transaction)
             .filter(
                 Transaction.portfolio_id == portfolio_id,
                 Transaction.symbol == symbol,
                 Transaction.transaction_type.in_({"BUY", "SELL", "BONUS", "SPLIT"}),
-                Transaction.kind != "broker_snapshot",
+                Transaction.kind == "trade",
             )
             .order_by(Transaction.transaction_date.asc(), Transaction.id.asc())
             .all()
@@ -360,8 +364,17 @@ class PortfolioService(BaseService):
             price = float(quote.price) if quote and quote.price is not None else float(pos.avg_buy_price)
 
             qty = float(pos.quantity)
-            val = qty * price
-            cost = qty * float(pos.avg_buy_price)
+            if pos.wallet in ("futures_usdm", "futures_coinm"):
+                # Leveraged derivative: reporting qty * markPrice as "value" would
+                # overstate capital exposure by the leverage multiple. What the user
+                # actually has at risk is the margin posted plus unrealized PnL.
+                leverage = float(pos.leverage) if pos.leverage else 1.0
+                margin = abs(qty * float(pos.avg_buy_price)) / leverage
+                val = margin + float(pos.unrealized_pnl or 0)
+                cost = margin
+            else:
+                val = qty * price
+                cost = qty * float(pos.avg_buy_price)
 
             market_value += val
             total_invested += cost
@@ -371,8 +384,10 @@ class PortfolioService(BaseService):
         for symbol, val in position_values.items():
             if symbol.endswith("_MF"):
                 atype = "mutual_fund"
+            elif any(symbol.endswith(f"-{s}") for s in WALLET_SUFFIXES.values()):
+                atype = "crypto_futures"
             elif symbol.endswith("-USD"):
-                atype = "crypto"
+                atype = "stablecoin" if symbol[: -len("-USD")] in STABLECOIN_ASSETS else "crypto"
             else:
                 atype = "equity"
             allocation[atype] = allocation.get(atype, 0.0) + val
@@ -545,8 +560,15 @@ class PortfolioService(BaseService):
             asset_id = _ensure_asset_exists(self.session, symbol)
 
             asset = self.session.scalar(select(Asset).filter_by(symbol=symbol))
+            row_asset_class = row.get("asset_class", "equity")
             if not asset:
-                self.session.add(Asset(id=asset_id, symbol=symbol, name=row.get("name", symbol), asset_class=row.get("asset_class", "equity")))
+                self.session.add(Asset(id=asset_id, symbol=symbol, name=row.get("name", symbol), asset_class=row_asset_class))
+                self.session.flush()
+            elif asset.asset_class != row_asset_class:
+                # Keeps a pre-existing Asset row's classification in sync with what
+                # the broker sync now knows (e.g. a stablecoin synced before
+                # "stablecoin" was a distinct asset_class from "crypto").
+                asset.asset_class = row_asset_class
                 self.session.flush()
 
             stmt = select(Transaction).where(
@@ -632,29 +654,281 @@ class PortfolioService(BaseService):
         self,
         portfolio_id: uuid.UUID,
         organization_id: uuid.UUID,
-        balances: List[Dict[str, Any]],
+        holdings: Dict[str, Any],
     ) -> Dict[str, Any]:
-        """balances: Binance /api/v3/account "balances" list — each {"asset": str,
-        "free": str, "locked": str}. Binance's account endpoint reports current
-        balance only, not cost basis, so avg_price is 0 — accurate P&L for these
-        positions requires importing trade history via the CSV/XLSX importer."""
+        """holdings: {"spot": [...], "earn": [...], "futures_usdm": [...],
+        "futures_coinm": [...], "trades": {"spot": [...], "futures_usdm": [...],
+        "futures_coinm": [...]}} — see BinanceBrokerProvider.sync(). Spot and Earn
+        balances are the same underlying coin (Earn is just locked in a savings
+        product), so they're merged into one Position per asset. Futures positions
+        are leveraged derivatives with no cost-basis ledger, so they're upserted
+        directly from Binance's own position snapshot rather than replayed through
+        recalculate_position. Binance's account/position endpoints report current
+        balances only, not historical cost basis for Spot/Earn — accurate P&L there
+        depends on the trade history imported below (or the CSV/XLSX importer)."""
         self.get_portfolio(portfolio_id, organization_id)
 
-        rows = []
-        for b in balances:
+        quantities: Dict[str, float] = {}
+        for b in holdings.get("spot") or []:
             asset = (b.get("asset") or "").upper().strip()
-            if not asset or asset in ("USDT", "USD", "BUSD", "USDC"):
+            if not asset:
                 continue
-            quantity = float(b.get("free") or 0) + float(b.get("locked") or 0)
-            rows.append({
+            quantities[asset] = quantities.get(asset, 0.0) + float(b.get("free") or 0) + float(b.get("locked") or 0)
+        for e in holdings.get("earn") or []:
+            asset = (e.get("asset") or "").upper().strip()
+            if not asset:
+                continue
+            amount = float(e.get("totalAmount") or e.get("amount") or 0)
+            quantities[asset] = quantities.get(asset, 0.0) + amount
+
+        rows = [
+            {
                 "symbol": f"{asset}-USD",
-                "quantity": quantity,
+                "quantity": qty,
                 "avg_price": 0.0,
                 "name": asset,
-                "asset_class": "crypto",
-            })
+                "asset_class": "stablecoin" if asset in STABLECOIN_ASSETS else "crypto",
+            }
+            for asset, qty in quantities.items()
+            if qty > 0
+        ]
 
-        return self._sync_broker_snapshot(portfolio_id, "binance", rows)
+        trades = holdings.get("trades") or {}
+        result = self._sync_spot_with_cost_basis(portfolio_id, "binance", rows, trades.get("spot") or [])
+
+        self._sync_futures_positions(portfolio_id, "binance", "futures_usdm", holdings.get("futures_usdm") or [])
+        self._sync_futures_positions(portfolio_id, "binance", "futures_coinm", holdings.get("futures_coinm") or [])
+        result["imported_trades"] += self._import_broker_trades(portfolio_id, "binance", trades.get("futures_usdm") or [], "futures_usdm")
+        result["imported_trades"] += self._import_broker_trades(portfolio_id, "binance", trades.get("futures_coinm") or [], "futures_coinm")
+
+        self.session.commit()
+        return result
+
+    def _sync_spot_with_cost_basis(
+        self,
+        portfolio_id: uuid.UUID,
+        broker: str,
+        rows: List[Dict[str, Any]],
+        spot_trades: List[Dict[str, Any]],
+    ) -> Dict[str, Any]:
+        """Atomic unit for Spot/Earn: syncs the live balance snapshot, imports
+        trade history, then reapplies cost basis from that history — in that
+        exact order, every time. This exists so the ordering dependency
+        (snapshot sync resets avg_buy_price via recalculate_position, so cost
+        basis must be (re)applied *after* both snapshot sync and trade import,
+        on every call, not just when a new trade appears) lives in one place
+        instead of being the caller's responsibility to get right."""
+        result = self._sync_broker_snapshot(portfolio_id, broker, rows)
+        result["imported_trades"] = self._import_broker_trades(portfolio_id, broker, spot_trades, "spot")
+        for row in rows:
+            self._apply_trade_cost_basis(portfolio_id, row["symbol"])
+        return result
+
+    def _sync_futures_positions(
+        self,
+        portfolio_id: uuid.UUID,
+        broker: str,
+        wallet: str,
+        positions: List[Dict[str, Any]],
+    ) -> None:
+        """Upserts Position rows directly from Binance's positionRisk snapshot
+        (USDⓈ-M or COIN-M). Bypasses recalculate_position's BUY/SELL transaction
+        replay since a futures position isn't a cost-basis ledger — it's a live,
+        signed (long/short) snapshot that Binance itself already nets out."""
+        from app.domain.entities.market import Asset
+
+        suffix = WALLET_SUFFIXES[wallet]
+        seen_symbols = set()
+        for p in positions:
+            position_amt = float(p.get("positionAmt") or 0)
+            if position_amt == 0:
+                continue
+            raw_symbol = (p.get("symbol") or "").upper().strip()
+            if not raw_symbol:
+                continue
+            symbol = f"{raw_symbol}-{suffix}"
+            seen_symbols.add(symbol)
+
+            asset_id = _ensure_asset_exists(self.session, symbol)
+            asset = self.session.scalar(select(Asset).filter_by(symbol=symbol))
+            if not asset:
+                self.session.add(Asset(id=asset_id, symbol=symbol, name=raw_symbol, asset_class="crypto_futures"))
+                self.session.flush()
+
+            side = (p.get("positionSide") or "").upper()
+            if side not in ("LONG", "SHORT"):
+                side = "LONG" if position_amt > 0 else "SHORT"
+
+            pos = (
+                self.session.query(Position)
+                .filter(Position.portfolio_id == portfolio_id, Position.symbol == symbol)
+                .first()
+            )
+            if not pos:
+                pos = Position(portfolio_id=portfolio_id, symbol=symbol, asset_id=asset_id, wallet=wallet)
+                self.session.add(pos)
+
+            pos.quantity = position_amt
+            pos.avg_buy_price = float(p.get("entryPrice") or 0)
+            pos.leverage = float(p.get("leverage")) if p.get("leverage") is not None else None
+            pos.liquidation_price = float(p.get("liquidationPrice")) if p.get("liquidationPrice") is not None else None
+            pos.unrealized_pnl = float(p.get("unRealizedProfit") or 0)
+            pos.side = side
+            pos.asset_id = asset_id
+        self.session.flush()
+
+        stale_query = self.session.query(Position).filter(
+            Position.portfolio_id == portfolio_id,
+            Position.wallet == wallet,
+        )
+        if seen_symbols:
+            stale_query = stale_query.filter(Position.symbol.notin_(seen_symbols))
+        stale = stale_query.all()
+        for pos in stale:
+            self.session.delete(pos)
+        self.session.flush()
+
+    def _import_broker_trades(
+        self,
+        portfolio_id: uuid.UUID,
+        broker: str,
+        trades: List[Dict[str, Any]],
+        wallet: str,
+    ) -> int:
+        """Inserts Binance trade-history rows as kind="broker_trade" Transactions
+        (a distinct kind from "trade" — see recalculate_position — since this
+        history is best-effort/partial and must never override the live balance
+        snapshot's quantity), deduped by (portfolio_id, broker, broker_reference)
+        — same pattern as the CSV importer's import_transaction_file
+        (broker_reference = Binance's trade id). Only Spot trades feed
+        _apply_trade_cost_basis; Futures positions are snapshot-synced in
+        _sync_futures_positions and don't have a cost-basis ledger concept here."""
+        # Build every candidate's dedup key up front so existing rows can be
+        # checked with one bulk query instead of one SELECT per trade.
+        candidates = []
+        for t in trades:
+            trade_id = t.get("id") or t.get("orderId")
+            if trade_id is None:
+                continue
+            raw_symbol = (t.get("symbol") or "").upper().strip()
+            if not raw_symbol:
+                continue
+            # Binance trade ids are only unique per symbol/market, not globally —
+            # a Spot BTCUSDT trade and a Spot ETHUSDT trade (or a USDⓈ-M and a
+            # COIN-M trade) can share the same numeric id, so the dedup key must
+            # include wallet + the raw exchange symbol/pair, not just the id.
+            broker_ref = f"{wallet}:{raw_symbol}:{trade_id}"
+            candidates.append((t, raw_symbol, broker_ref))
+
+        if not candidates:
+            return 0
+
+        existing_refs = set(
+            self.session.execute(
+                select(Transaction.broker_reference).where(
+                    Transaction.portfolio_id == portfolio_id,
+                    Transaction.broker == broker,
+                    Transaction.broker_reference.in_([c[2] for c in candidates]),
+                )
+            ).scalars().all()
+        )
+
+        committed = 0
+        seen_this_call = set()
+        for t, raw_symbol, broker_ref in candidates:
+            if broker_ref in existing_refs or broker_ref in seen_this_call:
+                continue
+            seen_this_call.add(broker_ref)
+
+            if wallet == "spot":
+                # Normalise to the same "{ASSET}-USD" symbol the balance sync uses
+                # (_sync_broker_snapshot), so trade history reinforces the same
+                # Position instead of creating a shadow one. Only pairs quoted in a
+                # USD stablecoin can be treated as USD-priced directly; BTC/ETH/BNB-
+                # quoted pairs (e.g. "ADABTC") would need a separate BTC->USD
+                # conversion to price correctly, so those are skipped here (still
+                # available via the CSV importer, which doesn't face this problem
+                # since exported statements report values in the user's fiat).
+                base, _ = split_quote_asset(raw_symbol, STABLECOIN_ASSETS)
+                if base is None:
+                    continue
+                symbol = f"{base}-USD"
+                is_buyer = bool(t.get("isBuyer"))
+                transaction_type = "BUY" if is_buyer else "SELL"
+            else:
+                suffix = WALLET_SUFFIXES[wallet]
+                symbol = f"{raw_symbol}-{suffix}"
+                side = (t.get("side") or "").upper()
+                transaction_type = "BUY" if side == "BUY" else "SELL"
+
+            asset_id = _ensure_asset_exists(self.session, symbol)
+            txn = Transaction(
+                portfolio_id=portfolio_id,
+                symbol=symbol,
+                asset_id=asset_id,
+                transaction_type=transaction_type,
+                quantity=float(t.get("qty") or t.get("quantity") or 0),
+                price=float(t.get("price") or 0),
+                transaction_date=datetime.fromtimestamp(int(t.get("time") or 0) / 1000, tz=timezone.utc),
+                fees=float(t.get("commission") or 0),
+                broker=broker,
+                broker_reference=broker_ref,
+                kind="broker_trade",
+            )
+            self.transactions_repo.create(txn)
+            committed += 1
+
+        # Spot/Earn quantity must stay driven by the live balance snapshot from
+        # _sync_broker_snapshot (authoritative), not by this trade ledger — trade
+        # history here is best-effort/partial (see get_spot_trade_candidates), so
+        # replaying it as a full ledger via recalculate_position could understate
+        # real holdings. sync_binance_holdings applies cost basis for every synced
+        # spot symbol afterward (_apply_trade_cost_basis), not just ones with a
+        # newly-imported trade this round.
+        return committed
+
+    def _apply_trade_cost_basis(self, portfolio_id: uuid.UUID, symbol: str) -> None:
+        """Derives avg_buy_price from kind="broker_trade" transactions for `symbol`
+        (same running-average math as recalculate_position) and applies it to the
+        existing Position without touching its quantity."""
+        pos = (
+            self.session.query(Position)
+            .filter(Position.portfolio_id == portfolio_id, Position.symbol == symbol)
+            .first()
+        )
+        if not pos:
+            return
+
+        trades = (
+            self.session.query(Transaction)
+            .filter(
+                Transaction.portfolio_id == portfolio_id,
+                Transaction.symbol == symbol,
+                Transaction.kind == "broker_trade",
+                Transaction.transaction_type.in_({"BUY", "SELL"}),
+            )
+            .order_by(Transaction.transaction_date.asc(), Transaction.id.asc())
+            .all()
+        )
+        if not trades:
+            return
+
+        net_qty = 0.0
+        running_avg = 0.0
+        for t in trades:
+            qty = float(t.quantity)
+            price = float(t.price)
+            if t.transaction_type.upper() == "BUY":
+                new_qty = net_qty + qty
+                if new_qty > 0:
+                    running_avg = (net_qty * running_avg + qty * price) / new_qty
+                net_qty = new_qty
+            else:
+                net_qty = max(net_qty - qty, 0.0)
+
+        if running_avg > 0:
+            pos.avg_buy_price = running_avg
+            self.session.flush()
 
     def sync_groww_holdings(
         self,

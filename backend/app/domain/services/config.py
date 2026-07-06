@@ -1,7 +1,6 @@
 from app.domain.services.base import BaseService
 import base64
 import json
-import logging
 import uuid
 from datetime import datetime, timezone
 from typing import Any, Optional
@@ -12,6 +11,7 @@ from sqlalchemy.orm import Session
 
 from app.core.config import settings
 from app.core.exceptions import NotFoundError
+from app.core.logging import logger
 from app.domain.entities.config import (
     AllocationTarget,
     JobConfig,
@@ -20,8 +20,6 @@ from app.domain.entities.config import (
     ProviderConfig,
 )
 from app.infrastructure.repositories.config import ConfigRepository
-
-logger = logging.getLogger("config.service")
 
 # ── Encryption helpers ────────────────────────────────────────────────────────
 
@@ -92,7 +90,7 @@ def _alloc_target_to_dict(r: AllocationTarget) -> dict[str, Any]:
 _DEFAULT_PROVIDERS = [
     {"provider_name": "zerodha", "provider_type": "broker", "key_names": '["api_key","api_secret","access_token","request_token"]', "status": "PARTIAL", "capabilities": '["PORTFOLIO","HOLDINGS"]', "priority": 10},
     {"provider_name": "groww", "provider_type": "broker", "key_names": '["api_key","api_secret"]', "status": "PARTIAL", "capabilities": '["PORTFOLIO","HOLDINGS"]', "priority": 11},
-    {"provider_name": "binance", "provider_type": "broker", "key_names": '["api_key","api_secret"]', "status": "PARTIAL", "capabilities": '["PORTFOLIO","HOLDINGS"]', "priority": 12},
+    {"provider_name": "binance", "provider_type": "broker", "key_names": '["api_key","api_secret"]', "status": "PARTIAL", "capabilities": '["PORTFOLIO","HOLDINGS","TRANSACTIONS"]', "priority": 12},
     {"provider_name": "coinbase", "provider_type": "broker", "key_names": '["api_key","api_secret","api_passphrase"]', "status": "PLANNED", "capabilities": "[]"},
     {"provider_name": "custom_equity", "provider_type": "broker", "key_names": '["holdings_json"]', "status": "PLANNED", "capabilities": "[]"},
     {"provider_name": "mf", "provider_type": "broker", "key_names": '["holdings_json"]', "status": "PLANNED", "capabilities": "[]"},
@@ -105,7 +103,7 @@ _DEFAULT_PROVIDERS = [
     {"provider_name": "polygon", "provider_type": "price", "key_names": '["api_key"]', "status": "ACTIVE", "capabilities": '["PRICE","OHLC","CORPORATE_ACTIONS"]', "priority": 25},
     {"provider_name": "newsapi", "provider_type": "news", "key_names": '["api_key"]', "status": "PLANNED", "capabilities": "[]"},
     {"provider_name": "alphavantage", "provider_type": "news", "key_names": '["api_key"]', "status": "PLANNED", "capabilities": "[]"},
-    {"provider_name": "binance_price", "provider_type": "price", "key_names": '[]', "status": "PLANNED", "capabilities": "[]"},
+    {"provider_name": "binance_price", "provider_type": "price", "key_names": '[]', "status": "ACTIVE", "capabilities": '["PRICE","OHLC"]', "priority": 15},
     # Was seeded as "yfinance" — renamed to "yahoo" to match YahooAdapter.provider_name
     # (the registry key every other lookup uses). See migration a3f1c9d02b4e's follow-up
     # data fix and docs/architecture/provider-registry.md breaking-change notes.

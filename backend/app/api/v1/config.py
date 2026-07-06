@@ -1,4 +1,3 @@
-import logging
 from datetime import datetime
 from typing import Any, Dict, List, Optional
 
@@ -9,12 +8,11 @@ from pydantic import BaseModel, ConfigDict, Field, model_validator
 from app.api.dependencies import get_config_service, get_current_user, get_members_repo
 from app.core.config import settings
 from app.core.exceptions import NotFoundError, ZerodhaAuthError
+from app.core.logging import logger
 from app.domain.entities.config import JobStatus
 from app.domain.entities.system import User
 from app.domain.services.config import ConfigService
 from app.infrastructure.repositories import OrganizationMembersRepository
-
-logger = logging.getLogger("api.config.zerodha_oauth")
 
 router = APIRouter(prefix="/config", tags=["config"])
 

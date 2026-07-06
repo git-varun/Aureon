@@ -1,16 +1,14 @@
 import hashlib
-import logging
 import time
 from typing import Any, List, Optional
 
 import requests
 
 from app.core.exceptions import GrowwAuthError
+from app.core.logging.http import http_client
 from app.core.providers.capabilities import Capability
 from app.core.providers.interfaces import BrokerProvider
 from app.core.providers.registry import registry
-
-logger = logging.getLogger("providers.groww")
 
 _BASE_URL = "https://api.groww.in/v1"
 
@@ -38,8 +36,8 @@ class GrowwClient:
         checksum = hashlib.sha256(f"{self.api_secret}{timestamp}".encode()).hexdigest()
 
         try:
-            res = requests.post(
-                f"{_BASE_URL}/token/api/access",
+            res = http_client.post(
+                "Groww", f"{_BASE_URL}/token/api/access",
                 headers={"Authorization": f"Bearer {self.api_key}", "Content-Type": "application/json"},
                 json={"key_type": "approval", "checksum": checksum, "timestamp": timestamp},
                 timeout=10,
@@ -69,7 +67,7 @@ class GrowwClient:
 
     def get_holdings(self) -> List[dict[str, Any]]:
         try:
-            res = requests.get(f"{_BASE_URL}/holdings/user", headers=self._auth_headers(), timeout=15)
+            res = http_client.get("Groww", f"{_BASE_URL}/holdings/user", headers=self._auth_headers(), timeout=15)
         except requests.RequestException as e:
             raise GrowwAuthError(f"Groww holdings request failed: {e}") from e
 

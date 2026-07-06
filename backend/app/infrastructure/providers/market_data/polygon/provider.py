@@ -1,18 +1,15 @@
-import logging
 from datetime import datetime, timezone
 from decimal import Decimal
 from typing import List
 
-import requests
-
 from app.core.config import settings
 from app.core.exceptions import ConfigurationError, ProviderError
+from app.core.logging import logger
+from app.core.logging.http import http_client
 from app.core.providers.capabilities import Capability
 from app.core.providers.interfaces import MarketDataProvider
 from app.core.providers.registry import registry
 from app.domain.services.providers.models import NormalizedNews, NormalizedQuote
-
-logger = logging.getLogger("providers.polygon")
 
 
 class PolygonAdapter(MarketDataProvider):
@@ -39,8 +36,8 @@ class PolygonAdapter(MarketDataProvider):
             raise ConfigurationError("Polygon API key is not configured")
 
         try:
-            res = requests.get(
-                f"https://api.polygon.io/v2/last/trade/{symbol}",
+            res = http_client.get(
+                "Polygon", f"https://api.polygon.io/v2/last/trade/{symbol}",
                 params={"apiKey": api_key},
                 timeout=10
             )
@@ -71,8 +68,8 @@ class PolygonAdapter(MarketDataProvider):
             return []
 
         try:
-            res = requests.get(
-                "https://api.polygon.io/v2/reference/news",
+            res = http_client.get(
+                "Polygon", "https://api.polygon.io/v2/reference/news",
                 params={"ticker": symbol, "limit": 20, "apiKey": api_key},
                 timeout=10
             )
@@ -101,8 +98,8 @@ class PolygonAdapter(MarketDataProvider):
         if not api_key or api_key == "your_polygon_api_key" or api_key.lower() == "none":
             return False
         try:
-            res = requests.get(
-                "https://api.polygon.io/v2/last/trade/AAPL",
+            res = http_client.get(
+                "Polygon", "https://api.polygon.io/v2/last/trade/AAPL",
                 params={"apiKey": api_key},
                 timeout=5
             )

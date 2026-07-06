@@ -35,24 +35,17 @@ from app.core.exceptions import (
     PermissionDeniedError,
     ValidationError,
 )
-from app.core.logger import ctx_request_id, logger
+from app.core.logging import logger
 
 
 @asynccontextmanager
 async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
-    logger.info("Startup initiated. Initializing Aureon API...")
-    
+    logger.info("Startup initiated. Initializing Aureon API...", component="Startup")
+
     # Run environment startup validation (fail-fast)
     from app.core.validation import validate_environment
     validate_environment()
-    
-    # Instrument repositories, services, and providers dynamically (AOP pattern)
-    from app.core.logger import patch_all_repositories, patch_all_services, patch_all_providers
-    patch_all_repositories()
-    patch_all_services()
-    patch_all_providers()
-    logger.info("Startup validation & dependency dynamic instrumentation completed successfully.")
-    
+
     # Run database migrations (auto-migrate)
     try:
         import os
@@ -154,45 +147,29 @@ if origins:
     )
 
 
-from app.core.observability.middleware import TelemetryMiddleware
-app.add_middleware(TelemetryMiddleware)
+from app.core.logging.middleware import RequestLoggingMiddleware
+app.add_middleware(RequestLoggingMiddleware)
 
+
+# These four handlers are the ONLY places that log a full traceback for a given
+# exception (instrument()/http_client/redis wrapper log FAIL summaries only, to
+# avoid dumping the same trace multiple times as it propagates up the call chain).
 
 @app.exception_handler(AppException)
 async def app_exception_handler(request: Request, exc: AppException) -> JSONResponse:
     from app.core.observability.health import fingerprinter
     fingerprint = fingerprinter.register_error(exc)
-    
+
     status_code = getattr(exc, "http_status", 400)
     category = getattr(exc, "category", "SYSTEM")
     severity = getattr(exc, "severity", "ERROR")
     retryable = getattr(exc, "retryable", False)
-    
-    extra = {
-        "category": category,
-        "event": "api.request.exception",
-        "severity": severity,
-        "retryable": retryable,
-        "exception_type": exc.__class__.__name__,
-        "error_fingerprint": fingerprint
-    }
-    
-    log_msg = (
-        f"AppException occurred: {exc.__class__.__name__} - {exc.message} "
-        f"on {request.method} {request.url.path} "
-        f"[Category: {category}, Severity: {severity}, Retryable: {retryable}] "
-        f"Fingerprint: {fingerprint}"
+
+    logger.exception(
+        f"{request.method} {request.url.path} - {exc.__class__.__name__}: {exc.message} (fingerprint={fingerprint})",
+        component="HTTP", status="FAIL",
     )
-    
-    if severity == "CRITICAL":
-        logger.critical(log_msg, extra=extra)
-    elif severity == "ERROR":
-        logger.error(log_msg, extra=extra)
-    elif severity == "WARNING":
-        logger.warning(log_msg, extra=extra)
-    else:
-        logger.info(log_msg, extra=extra)
-        
+
     return JSONResponse(
         status_code=status_code,
         content={
@@ -210,10 +187,10 @@ async def validation_exception_handler(request: Request, exc: RequestValidationE
     from fastapi.exception_handlers import request_validation_exception_handler
     from app.core.observability.health import fingerprinter
     fingerprint = fingerprinter.register_error(exc)
-    
-    logger.warning(
-        f"Validation error on {request.method} {request.url.path}: {exc.errors()} "
-        f"Fingerprint: {fingerprint}"
+
+    logger.exception(
+        f"{request.method} {request.url.path} - validation error (fingerprint={fingerprint})",
+        component="HTTP", status="FAIL",
     )
     resp = await request_validation_exception_handler(request, exc)
     # Inject fingerprint into the default JSON validation response
@@ -233,10 +210,10 @@ async def http_exception_handler(request: Request, exc: HTTPException) -> JSONRe
     from fastapi.exception_handlers import http_exception_handler as default_http_exception_handler
     from app.core.observability.health import fingerprinter
     fingerprint = fingerprinter.register_error(exc)
-    
-    logger.warning(
-        f"HTTPException {exc.status_code}: {exc.detail} on {request.method} {request.url.path} "
-        f"Fingerprint: {fingerprint}"
+
+    logger.exception(
+        f"{request.method} {request.url.path} - HTTPException {exc.status_code}: {exc.detail} (fingerprint={fingerprint})",
+        component="HTTP", status="FAIL",
     )
     resp = await default_http_exception_handler(request, exc)
     try:
@@ -254,10 +231,10 @@ async def http_exception_handler(request: Request, exc: HTTPException) -> JSONRe
 async def general_exception_handler(request: Request, exc: Exception) -> JSONResponse:
     from app.core.observability.health import fingerprinter
     fingerprint = fingerprinter.register_error(exc)
-    
+
     logger.exception(
-        f"Unhandled exception occurred during request {request.method} {request.url.path}: {exc} "
-        f"Fingerprint: {fingerprint}"
+        f"{request.method} {request.url.path} - unhandled exception: {exc} (fingerprint={fingerprint})",
+        component="HTTP", status="FAIL",
     )
     return JSONResponse(
         status_code=500,

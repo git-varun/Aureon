@@ -1,7 +1,7 @@
 import uuid
 from datetime import datetime, timedelta, timezone
 
-from app.core.logger import logger
+from app.core.logging import logger
 from app.domain.entities.news import NewsAsset
 from app.domain.services.base import BaseService
 from app.infrastructure.repositories.asset_features import AssetFeaturesRepository

@@ -13,10 +13,9 @@ from celery.signals import (
     worker_ready,
 )
 import time
-import logging
 
 from app.core.config import settings
-from app.core.logger import ctx_task_id, ctx_worker_id, logger
+from app.core.logging import ContextManager, ctx_task_id, ctx_worker_id, logger
 
 celery_app = Celery(
     "aureon_workers",
@@ -70,30 +69,19 @@ celery_app.conf.beat_schedule = {
 def bootstrap_worker(sender=None, conf=None, **kwargs):
     from app.core.validation import validate_environment
     validate_environment()
-    
-    # Dynamically patch repositories, services, and providers for background workers
-    from app.core.logger import patch_all_repositories, patch_all_services, patch_all_providers
-    patch_all_repositories()
-    patch_all_services()
-    patch_all_providers()
-    logger.info("Worker bootstrap completed. Dynamic instrumentation loaded.")
+    logger.info("Worker bootstrap completed.", component="Celery")
 
 @worker_process_init.connect
 def reset_sqlalchemy_engine(**kwargs):
     from app.core.database import engine
     engine.dispose(close=False)
-    logger.info("[WORKER] SQLAlchemy engine disposed after fork")
+    logger.info("SQLAlchemy engine disposed after fork", component="Celery")
 
 @beat_init.connect
 def bootstrap_beat(sender=None, **kwargs):
     from app.core.validation import validate_environment
     validate_environment()
-    
-    from app.core.logger import patch_all_repositories, patch_all_services, patch_all_providers
-    patch_all_repositories()
-    patch_all_services()
-    patch_all_providers()
-    logger.info("Beat bootstrap completed. Dynamic instrumentation loaded.")
+    logger.info("Beat bootstrap completed.", component="Celery")
 
 
 _worker_name = "celery_worker"
@@ -104,171 +92,68 @@ def on_worker_ready(sender=None, **kwargs):
     if sender:
         _worker_name = sender.hostname
     ctx_worker_id.set(_worker_name)
-    logger.info(f"Celery worker ready: hostname={_worker_name}")
+    logger.info(f"Celery worker ready: hostname={_worker_name}", component="Celery")
 
 @task_prerun.connect
 def on_task_prerun(task_id, task, *args, **kwargs):
     ctx_task_id.set(task_id)
     ctx_worker_id.set(_worker_name)
-    
-    # Try to extract correlation ID and User ID from kwargs
-    correlation_id = None
+
+    # Every task gets one Request ID for correlating its logs — the caller's
+    # own correlation_id/user_id if it passed one through kwargs/first arg,
+    # else the Celery task_id itself.
+    request_id = None
     user_id = None
-    
     if kwargs:
-        correlation_id = kwargs.get("correlation_id") or kwargs.get("headers", {}).get("correlation_id")
-        user_id = kwargs.get("user_id") or kwargs.get("headers", {}).get("user_id")
-        
-    if not correlation_id and args and isinstance(args[0], dict):
-        correlation_id = args[0].get("correlation_id")
+        request_id = kwargs.get("correlation_id")
+        user_id = kwargs.get("user_id")
+    if not request_id and args and isinstance(args[0], dict):
+        request_id = args[0].get("correlation_id")
         user_id = args[0].get("user_id")
-        
-    # Fallback to Task ID as Correlation ID
-    if not correlation_id:
-        correlation_id = task_id
-        
-    # Bind variables to context variables for logs tracing
-    from app.core.observability.request_context import ctx_request_id, ctx_correlation_id, ctx_user_id, ctx_job_id
-    ctx_request_id.set(correlation_id)
-    ctx_correlation_id.set(correlation_id)
-    ctx_job_id.set(task_id)
-    if user_id:
-        ctx_user_id.set(str(user_id))
-        
-    queue_name = task.request.delivery_info.get("routing_key", "q_ingestion") if task.request.delivery_info else "-"
-    
-    # 1. Track start time for latency
+    request_id = request_id or task_id
+
+    ctx = ContextManager(request_id=request_id, task_id=task_id, user_id=user_id)
+    ctx.__enter__()
+    task.request.__aureon_ctx = ctx
     task.request.start_time = time.perf_counter()
-
-    # 2. Open OpenTelemetry Trace span
-    from app.core.observability.otel import get_tracer
-    tracer = get_tracer("worker")
-    span = tracer.start_as_current_span(f"Celery {task.name}")
-    span.__enter__()
-    span.set_attribute("messaging.system", "celery")
-    span.set_attribute("messaging.destination", queue_name)
-    span.set_attribute("messaging.message_id", task_id)
-    span.set_attribute("correlation_id", correlation_id)
-    task.request.otel_span = span
-
-    short_name = task.name.split(".")[-1]
-    logger.info(
-        f"Worker Job RECEIVED: task={task.name} task_id={task_id} "
-        f"correlation_id={correlation_id} queue={queue_name} user_id={user_id or '-'}",
-        extra={
-            "category": "WORKER",
-            "event": "worker.task.started",
-            "execution_step": "START",
-            "operation": short_name,
-            "queue_name": queue_name,
-            "worker_name": _worker_name
-        }
-    )
 
 @task_success.connect
 def on_task_success(sender, result, **kwargs):
-    task_id = sender.request.id
     start_time = getattr(sender.request, "start_time", None)
-    duration_ms = 0
-    if start_time:
-        duration_s = time.perf_counter() - start_time
-        duration_ms = int(duration_s * 1000)
-        from app.core.observability.metrics import celery_task_duration_seconds
-        celery_task_duration_seconds.observe(duration_s, task_name=sender.name, status="success")
-        
-        if duration_ms > 2000:
-            from app.core.observability.slow_operations import check_slow_operation
-            check_slow_operation("Worker", duration_ms, details={"task_name": sender.name, "task_id": task_id, "worker_name": _worker_name})
-
-    from app.core.observability.otel import StatusCode
-    otel_span = getattr(sender.request, "otel_span", None)
-    if otel_span:
-        otel_span.set_status(StatusCode.OK)
-
-    logger.info(
-        f"Worker Job SUCCESS: task={sender.name} task_id={task_id} - Duration: {duration_ms}ms",
-        extra={
-            "category": "WORKER",
-            "event": "worker.task.completed",
-            "execution_step": "FINISH",
-            "operation": sender.name.split(".")[-1],
-            "duration_ms": duration_ms,
-            "worker_name": _worker_name
-        }
-    )
+    duration_ms = int((time.perf_counter() - start_time) * 1000) if start_time else None
+    logger.info(sender.name.split(".")[-1], component="Celery", status="OK", duration_ms=duration_ms)
 
 @task_failure.connect
-def on_task_failure(sender, task_id, exception, traceback, **kwargs):
+def on_task_failure(sender, task_id, exception, traceback, einfo=None, **kwargs):
     start_time = getattr(sender.request, "start_time", None)
-    duration_ms = 0
-    if start_time:
-        duration_s = time.perf_counter() - start_time
-        duration_ms = int(duration_s * 1000)
-        from app.core.observability.metrics import celery_task_duration_seconds
-        celery_task_duration_seconds.observe(duration_s, task_name=sender.name, status="failed")
+    duration_ms = int((time.perf_counter() - start_time) * 1000) if start_time else None
 
-        if duration_ms > 2000:
-            from app.core.observability.slow_operations import check_slow_operation
-            check_slow_operation("Worker", duration_ms, details={"task_name": sender.name, "task_id": task_id, "worker_name": _worker_name, "error": str(exception)})
-
-    from app.core.observability.metrics import telemetry_errors_total
-    telemetry_errors_total.inc(category="WORKER", error_type=type(exception).__name__)
-
-    from app.core.observability.otel import StatusCode
-    otel_span = getattr(sender.request, "otel_span", None)
-    if otel_span:
-        otel_span.set_status(StatusCode.ERROR, str(exception))
-        otel_span.record_exception(exception)
-
+    # Celery's task_failure is the terminal boundary for background jobs (no HTTP
+    # exception handler downstream) — log the full traceback exactly once, here.
+    exc_info = einfo.exc_info if einfo is not None else (type(exception), exception, traceback)
     logger.error(
-        f"Worker Job FAILURE: task={sender.name} task_id={task_id} - {exception}",
-        exc_info=True,
-        extra={
-            "category": "WORKER",
-            "event": "worker.task.failed",
-            "execution_step": "FAIL",
-            "operation": sender.name.split(".")[-1],
-            "duration_ms": duration_ms,
-            "worker_name": _worker_name
-        }
+        f"{sender.name.split('.')[-1]} - {exception}",
+        component="Celery", status="FAIL", duration_ms=duration_ms, exc_info=exc_info,
     )
 
 @task_postrun.connect
 def on_task_postrun(task_id, task, *args, **kwargs):
-    otel_span = getattr(task.request, "otel_span", None)
-    if otel_span:
+    ctx = getattr(task.request, "__aureon_ctx", None)
+    if ctx is not None:
         try:
-            otel_span.__exit__(None, None, None)
+            ctx.__exit__(None, None, None)
         except Exception:
             pass
     ctx_task_id.set(None)
 
 
 def _apply_structured_formatting(logger_instance):
-    from app.core.observability.logging import (
-        TelemetryLoggingFilter,
-        JsonTelemetryFormatter,
-        PrettyConsoleTelemetryFormatter
-    )
     import logging
-    
-    # Configure handlers
+    from app.core.logging.core import AureonFormatter
+
     handlers = logger_instance.handlers if logger_instance.handlers else [logging.StreamHandler()]
     for handler in handlers:
-        if not any(isinstance(f, TelemetryLoggingFilter) for f in handler.filters):
-            handler.addFilter(TelemetryLoggingFilter())
-        
-        try:
-            from app.core.config import settings
-            is_debug = settings.DEBUG
-        except Exception:
-            is_debug = True
-            
-        if is_debug:
-            formatter = PrettyConsoleTelemetryFormatter()
-        else:
-            formatter = JsonTelemetryFormatter()
-        handler.setFormatter(formatter)
+        handler.setFormatter(AureonFormatter())
         if not logger_instance.handlers:
             logger_instance.addHandler(handler)
 

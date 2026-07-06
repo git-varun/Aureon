@@ -4,132 +4,86 @@ from typing import Any
 import redis
 
 from app.core.config import settings
-from app.core.logger import logger
+from app.core.logging import logger
 
 import time
 
 # Global Connection Pool
 redis_pool = redis.ConnectionPool.from_url(settings.REDIS_URL, decode_responses=True)
 
-class ObservabilityRedisWrapper:
-    """Wrapper around redis.Redis to intercept and trace cache operations."""
+
+class LoggingRedisWrapper:
+    """Wraps redis.Redis so every operation (GET/SET/DELETE/TTL/pipeline/...) logs
+    just OK/FAIL + duration — one place, no per-method duplication."""
+
     def __init__(self, client: redis.Redis):
         self._client = client
 
-    def _get_prefix(self, key: str) -> str:
-        parts = key.split(":")
-        if len(parts) >= 2:
-            return f"{parts[0]}:{parts[1]}"
-        return parts[0] if parts else "unknown"
+    def __getattr__(self, name: str):
+        attr = getattr(self._client, name)
+        if not callable(attr):
+            return attr
 
-    def get(self, name):
-        from app.core.observability.metrics import redis_operation_duration_seconds, cache_hits_total, cache_misses_total
-        start = time.perf_counter()
-        val = self._client.get(name)
-        duration_ms = int((time.perf_counter() - start) * 1000)
-        
-        # Observe execution latency
-        redis_operation_duration_seconds.observe(duration_ms / 1000.0, operation="GET")
-        if duration_ms > 10:
-            from app.core.observability.slow_operations import check_slow_operation
-            check_slow_operation("Redis", duration_ms, details={"operation": "GET", "key": name})
-            
-        prefix = self._get_prefix(name)
+        def wrapper(*args: Any, **kwargs: Any) -> Any:
+            start = time.perf_counter()
+            try:
+                result = attr(*args, **kwargs)
+            except Exception as exc:
+                duration_ms = int((time.perf_counter() - start) * 1000)
+                logger.error(f"Redis {name.upper()} - {exc}", component="Redis", status="FAIL", duration_ms=duration_ms)
+                raise
+            duration_ms = int((time.perf_counter() - start) * 1000)
+            if name == "pipeline":
+                result = LoggingPipelineWrapper(result)
+            else:
+                logger.debug(f"Redis {name.upper()}", component="Redis", status="OK", duration_ms=duration_ms)
+            return result
 
-        extra = {
-            "category": "CACHE",
-            "duration_ms": duration_ms,
-            "key": name,
-            "prefix": prefix
-        }
+        return wrapper
 
-        if val is not None:
-            extra["event"] = "cache.hit"
-            cache_hits_total.inc(cache_key_prefix=prefix)
-            logger.debug(f"Redis Cache HIT: key={name} - Duration: {duration_ms}ms", extra=extra)
-        else:
-            extra["event"] = "cache.miss"
-            cache_misses_total.inc(cache_key_prefix=prefix)
-            logger.debug(f"Redis Cache MISS: key={name} - Duration: {duration_ms}ms", extra=extra)
-        return val
 
-    def set(self, name, value, ex=None, px=None, nx=False, xx=False, keepttl=False):
-        from app.core.observability.metrics import redis_operation_duration_seconds
-        start = time.perf_counter()
-        res = self._client.set(name, value, ex=ex, px=px, nx=nx, xx=xx, keepttl=keepttl)
-        duration_ms = int((time.perf_counter() - start) * 1000)
-        
-        redis_operation_duration_seconds.observe(duration_ms / 1000.0, operation="SET")
-        if duration_ms > 10:
-            from app.core.observability.slow_operations import check_slow_operation
-            check_slow_operation("Redis", duration_ms, details={"operation": "SET", "key": name})
-        
-        logger.debug(
-            f"Redis Cache SET: key={name} ex={ex} - Duration: {duration_ms}ms",
-            extra={
-                "category": "CACHE",
-                "event": "cache.set",
-                "duration_ms": duration_ms,
-                "key": name,
-                "ex": ex
-            }
-        )
-        return res
+class LoggingPipelineWrapper:
+    """Logs a Redis pipeline's execute() as one batch."""
 
-    def setex(self, name, time_val, value):
-        from app.core.observability.metrics import redis_operation_duration_seconds
-        start = time.perf_counter()
-        res = self._client.setex(name, time_val, value)
-        duration_ms = int((time.perf_counter() - start) * 1000)
-        
-        redis_operation_duration_seconds.observe(duration_ms / 1000.0, operation="SETEX")
-        if duration_ms > 10:
-            from app.core.observability.slow_operations import check_slow_operation
-            check_slow_operation("Redis", duration_ms, details={"operation": "SETEX", "key": name})
-        
-        logger.debug(
-            f"Redis Cache SETEX: key={name} ttl={time_val} - Duration: {duration_ms}ms",
-            extra={
-                "category": "CACHE",
-                "event": "cache.setex",
-                "duration_ms": duration_ms,
-                "key": name,
-                "ttl": time_val
-            }
-        )
-        return res
+    def __init__(self, pipeline: Any):
+        self._pipeline = pipeline
+        self._queued_count = 0
 
-    def delete(self, *names):
-        from app.core.observability.metrics import redis_operation_duration_seconds
-        start = time.perf_counter()
-        res = self._client.delete(*names)
-        duration_ms = int((time.perf_counter() - start) * 1000)
-        
-        redis_operation_duration_seconds.observe(duration_ms / 1000.0, operation="DELETE")
-        if duration_ms > 10:
-            from app.core.observability.slow_operations import check_slow_operation
-            check_slow_operation("Redis", duration_ms, details={"operation": "DELETE", "keys": list(names)})
-        
-        logger.debug(
-            f"Redis Cache DELETE: keys={names} - Duration: {duration_ms}ms",
-            extra={
-                "category": "CACHE",
-                "event": "cache.delete",
-                "duration_ms": duration_ms,
-                "keys": list(names)
-            }
-        )
-        return res
+    def __getattr__(self, name: str):
+        attr = getattr(self._pipeline, name)
+        if name == "execute":
+            def execute(*args: Any, **kwargs: Any) -> Any:
+                start = time.perf_counter()
+                try:
+                    result = attr(*args, **kwargs)
+                except Exception as exc:
+                    duration_ms = int((time.perf_counter() - start) * 1000)
+                    logger.error(
+                        f"Redis PIPELINE ({self._queued_count} commands) - {exc}",
+                        component="Redis", status="FAIL", duration_ms=duration_ms,
+                    )
+                    raise
+                duration_ms = int((time.perf_counter() - start) * 1000)
+                logger.debug(
+                    f"Redis PIPELINE ({self._queued_count} commands)",
+                    component="Redis", status="OK", duration_ms=duration_ms,
+                )
+                return result
+            return execute
+        if not callable(attr):
+            return attr
 
-    def ping(self):
-        return self._client.ping()
+        def wrapper(*args: Any, **kwargs: Any) -> Any:
+            self._queued_count += 1
+            result = attr(*args, **kwargs)
+            return self if result is self._pipeline else result
 
-    def __getattr__(self, item):
-        return getattr(self._client, item)
+        return wrapper
+
 
 def get_redis_client() -> redis.Redis:
     raw_client = redis.Redis(connection_pool=redis_pool)
-    return ObservabilityRedisWrapper(raw_client)  # type: ignore
+    return LoggingRedisWrapper(raw_client)  # type: ignore
 
 def check_redis_health() -> bool:
     try:
