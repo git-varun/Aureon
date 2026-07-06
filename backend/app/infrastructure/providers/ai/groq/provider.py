@@ -1,14 +1,10 @@
-import logging
 from typing import Any, List
 
-import httpx
-
 from app.core.exceptions import ConfigurationError, RateLimitError
+from app.core.logging.http import http_client
 from app.core.providers.capabilities import Capability
 from app.core.providers.interfaces import AIProvider
 from app.core.providers.registry import registry
-
-logger = logging.getLogger("providers.groq")
 
 MODELS = ["llama-3.3-70b-versatile", "llama-3.1-8b-instant"]
 
@@ -46,7 +42,7 @@ class GroqProvider(AIProvider):
             "messages": [{"role": "user", "content": prompt}],
             "temperature": 0.2,
         }
-        resp = httpx.post(url, json=payload, headers=headers, timeout=60.0)
+        resp = http_client.httpx_post("Groq", url, json=payload, headers=headers, timeout=60.0)
         if resp.status_code == 429:
             raise RateLimitError(f"Groq model {model} rate limited", retry_after_seconds=60.0)
         resp.raise_for_status()

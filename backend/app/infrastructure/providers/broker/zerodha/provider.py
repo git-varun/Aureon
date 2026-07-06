@@ -1,15 +1,13 @@
 import hashlib
-import logging
 from typing import Any, List, Optional
 
 import requests
 
 from app.core.exceptions import ZerodhaAuthError
+from app.core.logging.http import http_client
 from app.core.providers.capabilities import Capability
 from app.core.providers.interfaces import BrokerProvider
 from app.core.providers.registry import registry
-
-logger = logging.getLogger("providers.zerodha")
 
 _BASE_URL = "https://api.kite.trade"
 _LOGIN_URL = "https://kite.zerodha.com/connect/login"
@@ -38,8 +36,8 @@ class ZerodhaClient:
         ).hexdigest()
 
         try:
-            res = requests.post(
-                f"{_BASE_URL}/session/token",
+            res = http_client.post(
+                "Zerodha", f"{_BASE_URL}/session/token",
                 data={"api_key": self.api_key, "request_token": request_token, "checksum": checksum},
                 timeout=10,
             )
@@ -65,7 +63,7 @@ class ZerodhaClient:
 
     def get_holdings(self) -> list[dict[str, Any]]:
         try:
-            res = requests.get(f"{_BASE_URL}/portfolio/holdings", headers=self._auth_header(), timeout=15)
+            res = http_client.get("Zerodha", f"{_BASE_URL}/portfolio/holdings", headers=self._auth_header(), timeout=15)
         except requests.RequestException as e:
             raise ZerodhaAuthError(f"Zerodha holdings request failed: {e}") from e
 
@@ -76,7 +74,7 @@ class ZerodhaClient:
 
     def health_check(self) -> bool:
         try:
-            res = requests.get(f"{_BASE_URL}/user/profile", headers=self._auth_header(), timeout=5)
+            res = http_client.get("Zerodha", f"{_BASE_URL}/user/profile", headers=self._auth_header(), timeout=5)
             return res.status_code == 200
         except Exception:
             return False

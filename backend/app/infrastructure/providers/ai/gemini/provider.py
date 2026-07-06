@@ -1,14 +1,10 @@
-import logging
 from typing import Any, List
 
-import httpx
-
 from app.core.exceptions import ConfigurationError, RateLimitError
+from app.core.logging.http import http_client
 from app.core.providers.capabilities import Capability
 from app.core.providers.interfaces import AIProvider
 from app.core.providers.registry import registry
-
-logger = logging.getLogger("providers.gemini")
 
 MODELS = ["gemini-2.5-flash", "gemini-2.0-flash", "gemini-2.0-flash-lite"]
 
@@ -47,7 +43,7 @@ class GeminiProvider(AIProvider):
             "generationConfig": config,
         }
 
-        resp = httpx.post(url, json=payload, headers=headers, timeout=60.0)
+        resp = http_client.httpx_post("Gemini", url, json=payload, headers=headers, timeout=60.0)
         if resp.status_code == 429:
             raise RateLimitError(f"Gemini model {model} rate limited", retry_after_seconds=60.0)
         resp.raise_for_status()

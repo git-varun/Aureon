@@ -58,6 +58,11 @@ class Position(UUIDMixin, TimestampMixin, Base):
     )
     quantity: Mapped[float] = mapped_column(Numeric, nullable=False)
     avg_buy_price: Mapped[float] = mapped_column(Numeric, nullable=False)
+    wallet: Mapped[str] = mapped_column(String, nullable=False, default="spot")  # spot, futures_usdm, futures_coinm
+    leverage: Mapped[float | None] = mapped_column(Numeric, nullable=True)
+    liquidation_price: Mapped[float | None] = mapped_column(Numeric, nullable=True)
+    unrealized_pnl: Mapped[float | None] = mapped_column(Numeric, nullable=True)
+    side: Mapped[str | None] = mapped_column(String, nullable=True)  # LONG, SHORT (futures only)
 
 
 class PortfolioSnapshot(TimestampMixin, Base):

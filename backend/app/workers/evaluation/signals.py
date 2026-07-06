@@ -4,7 +4,7 @@ from datetime import datetime, timezone
 from celery import shared_task
 
 from app.core.database import SessionLocal
-from app.core.logger import logger
+from app.core.logging import logger
 from app.core.redis import cache_asset_signals
 
 

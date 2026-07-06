@@ -1,12 +1,9 @@
 """Fixed-window Redis rate limiter for auth endpoints."""
-import logging
-
 import redis
 from fastapi import HTTPException
 
+from app.core.logging import logger
 from app.core.redis import get_redis_client
-
-logger = logging.getLogger("core.rate_limit")
 
 
 def check_auth_rate_limit(key: str, max_attempts: int = 5, window_seconds: int = 60) -> None:

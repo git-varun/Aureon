@@ -116,6 +116,8 @@ def classify(asset_class: Optional[str], symbol: str = "") -> str:
     if not asset_class:
         return "stocks"
     ac = asset_class.lower()
+    if "stablecoin" in ac:
+        return "stablecoin"
     if "crypto" in ac:
         return "crypto"
     if "bond" in ac:

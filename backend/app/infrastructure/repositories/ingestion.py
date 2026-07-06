@@ -92,8 +92,10 @@ class IngestionRepository(BaseRepository):
         ))
         return True
 
-    def list_asset_symbols(self) -> list[str]:
-        return [r[0] for r in self.session.query(Asset.symbol).distinct().all()]
+    def list_symbols_for_quote_ingestion(self) -> list[tuple[str, str]]:
+        """(symbol, asset_class) for every known asset — used by ingest_all_quotes
+        to pick which market-data provider to route each symbol to."""
+        return [(r[0], r[1]) for r in self.session.query(Asset.symbol, Asset.asset_class).distinct().all()]
 
     def list_asset_ids_with_quotes(self) -> list[uuid.UUID]:
         return [r[0] for r in self.session.query(LatestQuote.asset_id).distinct().all() if r[0] is not None]

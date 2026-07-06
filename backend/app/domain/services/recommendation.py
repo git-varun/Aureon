@@ -6,8 +6,7 @@ from typing import Any, Optional
 from sqlalchemy.orm import Session
 
 from app.core.exceptions import NotFoundError, ValidationError
-from app.core.logger import logger
-from app.core.observability.request_context import ContextManager
+from app.core.logging import ContextManager, logger
 from app.core.redis import (
     cache_asset_scores,
     cache_intelligence_dashboard,

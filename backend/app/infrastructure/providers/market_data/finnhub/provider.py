@@ -1,18 +1,15 @@
-import logging
 from datetime import datetime, timedelta, timezone
 from decimal import Decimal
 from typing import List
 
-import requests
-
 from app.core.config import settings
 from app.core.exceptions import ConfigurationError, ProviderError
+from app.core.logging import logger
+from app.core.logging.http import http_client
 from app.core.providers.capabilities import Capability
 from app.core.providers.interfaces import MarketDataProvider
 from app.core.providers.registry import registry
 from app.domain.services.providers.models import NormalizedNews, NormalizedQuote
-
-logger = logging.getLogger("providers.finnhub")
 
 
 class FinnhubAdapter(MarketDataProvider):
@@ -39,8 +36,8 @@ class FinnhubAdapter(MarketDataProvider):
             raise ConfigurationError("Finnhub API key is not configured")
 
         try:
-            res = requests.get(
-                "https://finnhub.io/api/v1/quote",
+            res = http_client.get(
+                "Finnhub", "https://finnhub.io/api/v1/quote",
                 params={"symbol": symbol, "token": api_key},
                 timeout=10
             )
@@ -71,8 +68,8 @@ class FinnhubAdapter(MarketDataProvider):
         try:
             to_date = datetime.now().strftime("%Y-%m-%d")
             from_date = (datetime.now() - timedelta(days=30)).strftime("%Y-%m-%d")
-            res = requests.get(
-                "https://finnhub.io/api/v1/company-news",
+            res = http_client.get(
+                "Finnhub", "https://finnhub.io/api/v1/company-news",
                 params={"symbol": symbol, "from": from_date, "to": to_date, "token": api_key},
                 timeout=10
             )
@@ -101,8 +98,8 @@ class FinnhubAdapter(MarketDataProvider):
         if not api_key or api_key == "your_finnhub_api_key" or api_key.lower() == "none":
             return False
         try:
-            res = requests.get(
-                "https://finnhub.io/api/v1/quote",
+            res = http_client.get(
+                "Finnhub", "https://finnhub.io/api/v1/quote",
                 params={"symbol": "AAPL", "token": api_key},
                 timeout=5
             )

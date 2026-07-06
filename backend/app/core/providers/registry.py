@@ -6,14 +6,12 @@ never instantiate a provider class directly; they ask the registry (usually
 via ProviderFactory) for one by name or by capability.
 """
 import importlib
-import logging
 import pkgutil
 from typing import Optional, Type
 
+from app.core.logging import logger
 from app.core.providers.capabilities import Capability
 from app.core.providers.interfaces import ProviderProtocol
-
-logger = logging.getLogger("providers.registry")
 
 
 class ProviderRegistry:

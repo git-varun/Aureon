@@ -1,13 +1,13 @@
 from celery import shared_task
 
 from app.core.database import SessionLocal
-from app.core.logger import logger
+from app.core.logging import logger
 from app.core.redis import cache_quote
 
 # Provider names ingest_quote accepts — resolution itself always goes through
 # ProviderFactory -> ProviderRegistry -> ProviderProtocol (see ingest_quote below);
 # this set only preserves the original "unknown provider" validation surface.
-_MARKET_DATA_PROVIDERS = {"finnhub", "polygon", "yahoo"}
+_MARKET_DATA_PROVIDERS = {"finnhub", "polygon", "yahoo", "binance_price"}
 
 @shared_task(name="app.workers.ingestion.tasks.ingest_quote")  # type: ignore
 def ingest_quote(provider_name: str, symbol: str) -> bool:
@@ -50,15 +50,16 @@ def ingest_all_quotes() -> None:
 
     db = SessionLocal()
     try:
-        symbols = IngestionRepository(db).list_asset_symbols()
+        assets = IngestionRepository(db).list_symbols_for_quote_ingestion()
     finally:
         db.close()
 
-    if not symbols:
+    if not assets:
         logger.warning("ingest_all_quotes: market.assets is empty — run seed_market_universe_task first")
         return
-    for symbol in symbols:
-        ingest_quote.delay("yahoo", symbol)
+    for symbol, asset_class in assets:
+        provider_name = "binance_price" if asset_class == "crypto_futures" else "yahoo"
+        ingest_quote.delay(provider_name, symbol)
 
 
 def _wrap_job_execution(job_name: str, log_id: int | None, fn, *args, **kwargs) -> None:
@@ -249,8 +250,7 @@ def _run_briefing(briefing_type: str):
             try:
                 ai_svc.generate_briefing(org.id, briefing_type)
             except Exception as e:
-                import logging
-                logging.getLogger("celery.ai").error(f"Failed to generate {briefing_type} briefing for org {org.id}: {e}")
+                logger.error(f"Failed to generate {briefing_type} briefing for org {org.id}: {e}")
     finally:
         db.close()
 

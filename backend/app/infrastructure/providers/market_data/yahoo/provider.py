@@ -1,4 +1,3 @@
-import logging
 from datetime import datetime, timezone
 from decimal import Decimal
 from typing import Any, List
@@ -7,12 +6,11 @@ import numpy as np
 import pandas as pd
 import yfinance as yf
 
+from app.core.logging import logger
 from app.core.providers.capabilities import Capability
 from app.core.providers.interfaces import MarketDataProvider
 from app.core.providers.registry import registry
 from app.domain.services.providers.models import NormalizedNews, NormalizedQuote
-
-logger = logging.getLogger("providers.yahoo")
 
 
 def _calculate_rsi(series: pd.Series, period: int = 14) -> pd.Series:

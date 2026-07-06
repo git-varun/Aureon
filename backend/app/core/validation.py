@@ -1,25 +1,19 @@
-import logging
 import os
 
 from sqlalchemy import text
 
 from app.core.config import settings
 from app.core.database import engine
+from app.core.logging import logger
 from app.core.redis import get_redis_client
-
-logger = logging.getLogger("app.startup_validation")
 
 def validate_environment() -> None:
     """Perform startup validation to ensure all dependencies and configurations are healthy.
-    
+
     Raises:
         RuntimeError or ValueError on validation failure.
     """
-    logger.info("Running startup environment validation...")
-
-    # 0. Telemetry startup configuration validation
-    from app.core.observability.config_validation import validate_telemetry_config
-    validate_telemetry_config()
+    logger.info("Running startup environment validation...", component="Startup")
 
     # 1. Port Validation
     for port_var in ["API_PORT", "FRONTEND_PORT"]:

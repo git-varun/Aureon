@@ -331,6 +331,7 @@ class FinancialIntelligenceService(BaseService):
 
         total_val = 0.0
         crypto_val = 0.0
+        stablecoin_val = 0.0
         equity_val = 0.0
         bond_val = 0.0
 
@@ -345,18 +346,23 @@ class FinancialIntelligenceService(BaseService):
             asset = self.repo.get_asset(pos.asset_id)
             if asset:
                 cls = asset.asset_class.lower()
-                if cls == "crypto":
+                # Stablecoins are cash-equivalents, not volatile crypto — tracked
+                # separately so they don't inflate crypto_pct/risk scoring.
+                if cls == "stablecoin":
+                    stablecoin_val += val
+                elif cls == "crypto":
                     crypto_val += val
                 elif cls in ["stocks", "equity"]:
                     equity_val += val
                 elif cls in ["bonds", "debt"]:
                     bond_val += val
-                    
+
                 meta = asset.metadata_payload or {}
                 sector = meta.get("sector", "General") if isinstance(meta, dict) else "General"
                 sectors.add(sector)
-                
+
         crypto_pct = (crypto_val / total_val) * 100 if total_val > 0 else 0.0
+        stablecoin_pct = (stablecoin_val / total_val) * 100 if total_val > 0 else 0.0
         equity_pct = (equity_val / total_val) * 100 if total_val > 0 else 0.0
         
         factors = []
@@ -389,6 +395,7 @@ class FinancialIntelligenceService(BaseService):
         return {
             "risk_class": risk_class,
             "crypto_percentage": round(crypto_pct, 1),
+            "stablecoin_percentage": round(stablecoin_pct, 1),
             "equity_percentage": round(equity_pct, 1),
             "contributing_factors": factors
         }

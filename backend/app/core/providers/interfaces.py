@@ -55,13 +55,13 @@ class ProviderProtocol(ABC):
 
     def __init_subclass__(cls, **kwargs):
         super().__init_subclass__(**kwargs)
-        from app.core.observability.decorators import instrument_provider
+        from app.core.logging.instrument import instrument
         provider_label = cls.__name__.removesuffix("Provider").removesuffix("Adapter")
         for attr_name, attr_value in list(cls.__dict__.items()):
             if attr_name.startswith("_") or attr_name in ("provider_name",):
                 continue
             if callable(attr_value) and not isinstance(attr_value, (classmethod, staticmethod)):
-                setattr(cls, attr_name, instrument_provider(provider_label, attr_name)(attr_value))
+                setattr(cls, attr_name, instrument("Provider", provider_label)(attr_value))
 
 
 class MarketDataProvider(ProviderProtocol):
