@@ -8,6 +8,7 @@ from typing import Any, Optional
 
 from sqlalchemy.orm import Session
 
+from app.core.constants import DEFAULT_USER_ID
 from app.core.exceptions import NotFoundError, ProviderError, RateLimitError, ValidationError
 from app.core.logging import logger
 from app.core.providers.factory import ProviderFactory
@@ -18,7 +19,6 @@ from app.domain.entities.market import AssetFeatures, AssetSnapshot, LatestQuote
 from app.domain.entities.news import News
 from app.domain.entities.portfolio import Portfolio, Position, Transaction
 from app.domain.entities.recommendation import Recommendation, RecommendationExplanation
-from app.domain.entities.system import Organization
 from app.domain.services.config import ConfigService
 from app.infrastructure.repositories.config import ConfigRepository
 
@@ -160,27 +160,25 @@ Context:
 
 class PortfolioContextBuilder:
     @staticmethod
-    def build_intelligence_context(session: Session, org_id: uuid.UUID, portfolio_id: Optional[uuid.UUID] = None, user_id: Optional[uuid.UUID] = None) -> str:
+    def build_intelligence_context(session: Session, portfolio_id: Optional[uuid.UUID] = None, user_id: Optional[uuid.UUID] = None) -> str:
         from app.domain.entities.ai import AIBriefing
         from app.domain.entities.portfolio import Portfolio
-        from app.domain.entities.system import OrganizationMember
         from app.domain.services.intelligence import FinancialIntelligenceService
 
         if not portfolio_id:
-            portfolio = session.query(Portfolio).filter(Portfolio.organization_id == org_id).first()
+            portfolio = session.query(Portfolio).first()
             portfolio_id = portfolio.id if portfolio else None
 
         if not portfolio_id:
             return ""
 
         if not user_id:
-            member = session.query(OrganizationMember).filter(OrganizationMember.organization_id == org_id).first()
-            user_id = member.user_id if member else uuid.UUID("00000000-0000-0000-0000-000000000000")
+            user_id = DEFAULT_USER_ID
 
         intel_svc = FinancialIntelligenceService(session)
 
         # 1. Health Score
-        health = intel_svc.get_investor_health_score(portfolio_id, org_id)
+        health = intel_svc.get_investor_health_score(portfolio_id)
 
         # 2. Diversification
         div = intel_svc.get_portfolio_diversification_score(portfolio_id)
@@ -195,19 +193,18 @@ class PortfolioContextBuilder:
         risk = intel_svc.get_portfolio_risk_summary(portfolio_id)
 
         # 6. Recommendation Analytics & Performance
-        quality = intel_svc.get_recommendation_quality_metrics(org_id)
-        performance = intel_svc.get_recommendation_performance(org_id)
-        scorecard = intel_svc.get_recommendation_scorecard(org_id)
-        calibration = intel_svc.get_confidence_calibration(org_id)
-        rule_perf = intel_svc.get_rule_performance(org_id)
+        quality = intel_svc.get_recommendation_quality_metrics()
+        performance = intel_svc.get_recommendation_performance()
+        scorecard = intel_svc.get_recommendation_scorecard()
+        calibration = intel_svc.get_confidence_calibration()
+        rule_perf = intel_svc.get_rule_performance()
 
         # 7. Goal Progress
-        goals = intel_svc.get_goal_progress_metrics(portfolio_id, org_id, user_id)
+        goals = intel_svc.get_goal_progress_metrics(portfolio_id, user_id)
 
         # 8. Recent Briefings
         briefings = (
             session.query(AIBriefing)
-            .filter(AIBriefing.organization_id == org_id)
             .order_by(AIBriefing.created_at.desc())
             .limit(3)
             .all()
@@ -259,17 +256,16 @@ class PortfolioContextBuilder:
         return "\n".join(lines)
 
     @staticmethod
-    def build_global_context(session: Session, organization_id: uuid.UUID) -> str:
-        portfolios = session.query(Portfolio).filter(Portfolio.organization_id == organization_id).all()
+    def build_global_context(session: Session) -> str:
+        portfolios = session.query(Portfolio).all()
         port_ids = [p.id for p in portfolios]
-        
+
         positions = []
         if port_ids:
             positions = session.query(Position).filter(Position.portfolio_id.in_(port_ids)).all()
-            
+
         lines = [
             "=== PORTFOLIO GLOBAL CONTEXT ===",
-            f"Organization ID: {organization_id}",
             f"Total Portfolios: {len(portfolios)}",
             f"Total Positions: {len(positions)}",
             "",
@@ -323,7 +319,7 @@ class PortfolioContextBuilder:
         # Active Recommendations
         lines.append("")
         lines.append("--- Active Recommendations ---")
-        recs = session.query(Recommendation).filter(Recommendation.organization_id == organization_id, Recommendation.status == "active").all()
+        recs = session.query(Recommendation).filter(Recommendation.status == "active").all()
         for r in recs:
             q = session.query(LatestQuote).filter(LatestQuote.asset_id == r.asset_id).first()
             lines.append(f"Recommendation: {q.symbol if q else 'Unknown'} -> state: {r.recommendation_state} (Confidence: {float(r.confidence_score):.2f})")
@@ -340,7 +336,7 @@ class PortfolioContextBuilder:
             lines.append("No news items found.")
             
         global_context_str = "\n".join(lines)
-        intel_context = PortfolioContextBuilder.build_intelligence_context(session, organization_id)
+        intel_context = PortfolioContextBuilder.build_intelligence_context(session)
         if intel_context:
             global_context_str += "\n\n" + intel_context
         return global_context_str
@@ -348,9 +344,9 @@ class PortfolioContextBuilder:
     @staticmethod
     def build_qa_context(session: Session, context_type: str, context_id: uuid.UUID) -> str:
         lines = []
-        org_id = None
+        include_intel_context = False
         portfolio_id = None
-        
+
         if context_type == "signal":
             quote = session.query(LatestQuote).filter(LatestQuote.id == context_id).first()
             if not quote:
@@ -371,11 +367,8 @@ class PortfolioContextBuilder:
             if feat:
                 volatility = f"{feat.volatility_score:.2f}" if feat.volatility_score is not None else "N/A"
             lines.append(f"RSI: {rsi} | MACD: {macd} | Volatility: {volatility}")
-            
-            # Find default org
-            org = session.query(Organization).first()
-            if org:
-                org_id = org.id
+
+            include_intel_context = True
         elif context_type == "recommendation":
             rec = session.query(Recommendation).filter(Recommendation.id == context_id).first()
             if not rec:
@@ -389,7 +382,7 @@ class PortfolioContextBuilder:
             if expl:
                 lines.append(f"Reasoning: {expl.reasoning}")
                 lines.append(f"Matched Rules: {expl.rules_matched}")
-            org_id = rec.organization_id
+            include_intel_context = True
         elif context_type == "portfolio":
             portfolio = session.query(Portfolio).filter(Portfolio.id == context_id).first()
             if not portfolio:
@@ -397,11 +390,11 @@ class PortfolioContextBuilder:
             lines.append("=== PORTFOLIO CONTEXT ===")
             lines.append(f"Portfolio Name: {portfolio.name}")
             portfolio_id = portfolio.id
-            org_id = portfolio.organization_id
-            
+            include_intel_context = True
+
         qa_context_str = "\n".join(lines)
-        if org_id:
-            intel_context = PortfolioContextBuilder.build_intelligence_context(session, org_id, portfolio_id)
+        if include_intel_context:
+            intel_context = PortfolioContextBuilder.build_intelligence_context(session, portfolio_id)
             if intel_context:
                 qa_context_str += "\n\n" + intel_context
         return qa_context_str
@@ -651,9 +644,9 @@ class AIService(BaseService):
 
     # ── High Level AI Actions ──────────────────────────────────────────────────
 
-    def generate_briefing(self, organization_id: uuid.UUID, briefing_type: str, user_id: Optional[uuid.UUID] = None) -> dict[str, Any]:
-        context = PortfolioContextBuilder.build_global_context(self.session, organization_id)
-        
+    def generate_briefing(self, briefing_type: str, user_id: Optional[uuid.UUID] = None) -> dict[str, Any]:
+        context = PortfolioContextBuilder.build_global_context(self.session)
+
         if briefing_type == "global":
             prompt = _GLOBAL_BRIEFING_PROMPT.format(context=context)
         elif briefing_type == "weekly":
@@ -663,7 +656,7 @@ class AIService(BaseService):
         else:
             raise ValidationError(f"Invalid briefing type: {briefing_type}")
             
-        payload = {"organization_id": str(organization_id), "context_length": len(context)}
+        payload = {"context_length": len(context)}
         meta = {"symbols": [], "context_type": "global"}
         
         raw_response = self.execute_completion(
@@ -686,7 +679,6 @@ class AIService(BaseService):
         # Save briefing instance
         briefing = AIBriefing(
             id=uuid.uuid4(),
-            organization_id=organization_id,
             briefing_type=briefing_type,
             content=parsed,
             model_used="multiple-fallback"
@@ -700,7 +692,7 @@ class AIService(BaseService):
             entity_type="ai_briefing",
             entity_id=str(briefing.id),
             actor_id=user_id,
-            details={"briefing_type": briefing_type, "organization_id": str(organization_id)}
+            details={"briefing_type": briefing_type}
         )
         self.session.commit()
         
@@ -788,10 +780,10 @@ class AIService(BaseService):
         self.session.commit()
         return parsed
 
-    def get_briefing_history(self, organization_id: uuid.UUID, limit: int = 30) -> list:
+    def get_briefing_history(self, limit: int = 30) -> list:
         briefs = (
             self.session.query(AIBriefing)
-            .filter(AIBriefing.organization_id == organization_id, AIBriefing.briefing_type == "global")
+            .filter(AIBriefing.briefing_type == "global")
             .order_by(AIBriefing.created_at.desc())
             .limit(limit)
             .all()

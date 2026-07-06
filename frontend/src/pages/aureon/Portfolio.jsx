@@ -3,7 +3,6 @@ import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useQueryClient } from '@tanstack/react-query';
 import { useAureonData } from '@/hooks/useAureonData';
-import { useOrganization } from '@/contexts/OrganizationContext';
 import { useFmtMoney } from '@/hooks/useFmtMoney';
 import { LogTradeModal } from '@/components/aureon/portfolio';
 import { PortfolioHealthCard } from '@/components/aureon/dashboard/PortfolioHealthCard';
@@ -46,11 +45,10 @@ export default function Portfolio() {
   const qc       = useQueryClient();
   const fmt      = useFmtMoney();
   const { holdings, netWorth, dayDelta, loading, allocByClass, activity } = useAureonData();
-  const { activeOrgId } = useOrganization();
   const [showTrade,  setShowTrade]  = useState(false);
   const [showManual, setShowManual] = useState(false);
 
-  const handleRefresh = () => qc.invalidateQueries({ queryKey: ["org", activeOrgId] });
+  const handleRefresh = () => qc.invalidateQueries();
 
   return (
     <>
@@ -138,7 +136,7 @@ export default function Portfolio() {
 
       <div style={{ height: 24 }} />
 
-      {showTrade  && <LogTradeModal onClose={refresh => { setShowTrade(false); if (refresh) qc.invalidateQueries({ queryKey: ["org", activeOrgId] }); }} />}
+      {showTrade  && <LogTradeModal onClose={refresh => { setShowTrade(false); if (refresh) qc.invalidateQueries(); }} />}
       {showManual && <ManualAssetModal onClose={() => setShowManual(false)} />}
     </>
   );

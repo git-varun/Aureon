@@ -4,7 +4,6 @@ import {isBlocked, needsModal, UNDO_WINDOW_MS, fmt$} from './utils';
 import {ConfidenceIndicator, EvaluatePanel, AllocationImpactPanel} from './primitives';
 import {apiService} from '../../api/apiService';
 import {useApp} from './store';
-import {useOrganization} from '../../contexts/OrganizationContext';
 
 export const DecisionUnit = ({rec, activeIds, onCommit, onUndo, onResolveConflict, openModal, onStage, onSnooze, onDismiss, isStaged, onViewLineage}) => {
     const {recById} = useApp() || {};
@@ -185,7 +184,6 @@ export const DecisionUnit = ({rec, activeIds, onCommit, onUndo, onResolveConflic
 };
 
 const AskAureonPanel = ({contextType, contextId}) => {
-    const {activeOrgId} = useOrganization();
     const [open, setOpen] = useState(false);
     const [input, setInput] = useState('');
     const [loading, setLoading] = useState(false);
@@ -197,7 +195,7 @@ const AskAureonPanel = ({contextType, contextId}) => {
         setInput('');
         setLoading(true);
         try {
-            const res = await apiService.askAboutContext(activeOrgId, contextType, String(contextId), q);
+            const res = await apiService.askAboutContext(contextType, String(contextId), q);
             setTurns(t => [...t, {q, a: res.response}]);
         } catch {
             setTurns(t => [...t, {q, a: 'Aureon is temporarily offline. Please try again.'}]);

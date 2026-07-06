@@ -84,9 +84,9 @@ class FinancialIntelligenceService(BaseService):
             
         return 100.0  # Safe default fallback
 
-    def get_recommendation_quality_metrics(self, org_id: uuid.UUID) -> Dict[str, Any]:
+    def get_recommendation_quality_metrics(self) -> Dict[str, Any]:
         """Initiative 1: Recommendation Quality Metrics"""
-        recs = self.repo.get_recommendations_by_org(org_id)
+        recs = self.repo.get_all_recommendations()
         total = len(recs)
         
         applied = 0
@@ -122,9 +122,9 @@ class FinancialIntelligenceService(BaseService):
             "execution_rate": round(execution_rate, 4)
         }
 
-    def get_recommendation_performance(self, org_id: uuid.UUID) -> List[Dict[str, Any]]:
+    def get_recommendation_performance(self) -> List[Dict[str, Any]]:
         """Initiative 1: Recommendation Performance (30d, 90d, 180d)"""
-        recs = self.repo.get_recommendations_by_org(org_id)
+        recs = self.repo.get_all_recommendations()
 
         config = self._get_config()
         bench_rate = 1.0 + config.get("benchmark_annual_return", 0.10)
@@ -457,9 +457,9 @@ class FinancialIntelligenceService(BaseService):
             "suggestions": suggestions
         }
 
-    def get_recommendation_scorecard(self, org_id: uuid.UUID) -> Dict[str, Any]:
+    def get_recommendation_scorecard(self) -> Dict[str, Any]:
         """Initiative 3: Recommendation Scorecard"""
-        recs = self.repo.get_recommendations_by_org(org_id)
+        recs = self.repo.get_all_recommendations()
         
         states = ["BUY", "HOLD", "REDUCE", "AVOID"]
         card = {}
@@ -489,9 +489,9 @@ class FinancialIntelligenceService(BaseService):
             
         return card
 
-    def get_rule_performance(self, org_id: uuid.UUID) -> Dict[str, Any]:
+    def get_rule_performance(self) -> Dict[str, Any]:
         """Initiative 3: Rule Performance"""
-        recs = self.repo.get_recommendations_by_org(org_id)
+        recs = self.repo.get_all_recommendations()
         
         states = ["BUY", "HOLD", "REDUCE", "AVOID"]
         perf = {}
@@ -524,9 +524,9 @@ class FinancialIntelligenceService(BaseService):
             
         return perf
 
-    def get_confidence_calibration(self, org_id: uuid.UUID) -> Dict[str, Any]:
+    def get_confidence_calibration(self) -> Dict[str, Any]:
         """Initiative 3: Recommendation Confidence Calibration"""
-        recs = self.repo.get_recommendations_by_org(org_id)
+        recs = self.repo.get_all_recommendations()
         
         bands = {
             "high": [r for r in recs if float(r.confidence_score) >= 0.8],
@@ -559,14 +559,14 @@ class FinancialIntelligenceService(BaseService):
             
         return calibration
 
-    def get_daily_briefing(self, org_id: uuid.UUID, portfolio_id: uuid.UUID) -> Dict[str, Any]:
+    def get_daily_briefing(self, portfolio_id: uuid.UUID) -> Dict[str, Any]:
         """Initiative 4: Daily Briefing details"""
         snapshot = self.repo.get_portfolio_snapshot(portfolio_id)
         net_worth = float(snapshot.market_value + snapshot.cash_balance) if snapshot else 10000.0
         daily_return = float(snapshot.daily_return) if snapshot and hasattr(snapshot, "daily_return") else 120.0
 
         # New active recommendations in past 24h
-        new_recs_count = self.repo.count_recommendations(org_id, "active", datetime.now(timezone.utc) - timedelta(days=1))
+        new_recs_count = self.repo.count_recommendations("active", datetime.now(timezone.utc) - timedelta(days=1))
 
         # Watchlist movements
         movements = []
@@ -583,7 +583,7 @@ class FinancialIntelligenceService(BaseService):
             "notable_news": ["Markets trade higher on positive global cues.", "Federal Reserve hints at interest rate cuts in upcoming cycle."]
         }
 
-    def get_weekly_briefing(self, org_id: uuid.UUID, portfolio_id: uuid.UUID) -> Dict[str, Any]:
+    def get_weekly_briefing(self, portfolio_id: uuid.UUID) -> Dict[str, Any]:
         """Initiative 4: Weekly Briefing details"""
         snapshot = self.repo.get_portfolio_snapshot(portfolio_id)
         net_worth = float(snapshot.market_value + snapshot.cash_balance) if snapshot else 10000.0
@@ -598,7 +598,7 @@ class FinancialIntelligenceService(BaseService):
         if len(positions) > 1:
             losers.append(f"{positions[1].symbol}: -1.8% return this week")
 
-        applied_count = self.repo.count_recommendations(org_id, "applied", datetime.now(timezone.utc) - timedelta(days=7))
+        applied_count = self.repo.count_recommendations("applied", datetime.now(timezone.utc) - timedelta(days=7))
         
         return {
             "weekly_return_dollars": round(weekly_return, 2),
@@ -608,7 +608,7 @@ class FinancialIntelligenceService(BaseService):
             "applied_recommendations_count": applied_count
         }
 
-    def get_monthly_briefing(self, org_id: uuid.UUID, portfolio_id: uuid.UUID) -> Dict[str, Any]:
+    def get_monthly_briefing(self, portfolio_id: uuid.UUID) -> Dict[str, Any]:
         """Initiative 4: Monthly Briefing details"""
         snapshot = self.repo.get_portfolio_snapshot(portfolio_id)
         positions = self.repo.get_positions(portfolio_id)
@@ -641,15 +641,15 @@ class FinancialIntelligenceService(BaseService):
             drift.append(f"{cls.upper()}: Current weight {current_pct*100:.1f}% (Target: {target*100:.0f}%, Drift: {drift_val*100:+.1f}%)")
             
         div_score = self.get_portfolio_diversification_score(portfolio_id)["diversification_score"]
-        quality_metrics = self.get_recommendation_quality_metrics(org_id)
-        
+        quality_metrics = self.get_recommendation_quality_metrics()
+
         return {
             "allocation_drift": drift,
             "diversification_score": div_score,
             "recommendation_effectiveness_rate": quality_metrics["acceptance_rate"]
         }
 
-    def get_investor_health_score(self, portfolio_id: uuid.UUID, org_id: uuid.UUID) -> Dict[str, Any]:
+    def get_investor_health_score(self, portfolio_id: uuid.UUID) -> Dict[str, Any]:
         """Initiative 6: Investor Health Score (0-100)"""
         div_data = self.get_portfolio_diversification_score(portfolio_id)
         s_div = div_data["diversification_score"]
@@ -684,7 +684,7 @@ class FinancialIntelligenceService(BaseService):
             
         s_discipline = max(0.0, 100.0 - (total_drift * 50.0))
         
-        quality_metrics = self.get_recommendation_quality_metrics(org_id)
+        quality_metrics = self.get_recommendation_quality_metrics()
         s_outcomes = quality_metrics["acceptance_rate"] * 100.0 if quality_metrics["total_recommendations"] > 0 else 75.0
         
         recent_txns = self.repo.count_recent_transactions(portfolio_id, datetime.now(timezone.utc) - timedelta(days=90))
@@ -701,7 +701,7 @@ class FinancialIntelligenceService(BaseService):
             "position_count": len(positions),
         }
 
-    def get_goal_progress_metrics(self, portfolio_id: uuid.UUID, org_id: uuid.UUID, user_id: uuid.UUID) -> Dict[str, Any]:
+    def get_goal_progress_metrics(self, portfolio_id: uuid.UUID, user_id: uuid.UUID) -> Dict[str, Any]:
         """Initiative 6: Goal Progress Metrics"""
         snapshot = self.repo.get_portfolio_snapshot(portfolio_id)
         current_net_worth = float(snapshot.market_value + snapshot.cash_balance) if snapshot else 10000.0
@@ -824,7 +824,7 @@ class FinancialIntelligenceService(BaseService):
             "weights": weights
         }
 
-    def get_portfolio_health_trend(self, portfolio_id: uuid.UUID, org_id: uuid.UUID, days: int = 30) -> List[Dict[str, Any]]:
+    def get_portfolio_health_trend(self, portfolio_id: uuid.UUID, days: int = 30) -> List[Dict[str, Any]]:
         now = datetime.now(timezone.utc)
         dates = [now - timedelta(days=i) for i in range(days - 1, -1, -1)]
         
@@ -934,11 +934,11 @@ class FinancialIntelligenceService(BaseService):
             })
         return trend
 
-    def get_recommendation_performance_trend(self, org_id: uuid.UUID, days: int = 30) -> List[Dict[str, Any]]:
+    def get_recommendation_performance_trend(self, days: int = 30) -> List[Dict[str, Any]]:
         now = datetime.now(timezone.utc)
         dates = [now - timedelta(days=i) for i in range(days - 1, -1, -1)]
-        
-        recs = self.repo.get_recommendations_by_org(org_id)
+
+        recs = self.repo.get_all_recommendations()
 
         trend = []
         for d in dates:
@@ -977,7 +977,7 @@ class FinancialIntelligenceService(BaseService):
             })
         return trend
 
-    def get_goal_progress_trend(self, portfolio_id: uuid.UUID, org_id: uuid.UUID, user_id: uuid.UUID, days: int = 30) -> List[Dict[str, Any]]:
+    def get_goal_progress_trend(self, portfolio_id: uuid.UUID, user_id: uuid.UUID, days: int = 30) -> List[Dict[str, Any]]:
         now = datetime.now(timezone.utc)
         dates = [now - timedelta(days=i) for i in range(days - 1, -1, -1)]
         
@@ -1020,26 +1020,26 @@ class FinancialIntelligenceService(BaseService):
 
     # ── Dashboard Aggregation (Task 6) ───────────────────────────────────────
 
-    def get_dashboard_aggregation(self, portfolio_id: uuid.UUID, org_id: uuid.UUID, user_id: uuid.UUID) -> Dict[str, Any]:
+    def get_dashboard_aggregation(self, portfolio_id: uuid.UUID, user_id: uuid.UUID) -> Dict[str, Any]:
         """Initiative 6: Dashboard Aggregation Service"""
         # 1. Health
-        health = self.get_investor_health_score(portfolio_id, org_id)
-        
+        health = self.get_investor_health_score(portfolio_id)
+
         # 2. Diversification
         div = self.get_portfolio_diversification_score(portfolio_id)
-        
+
         # 3. Concentration Warnings
         conc = self.get_portfolio_concentration_analysis(portfolio_id)
-        
+
         # 4. Cash Opportunities
         cash = self.get_cash_deployment_opportunities(portfolio_id)
-        
+
         # 5. Recommendation Summary & Performance
-        quality = self.get_recommendation_quality_metrics(org_id)
-        perf = self.get_recommendation_performance(org_id)
-        
+        quality = self.get_recommendation_quality_metrics()
+        perf = self.get_recommendation_performance()
+
         # 6. Recent Outcomes
-        recent_outcomes = self.repo.get_recent_applied_outcomes(org_id, 5)
+        recent_outcomes = self.repo.get_recent_applied_outcomes(5)
         serialized_outcomes = []
         for o in recent_outcomes:
             rec = self.repo.get_recommendation(o.recommendation_id)
@@ -1053,10 +1053,10 @@ class FinancialIntelligenceService(BaseService):
             })
             
         # 7. Goal Progress
-        goals = self.get_goal_progress_metrics(portfolio_id, org_id, user_id)
-        
+        goals = self.get_goal_progress_metrics(portfolio_id, user_id)
+
         # 8. Latest Briefing Summary
-        briefing = self.repo.get_latest_briefing(org_id)
+        briefing = self.repo.get_latest_briefing()
         briefing_summary = None
         if briefing and briefing.content:
             briefing_summary = {

@@ -2,13 +2,11 @@
 import React, { useMemo } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
 import { useAureonData } from '@/hooks/useAureonData';
-import { useOrganization } from '@/contexts/OrganizationContext';
 import { Sk, RBtn, Cerr, Cmt, CS, Eyebrow } from '../ui';
 
 const dc = pp => Math.abs(pp) < 1 ? 'var(--ink-30)' : Math.abs(pp) < 3 ? 'var(--dusk-500)' : 'var(--crimson-500)';
 
 export function AllocationDriftCard({ onNavigatePortfolio }) {
-  const { activeOrgId } = useOrganization();
   const queryClient = useQueryClient();
   const { loading, error, allocByClass, classTarget, classLabel } = useAureonData();
 
@@ -28,7 +26,7 @@ export function AllocationDriftCard({ onNavigatePortfolio }) {
 
   const data = driftRows.length > 0 ? driftRows : null;
   const status = loading ? 'loading' : error ? 'error' : !data ? 'empty' : 'ready';
-  const refetch = () => queryClient.invalidateQueries({ queryKey: ['org', activeOrgId] });
+  const refetch = () => queryClient.invalidateQueries();
 
   return (
     <div style={{ ...CS }}>

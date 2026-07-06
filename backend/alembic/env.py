@@ -39,7 +39,7 @@ def run_migrations_online() -> None:
             connection = connection.execution_options(schema_translate_map={'system': None, 'market': None, 'portfolio': None, 'evaluation': None, 'recommendation': None, 'watchlist': None, 'config': None, 'notification': None, 'news': None, 'ai': None})
             
         context.configure(
-            connection=connection, target_metadata=target_metadata
+            connection=connection, target_metadata=target_metadata, include_schemas=True
         )
 
         with context.begin_transaction():

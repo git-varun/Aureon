@@ -5,8 +5,6 @@ import {QueryClient, QueryClientProvider} from '@tanstack/react-query'
 import './index.css'
 import App from './App.jsx'
 
-import {AuthProvider} from './contexts/AuthContext'
-import {OrganizationProvider} from './contexts/OrganizationContext'
 import {PortfolioProvider} from './contexts/PortfolioContext'
 
 const queryClient = new QueryClient({
@@ -17,13 +15,9 @@ createRoot(document.getElementById('root')).render(
     <StrictMode>
         <QueryClientProvider client={queryClient}>
             <BrowserRouter>
-                <AuthProvider>
-                    <OrganizationProvider>
-                        <PortfolioProvider>
-                            <App/>
-                        </PortfolioProvider>
-                    </OrganizationProvider>
-                </AuthProvider>
+                <PortfolioProvider>
+                    <App/>
+                </PortfolioProvider>
             </BrowserRouter>
         </QueryClientProvider>
     </StrictMode>,

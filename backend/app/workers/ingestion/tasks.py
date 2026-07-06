@@ -87,14 +87,14 @@ def _wrap_job_execution(job_name: str, log_id: int | None, fn, *args, **kwargs) 
         db.close()
 
 
-def _list_portfolio_entries() -> list[tuple]:
-    """Loads (portfolio_id, organization_id) pairs in a short-lived read session
-    so a later rollback elsewhere cannot expire these values."""
+def _list_portfolio_entries() -> list:
+    """Loads portfolio ids in a short-lived read session so a later rollback
+    elsewhere cannot expire these values."""
     from app.infrastructure.repositories.portfolios import PortfoliosRepository
 
     db = SessionLocal()
     try:
-        return [(pf.id, pf.organization_id) for pf in PortfoliosRepository(db).list_all()]
+        return [pf.id for pf in PortfoliosRepository(db).list_all()]
     finally:
         db.close()
 
@@ -112,7 +112,7 @@ def sync_portfolio_task(log_id: int | None = None, **kwargs) -> None:
             TransactionsRepository,
         )
 
-        for portfolio_id, organization_id in _list_portfolio_entries():
+        for portfolio_id in _list_portfolio_entries():
             db = SessionLocal()
             try:
                 svc = PortfolioService(
@@ -121,7 +121,7 @@ def sync_portfolio_task(log_id: int | None = None, **kwargs) -> None:
                     PositionsRepository(db),
                     PortfolioSnapshotRepository(db),
                 )
-                svc.generate_portfolio_snapshot(portfolio_id, organization_id)
+                svc.generate_portfolio_snapshot(portfolio_id)
                 logger.info(f"sync_portfolio: snapshot updated for portfolio {portfolio_id}")
             except Exception as e:
                 db.rollback()
@@ -161,7 +161,7 @@ def _run_broker_sync(job_name: str, provider_name: str, sync_method_name: str) -
         TransactionsRepository,
     )
 
-    for portfolio_id, organization_id in _list_portfolio_entries():
+    for portfolio_id in _list_portfolio_entries():
         db = SessionLocal()
         try:
             svc = PortfolioService(
@@ -170,7 +170,7 @@ def _run_broker_sync(job_name: str, provider_name: str, sync_method_name: str) -
                 PositionsRepository(db),
                 PortfolioSnapshotRepository(db),
             )
-            getattr(svc, sync_method_name)(portfolio_id, organization_id, holdings)
+            getattr(svc, sync_method_name)(portfolio_id, holdings)
             logger.info(f"{job_name}: holdings synced for portfolio {portfolio_id}")
         except Exception as e:
             db.rollback()
@@ -180,7 +180,7 @@ def _run_broker_sync(job_name: str, provider_name: str, sync_method_name: str) -
 
     ingest_all_quotes()
 
-    for portfolio_id, organization_id in _list_portfolio_entries():
+    for portfolio_id in _list_portfolio_entries():
         db = SessionLocal()
         try:
             svc = PortfolioService(
@@ -189,7 +189,7 @@ def _run_broker_sync(job_name: str, provider_name: str, sync_method_name: str) -
                 PositionsRepository(db),
                 PortfolioSnapshotRepository(db),
             )
-            svc.generate_portfolio_snapshot(portfolio_id, organization_id)
+            svc.generate_portfolio_snapshot(portfolio_id)
         except Exception as e:
             db.rollback()
             logger.warning(f"{job_name}: snapshot failed for portfolio {portfolio_id}: {e}")
@@ -239,18 +239,16 @@ def fetch_news_task(log_id: int | None = None, **kwargs) -> None:
 
 
 def _run_briefing(briefing_type: str):
-    from app.infrastructure.repositories.organizations import OrganizationsRepository
+    from app.core.constants import DEFAULT_USER_ID
 
     db = SessionLocal()
     try:
         from app.domain.services.ai import AIService
-        orgs = OrganizationsRepository(db).list_all()
         ai_svc = AIService(db)
-        for org in orgs:
-            try:
-                ai_svc.generate_briefing(org.id, briefing_type)
-            except Exception as e:
-                logger.error(f"Failed to generate {briefing_type} briefing for org {org.id}: {e}")
+        try:
+            ai_svc.generate_briefing(briefing_type, user_id=DEFAULT_USER_ID)
+        except Exception as e:
+            logger.error(f"Failed to generate {briefing_type} briefing: {e}")
     finally:
         db.close()
 

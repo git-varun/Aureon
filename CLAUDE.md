@@ -6,12 +6,13 @@ Aureon is a personal portfolio management platform covering equities (Zerodha/Gr
  classes. It has a FastAPI backend, React/Vite frontend, PostgreSQL database, Redis cache, and Celery task queue backed  
    
  by Redis.  
+This is single-user, local-first software. There is no authentication, no multi-tenancy, and no organization concept. Do not reintroduce any of these without an explicit decision from the user.  
 **Project layout**  
 investment-os/  
   ├── backend/          # FastAPI app, Celery workers, tests  
   │   ├── app/  
   │   ├── tests/  
-  │   ├── scripts/      # bootstrap.py, bootstrap_admin.py, migrate.sh, init.sql  
+  │   ├── scripts/      # bootstrap.py, migrate.sh, init.sql  
   │   ├── alembic/      # migrations (single linear history, canonical schema source of truth)  
   │   ├── Dockerfile  
   │   └── requirements.txt  
@@ -61,8 +62,7 @@ investment-os/
  alembic stamp head  # mark existing install as current without running migrations  
   
 **Bootstrap (from project root)**  
- ./bootstrap.sh   # idempotent: env validation -> migrations -> seed config/providers/jobs -> asset universe -> quotes -> price history -> features -> news -> AI briefing -> cache warmup -> health check -> admin creation (if BOOTSTRAP_EMAIL/BOOTSTRAP_PASSWORD set and no users exist)
- # To create the first admin directly: backend/scripts/bootstrap_admin.py --email ... --password ...
+ ./bootstrap.sh   # idempotent: env validation -> migrations -> seed config/providers/jobs -> asset universe -> quotes -> price history -> features -> news -> AI briefing -> cache warmup -> health check
 
 **Frontend**  
 cd frontend  
@@ -77,11 +77,11 @@ docker-compose up -d             # start everything
 **Architecture**  
 **Backend layout (**backend/app/**)**  
 The backend is domain-driven, not module-per-feature. Each layer has one job and a fixed home:  
-- api/v1/*.py — FastAPI routers, one file per resource area: auth, market, portfolio, recommendation, ai, watchlist, invitations, organizations, memberships, notification, news, monitoring, evaluation, config, intelligence, assets. api/v1/system/health.py holds health endpoints.  
+- api/v1/*.py — FastAPI routers, one file per resource area: market, portfolio, recommendation, ai, watchlist, notification, news, monitoring, evaluation, config, intelligence, assets. api/v1/system/health.py holds health endpoints.  
 - domain/entities/*.py — SQLAlchemy ORM models (extend app.domain.entities.base.Base), one file per schema (system, market, portfolio, evaluation, recommendation, watchlist, notification, news, ai, config).  
 - domain/services/*.py — Business logic (receives a Session, raises AppException subclasses from app.core.exceptions).  
 - infrastructure/providers/*.py — External market-data adapters (yahoo.py, finnhub.py, polygon.py) implementing get_quote/get_news/health_check. On missing credentials or a failed call they raise ProviderError — no silent mock/fake data fallback in production code.  
-- infrastructure/repositories/*.py — Raw DB query helpers, one per aggregate (portfolios, positions, transactions, organizations, users, sessions, recommendation, watchlist, notification, news, config, asset_snapshot, asset_features, asset_scores, asset_health, feature_snapshots, job_runs, invitations, organization_members).  
+- infrastructure/repositories/*.py — Raw DB query helpers, one per aggregate (portfolios, positions, transactions, users, recommendation, watchlist, notification, news, config, asset_snapshot, asset_features, asset_scores, asset_health, feature_snapshots, job_runs).  
 - workers/*.py — Celery tasks: celery_app.py (app config, task routes, beat schedule, reads REDIS_URL), ingestion/tasks.py (quote ingestion), snapshots/asset_snapshot.py, evaluation/{features,scoring,signals,validation}.py, monitoring/{asset_health,providers,recovery,slas}.py.  
 **Core infrastructure (**app/core/**)**  
 - config.py — Pydantic-Settings singleton (settings); reads .env from project root. PostgreSQL is mandatory.  
@@ -89,7 +89,7 @@ The backend is domain-driven, not module-per-feature. Each layer has one job and
 - redis.py — Redis cache helpers (cache_quote, cache_asset_snapshot, check_redis_health, etc.).  
 - dependencies.py — FastAPI dependency functions (get_db, get_current_user, get_user_context, serialize_user_profile).  
 - logger.py — Structured logger with correlation ID via contextvars.  
-- security.py, google_auth.py — JWT creation/verification and Google OAuth.  
+- security.py — JWT encode/decode helpers.  
 - exceptions.py — AppException hierarchy: InfrastructureError -> DatabaseError, ProviderError, EvaluationError, BusinessRuleError -> ConflictError/NotFoundError, SecurityError -> AuthenticationError/AuthorizationError -> PermissionDeniedError, ValidationError.  
 - observability/ — decorators.py (service/provider call tracing), logging.py, middleware.py, metrics.py, health.py, audit.py, and related cross-cutting concerns.  
 **AI service (**app/domain/services/ai.py**)**  

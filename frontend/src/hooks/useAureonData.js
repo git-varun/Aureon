@@ -1,49 +1,46 @@
 import {useMemo} from 'react';
 import {useQuery, useQueries} from '@tanstack/react-query';
 import {apiService} from '@/api/apiService';
-import {useOrganization} from '@/contexts/OrganizationContext';
 import {usePortfolio} from '@/contexts/PortfolioContext';
 import {CLASS_LABEL, CLASS_TARGET, valueOf} from '@/components/aureon/utils';
 
 export const AUREON_STATE_KEY = ['aureon-state']; // Kept for backward compatibility references
 
 export function useAureonData() {
-    const {activeOrgId} = useOrganization();
     const {activePortfolioId} = usePortfolio();
 
-    // 1. Positions Query (Tenant-Aware)
+    // 1. Positions Query
     const positionsQuery = useQuery({
-        queryKey: ["org", activeOrgId, "portfolio", activePortfolioId, "positions"],
-        queryFn: () => apiService.listPositions(activeOrgId, activePortfolioId),
-        enabled: !!activeOrgId && !!activePortfolioId,
+        queryKey: ["portfolio", activePortfolioId, "positions"],
+        queryFn: () => apiService.listPositions(activePortfolioId),
+        enabled: !!activePortfolioId,
         staleTime: 10000,
     });
 
     const positions = positionsQuery.data || [];
 
-    // 2. Snapshot Query (Tenant-Aware)
+    // 2. Snapshot Query
     const snapshotQuery = useQuery({
-        queryKey: ["org", activeOrgId, "portfolio", activePortfolioId, "snapshot"],
-        queryFn: () => apiService.getPortfolioSnapshot(activeOrgId, activePortfolioId),
-        enabled: !!activeOrgId && !!activePortfolioId,
+        queryKey: ["portfolio", activePortfolioId, "snapshot"],
+        queryFn: () => apiService.getPortfolioSnapshot(activePortfolioId),
+        enabled: !!activePortfolioId,
         staleTime: 10000,
     });
 
     const snapshot = snapshotQuery.data || null;
 
-    // 3. Recommendations Query (Tenant-Aware)
+    // 3. Recommendations Query
     const recommendationsQuery = useQuery({
-        queryKey: ["org", activeOrgId, "recommendations"],
-        queryFn: () => apiService.listRecommendations(activeOrgId),
-        enabled: !!activeOrgId,
+        queryKey: ["recommendations"],
+        queryFn: () => apiService.listRecommendations(),
         staleTime: 15000,
     });
 
-    // 4. Activity/Transactions Query (Tenant-Aware)
+    // 4. Activity/Transactions Query
     const transactionsQuery = useQuery({
-        queryKey: ["org", activeOrgId, "portfolio", activePortfolioId, "transactions"],
-        queryFn: () => apiService.listTransactions(activeOrgId, activePortfolioId),
-        enabled: !!activeOrgId && !!activePortfolioId,
+        queryKey: ["portfolio", activePortfolioId, "transactions"],
+        queryFn: () => apiService.listTransactions(activePortfolioId),
+        enabled: !!activePortfolioId,
         staleTime: 10000,
     });
 
@@ -51,19 +48,17 @@ export function useAureonData() {
 
     // 5. Notifications Query
     const notificationsQuery = useQuery({
-        queryKey: ["org", activeOrgId, "notifications"],
+        queryKey: ["notifications"],
         queryFn: () => apiService.getNotifications(),
-        enabled: !!activeOrgId,
         staleTime: 15000,
     });
 
     const notifications = notificationsQuery.data || [];
 
-    // 6. AI Briefings Query (Tenant-Aware)
+    // 6. AI Briefings Query
     const aiBriefingsQuery = useQuery({
-        queryKey: ["org", activeOrgId, "ai-briefings"],
+        queryKey: ["ai-briefings"],
         queryFn: () => apiService.fetchBriefingHistory(30),
-        enabled: !!activeOrgId,
         staleTime: 30000,
     });
 
@@ -72,9 +67,8 @@ export function useAureonData() {
 
     // 7. Allocation Targets Config
     const allocationTargetsQuery = useQuery({
-        queryKey: ["org", activeOrgId, "config", "allocation-targets"],
+        queryKey: ["config", "allocation-targets"],
         queryFn: () => apiService.getAllocationTargets(),
-        enabled: !!activeOrgId,
         staleTime: 60000,
     });
 
@@ -202,7 +196,6 @@ export function useAureonData() {
     const jobsQuery = useQuery({
         queryKey: ['config', 'jobs'],
         queryFn: () => apiService.getJobs(),
-        enabled: !!activeOrgId,
         staleTime: 60000,
     });
 

@@ -1,19 +1,17 @@
-from datetime import datetime, timezone
 from typing import Generator
 
-from fastapi import Depends, Header, HTTPException, status
+from fastapi import Depends
 from sqlalchemy.orm import Session
 
+from app.core.constants import DEFAULT_USER_ID
 from app.core.database import SessionLocal
-from app.domain.entities.system import User, UserSession
+from app.domain.entities.system import User
 from app.domain.services import (
     AIService,
-    AuthService,
     ConfigService,
     FinancialIntelligenceService,
     NewsService,
     NotificationService,
-    OrganizationService,
     PortfolioService,
     RecommendationService,
     WatchlistService,
@@ -27,17 +25,13 @@ from app.infrastructure.repositories import (
     AssetScoresRepository,
     AssetsRepository,
     ConfigRepository,
-    InvitationsRepository,
     MarketRepository,
     MonitoringRepository,
     NewsRepository,
-    OrganizationMembersRepository,
-    OrganizationsRepository,
     PortfolioSnapshotRepository,
     PortfoliosRepository,
     PositionsRepository,
     RecommendationRepository,
-    SessionsRepository,
     TransactionsRepository,
     UsersRepository,
     WatchlistsRepository,
@@ -57,18 +51,6 @@ def get_db() -> Generator[Session, None, None]:
 def get_users_repo(db: Session = Depends(get_db)) -> UsersRepository:
     return UsersRepository(db)
 
-def get_sessions_repo(db: Session = Depends(get_db)) -> SessionsRepository:
-    return SessionsRepository(db)
-
-def get_invitations_repo(db: Session = Depends(get_db)) -> InvitationsRepository:
-    return InvitationsRepository(db)
-
-def get_orgs_repo(db: Session = Depends(get_db)) -> OrganizationsRepository:
-    return OrganizationsRepository(db)
-
-def get_members_repo(db: Session = Depends(get_db)) -> OrganizationMembersRepository:
-    return OrganizationMembersRepository(db)
-
 def get_portfolios_repo(db: Session = Depends(get_db)) -> PortfoliosRepository:
     return PortfoliosRepository(db)
 
@@ -82,23 +64,6 @@ def get_portfolio_snapshot_repo(db: Session = Depends(get_db)) -> PortfolioSnaps
     return PortfolioSnapshotRepository(db)
 
 # Service dependencies
-def get_auth_service(
-    users_repo: UsersRepository = Depends(get_users_repo),
-    sessions_repo: SessionsRepository = Depends(get_sessions_repo),
-    invitations_repo: InvitationsRepository = Depends(get_invitations_repo),
-    orgs_repo: OrganizationsRepository = Depends(get_orgs_repo),
-    members_repo: OrganizationMembersRepository = Depends(get_members_repo),
-) -> AuthService:
-    return AuthService(users_repo, sessions_repo, invitations_repo, orgs_repo, members_repo)
-
-def get_org_service(
-    orgs_repo: OrganizationsRepository = Depends(get_orgs_repo),
-    members_repo: OrganizationMembersRepository = Depends(get_members_repo),
-    invitations_repo: InvitationsRepository = Depends(get_invitations_repo),
-    users_repo: UsersRepository = Depends(get_users_repo),
-) -> OrganizationService:
-    return OrganizationService(orgs_repo, members_repo, invitations_repo, users_repo)
-
 def get_portfolio_service(
     portfolios_repo: PortfoliosRepository = Depends(get_portfolios_repo),
     transactions_repo: TransactionsRepository = Depends(get_transactions_repo),
@@ -174,50 +139,17 @@ def get_evaluation_service(repo: AssetScoresRepository = Depends(get_asset_score
     return EvaluationService(repo)
 
 
-# Security/Authentication dependencies
-def get_current_session(
-    authorization: str | None = Header(None, description="Bearer token"),
-    sessions_repo: SessionsRepository = Depends(get_sessions_repo),
-) -> UserSession:
-    if not authorization or not authorization.startswith("Bearer "):
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Missing or invalid Authorization header. Expected Bearer <token>",
-            headers={"WWW-Authenticate": "Bearer"},
-        )
-    
-    token = authorization.split(" ", 1)[1]
-    session_rec = sessions_repo.get_by_token(token)
-    if not session_rec:
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Session not found or invalid",
-        )
-        
-    if session_rec.expires_at.replace(tzinfo=timezone.utc) < datetime.now(timezone.utc):
-        sessions_repo.delete_by_token(token)
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Session expired",
-        )
-        
-    return session_rec
-
+# Single-user identity: no login, no sessions. This resolves-or-creates the one
+# canonical User row (keyed by DEFAULT_USER_ID) so existing scoping/audit call sites
+# that expect a User object keep working unchanged.
 def get_current_user(
-    session: UserSession = Depends(get_current_session),
     users_repo: UsersRepository = Depends(get_users_repo),
 ) -> User:
-    user = users_repo.get_by_id(session.user_id)
+    user = users_repo.get_by_id(DEFAULT_USER_ID)
     if not user:
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="User associated with this session no longer exists",
-        )
-    if not user.is_active:
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="User account is inactive",
-        )
+        user = User(id=DEFAULT_USER_ID, email="local@aureon.app", is_active=True)
+        user = users_repo.create(user)
+        users_repo.session.commit()
     return user
 
 def get_ai_service(db: Session = Depends(get_db)) -> AIService:
@@ -225,35 +157,17 @@ def get_ai_service(db: Session = Depends(get_db)) -> AIService:
 
 
 def get_user_context(db: Session, user: User):
-    """Resolves or creates default Personal Org and Portfolio context on the fly."""
+    """Resolves or creates the default Portfolio context on the fly."""
     from app.domain.entities.portfolio import Portfolio
-    from app.domain.entities.system import Organization, OrganizationMember
 
-    member = db.query(OrganizationMember).filter(OrganizationMember.user_id == user.id).first()
-    if member:
-        org = db.query(Organization).filter(Organization.id == member.organization_id).first()
-        if not org:
-            org = Organization(name="Personal Org", slug=f"personal-{user.id.hex[:8]}")
-            db.add(org)
-            db.flush()
-            member.organization_id = org.id
-            db.flush()
-    else:
-        org = Organization(name="Personal Org", slug=f"personal-{user.id.hex[:8]}")
-        db.add(org)
-        db.flush()
-        member = OrganizationMember(organization_id=org.id, user_id=user.id, role="OWNER")
-        db.add(member)
-        db.flush()
-
-    portfolio = db.query(Portfolio).filter(Portfolio.organization_id == org.id).first()
+    portfolio = db.query(Portfolio).first()
     if not portfolio:
-        portfolio = Portfolio(name="Default Portfolio", organization_id=org.id)
+        portfolio = Portfolio(name="Default Portfolio")
         db.add(portfolio)
         db.flush()
 
     db.commit()
-    return org.id, portfolio.id
+    return portfolio.id
 
 
 def serialize_user_profile(user: User, db: Session) -> dict:
@@ -302,6 +216,7 @@ def serialize_user_profile(user: User, db: Session) -> dict:
         "email": user.email,
         "first_name": user.first_name,
         "last_name": user.last_name,
+        "phone": user.phone,
         "bio": pref.bio,
         "risk_profile": pref.risk_profile,
         "working_area": pref.working_area,

@@ -13,7 +13,6 @@ from app.domain.entities.recommendation import (
     RecommendationExplanation,
     RecommendationOutcome,
 )
-from app.domain.entities.system import Organization, OrganizationMember
 
 
 class RecommendationRepository(BaseRepository):
@@ -24,17 +23,16 @@ class RecommendationRepository(BaseRepository):
         stmt = select(Recommendation).where(Recommendation.id == recommendation_id)
         return self.session.execute(stmt).scalar_one_or_none()
 
-    def get_by_org(self, organization_id: uuid.UUID, status: str | None = None) -> list[Recommendation]:
-        stmt = select(Recommendation).where(Recommendation.organization_id == organization_id)
+    def get_all(self, status: str | None = None) -> list[Recommendation]:
+        stmt = select(Recommendation)
         if status:
             stmt = stmt.where(Recommendation.status == status)
         return list(self.session.execute(stmt).scalars().all())
 
-    def get_active_recommendation(self, organization_id: uuid.UUID, asset_id: uuid.UUID, version: str) -> Recommendation | None:
+    def get_active_recommendation(self, asset_id: uuid.UUID, version: str) -> Recommendation | None:
         return (
             self.session.query(Recommendation)
             .filter(
-                Recommendation.organization_id == organization_id,
                 Recommendation.asset_id == asset_id,
                 Recommendation.version == version,
                 Recommendation.status == "active",
@@ -47,12 +45,6 @@ class RecommendationRepository(BaseRepository):
 
     def get_snapshot(self, asset_id: uuid.UUID) -> AssetSnapshot | None:
         return self.session.query(AssetSnapshot).filter(AssetSnapshot.asset_id == asset_id).first()
-
-    def list_organizations(self) -> list[Organization]:
-        return self.session.query(Organization).all()
-
-    def get_first_member_by_org(self, organization_id: uuid.UUID) -> OrganizationMember | None:
-        return self.session.query(OrganizationMember).filter(OrganizationMember.organization_id == organization_id).first()
 
     def get_features(self, asset_id: uuid.UUID) -> AssetFeatures | None:
         return self.session.query(AssetFeatures).filter(AssetFeatures.asset_id == asset_id).first()
@@ -68,27 +60,21 @@ class RecommendationRepository(BaseRepository):
     def get_quote_by_asset(self, asset_id: uuid.UUID) -> LatestQuote | None:
         return self.session.query(LatestQuote).filter(LatestQuote.asset_id == asset_id).first()
 
-    def get_portfolio_by_org(self, organization_id: uuid.UUID) -> Portfolio | None:
-        return self.session.query(Portfolio).filter(Portfolio.organization_id == organization_id).first()
+    def get_default_portfolio(self) -> Portfolio | None:
+        return self.session.query(Portfolio).first()
 
-    def list_portfolios_by_org(self, organization_id: uuid.UUID) -> list[Portfolio]:
-        return self.session.query(Portfolio).filter(Portfolio.organization_id == organization_id).all()
+    def list_portfolios(self) -> list[Portfolio]:
+        return self.session.query(Portfolio).all()
 
-    def get_applied_outcomes_by_org(self, organization_id: uuid.UUID) -> list[RecommendationOutcome]:
+    def get_applied_outcomes(self) -> list[RecommendationOutcome]:
         return (
             self.session.query(RecommendationOutcome)
-            .join(Recommendation, Recommendation.id == RecommendationOutcome.recommendation_id)
-            .filter(Recommendation.organization_id == organization_id)
             .filter(RecommendationOutcome.status == "applied")
             .all()
         )
 
-    def get_portfolio(self, portfolio_id: uuid.UUID, organization_id: uuid.UUID) -> Portfolio | None:
-        return (
-            self.session.query(Portfolio)
-            .filter(Portfolio.id == portfolio_id, Portfolio.organization_id == organization_id)
-            .first()
-        )
+    def get_portfolio(self, portfolio_id: uuid.UUID) -> Portfolio | None:
+        return self.session.query(Portfolio).filter(Portfolio.id == portfolio_id).first()
 
     def get_transaction(self, transaction_id: uuid.UUID) -> Transaction | None:
         return self.session.query(Transaction).filter(Transaction.id == transaction_id).first()
@@ -104,7 +90,6 @@ class RecommendationRepository(BaseRepository):
     def upsert(self, rec: Recommendation) -> Recommendation:
         stmt = insert(Recommendation).values(
             id=rec.id,
-            organization_id=rec.organization_id,
             asset_id=rec.asset_id,
             recommendation_state=rec.recommendation_state,
             confidence_score=rec.confidence_score,

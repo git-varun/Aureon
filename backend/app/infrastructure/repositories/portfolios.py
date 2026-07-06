@@ -20,10 +20,6 @@ class PortfoliosRepository(BaseRepository):
         stmt = select(Portfolio).where(Portfolio.id == portfolio_id)
         return self.session.execute(stmt).scalar_one_or_none()
 
-    def get_by_org(self, org_id: uuid.UUID) -> list[Portfolio]:
-        stmt = select(Portfolio).where(Portfolio.organization_id == org_id)
-        return list(self.session.execute(stmt).scalars().all())
-
     def list_all(self) -> list[Portfolio]:
         return list(self.session.execute(select(Portfolio)).scalars().all())
 

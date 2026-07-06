@@ -47,8 +47,8 @@ class IntelligenceRepository(BaseRepository):
     def get_quote_by_symbol(self, symbol: str) -> LatestQuote | None:
         return self.session.query(LatestQuote).filter(LatestQuote.symbol == symbol).first()
 
-    def get_recommendations_by_org(self, org_id: uuid.UUID) -> list[Recommendation]:
-        return self.session.query(Recommendation).filter(Recommendation.organization_id == org_id).all()
+    def get_all_recommendations(self) -> list[Recommendation]:
+        return self.session.query(Recommendation).all()
 
     def get_recommendation(self, recommendation_id: uuid.UUID) -> Recommendation | None:
         return self.session.query(Recommendation).filter(Recommendation.id == recommendation_id).first()
@@ -87,10 +87,9 @@ class IntelligenceRepository(BaseRepository):
             .first()
         )
 
-    def count_recommendations(self, org_id: uuid.UUID, status: str, created_since: datetime) -> int:
+    def count_recommendations(self, status: str, created_since: datetime) -> int:
         return (
             self.session.query(Recommendation)
-            .filter(Recommendation.organization_id == org_id)
             .filter(Recommendation.status == status)
             .filter(Recommendation.created_at >= created_since)
             .count()
@@ -115,21 +114,18 @@ class IntelligenceRepository(BaseRepository):
     def get_price_history_by_assets(self, asset_ids: list[uuid.UUID]) -> list[PriceHistory]:
         return self.session.query(PriceHistory).filter(PriceHistory.asset_id.in_(asset_ids)).all()
 
-    def get_recent_applied_outcomes(self, org_id: uuid.UUID, limit: int) -> list[RecommendationOutcome]:
+    def get_recent_applied_outcomes(self, limit: int) -> list[RecommendationOutcome]:
         return (
             self.session.query(RecommendationOutcome)
-            .join(Recommendation, Recommendation.id == RecommendationOutcome.recommendation_id)
-            .filter(Recommendation.organization_id == org_id)
             .filter(RecommendationOutcome.status == "applied")
             .order_by(RecommendationOutcome.action_taken_at.desc())
             .limit(limit)
             .all()
         )
 
-    def get_latest_briefing(self, org_id: uuid.UUID) -> AIBriefing | None:
+    def get_latest_briefing(self) -> AIBriefing | None:
         return (
             self.session.query(AIBriefing)
-            .filter(AIBriefing.organization_id == org_id)
             .order_by(AIBriefing.created_at.desc())
             .first()
         )

@@ -55,7 +55,7 @@ def _parse_yahoo_news_item(item: dict, provider_name: str) -> NormalizedNews | N
                 published_at = datetime.fromisoformat(raw.replace("Z", "+00:00"))
                 break
             except (ValueError, AttributeError):
-                logger.warning("Yahoo news: failed to parse timestamp field=%s value=%r", field, raw)
+                logger.warning(f"Yahoo news: failed to parse timestamp field={field} value={raw!r}")
 
     if published_at is None:
         ts = content.get("providerPublishTime")
@@ -63,7 +63,7 @@ def _parse_yahoo_news_item(item: dict, provider_name: str) -> NormalizedNews | N
             try:
                 published_at = datetime.fromtimestamp(int(ts), tz=timezone.utc)
             except (ValueError, OSError):
-                logger.warning("Yahoo news: failed to parse providerPublishTime value=%r", ts)
+                logger.warning(f"Yahoo news: failed to parse providerPublishTime value={ts!r}")
 
     if published_at is None:
         published_at = datetime.now(timezone.utc)
@@ -120,11 +120,10 @@ class YahooAdapter(MarketDataProvider):
                     skipped += 1
                     logger.warning("Yahoo news: skipped item missing title or url")
             logger.info(
-                "Yahoo news: symbol=%s received=%d parsed=%d skipped=%d",
-                symbol, received, len(results), skipped,
+                f"Yahoo news symbol={symbol} received={received} parsed={len(results)} skipped={skipped}"
             )
         except Exception as e:
-            logger.warning("Yahoo get_news failed for %s: %s", symbol, e)
+            logger.warning(f"Yahoo get_news failed for {symbol}: {e}")
         return results
 
     def get_technical_indicators(self, symbol: str) -> dict[str, Any]:

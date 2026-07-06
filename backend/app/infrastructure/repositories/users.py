@@ -24,10 +24,6 @@ class UsersRepository(BaseRepository):
         stmt = select(User).where(User.email == email)
         return self.session.execute(stmt).scalar_one_or_none()
 
-    def get_by_google_id(self, google_id: str) -> User | None:
-        stmt = select(User).where(User.google_id == google_id)
-        return self.session.execute(stmt).scalar_one_or_none()
-
     def update(self, user: User) -> User:
         self.session.flush()
         return user

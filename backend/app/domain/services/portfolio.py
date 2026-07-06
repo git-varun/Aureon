@@ -78,8 +78,8 @@ class PortfolioService(BaseService):
         self.snapshot_repo = snapshot_repo
         self.session = portfolios_repo.session
 
-    def create_portfolio(self, name: str, organization_id: uuid.UUID, actor_id: Optional[uuid.UUID] = None) -> Portfolio:
-        portfolio = Portfolio(name=name, organization_id=organization_id)
+    def create_portfolio(self, name: str, actor_id: Optional[uuid.UUID] = None) -> Portfolio:
+        portfolio = Portfolio(name=name)
         self.portfolios_repo.create(portfolio)
         self.session.flush()
         from app.domain.services.audit import log_audit_action
@@ -89,23 +89,23 @@ class PortfolioService(BaseService):
             entity_type="portfolio",
             entity_id=str(portfolio.id),
             actor_id=actor_id,
-            details={"name": name, "organization_id": str(organization_id)}
+            details={"name": name}
         )
         self.session.commit()
         self.session.refresh(portfolio)
         return portfolio
 
-    def get_portfolio(self, portfolio_id: uuid.UUID, organization_id: uuid.UUID) -> Portfolio:
+    def get_portfolio(self, portfolio_id: uuid.UUID) -> Portfolio:
         portfolio = self.portfolios_repo.get_by_id(portfolio_id)
-        if not portfolio or portfolio.organization_id != organization_id:
+        if not portfolio:
             raise NotFoundError("Portfolio not found")
         return portfolio
 
-    def list_portfolios(self, organization_id: uuid.UUID) -> List[Portfolio]:
-        return self.portfolios_repo.get_by_org(organization_id)
+    def list_portfolios(self) -> List[Portfolio]:
+        return self.portfolios_repo.list_all()
 
-    def update_portfolio(self, portfolio_id: uuid.UUID, organization_id: uuid.UUID, name: str, actor_id: Optional[uuid.UUID] = None) -> Portfolio:
-        portfolio = self.get_portfolio(portfolio_id, organization_id)
+    def update_portfolio(self, portfolio_id: uuid.UUID, name: str, actor_id: Optional[uuid.UUID] = None) -> Portfolio:
+        portfolio = self.get_portfolio(portfolio_id)
         old_name = portfolio.name
         portfolio.name = name
         self.portfolios_repo.update(portfolio)
@@ -117,14 +117,14 @@ class PortfolioService(BaseService):
             entity_type="portfolio",
             entity_id=str(portfolio.id),
             actor_id=actor_id,
-            details={"old_name": old_name, "new_name": name, "organization_id": str(organization_id)}
+            details={"old_name": old_name, "new_name": name}
         )
         self.session.commit()
         self.session.refresh(portfolio)
         return portfolio
 
-    def delete_portfolio(self, portfolio_id: uuid.UUID, organization_id: uuid.UUID, actor_id: Optional[uuid.UUID] = None) -> bool:
-        portfolio = self.get_portfolio(portfolio_id, organization_id)
+    def delete_portfolio(self, portfolio_id: uuid.UUID, actor_id: Optional[uuid.UUID] = None) -> bool:
+        portfolio = self.get_portfolio(portfolio_id)
         portfolio_name = portfolio.name
         deleted = self.portfolios_repo.delete(portfolio.id)
         from app.domain.services.audit import log_audit_action
@@ -134,7 +134,7 @@ class PortfolioService(BaseService):
             entity_type="portfolio",
             entity_id=str(portfolio_id),
             actor_id=actor_id,
-            details={"name": portfolio_name, "organization_id": str(organization_id)}
+            details={"name": portfolio_name}
         )
         self.session.commit()
         return deleted
@@ -142,7 +142,6 @@ class PortfolioService(BaseService):
     def record_transaction(
         self,
         portfolio_id: uuid.UUID,
-        organization_id: uuid.UUID,
         symbol: str,
         transaction_type: str,
         quantity: float,
@@ -155,8 +154,8 @@ class PortfolioService(BaseService):
         broker_reference: Optional[str] = None,
         kind: str = "trade",
     ) -> Transaction:
-        # Validate portfolio membership
-        self.get_portfolio(portfolio_id, organization_id)
+        # Validate portfolio exists
+        self.get_portfolio(portfolio_id)
 
         symbol = symbol.upper().strip()
         transaction_type = transaction_type.upper().strip()
@@ -183,22 +182,21 @@ class PortfolioService(BaseService):
         self.session.refresh(txn)
         return txn
 
-    def get_transaction(self, txn_id: uuid.UUID, organization_id: uuid.UUID) -> Transaction:
+    def get_transaction(self, txn_id: uuid.UUID) -> Transaction:
         txn = self.transactions_repo.get_by_id(txn_id)
         if not txn:
             raise NotFoundError("Transaction not found")
-        # Validate parent portfolio bounds
-        self.get_portfolio(txn.portfolio_id, organization_id)
+        # Validate parent portfolio exists
+        self.get_portfolio(txn.portfolio_id)
         return txn
 
-    def list_transactions(self, portfolio_id: uuid.UUID, organization_id: uuid.UUID) -> List[Transaction]:
-        self.get_portfolio(portfolio_id, organization_id)
+    def list_transactions(self, portfolio_id: uuid.UUID) -> List[Transaction]:
+        self.get_portfolio(portfolio_id)
         return self.transactions_repo.get_by_portfolio(portfolio_id)
 
     def update_transaction(
         self,
         txn_id: uuid.UUID,
-        organization_id: uuid.UUID,
         symbol: Optional[str] = None,
         transaction_type: Optional[str] = None,
         quantity: Optional[float] = None,
@@ -210,7 +208,7 @@ class PortfolioService(BaseService):
         broker: Optional[str] = None,
         broker_reference: Optional[str] = None,
     ) -> Transaction:
-        txn = self.get_transaction(txn_id, organization_id)
+        txn = self.get_transaction(txn_id)
         old_symbol = txn.symbol
         old_portfolio_id = txn.portfolio_id
 
@@ -247,8 +245,8 @@ class PortfolioService(BaseService):
         self.session.refresh(txn)
         return txn
 
-    def delete_transaction(self, txn_id: uuid.UUID, organization_id: uuid.UUID) -> bool:
-        txn = self.get_transaction(txn_id, organization_id)
+    def delete_transaction(self, txn_id: uuid.UUID) -> bool:
+        txn = self.get_transaction(txn_id)
         portfolio_id = txn.portfolio_id
         symbol = txn.symbol
 
@@ -350,9 +348,9 @@ class PortfolioService(BaseService):
             self.session.add(pos)
         self.session.flush()
 
-    def generate_portfolio_snapshot(self, portfolio_id: uuid.UUID, organization_id: uuid.UUID) -> PortfolioSnapshot:
+    def generate_portfolio_snapshot(self, portfolio_id: uuid.UUID) -> PortfolioSnapshot:
         # Validate portfolio
-        self.get_portfolio(portfolio_id, organization_id)
+        self.get_portfolio(portfolio_id)
 
         positions = self.positions_repo.get_by_portfolio(portfolio_id)
         market_value = 0.0
@@ -417,13 +415,12 @@ class PortfolioService(BaseService):
     def import_transaction_file(
         self,
         portfolio_id: uuid.UUID,
-        organization_id: uuid.UUID,
         file_bytes: bytes,
         filename: str,
         broker: Optional[str] = None,
     ) -> Dict[str, Any]:
-        # Validate portfolio membership
-        self.get_portfolio(portfolio_id, organization_id)
+        # Validate portfolio exists
+        self.get_portfolio(portfolio_id)
 
         ext = filename.split(".")[-1].lower() if "." in filename else "csv"
         from app.domain.services.portfolio_importer import parse_transaction_file
@@ -435,19 +432,34 @@ class PortfolioService(BaseService):
         skipped = 0
         symbols_to_recalc = set()
 
+        # Bulk-load existing (broker, broker_reference) pairs up front so dedup
+        # is one query instead of one SELECT per row (same pattern as the live
+        # broker sync's _import_broker_trades).
+        refs_by_broker: Dict[str, set] = {}
+        for row in rows:
+            broker_ref = row.get("broker_reference")
+            if broker_ref:
+                refs_by_broker.setdefault(row.get("broker") or "import", set()).add(broker_ref)
+
+        existing_refs: set = set()
+        for broker_name, refs in refs_by_broker.items():
+            stmt = select(Transaction.broker, Transaction.broker_reference).where(
+                (Transaction.portfolio_id == portfolio_id) &
+                (Transaction.broker == broker_name) &
+                (Transaction.broker_reference.in_(refs))
+            )
+            existing_refs.update(tuple(r) for r in self.session.execute(stmt).all())
+
+        seen_this_call: set = set()
         for row in rows:
             broker_ref = row.get("broker_reference")
             broker_name = row.get("broker") or "import"
             if broker_ref:
-                stmt = select(Transaction).where(
-                    (Transaction.portfolio_id == portfolio_id) &
-                    (Transaction.broker == broker_name) &
-                    (Transaction.broker_reference == broker_ref)
-                )
-                exists = self.session.execute(stmt).scalars().first()
-                if exists:
+                key = (broker_name, broker_ref)
+                if key in existing_refs or key in seen_this_call:
                     skipped += 1
                     continue
+                seen_this_call.add(key)
 
             symbol = row["symbol"]
             asset_id = _ensure_asset_exists(self.session, symbol)
@@ -477,12 +489,11 @@ class PortfolioService(BaseService):
     def import_cdsl_cas(
         self,
         portfolio_id: uuid.UUID,
-        organization_id: uuid.UUID,
         file_bytes: bytes,
         password: Optional[str] = None,
     ) -> Dict[str, Any]:
-        # Validate portfolio membership
-        self.get_portfolio(portfolio_id, organization_id)
+        # Validate portfolio exists
+        self.get_portfolio(portfolio_id)
 
         from app.domain.services.portfolio_importer import parse_cdsl_cas
         try:
@@ -627,10 +638,9 @@ class PortfolioService(BaseService):
     def sync_zerodha_holdings(
         self,
         portfolio_id: uuid.UUID,
-        organization_id: uuid.UUID,
         holdings: List[Dict[str, Any]],
     ) -> Dict[str, Any]:
-        self.get_portfolio(portfolio_id, organization_id)
+        self.get_portfolio(portfolio_id)
 
         _EXCHANGE_SUFFIX = {"NSE": ".NS", "BSE": ".BO"}
         rows = []
@@ -653,7 +663,6 @@ class PortfolioService(BaseService):
     def sync_binance_holdings(
         self,
         portfolio_id: uuid.UUID,
-        organization_id: uuid.UUID,
         holdings: Dict[str, Any],
     ) -> Dict[str, Any]:
         """holdings: {"spot": [...], "earn": [...], "futures_usdm": [...],
@@ -666,7 +675,7 @@ class PortfolioService(BaseService):
         recalculate_position. Binance's account/position endpoints report current
         balances only, not historical cost basis for Spot/Earn — accurate P&L there
         depends on the trade history imported below (or the CSV/XLSX importer)."""
-        self.get_portfolio(portfolio_id, organization_id)
+        self.get_portfolio(portfolio_id)
 
         quantities: Dict[str, float] = {}
         for b in holdings.get("spot") or []:
@@ -933,12 +942,11 @@ class PortfolioService(BaseService):
     def sync_groww_holdings(
         self,
         portfolio_id: uuid.UUID,
-        organization_id: uuid.UUID,
         holdings: List[Dict[str, Any]],
     ) -> Dict[str, Any]:
         """holdings: Groww GET /holdings/user "holdings" list — each includes
         trading_symbol, quantity, average_price (see GrowwClient.get_holdings)."""
-        self.get_portfolio(portfolio_id, organization_id)
+        self.get_portfolio(portfolio_id)
 
         rows = []
         for h in holdings:
@@ -964,6 +972,8 @@ class PortfolioService(BaseService):
         asset_class: str,
         quantity: float,
         price: float,
+        transaction_date: Optional[datetime] = None,
+        notes: Optional[str] = None,
     ) -> str:
         from app.domain.entities.market import Asset
 
@@ -989,8 +999,8 @@ class PortfolioService(BaseService):
             transaction_type="BUY",
             quantity=quantity,
             price=price,
-            transaction_date=datetime.now(timezone.utc),
-            notes="Manual asset creation",
+            transaction_date=transaction_date or datetime.now(timezone.utc),
+            notes=notes or "Manual asset creation",
             broker="manual",
             kind="trade"
         )
