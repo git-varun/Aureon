@@ -2,7 +2,7 @@ import React, { useState, useMemo } from 'react';
 import { TierChip, Sk } from '@/components/aureon/ui';
 import { valueOf, plOf, plPctOf, isFutures } from '@/components/aureon/utils';
 
-const COL = '1.8fr 0.7fr 1fr 0.8fr 1fr 1.1fr 0.65fr 76px';
+const COL = 'minmax(0,1.8fr) minmax(0,0.7fr) minmax(0,1fr) minmax(0,0.8fr) minmax(0,1fr) minmax(0,1.1fr) minmax(0,0.65fr) 76px';
 
 function SortHdr({ col, sortC, sortD, onToggle, children }) {
   return (
@@ -101,25 +101,25 @@ export function PfHoldingsTable({ holdings, loading, fmt, onLogTrade, onAddManua
             </div>
             <TierChip tier={h.tier}/>
             {futures ? (
-              <span style={{ fontFamily:'var(--font-mono)', fontSize:12.5, fontWeight:600, color: h.side === 'SHORT' ? 'var(--crimson-500)' : 'var(--sage-500)' }}>
+              <span style={{ fontFamily:'var(--font-mono)', fontSize:12.5, fontWeight:600, color: h.side === 'SHORT' ? 'var(--crimson-500)' : 'var(--sage-500)', overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap' }}>
                 {h.side === 'SHORT' ? 'SHORT' : 'LONG'} {h.leverage ? `${h.leverage}x` : ''}
               </span>
             ) : (
-              <span style={{ fontFamily:'var(--font-mono)', fontSize:12.5, color:isManual?'var(--ink-50)':'var(--ink-10)' }}>
+              <span style={{ fontFamily:'var(--font-mono)', fontSize:12.5, color:isManual?'var(--ink-50)':'var(--ink-10)', overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap' }}>
                 {isManual ? <span style={{ fontSize:11, color:'var(--ink-50)' }}>Manual val.</span> : h.price == null ? '—' : fmtPrice(h.price)}
               </span>
             )}
             {futures ? (
-              <span style={{ fontFamily:'var(--font-mono)', fontSize:11.5, color:'var(--ink-40)' }}>
+              <span style={{ fontFamily:'var(--font-mono)', fontSize:11.5, color:'var(--ink-40)', overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap' }}>
                 Liq. {h.liquidationPrice != null ? fmtPrice(h.liquidationPrice) : '—'}
               </span>
             ) : (
-              <span style={{ fontFamily:'var(--font-mono)', fontSize:12.5, color:'var(--ink-30)' }}>{h.qty >= 1 ? h.qty.toLocaleString() : h.qty.toFixed(4)}</span>
+              <span style={{ fontFamily:'var(--font-mono)', fontSize:12.5, color:'var(--ink-30)', overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap' }}>{h.qty >= 1 ? h.qty.toLocaleString() : h.qty.toFixed(4)}</span>
             )}
             <span style={{ fontFamily:'var(--font-mono)', fontSize:12, color:(h.dayPct == null || h.dayPct===0)?'var(--ink-50)':h.dayPct>0?'var(--sage-500)':'var(--crimson-500)' }}>
               {futures || h.dayPct == null || h.dayPct===0 ? '—' : `${h.dayPct>0?'▲':'▼'} ${(Math.abs(h.dayPct)*100).toFixed(2)}%`}
             </span>
-            <span style={{ fontFamily:'var(--font-mono)', fontSize:13, color:'var(--ink-00)', fontWeight:500 }}>{h.price == null ? '—' : fmtVal(valueOf(h))}</span>
+            <span style={{ fontFamily:'var(--font-mono)', fontSize:13, color:'var(--ink-00)', fontWeight:500, overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap' }}>{h.price == null ? '—' : fmtVal(valueOf(h))}</span>
             {plp != null ? (
               <span style={{ display:'inline-flex', alignItems:'center', padding:'2px 6px', borderRadius:4, fontFamily:'var(--font-mono)', fontSize:11, background:pl>=0?'rgba(111,174,136,0.10)':'rgba(209,107,107,0.10)', color:pl>=0?'var(--sage-500)':'var(--crimson-500)' }}>
                 {plp>=0?'+':'−'}{(Math.abs(plp)*100).toFixed(1)}%

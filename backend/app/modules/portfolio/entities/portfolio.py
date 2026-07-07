@@ -2,7 +2,7 @@ import uuid
 from datetime import datetime
 from typing import Any
 
-from sqlalchemy import JSON, ForeignKey, Index, Numeric, String
+from sqlalchemy import JSON, ForeignKey, Index, Numeric, String, text
 from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.orm import Mapped, mapped_column
 
@@ -18,7 +18,15 @@ class Portfolio(UUIDMixin, TimestampMixin, Base):
 
 class Transaction(UUIDMixin, TimestampMixin, Base):
     __tablename__ = "transactions"
-    __table_args__ = {"schema": "portfolio"}
+    __table_args__ = (
+        Index(
+            "ix_transactions_broker_dedup",
+            "portfolio_id", "broker", "broker_reference",
+            unique=True,
+            postgresql_where=text("broker_reference IS NOT NULL"),
+        ),
+        {"schema": "portfolio"},
+    )
 
     portfolio_id: Mapped[uuid.UUID] = mapped_column(
         ForeignKey("portfolio.portfolios.id", ondelete="CASCADE"), nullable=False

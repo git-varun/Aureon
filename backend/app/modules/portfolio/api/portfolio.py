@@ -303,6 +303,24 @@ async def import_cdsl_cas_pdf(
     except NotFoundError as e:
         raise HTTPException(status_code=404, detail=str(e))
 
+@router.post("/portfolios/{portfolio_id}/import/nps")
+async def import_nps_statement(
+    portfolio_id: uuid.UUID,
+    file: UploadFile = File(...),
+    current_user: User = Depends(get_current_user),
+    service: PortfolioService = Depends(get_portfolio_service),
+):
+    content = await file.read()
+    try:
+        return service.import_nps_statement(
+            portfolio_id=portfolio_id,
+            file_bytes=content,
+        )
+    except ValidationError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+    except NotFoundError as e:
+        raise HTTPException(status_code=404, detail=str(e))
+
 
 # --- Manual Assets, Sync, Backup/Restore (single-user facade via get_user_context) ---
 
