@@ -5,7 +5,7 @@ from sqlalchemy.orm import Session
 
 from app.core.constants import DEFAULT_USER_ID
 from app.core.database import SessionLocal
-from app.domain.entities.system import User
+from app.core.entities.system import User
 from app.domain.services import (
     AIService,
     ConfigService,
@@ -16,10 +16,10 @@ from app.domain.services import (
     RecommendationService,
     WatchlistService,
 )
-from app.domain.services.assets import AssetsService
-from app.domain.services.evaluation import EvaluationService
-from app.domain.services.market import MarketService
-from app.domain.services.monitoring import MonitoringService
+from app.modules.market.services.assets import AssetsService
+from app.modules.ai.services.evaluation import EvaluationService
+from app.modules.market.services.market import MarketService
+from app.core.services.monitoring import MonitoringService
 from app.infrastructure.repositories import (
     AssetHealthRepository,
     AssetScoresRepository,
@@ -158,7 +158,7 @@ def get_ai_service(db: Session = Depends(get_db)) -> AIService:
 
 def get_user_context(db: Session, user: User):
     """Resolves or creates the default Portfolio context on the fly."""
-    from app.domain.entities.portfolio import Portfolio
+    from app.modules.portfolio.entities.portfolio import Portfolio
 
     portfolio = db.query(Portfolio).first()
     if not portfolio:
@@ -171,8 +171,8 @@ def get_user_context(db: Session, user: User):
 
 
 def serialize_user_profile(user: User, db: Session) -> dict:
-    from app.domain.entities.market import MarketTheme, ThemeWeight
-    from app.domain.entities.system import UserPreference
+    from app.modules.market.entities.market import MarketTheme, ThemeWeight
+    from app.core.entities.system import UserPreference
 
     # Query preference
     pref = db.query(UserPreference).filter(UserPreference.user_id == user.id).first()

@@ -8,9 +8,9 @@ from app.core.redis import cache_asset_features
 
 @shared_task(name="app.workers.evaluation.features.generate_features")
 def generate_features(asset_id: str) -> None:
-    from app.domain.services.evaluation import FeatureGenerationService
-    from app.infrastructure.repositories.asset_features import AssetFeaturesRepository
-    from app.infrastructure.repositories.asset_snapshot import AssetSnapshotRepository
+    from app.modules.ai.services.evaluation import FeatureGenerationService
+    from app.modules.market.repositories.asset_features import AssetFeaturesRepository
+    from app.modules.market.repositories.asset_snapshot import AssetSnapshotRepository
 
     aid = uuid.UUID(asset_id) if isinstance(asset_id, str) else asset_id
 

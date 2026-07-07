@@ -31,6 +31,12 @@ const displayType = raw => (raw || '').toUpperCase();
 const txnDate = txn => txn.transaction_date ? String(txn.transaction_date).slice(0,10) : '';
 const deriveSource = txn => txn.broker_reference ? 'CSV' : 'Manual';
 const normKind = kind => kind ? kind.charAt(0).toUpperCase() + kind.slice(1).toLowerCase() : '—';
+const FUTURES_SYMBOL_SUFFIXES = ['-USDM', '-COINM'];
+const isSyncedTxn = txn => {
+  const kind = (txn.kind || '').toLowerCase();
+  if (kind === 'broker_trade' || kind === 'broker_snapshot') return true;
+  return FUTURES_SYMBOL_SUFFIXES.some(s => (txn.symbol || '').toUpperCase().endsWith(s));
+};
 
 /* ── chips ──────────────────────────────────────────────────────────────── */
 const TypeBadge = ({ type }) => {
@@ -155,6 +161,7 @@ function LedgerRow({ txn, onEdit, onDelete }) {
   const date   = txnDate(txn);
   const source = deriveSource(txn);
   const kind   = normKind(txn.kind);
+  const synced = isSyncedTxn(txn);
 
   return (
     <div
@@ -184,14 +191,22 @@ function LedgerRow({ txn, onEdit, onDelete }) {
       </span>
       <span style={{ fontSize:11.5, color:'var(--ink-40)', whiteSpace:'nowrap', overflow:'hidden', textOverflow:'ellipsis' }} title={txn.notes||''}>{txn.notes || '—'}</span>
       <SourceBadge source={source}/>
-      <div style={{ display:'flex', gap:3, justifyContent:'flex-end', opacity:hov?1:0, transition:'opacity 80ms' }}>
-        <button onClick={() => onEdit(txn)} title="Edit transaction" style={{ width:26, height:26, borderRadius:6, display:'inline-flex', alignItems:'center', justifyContent:'center', background:'rgba(255,255,255,0.04)', border:'1px solid rgba(255,255,255,0.08)', cursor:'pointer', color:'var(--ink-30)' }}>
-          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.9" strokeLinecap="round" strokeLinejoin="round"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
-        </button>
-        <button onClick={() => onDelete(txn)} title="Delete transaction" style={{ width:26, height:26, borderRadius:6, display:'inline-flex', alignItems:'center', justifyContent:'center', background:'rgba(209,107,107,0.10)', border:'1px solid rgba(209,107,107,0.20)', cursor:'pointer', color:'var(--crimson-500)' }}>
-          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.9" strokeLinecap="round" strokeLinejoin="round"><path d="M3 6h18M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2m2 0v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6"/><path d="M10 11v6M14 11v6"/></svg>
-        </button>
-      </div>
+      {synced ? (
+        <div style={{ display:'flex', justifyContent:'flex-end', opacity:hov?1:0, transition:'opacity 80ms' }}>
+          <span title={`Synced from ${txn.broker || 'broker'} — managed automatically`} style={{ fontSize:10, color:'var(--ink-40)', background:'rgba(255,255,255,0.03)', border:'1px solid rgba(255,255,255,0.06)', borderRadius:5, padding:'3px 7px', whiteSpace:'nowrap', cursor:'default' }}>
+            Synced
+          </span>
+        </div>
+      ) : (
+        <div style={{ display:'flex', gap:3, justifyContent:'flex-end', opacity:hov?1:0, transition:'opacity 80ms' }}>
+          <button onClick={() => onEdit(txn)} title="Edit transaction" style={{ width:26, height:26, borderRadius:6, display:'inline-flex', alignItems:'center', justifyContent:'center', background:'rgba(255,255,255,0.04)', border:'1px solid rgba(255,255,255,0.08)', cursor:'pointer', color:'var(--ink-30)' }}>
+            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.9" strokeLinecap="round" strokeLinejoin="round"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
+          </button>
+          <button onClick={() => onDelete(txn)} title="Delete transaction" style={{ width:26, height:26, borderRadius:6, display:'inline-flex', alignItems:'center', justifyContent:'center', background:'rgba(209,107,107,0.10)', border:'1px solid rgba(209,107,107,0.20)', cursor:'pointer', color:'var(--crimson-500)' }}>
+            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.9" strokeLinecap="round" strokeLinejoin="round"><path d="M3 6h18M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2m2 0v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6"/><path d="M10 11v6M14 11v6"/></svg>
+          </button>
+        </div>
+      )}
     </div>
   );
 }

@@ -1,6 +1,6 @@
 import React, { useState, useMemo } from 'react';
 import { TierChip, Sk } from '@/components/aureon/ui';
-import { valueOf, plOf, plPctOf } from '@/components/aureon/utils';
+import { valueOf, plOf, plPctOf, isFutures } from '@/components/aureon/utils';
 
 const COL = '1.8fr 0.7fr 1fr 0.8fr 1fr 1.1fr 0.65fr 76px';
 
@@ -83,6 +83,7 @@ export function PfHoldingsTable({ holdings, loading, fmt, onLogTrade, onAddManua
         </div>
       ) : filtered.map(h => {
         const isManual = h.tier === 'passive';
+        const futures = isFutures(h);
         const pl = plOf(h);
         const plp = h.cost > 0 ? plPctOf(h) : null;
         const fmtVal = v => fmt ? fmt(v, 'USD', {dp:0}) : `$${Math.round(v).toLocaleString()}`;
@@ -99,12 +100,24 @@ export function PfHoldingsTable({ holdings, loading, fmt, onLogTrade, onAddManua
               <div style={{ fontSize:11.5, color:'var(--ink-40)', marginTop:1, overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap', maxWidth:200 }}>{h.name}</div>
             </div>
             <TierChip tier={h.tier}/>
-            <span style={{ fontFamily:'var(--font-mono)', fontSize:12.5, color:isManual?'var(--ink-50)':'var(--ink-10)' }}>
-              {isManual ? <span style={{ fontSize:11, color:'var(--ink-50)' }}>Manual val.</span> : h.price == null ? '—' : fmtPrice(h.price)}
-            </span>
-            <span style={{ fontFamily:'var(--font-mono)', fontSize:12.5, color:'var(--ink-30)' }}>{h.qty >= 1 ? h.qty.toLocaleString() : h.qty.toFixed(4)}</span>
+            {futures ? (
+              <span style={{ fontFamily:'var(--font-mono)', fontSize:12.5, fontWeight:600, color: h.side === 'SHORT' ? 'var(--crimson-500)' : 'var(--sage-500)' }}>
+                {h.side === 'SHORT' ? 'SHORT' : 'LONG'} {h.leverage ? `${h.leverage}x` : ''}
+              </span>
+            ) : (
+              <span style={{ fontFamily:'var(--font-mono)', fontSize:12.5, color:isManual?'var(--ink-50)':'var(--ink-10)' }}>
+                {isManual ? <span style={{ fontSize:11, color:'var(--ink-50)' }}>Manual val.</span> : h.price == null ? '—' : fmtPrice(h.price)}
+              </span>
+            )}
+            {futures ? (
+              <span style={{ fontFamily:'var(--font-mono)', fontSize:11.5, color:'var(--ink-40)' }}>
+                Liq. {h.liquidationPrice != null ? fmtPrice(h.liquidationPrice) : '—'}
+              </span>
+            ) : (
+              <span style={{ fontFamily:'var(--font-mono)', fontSize:12.5, color:'var(--ink-30)' }}>{h.qty >= 1 ? h.qty.toLocaleString() : h.qty.toFixed(4)}</span>
+            )}
             <span style={{ fontFamily:'var(--font-mono)', fontSize:12, color:(h.dayPct == null || h.dayPct===0)?'var(--ink-50)':h.dayPct>0?'var(--sage-500)':'var(--crimson-500)' }}>
-              {(h.dayPct == null || h.dayPct===0) ? '—' : `${h.dayPct>0?'▲':'▼'} ${(Math.abs(h.dayPct)*100).toFixed(2)}%`}
+              {futures || h.dayPct == null || h.dayPct===0 ? '—' : `${h.dayPct>0?'▲':'▼'} ${(Math.abs(h.dayPct)*100).toFixed(2)}%`}
             </span>
             <span style={{ fontFamily:'var(--font-mono)', fontSize:13, color:'var(--ink-00)', fontWeight:500 }}>{h.price == null ? '—' : fmtVal(valueOf(h))}</span>
             {plp != null ? (

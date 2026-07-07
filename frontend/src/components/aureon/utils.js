@@ -12,10 +12,15 @@ export const CLASS_TARGET = {
 export const HIGH_IMPACT_USD = 10000;
 export const UNDO_WINDOW_MS = 20000;
 
-export const valueOf = (h) => h.qty * h.price;
-export const costOf = (h) => h.qty * h.cost;
-export const plOf = (h) => valueOf(h) - costOf(h);
-export const plPctOf = (h) => { const c = costOf(h); return c > 0 ? (valueOf(h) - c) / c : 0; };
+// Futures wallets carry leverage/liquidation/side; value and P&L there aren't
+// price * qty (see backend generate_portfolio_snapshot, portfolio.py:322-341).
+export const isFutures = (h) => h.wallet === 'futures_usdm' || h.wallet === 'futures_coinm';
+const marginOf = (h) => Math.abs(h.qty * h.cost) / (h.leverage || 1);
+
+export const valueOf = (h) => isFutures(h) ? marginOf(h) + (h.unrealizedPnl || 0) : h.qty * h.price;
+export const costOf = (h) => isFutures(h) ? marginOf(h) : h.qty * h.cost;
+export const plOf = (h) => isFutures(h) ? (h.unrealizedPnl || 0) : valueOf(h) - costOf(h);
+export const plPctOf = (h) => { const c = costOf(h); return c > 0 ? plOf(h) / c : 0; };
 
 export const fmt$ = (n, d = 0) => (n < 0 ? '−' : '') + '$' + Math.abs(n).toLocaleString('en-US', {
     minimumFractionDigits: d,

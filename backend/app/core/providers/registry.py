@@ -1,7 +1,7 @@
 """Provider registry — the single place providers are discovered from.
 
 Providers self-register at import time (see the bottom of each
-app/infrastructure/providers/<category>/<name>/provider.py file). Services
+app/modules/<module>/providers/<category>/<name>/provider.py file). Services
 never instantiate a provider class directly; they ask the registry (usually
 via ProviderFactory) for one by name or by capability.
 """
@@ -60,21 +60,27 @@ class ProviderRegistry:
             return False
 
     def discover(self) -> None:
-        """Import-scan app.infrastructure.providers so every provider.py module's
+        """Import-scan each module's providers/ package so every provider.py module's
         self-registration call runs at least once. Idempotent — safe to call repeatedly."""
         if self._discovered:
             return
         self._discovered = True
-        import app.infrastructure.providers as providers_pkg
 
-        for finder, name, is_pkg in pkgutil.walk_packages(
-            providers_pkg.__path__, prefix=f"{providers_pkg.__name__}."
-        ):
-            if name.endswith(".provider"):
-                try:
-                    importlib.import_module(name)
-                except Exception as e:
-                    logger.error(f"Failed to import provider module '{name}': {e}")
+        provider_root_names = [
+            "app.modules.market.providers",
+            "app.modules.portfolio.providers",
+            "app.modules.ai.providers",
+        ]
+        for root_name in provider_root_names:
+            providers_pkg = importlib.import_module(root_name)
+            for finder, name, is_pkg in pkgutil.walk_packages(
+                providers_pkg.__path__, prefix=f"{providers_pkg.__name__}."
+            ):
+                if name.endswith(".provider"):
+                    try:
+                        importlib.import_module(name)
+                    except Exception as e:
+                        logger.error(f"Failed to import provider module '{name}': {e}")
 
 
 registry = ProviderRegistry()

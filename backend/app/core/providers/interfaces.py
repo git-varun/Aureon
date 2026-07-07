@@ -18,7 +18,7 @@ from typing import Any, List, Optional, TYPE_CHECKING
 from app.core.providers.capabilities import Capability
 
 if TYPE_CHECKING:
-    from app.domain.services.providers.models import NormalizedNews, NormalizedQuote
+    from app.core.providers.models import NormalizedNews, NormalizedQuote
 
 
 class ProviderProtocol(ABC):
