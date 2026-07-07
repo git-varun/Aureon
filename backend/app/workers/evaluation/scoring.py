@@ -3,7 +3,7 @@ import uuid
 from celery import shared_task
 
 from app.core.database import SessionLocal
-from app.domain.services.recommendation import RecommendationService
+from app.modules.ai.services.recommendation import RecommendationService
 
 
 @shared_task(name="app.workers.evaluation.scoring.generate_scores")

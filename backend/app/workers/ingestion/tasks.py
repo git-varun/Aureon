@@ -15,10 +15,10 @@ def ingest_quote(provider_name: str, symbol: str) -> bool:
         raise ValueError(f"Unknown provider {provider_name}")
 
     from app.core.providers.factory import ProviderFactory
-    from app.domain.services.config import ConfigService
-    from app.domain.services.ingestion import QuoteIngestionService
-    from app.infrastructure.repositories.config import ConfigRepository
-    from app.infrastructure.repositories.ingestion import IngestionRepository
+    from app.core.services.config import ConfigService
+    from app.modules.market.services.ingestion import QuoteIngestionService
+    from app.core.repositories.config import ConfigRepository
+    from app.modules.market.repositories.ingestion import IngestionRepository
 
     db = SessionLocal()
     try:
@@ -46,7 +46,7 @@ def ingest_quote(provider_name: str, symbol: str) -> bool:
 
 @shared_task(name="app.workers.ingestion.tasks.ingest_all_quotes")
 def ingest_all_quotes() -> None:
-    from app.infrastructure.repositories.ingestion import IngestionRepository
+    from app.modules.market.repositories.ingestion import IngestionRepository
 
     db = SessionLocal()
     try:
@@ -65,9 +65,9 @@ def ingest_all_quotes() -> None:
 def _wrap_job_execution(job_name: str, log_id: int | None, fn, *args, **kwargs) -> None:
     db = SessionLocal()
     try:
-        from app.domain.entities.config import JobStatus
-        from app.domain.services.config import ConfigService
-        from app.infrastructure.repositories.config import ConfigRepository
+        from app.core.entities.config import JobStatus
+        from app.core.services.config import ConfigService
+        from app.core.repositories.config import ConfigRepository
         
         cfg_repo = ConfigRepository(db)
         cfg_svc = ConfigService(cfg_repo)
@@ -90,7 +90,7 @@ def _wrap_job_execution(job_name: str, log_id: int | None, fn, *args, **kwargs) 
 def _list_portfolio_entries() -> list:
     """Loads portfolio ids in a short-lived read session so a later rollback
     elsewhere cannot expire these values."""
-    from app.infrastructure.repositories.portfolios import PortfoliosRepository
+    from app.modules.portfolio.repositories.portfolios import PortfoliosRepository
 
     db = SessionLocal()
     try:
@@ -104,7 +104,7 @@ def sync_portfolio_task(log_id: int | None = None, **kwargs) -> None:
     def _run_sync():
         ingest_all_quotes()
 
-        from app.domain.services.portfolio import PortfolioService
+        from app.modules.portfolio.services.portfolio import PortfolioService
         from app.infrastructure.repositories import (
             PortfolioSnapshotRepository,
             PortfoliosRepository,
@@ -138,8 +138,8 @@ def _run_broker_sync(job_name: str, provider_name: str, sync_method_name: str) -
     refresh quotes and snapshots. Used by sync_zerodha_task/sync_binance_task/
     sync_groww_task — they differ only in which provider/service method to call."""
     from app.core.providers.factory import ProviderFactory
-    from app.domain.services.config import ConfigService
-    from app.infrastructure.repositories.config import ConfigRepository
+    from app.core.services.config import ConfigService
+    from app.core.repositories.config import ConfigRepository
 
     db = SessionLocal()
     try:
@@ -153,7 +153,7 @@ def _run_broker_sync(job_name: str, provider_name: str, sync_method_name: str) -
 
     holdings = provider.sync()  # raises <Provider>AuthError("AUTH_REQUIRED: ...") if not connected / expired
 
-    from app.domain.services.portfolio import PortfolioService
+    from app.modules.portfolio.services.portfolio import PortfolioService
     from app.infrastructure.repositories import (
         PortfolioSnapshotRepository,
         PortfoliosRepository,
@@ -222,9 +222,9 @@ def fetch_news_task(log_id: int | None = None, **kwargs) -> None:
     def _run_fetch():
         db = SessionLocal()
         try:
-            from app.domain.services.news import NewsService
-            from app.infrastructure.repositories.ingestion import IngestionRepository
-            from app.infrastructure.repositories.news import NewsRepository
+            from app.modules.news.services.news import NewsService
+            from app.modules.market.repositories.ingestion import IngestionRepository
+            from app.modules.news.repositories.news import NewsRepository
 
             symbols = IngestionRepository(db).list_quoted_symbols(limit=10)
             if not symbols:
@@ -243,7 +243,7 @@ def _run_briefing(briefing_type: str):
 
     db = SessionLocal()
     try:
-        from app.domain.services.ai import AIService
+        from app.modules.ai.services.ai import AIService
         ai_svc = AIService(db)
         try:
             ai_svc.generate_briefing(briefing_type, user_id=DEFAULT_USER_ID)
@@ -269,10 +269,10 @@ def monthly_briefing_task(log_id: int | None = None, **kwargs) -> None:
 @shared_task(name="app.workers.ingestion.tasks.seed_price_history_task")
 def seed_price_history_task(log_id: int | None = None, **kwargs) -> None:
     def _run():
-        from app.domain.services.data_maintenance import MarketSeedService
-        from app.infrastructure.repositories.ingestion import IngestionRepository
-        from app.infrastructure.repositories.market import MarketRepository
-        from app.infrastructure.repositories.news import NewsRepository
+        from app.modules.ai.services.data_maintenance import MarketSeedService
+        from app.modules.market.repositories.ingestion import IngestionRepository
+        from app.modules.market.repositories.market import MarketRepository
+        from app.modules.news.repositories.news import NewsRepository
 
         db = SessionLocal()
         try:
@@ -285,10 +285,10 @@ def seed_price_history_task(log_id: int | None = None, **kwargs) -> None:
 @shared_task(name="app.workers.ingestion.tasks.seed_market_universe_task")
 def seed_market_universe_task(log_id: int | None = None, **kwargs) -> None:
     def _run():
-        from app.domain.services.data_maintenance import MarketSeedService
-        from app.infrastructure.repositories.ingestion import IngestionRepository
-        from app.infrastructure.repositories.market import MarketRepository
-        from app.infrastructure.repositories.news import NewsRepository
+        from app.modules.ai.services.data_maintenance import MarketSeedService
+        from app.modules.market.repositories.ingestion import IngestionRepository
+        from app.modules.market.repositories.market import MarketRepository
+        from app.modules.news.repositories.news import NewsRepository
 
         db = SessionLocal()
         try:
@@ -320,7 +320,7 @@ def recompute_scores(asset_id: str) -> None:
 @shared_task(name="app.workers.ingestion.tasks.admin_reprocess_all_assets")
 def admin_reprocess_all_assets(log_id: int | None = None, **kwargs) -> None:
     def _run():
-        from app.infrastructure.repositories.ingestion import IngestionRepository
+        from app.modules.market.repositories.ingestion import IngestionRepository
 
         db = SessionLocal()
         try:
@@ -341,10 +341,10 @@ def admin_backfill_assets(asset_ids: list[str]) -> None:
 @shared_task(name="app.workers.ingestion.tasks.admin_repair_jobs")
 def admin_repair_jobs(log_id: int | None = None, **kwargs) -> None:
     def _run():
-        from app.domain.services.data_maintenance import ReprocessService
-        from app.infrastructure.repositories.asset_features import AssetFeaturesRepository
-        from app.infrastructure.repositories.asset_scores import AssetScoresRepository
-        from app.infrastructure.repositories.recommendation import RecommendationRepository
+        from app.modules.ai.services.data_maintenance import ReprocessService
+        from app.modules.market.repositories.asset_features import AssetFeaturesRepository
+        from app.modules.market.repositories.asset_scores import AssetScoresRepository
+        from app.modules.ai.repositories.recommendation import RecommendationRepository
 
         db = SessionLocal()
         try:
@@ -363,13 +363,14 @@ def admin_repair_jobs(log_id: int | None = None, **kwargs) -> None:
 @shared_task(name="app.workers.ingestion.tasks.validate_data_quality_task")
 def validate_data_quality_task(log_id: int | None = None, **kwargs) -> None:
     def _run():
-        from app.domain.services.data_maintenance import DataQualityService
-        from app.infrastructure.repositories.market import MarketRepository
-        from app.infrastructure.repositories.monitoring import MonitoringRepository
+        from app.modules.ai.services.data_maintenance import DataQualityService
+        from app.modules.market.repositories.market import MarketRepository
+        from app.core.repositories.monitoring import MonitoringRepository
+        from app.modules.ai.repositories.recommendation import RecommendationRepository
 
         db = SessionLocal()
         try:
-            errors = DataQualityService(MonitoringRepository(db), MarketRepository(db)).validate()
+            errors = DataQualityService(MonitoringRepository(db), MarketRepository(db), RecommendationRepository(db)).validate()
         finally:
             db.close()
 

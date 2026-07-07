@@ -9,11 +9,11 @@ from app.core.redis import cache_asset_snapshot
 @shared_task(name="app.workers.snapshots.asset_snapshot.process_asset_snapshot")
 def process_asset_snapshot(asset_id: str) -> None:
     from app.core.providers.factory import ProviderFactory
-    from app.domain.services.config import ConfigService
-    from app.domain.services.snapshot import SnapshotService
-    from app.infrastructure.repositories.asset_snapshot import AssetSnapshotRepository
-    from app.infrastructure.repositories.config import ConfigRepository
-    from app.infrastructure.repositories.market import MarketRepository
+    from app.core.services.config import ConfigService
+    from app.modules.market.services.snapshot import SnapshotService
+    from app.modules.market.repositories.asset_snapshot import AssetSnapshotRepository
+    from app.core.repositories.config import ConfigRepository
+    from app.modules.market.repositories.market import MarketRepository
 
     aid = uuid.UUID(asset_id) if isinstance(asset_id, str) else asset_id
 

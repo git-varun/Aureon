@@ -1,14 +1,14 @@
-from app.domain.entities.ai import AIBriefing, AIEvaluation, AIFeedback, AIGeneration
-from app.domain.entities.base import Base
-from app.domain.entities.config import (
+from app.modules.ai.entities.ai import AIBriefing, AIEvaluation, AIFeedback, AIGeneration
+from app.core.entities.base import Base
+from app.core.entities.config import (
     AllocationTarget,
     JobConfig,
     JobLog,
     JobStatus,
     ProviderConfig,
 )
-from app.domain.entities.evaluation import AssetScore, FeatureSnapshot
-from app.domain.entities.market import (
+from app.modules.market.entities.evaluation import AssetScore, FeatureSnapshot
+from app.modules.market.entities.market import (
     Asset,
     AssetFeatures,
     AssetHealth,
@@ -18,20 +18,20 @@ from app.domain.entities.market import (
     PriceHistory,
     ThemeWeight,
 )
-from app.domain.entities.news import AssetSentimentSnapshot, News, NewsAsset
-from app.domain.entities.notification import WebNotification
-from app.domain.entities.portfolio import (
+from app.modules.news.entities.news import AssetSentimentSnapshot, News, NewsAsset
+from app.core.entities.notification import WebNotification
+from app.modules.portfolio.entities.portfolio import (
     Portfolio,
     PortfolioSnapshot,
     Position,
     Transaction,
 )
-from app.domain.entities.recommendation import (
+from app.modules.ai.entities.recommendation import (
     Recommendation,
     RecommendationExplanation,
     RecommendationOutcome,
 )
-from app.domain.entities.system import (
+from app.core.entities.system import (
     AuditLog,
     FailedIngestion,
     JobRun,
@@ -40,6 +40,6 @@ from app.domain.entities.system import (
     User,
     UserPreference,
 )
-from app.domain.entities.watchlist import Watchlist, WatchlistSymbol
+from app.modules.market.entities.watchlist import Watchlist, WatchlistSymbol
 
 

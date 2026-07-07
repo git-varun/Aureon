@@ -5,7 +5,7 @@ from fastapi import APIRouter, Depends, HTTPException
 
 from app.api.dependencies import get_monitoring_service
 from app.core.exceptions import NotFoundError
-from app.domain.services.monitoring import MonitoringService
+from app.core.services.monitoring import MonitoringService
 
 router = APIRouter()
 

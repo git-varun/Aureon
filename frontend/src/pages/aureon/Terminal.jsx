@@ -240,7 +240,7 @@ function SignalsPanel({ sym, signal, signalStatus, signalRetry }) {
 
     return (
         <PanelSection label="Active signals" status={signalStatus} retry={signalRetry} pb={0}>
-            {!signal ? (
+            {!signal?.signal_type ? (
                 <div style={{ fontSize: 12, color: 'var(--ink-40)' }}>No active signals for {sym}</div>
             ) : (
                 <div style={{ display: 'flex', flexDirection: 'column', gap: 7 }}>

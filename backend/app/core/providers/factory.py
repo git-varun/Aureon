@@ -13,10 +13,10 @@ from app.core.providers.lifecycle import ProviderStatus
 from app.core.providers.registry import registry
 
 if TYPE_CHECKING:
-    # Deferred: app.domain.services.ai imports ProviderFactory at module scope, so an
+    # Deferred: app.modules.ai.services.ai imports ProviderFactory at module scope, so an
     # eager import here creates a circular import whenever this module loads first
     # (e.g. `import app.core.providers.factory` as a process's first app import).
-    from app.domain.services.config import ConfigService
+    from app.core.services.config import ConfigService
 
 
 class ProviderFactory:

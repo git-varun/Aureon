@@ -7,22 +7,13 @@ from fastapi import FastAPI, HTTPException, Request
 from fastapi.exceptions import RequestValidationError
 from fastapi.responses import JSONResponse
 
-from app.api.v1 import (
-    ai,
-    assets,
-    config,
-    evaluation,
-    intelligence,
-    market,
-    monitoring,
-    news,
-    notification,
-    portfolio,
-    recommendation,
-    users,
-    watchlist,
-)
-from app.api.v1.system import health
+from app.api.v1 import monitoring
+from app.core.api import config, notification, users
+from app.core.api.system import health
+from app.modules.ai.api import ai, evaluation, intelligence, recommendation
+from app.modules.market.api import assets, market, watchlist
+from app.modules.news.api import news
+from app.modules.portfolio.api import portfolio
 from app.core.config import settings
 from app.core.exceptions import (
     AppException,
@@ -80,7 +71,7 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
     # Seeding database defaults
     try:
         from app.core.database import SessionLocal
-        from app.domain.services.config import ConfigService
+        from app.core.services.config import ConfigService
         with SessionLocal() as db:
             ConfigService.seed_defaults(db)
         logger.info("Database seed completed successfully.")
@@ -91,7 +82,7 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
     # Bootstrap market universe if empty
     try:
         from app.core.database import SessionLocal
-        from app.domain.entities.market import Asset
+        from app.modules.market.entities.market import Asset
         with SessionLocal() as db:
             asset_count = db.query(Asset).count()
         if asset_count == 0:

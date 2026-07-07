@@ -116,6 +116,11 @@ export function useAureonData() {
                 sector: assetData.sector || 'General',
                 beta: 1.0,
                 spark: price != null ? [price] : [],
+                wallet: pos.wallet,
+                leverage: pos.leverage,
+                liquidationPrice: pos.liquidation_price,
+                unrealizedPnl: pos.unrealized_pnl,
+                side: pos.side,
             };
         });
     }, [positions, assetsMap]);
@@ -173,7 +178,10 @@ export function useAureonData() {
         return signalQueries
             .map((q) => {
                 const raw = q.data;
-                if (!raw) return null;
+                // signal_type is null for assets the pipeline structurally can't
+                // cover (e.g. crypto futures) — backend returns 200 + nulls
+                // instead of 404 for these, so filter them out here explicitly.
+                if (!raw || raw.signal_type == null) return null;
                 const rsi = raw.rsi_14 ?? 50;
                 const severity = (rsi > 70 || rsi < 30) ? 'high' : (rsi > 60 || rsi < 40) ? 'med' : 'low';
                 const kind = (rsi > 70 || rsi < 30) ? 'volatility' : 'momentum';

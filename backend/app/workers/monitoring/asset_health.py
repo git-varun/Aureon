@@ -8,9 +8,9 @@ from app.core.redis import cache_asset_health
 
 @shared_task(name="app.workers.monitoring.asset_health.compute_asset_health")
 def compute_asset_health(asset_id: str) -> None:
-    from app.domain.services.asset_health import AssetHealthService
-    from app.infrastructure.repositories.asset_health import AssetHealthRepository
-    from app.infrastructure.repositories.market import MarketRepository
+    from app.modules.market.services.asset_health import AssetHealthService
+    from app.modules.market.repositories.asset_health import AssetHealthRepository
+    from app.modules.market.repositories.market import MarketRepository
 
     aid = uuid.UUID(asset_id) if isinstance(asset_id, str) else asset_id
 

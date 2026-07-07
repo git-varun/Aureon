@@ -13,8 +13,8 @@ import argparse
 import sys
 
 from app.core.database import SessionLocal
-from app.domain.services.config import ConfigService
-from app.infrastructure.repositories.config import ConfigRepository
+from app.core.services.config import ConfigService
+from app.core.repositories.config import ConfigRepository
 
 
 def main() -> int:

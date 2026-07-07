@@ -11,9 +11,9 @@ from app.core.redis import cache_asset_signals
 @shared_task(name="app.workers.evaluation.signals.generate_signals")
 def generate_signals(asset_id: str) -> None:
     from app.core.providers.factory import ProviderFactory
-    from app.domain.services.config import ConfigService
-    from app.infrastructure.repositories.config import ConfigRepository
-    from app.infrastructure.repositories.market import MarketRepository
+    from app.core.services.config import ConfigService
+    from app.core.repositories.config import ConfigRepository
+    from app.modules.market.repositories.market import MarketRepository
 
     aid = uuid.UUID(asset_id) if isinstance(asset_id, str) else asset_id
 
