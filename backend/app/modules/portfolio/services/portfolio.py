@@ -478,7 +478,7 @@ class PortfolioService(BaseService):
         symbols_to_recalc = set()
         for p in payloads:
             symbol = p["symbol"]
-            asset_id = ensure_asset_exists(self.session, symbol)
+            asset_id = ensure_asset_exists(self.session, symbol, name=p.get("name"), asset_class=p.get("asset_type") or "equity")
 
             stmt = select(Transaction).where(
                 (Transaction.portfolio_id == portfolio_id) &
@@ -515,6 +515,110 @@ class PortfolioService(BaseService):
         return {
             "status": "success",
             "imported_holdings": len(payloads),
+            "summary": summary,
+        }
+
+    def import_nps_statement(
+        self,
+        portfolio_id: uuid.UUID,
+        file_bytes: bytes,
+    ) -> Dict[str, Any]:
+        # Validate portfolio exists
+        self.get_portfolio(portfolio_id)
+
+        from app.modules.portfolio.services.portfolio_importer import parse_nps_statement
+        try:
+            holdings, rows, summary = parse_nps_statement(file_bytes)
+        except Exception as e:
+            raise ValidationError(str(e))
+
+        symbols_to_recalc = set()
+
+        # Holdings snapshot per scheme — same upsert-one-broker_snapshot-per-symbol
+        # pattern as import_cdsl_cas.
+        for h in holdings:
+            symbol = h["symbol"]
+            asset_id = ensure_asset_exists(self.session, symbol, name=h["name"], asset_class="nps", tier=h["tier"])
+
+            stmt = select(Transaction).where(
+                (Transaction.portfolio_id == portfolio_id) &
+                (Transaction.symbol == symbol) &
+                (Transaction.kind == "broker_snapshot") &
+                (Transaction.broker == "nps")
+            )
+            existing = self.session.execute(stmt).scalars().first()
+
+            if existing:
+                existing.quantity = h["quantity"]
+                existing.price = h["current_nav"]
+                existing.transaction_date = h["as_of_date"] or datetime.now(timezone.utc)
+            else:
+                txn = Transaction(
+                    portfolio_id=portfolio_id,
+                    symbol=symbol,
+                    asset_id=asset_id,
+                    transaction_type="BUY",
+                    quantity=h["quantity"],
+                    price=h["current_nav"],
+                    transaction_date=h["as_of_date"] or datetime.now(timezone.utc),
+                    broker="nps",
+                    kind="broker_snapshot",
+                )
+                self.transactions_repo.create(txn)
+
+            symbols_to_recalc.add(symbol)
+
+        # Per-row transactions — same (broker, broker_reference) dedup pattern as
+        # import_transaction_file.
+        refs = {row["broker_reference"] for row in rows}
+        existing_refs: set = set()
+        if refs:
+            stmt = select(Transaction.broker_reference).where(
+                (Transaction.portfolio_id == portfolio_id) &
+                (Transaction.broker == "nps") &
+                (Transaction.broker_reference.in_(refs))
+            )
+            existing_refs = set(self.session.execute(stmt).scalars().all())
+
+        committed = 0
+        skipped = 0
+        seen_this_call: set = set()
+        for row in rows:
+            broker_ref = row["broker_reference"]
+            if broker_ref in existing_refs or broker_ref in seen_this_call:
+                skipped += 1
+                continue
+            seen_this_call.add(broker_ref)
+
+            symbol = row["symbol"]
+            asset_id = ensure_asset_exists(self.session, symbol)
+
+            txn = Transaction(
+                portfolio_id=portfolio_id,
+                symbol=symbol,
+                asset_id=asset_id,
+                transaction_type=row["type"],
+                quantity=row["quantity"],
+                price=row["price"],
+                transaction_date=row["date"],
+                broker="nps",
+                broker_reference=broker_ref,
+                kind="trade",
+                notes=row["description"],
+            )
+            self.transactions_repo.create(txn)
+            committed += 1
+            symbols_to_recalc.add(symbol)
+
+        for sym in symbols_to_recalc:
+            self.recalculate_position(portfolio_id, sym)
+
+        self.session.commit()
+        return {
+            "holdings_imported": len(holdings),
+            "transactions_committed": committed,
+            "transactions_skipped": skipped,
+            "errors": [],
             "summary": summary,
         }
 

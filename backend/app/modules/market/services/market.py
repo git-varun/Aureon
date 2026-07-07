@@ -103,9 +103,24 @@ SYSTEM_THEMES = {
 }
 
 
-def ensure_asset_exists(session: Session, symbol: str) -> uuid.UUID:
+def ensure_asset_exists(session: Session, symbol: str, name: Optional[str] = None, asset_class: str = "equity", tier: Optional[int] = None) -> uuid.UUID:
     symbol = symbol.upper().strip()
     asset_id = uuid.uuid5(uuid.NAMESPACE_DNS, symbol)
+
+    # Only touch the Asset row when a name is supplied — existing callers that don't
+    # pass one keep relying on Asset rows created elsewhere (e.g. universe seeding).
+    if name:
+        from app.modules.market.entities.market import Asset
+        asset = session.scalar(select(Asset).filter_by(symbol=symbol))
+        if not asset:
+            session.add(Asset(id=asset_id, symbol=symbol, name=name, asset_class=asset_class, tier=tier))
+            session.flush()
+        else:
+            if not asset.name or asset.name == symbol:
+                asset.name = name
+            if tier is not None and asset.tier != tier:
+                asset.tier = tier
+            session.flush()
 
     # We must ensure the LatestQuote and AssetSnapshot exist.
     quote = session.scalar(select(LatestQuote).filter_by(symbol=symbol))

@@ -8,9 +8,10 @@ export function PfImportCenter() {
   const [csvError, setCsvErr]  = useState('');
   const [csvResult, setCsvRes] = useState(null);
   const [casFile, setCasFile]  = useState(null);
-  const [casState, setCasSt]   = useState('idle'); // idle | processing | done | error
+  const [casState, setCasSt]   = useState('idle'); // idle | processing | done | error | password
   const [casError, setCasErr]  = useState('');
   const [casResult, setCasRes] = useState(null);
+  const [casPassword, setCasPw] = useState('');
   const [showManual, setShowM] = useState(null);
   const casInputRef            = useRef(null);
   const TABS = [['csv','CSV Import'],['cas','CAS Import'],['manual','Manual Asset']];
@@ -34,12 +35,18 @@ export function PfImportCenter() {
     setCasSt('processing');
     setCasErr('');
     try {
-      const result = await apiService.importCAS(null, casFile, null);
+      const result = await apiService.importCAS(null, casFile, casPassword || null);
       setCasRes(result);
       setCasSt('done');
     } catch (err) {
-      setCasErr(err?.response?.data?.detail || err.message || 'CAS import failed');
-      setCasSt('error');
+      const msg = err?.response?.data?.detail || err.message || 'CAS import failed';
+      if (msg === 'PDF_PASSWORD_REQUIRED' || msg === 'PDF_PASSWORD_INCORRECT') {
+        setCasErr(msg === 'PDF_PASSWORD_INCORRECT' ? 'Incorrect password — try again.' : 'This PDF is password-protected. Enter the password to continue.');
+        setCasSt('password');
+      } else {
+        setCasErr(msg);
+        setCasSt('error');
+      }
     }
   };
 
@@ -55,7 +62,7 @@ export function PfImportCenter() {
           {tab === 'csv' && (
             <div style={{ display:'flex', flexDirection:'column', gap:16 }}>
               <p style={{ margin:0, fontSize:13, color:'var(--ink-30)', lineHeight:1.6, maxWidth:540 }}>
-                Import trades and holdings from a broker-exported CSV. Aureon normalises column names automatically across supported brokers.
+                Import trades and holdings from a broker-exported CSV or Excel file. Aureon normalises column names automatically across supported brokers.
               </p>
               <div
                 onDragOver={e => { e.preventDefault(); setCsvSt('over'); }}
@@ -72,8 +79,8 @@ export function PfImportCenter() {
                           <div style={{ marginBottom:10, opacity:0.25 }}>
                             <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
                           </div>
-                          <div style={{ fontSize:13, color:'var(--ink-20)', marginBottom:6 }}>Drag &amp; drop your CSV file here</div>
-                          <div style={{ fontSize:11.5, color:'var(--ink-50)' }}>or <label style={{ color:'var(--aurum-300)', cursor:'pointer', textDecoration:'underline' }}>browse<input type="file" accept=".csv" style={{ display:'none' }} onChange={e => handleCsvFile(e.target.files[0])}/></label></div>
+                          <div style={{ fontSize:13, color:'var(--ink-20)', marginBottom:6 }}>Drag &amp; drop your CSV or Excel file here</div>
+                          <div style={{ fontSize:11.5, color:'var(--ink-50)' }}>or <label style={{ color:'var(--aurum-300)', cursor:'pointer', textDecoration:'underline' }}>browse<input type="file" accept=".csv,.xlsx,.xls" style={{ display:'none' }} onChange={e => handleCsvFile(e.target.files[0])}/></label></div>
                         </>
                 }
               </div>
@@ -103,16 +110,27 @@ export function PfImportCenter() {
                 }
               </div>
               {casState === 'done' && <div style={{ fontSize:13, color:'var(--sage-500)', fontWeight:500 }}>✓ Imported — {casResult?.imported_holdings ?? 0} holdings processed</div>}
-              {casState === 'error' && <div style={{ fontSize:13, color:'rgba(255,80,80,0.9)' }}>{casError}</div>}
+              {(casState === 'error' || casState === 'password') && <div style={{ fontSize:13, color:'rgba(255,80,80,0.9)' }}>{casError}</div>}
+              {casState === 'password' && (
+                <input
+                  type="password"
+                  autoFocus
+                  placeholder="CAS PDF password"
+                  value={casPassword}
+                  onChange={e => setCasPw(e.target.value)}
+                  onKeyDown={e => { if (e.key === 'Enter' && casPassword) handleCasImport(); }}
+                  style={{ padding:'10px 12px', borderRadius:8, border:'1px solid rgba(255,255,255,0.12)', background:'rgba(255,255,255,0.02)', color:'var(--ink-10)', fontSize:13 }}
+                />
+              )}
               <div style={{ display:'flex', gap:8 }}>
                 <button
-                  disabled={!casFile || casState === 'processing'}
+                  disabled={!casFile || casState === 'processing' || (casState === 'password' && !casPassword)}
                   onClick={handleCasImport}
                   className="du3-cta"
-                  style={{ flex:1, background:'rgba(201,168,106,0.14)', border:'1px solid rgba(201,168,106,0.35)', color:'var(--aurum-100)', opacity:(casFile && casState !== 'processing')?1:0.45 }}>
-                  {casState === 'processing' ? 'Importing…' : 'Import CAS statement'}
+                  style={{ flex:1, background:'rgba(201,168,106,0.14)', border:'1px solid rgba(201,168,106,0.35)', color:'var(--aurum-100)', opacity:(casFile && casState !== 'processing' && (casState !== 'password' || casPassword))?1:0.45 }}>
+                  {casState === 'processing' ? 'Importing…' : casState === 'password' ? 'Unlock & import' : 'Import CAS statement'}
                 </button>
-                <button onClick={() => { setCasFile(null); setCasSt('idle'); setCasErr(''); setCasRes(null); }} disabled={!casFile} className="du3-cta ghost" style={{ opacity:casFile?1:0.4 }}>Clear</button>
+                <button onClick={() => { setCasFile(null); setCasSt('idle'); setCasErr(''); setCasRes(null); setCasPw(''); }} disabled={!casFile} className="du3-cta ghost" style={{ opacity:casFile?1:0.4 }}>Clear</button>
               </div>
             </div>
           )}

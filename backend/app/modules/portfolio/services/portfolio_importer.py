@@ -489,9 +489,15 @@ def parse_cdsl_cas(content: bytes, password: Optional[str] = None) -> Tuple[List
     if password:
         open_kwargs["password"] = password
 
+    from pdfminer.pdfdocument import PDFPasswordIncorrect
+
     try:
         pdf = pdfplumber.open(io.BytesIO(content), **open_kwargs)
     except Exception as exc:
+        cause = exc.args[0] if exc.args else None
+        if isinstance(exc, PDFPasswordIncorrect) or isinstance(cause, PDFPasswordIncorrect):
+            marker = "PDF_PASSWORD_INCORRECT" if password else "PDF_PASSWORD_REQUIRED"
+            raise ValueError(marker) from exc
         raise ValueError(f"Cannot open PDF: {exc}") from exc
 
     mf_folios = []
@@ -582,3 +588,179 @@ def parse_cdsl_cas(content: bytes, password: Optional[str] = None) -> Tuple[List
     }
 
     return payloads, summary
+
+
+# ── NPS Statement Parser ──────────────────────────────────────────────────────
+
+def _num_paren(val: Any) -> Optional[float]:
+    """Like _num(), but treats parenthesised amounts as negative, e.g. "(25.55)" -> -25.55."""
+    if val is None:
+        return None
+    s = str(val).replace(",", "").strip()
+    if s in ("--", "-", "", "N/A", "NA"):
+        return None
+    neg = s.startswith("(") and s.endswith(")")
+    if neg:
+        s = s[1:-1].strip()
+    try:
+        n = float(s)
+    except ValueError:
+        return None
+    return -n if neg else n
+
+def _is_blank_row(row: List[str]) -> bool:
+    return not row or all(not str(c).strip() for c in row)
+
+def _detect_nps_tier(first_line: str) -> Optional[int]:
+    m = re.search(r"Tier\s+(I|II)\s+Account", first_line, re.IGNORECASE)
+    if not m:
+        return None
+    return 2 if m.group(1).upper() == "II" else 1
+
+def _nps_scheme_letter(scheme_name: str) -> Optional[str]:
+    m = re.search(r"SCHEME\s+([A-Z])\s*-\s*TIER", scheme_name, re.IGNORECASE)
+    return m.group(1).upper() if m else None
+
+_NPS_BUY_DESCRIPTIONS = {"by voluntary contributions", "tier-2 contribution"}
+_NPS_SKIP_DESCRIPTIONS = {"opening balance", "closing balance"}
+
+def parse_nps_statement(content: bytes) -> Tuple[List[Dict[str, Any]], List[Dict[str, Any]], Dict[str, Any]]:
+    """Parses an NPS (National Pension System) transaction statement CSV.
+
+    Returns (holdings, transactions, summary):
+    - holdings: current scheme-wise snapshot from "Investment Details - Scheme
+      Wise Summary" (one per scheme: symbol, name, tier, quantity, current_nav, as_of_date).
+    - transactions: real BUY/SELL rows from "Transaction Details" per-scheme
+      sections (Opening balance / Closing Balance rows excluded).
+    """
+    import csv
+
+    text = content.decode("utf-8-sig", errors="replace")
+    rows = list(csv.reader(io.StringIO(text)))
+    if not rows:
+        raise ValueError("Empty NPS statement file")
+
+    tier = _detect_nps_tier(rows[0][0] if rows[0] else "")
+    if tier is None:
+        raise ValueError("Could not detect Tier I/II from statement header")
+
+    pran = None
+    for row in rows:
+        if row and row[0].strip().lower() == "pran" and len(row) > 1:
+            pran = row[1].strip().lstrip("'").strip()
+            break
+    if not pran:
+        raise ValueError("Could not find PRAN in statement")
+
+    # ── Investment Details - Scheme Wise Summary ──
+    holdings: List[Dict[str, Any]] = []
+    summary_idx = next(
+        (i for i, r in enumerate(rows) if r and r[0].strip().lower() == "investment details - scheme wise summary"),
+        None,
+    )
+    if summary_idx is not None:
+        header_row = rows[summary_idx + 1]
+        as_of_date = None
+        for cell in header_row:
+            dm = re.search(r"(\d{1,2}-[A-Za-z]{3}-\d{4})", cell)
+            if dm:
+                as_of_date = _parse_date(dm.group(1))
+                break
+
+        i = summary_idx + 2
+        while i < len(rows) and not _is_blank_row(rows[i]):
+            row = rows[i]
+            scheme_name = row[0].strip()
+            units = _num_paren(row[2]) if len(row) > 2 else None
+            nav = _num_paren(row[3]) if len(row) > 3 else None
+            letter = _nps_scheme_letter(scheme_name)
+            if letter and units is not None:
+                symbol = f"NPS-{pran}-{letter}-T{tier}"
+                holdings.append({
+                    "symbol": symbol,
+                    "name": scheme_name,
+                    "tier": tier,
+                    "quantity": units,
+                    "current_nav": nav or 0.0,
+                    "as_of_date": as_of_date,
+                })
+            i += 1
+
+    # ── Transaction Details (per-scheme sections) ──
+    transactions: List[Dict[str, Any]] = []
+    txn_idx = next(
+        (i for i, r in enumerate(rows) if r and r[0].strip().lower() == "transaction details"),
+        None,
+    )
+    if txn_idx is not None:
+        i = txn_idx + 1
+        current_scheme = None
+        while i < len(rows):
+            row = rows[i]
+            if _is_blank_row(row):
+                current_scheme = None
+                i += 1
+                continue
+            if current_scheme is None:
+                current_scheme = row[0].strip()
+                i += 1
+                continue
+            if row[0].strip().lower() == "date":
+                # header row for this scheme's transaction table
+                i += 1
+                continue
+
+            date_str = row[0].strip() if len(row) > 0 else ""
+            desc = row[1].strip() if len(row) > 1 else ""
+            amount = _num_paren(row[2]) if len(row) > 2 else None
+            nav = _num_paren(row[3]) if len(row) > 3 else None
+            units = _num_paren(row[4]) if len(row) > 4 else None
+
+            desc_lower = desc.lower()
+            if desc_lower in _NPS_SKIP_DESCRIPTIONS:
+                i += 1
+                continue
+
+            date = _parse_date(date_str)
+            letter = _nps_scheme_letter(current_scheme)
+            if not date or not letter or units is None:
+                i += 1
+                continue
+
+            symbol = f"NPS-{pran}-{letter}-T{tier}"
+
+            if desc_lower in _NPS_BUY_DESCRIPTIONS:
+                txn_type = "BUY"
+                quantity = units
+                txn_amount = amount
+            elif desc_lower.startswith("billing for q"):
+                txn_type = "SELL"
+                quantity = abs(units)
+                txn_amount = abs(amount) if amount is not None else None
+            else:
+                # Unrecognised description: fall back to sign of units.
+                txn_type = "BUY" if units >= 0 else "SELL"
+                quantity = abs(units)
+                txn_amount = abs(amount) if amount is not None else None
+                logger.warning(f"nps importer: unrecognised transaction description '{desc}' — inferred {txn_type}")
+
+            transactions.append({
+                "symbol": symbol,
+                "type": txn_type,
+                "quantity": quantity,
+                "price": nav or 0.0,
+                "amount": txn_amount,
+                "date": date,
+                "description": desc,
+                "broker_reference": f"{symbol}|{date.date().isoformat()}|{desc}",
+            })
+            i += 1
+
+    summary = {
+        "tier": tier,
+        "pran": pran,
+        "schemes_count": len(holdings),
+        "transactions_parsed": len(transactions),
+    }
+
+    return holdings, transactions, summary

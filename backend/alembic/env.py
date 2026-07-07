@@ -6,6 +6,12 @@ from alembic import context
 from app.core.config import settings
 from app.core.entities.base import Base
 
+# Importing app.domain.entities registers every entity class (across
+# core/entities and modules/{ai,market,portfolio,news}/entities) onto
+# Base.metadata as a side effect of its __init__.py — without this,
+# autogenerate sees an empty metadata and proposes dropping the whole schema.
+import app.domain.entities  # noqa: F401
+
 config = context.config
 
 if config.config_file_name is not None:
