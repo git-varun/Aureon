@@ -7,7 +7,7 @@ from urllib.parse import urlencode
 import requests
 
 from app.core.binance import SPOT_TRADE_QUOTES
-from app.core.exceptions import BinanceAuthError
+from app.core.exceptions import BinanceAuthError, RateLimitError
 from app.core.logging.http import http_client
 from app.core.providers.capabilities import Capability
 from app.core.providers.interfaces import BrokerProvider
@@ -57,6 +57,8 @@ class BinanceClient:
 
         if res.status_code == 401:
             raise BinanceAuthError("Binance rejected the API key/secret")
+        if res.status_code == 429:
+            raise RateLimitError("Binance rate limited the request — try again later")
         res.raise_for_status()
         return res.json()
 

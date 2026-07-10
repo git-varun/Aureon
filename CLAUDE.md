@@ -96,6 +96,7 @@ The backend is domain-driven, not module-per-feature. Each layer has one job and
 Multi-model fallback chain: Gemini (4 models) -> Groq (2 models). On HTTP 429 a model is cooled down and the next is tried automatically. If no credentials are configured or all models are exhausted, it raises ProviderError — no fake/mock briefing fallback in production. All AI results are stored in the AIBriefing table and also cached in Redis. (AUREON_TEST_MOCK_AI=true is an explicit, documented test-only escape hatch, not a production path.)  
 **Key composite endpoint**  
 GET /api/state — the frontend's primary data source. Returns portfolio positions joined with technical indicators, signals, recent news, and the latest AI briefing in a single response.  
+Portfolio provider/parser details: see modules/portfolio/PROVIDERS.md.  
 **Frontend (**frontend/**)**  
 React + Vite SPA. All API calls go through the single client frontend/src/api/apiService.js (baseURL /api/v1). Components are under frontend/src/components/aureon/, pages under frontend/src/pages/aureon/. The dev proxy is configured in vite.config.js to forward /api/* to the FastAPI server.  
 **Configuration**  

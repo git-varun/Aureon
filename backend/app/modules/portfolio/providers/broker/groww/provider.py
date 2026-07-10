@@ -4,7 +4,7 @@ from typing import Any, List, Optional
 
 import requests
 
-from app.core.exceptions import GrowwAuthError
+from app.core.exceptions import GrowwAuthError, RateLimitError
 from app.core.logging.http import http_client
 from app.core.providers.capabilities import Capability
 from app.core.providers.interfaces import BrokerProvider
@@ -51,6 +51,8 @@ class GrowwClient:
             # not a bad key/secret/checksum. Surface Groww's own message when present.
             detail = _extract_groww_error(res)
             raise GrowwAuthError(f"AUTH_REQUIRED: Groww token exchange rejected — {detail}")
+        if res.status_code == 429:
+            raise RateLimitError("Groww rate limited the request — try again later")
         res.raise_for_status()
 
         token = res.json().get("token")
@@ -73,6 +75,8 @@ class GrowwClient:
 
         if res.status_code == 401:
             raise GrowwAuthError("AUTH_REQUIRED: Groww session rejected — re-approve API access")
+        if res.status_code == 429:
+            raise RateLimitError("Groww rate limited the request — try again later")
         res.raise_for_status()
         # Real response shape is {"status": "SUCCESS", "payload": {"holdings": [...]}} —
         # the list is nested under "payload", not top-level.

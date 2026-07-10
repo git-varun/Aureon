@@ -827,7 +827,7 @@ function AssetView({ sym, picked, fmtPrice, watchlists, setWatchlists, recsActiv
                     setAiStatus('ok');
                 }
             })
-            .catch(() => { if (!cancelled) setAiStatus('ok'); });
+            .catch(() => { if (!cancelled) setAiStatus('error'); });
         return () => { cancelled = true; };
     }, [sym]);
 
@@ -870,7 +870,7 @@ function AssetView({ sym, picked, fmtPrice, watchlists, setWatchlists, recsActiv
                     });
                 }
             })
-            .catch(() => {})
+            .catch(() => setAiStatus('error'))
             .finally(() => setAiLoading(false));
     }, [sym]);
 

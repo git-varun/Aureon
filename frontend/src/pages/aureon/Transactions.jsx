@@ -286,7 +286,7 @@ function TransactionDrawer({ mode, txn, onClose, onSaved }) {
     if (k === 'epf') return 'epf';
     return 'trade';
   });
-  const dflt = { symbol:'', type:'BUY', qty:'', price:'', date:new Date().toISOString().slice(0,10), settlementDate:'', fees:'', taxes:'', notes:'', broker:'zerodha' };
+  const dflt = { symbol:'', type:'BUY', qty:'', price:'', date:new Date().toISOString().slice(0,10), settlementDate:'', fees:'', taxes:'', notes:'', broker:'zerodha', name:'' };
   const [form, setForm] = useState(() =>
     isEdit ? {
       ...dflt,
@@ -331,33 +331,90 @@ function TransactionDrawer({ mode, txn, onClose, onSaved }) {
   const valid = tab === 'trade' || isEdit
     ? (form.symbol && form.qty && form.price)
     : tab === 'nps'
-      ? (form.symbol && form.price)
-      : form.date;
+      ? (form.symbol && form.price && form.name)
+      : tab === 'epf'
+        ? (form.date && form.name)
+        : form.date;
+
+  // NPS/EPF are lump-sum "current balance" holdings (asset_class="nps"/"epf"),
+  // not per-unit tradeable positions — they go through /manual-assets, the same
+  // snapshot-style endpoint ManualAssetModal uses, not the trade ledger. That
+  // endpoint is create-once-then-revalue: createManualAsset on first entry for a
+  // symbol, updateManualValuation on every entry after (mirrors ManualAssetModal's
+  // own existing/not-existing branch) — calling createManualAsset repeatedly would
+  // add another BUY transaction each time and inflate Position.quantity by 1 per
+  // entry instead of updating the balance in place.
+  const findExistingAsset = async (symbol) => {
+    try {
+      const res = await apiService.searchAssets(symbol);
+      return (res.data || []).find(a => (a.sym || '').toUpperCase() === symbol.toUpperCase()) || null;
+    } catch {
+      return null;
+    }
+  };
 
   const handleSubmit = async () => {
     if (!valid || submitting) return;
     setSubmitting(true);
     try {
-      let payload;
       if (tab === 'nps' && !isEdit) {
-        payload = { symbol: form.symbol || 'NPS-T1', transaction_type:'buy', quantity: parseFloat(form.qty)||1, price: parseFloat(form.price)||0, transaction_date: form.date, fees:0, taxes:0, notes: form.notes||undefined, broker:'NPS Trust' };
-      } else if (tab === 'epf' && !isEdit) {
-        const emp = parseFloat(form.qty)||0;
-        const er  = parseFloat(form.price)||0;
-        payload = { symbol:'EPF', transaction_type:'buy', quantity:1, price: emp + er, transaction_date: form.date, fees:0, taxes:0, notes: `Employee: ₹${emp} | Employer: ₹${er}` + (form.fees?` | EPS: ₹${form.fees}`:''), broker:'EPFO' };
-      } else {
-        payload = {
-          symbol:           form.symbol.toUpperCase(),
-          transaction_type: form.type.toLowerCase(),
-          quantity:         parseFloat(form.qty),
-          price:            parseFloat(form.price),
-          transaction_date: form.date,
-          fees:             parseFloat(form.fees)||0,
-          taxes:            parseFloat(form.taxes)||0,
-          notes:            form.notes || undefined,
-          broker:           form.broker || undefined,
-        };
+        const symbol = form.symbol || 'NPS-T1';
+        const tier = symbol === 'NPS-T2' ? 2 : 1;
+        const currentValue = parseFloat(form.price) || 0;
+        const existingAsset = await findExistingAsset(symbol);
+        if (existingAsset) {
+          await apiService.updateManualValuation(symbol, currentValue, form.notes || null);
+        } else {
+          await apiService.createManualAsset({
+            name: form.name,
+            asset_class: 'nps',
+            symbol,
+            current_value: currentValue,
+            valuation_date: form.date,
+            notes: form.notes || null,
+            tier,
+          });
+        }
+        toast.success(`${symbol} ${existingAsset ? 'balance updated' : 'logged'}`);
+        onSaved();
+        return;
       }
+      if (tab === 'epf' && !isEdit) {
+        const symbol = 'EPF';
+        const emp = parseFloat(form.qty) || 0;
+        const er  = parseFloat(form.price) || 0;
+        const eps = parseFloat(form.fees) || 0;
+        const currentValue = emp + er + eps;
+        const notes = `Employee: ₹${emp} | Employer: ₹${er}` + (eps ? ` | Pension: ₹${eps}` : '');
+        const existingAsset = await findExistingAsset(symbol);
+        if (existingAsset) {
+          await apiService.updateManualValuation(symbol, currentValue, notes);
+        } else {
+          await apiService.createManualAsset({
+            name: form.name,
+            asset_class: 'epf',
+            symbol,
+            current_value: currentValue,
+            valuation_date: form.date,
+            notes,
+          });
+        }
+        toast.success(`${symbol} ${existingAsset ? 'balance updated' : 'logged'}`);
+        onSaved();
+        return;
+      }
+
+      const payload = {
+        symbol:           form.symbol.toUpperCase(),
+        transaction_type: form.type.toLowerCase(),
+        quantity:         parseFloat(form.qty),
+        price:            parseFloat(form.price),
+        transaction_date: form.date,
+        fees:             parseFloat(form.fees)||0,
+        taxes:            parseFloat(form.taxes)||0,
+        notes:            form.notes || undefined,
+        broker:           form.broker || undefined,
+      };
       if (isEdit) {
         await apiService.updateTransaction(null, txn.id, payload);
         toast.success(`${payload.symbol} updated`);
@@ -469,25 +526,23 @@ function TransactionDrawer({ mode, txn, onClose, onSaved }) {
               <FieldLabel label="Account tier">
                 <SegControl value={form.symbol} onChange={v => set('symbol', v)} opts={[['NPS-T1','Tier I · retirement'],['NPS-T2','Tier II · flexible']]}/>
               </FieldLabel>
+              <FieldLabel label="Asset name"><input value={form.name} onChange={e => set('name', e.target.value)} placeholder="e.g. NPS Tier I — PRAN 1234" style={fldS}/></FieldLabel>
               <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:12 }}>
-                <FieldLabel label="Contribution date"><input type="date" value={form.date} onChange={e => set('date', e.target.value)} style={{ ...fldS, colorScheme:'dark' }}/></FieldLabel>
-                <FieldLabel label="Contribution amount"><NumField value={form.price} onChange={v => set('price', v)} ph="0" pre="₹"/></FieldLabel>
-              </div>
-              <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:12 }}>
-                <FieldLabel label="NAV / unit (optional)"><NumField value={form.qty} onChange={v => set('qty', v)} ph="0.000"/></FieldLabel>
-                <FieldLabel label="Units allocated (optional)"><NumField value={form.fees} onChange={v => set('fees', v)} ph="0.000"/></FieldLabel>
+                <FieldLabel label="As of date"><input type="date" value={form.date} onChange={e => set('date', e.target.value)} style={{ ...fldS, colorScheme:'dark' }}/></FieldLabel>
+                <FieldLabel label="Current balance"><NumField value={form.price} onChange={v => set('price', v)} ph="0" pre="₹"/></FieldLabel>
               </div>
             </>
           )}
 
           {tab === 'epf' && !isEdit && (
             <>
-              <FieldLabel label="Contribution month"><input type="date" value={form.date} onChange={e => set('date', e.target.value)} style={{ ...fldS, colorScheme:'dark' }}/></FieldLabel>
+              <FieldLabel label="Asset name"><input value={form.name} onChange={e => set('name', e.target.value)} placeholder="e.g. EPF — Cognizant" style={fldS}/></FieldLabel>
+              <FieldLabel label="As of date"><input type="date" value={form.date} onChange={e => set('date', e.target.value)} style={{ ...fldS, colorScheme:'dark' }}/></FieldLabel>
               <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:12 }}>
-                <FieldLabel label="Employee share"><NumField value={form.qty} onChange={v => set('qty', v)} ph="0" pre="₹"/></FieldLabel>
-                <FieldLabel label="Employer share"><NumField value={form.price} onChange={v => set('price', v)} ph="0" pre="₹"/></FieldLabel>
+                <FieldLabel label="Employee balance"><NumField value={form.qty} onChange={v => set('qty', v)} ph="0" pre="₹"/></FieldLabel>
+                <FieldLabel label="Employer balance"><NumField value={form.price} onChange={v => set('price', v)} ph="0" pre="₹"/></FieldLabel>
               </div>
-              <FieldLabel label="EPS share (optional)"><NumField value={form.fees} onChange={v => set('fees', v)} ph="0" pre="₹"/></FieldLabel>
+              <FieldLabel label="Pension balance (optional)"><NumField value={form.fees} onChange={v => set('fees', v)} ph="0" pre="₹"/></FieldLabel>
             </>
           )}
         </div>

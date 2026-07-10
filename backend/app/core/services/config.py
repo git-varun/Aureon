@@ -10,7 +10,7 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from app.core.config import settings
-from app.core.exceptions import NotFoundError
+from app.core.exceptions import ConfigurationError, InfrastructureError, NotFoundError
 from app.core.logging import logger
 from app.core.entities.config import (
     AllocationTarget,
@@ -475,7 +475,7 @@ class ConfigService(BaseService):
         "sync_groww": "groww",
     }
 
-    def dispatch_job(self, job_name: str, log_id: Optional[int] = None, user_id: Optional[uuid.UUID] = None) -> Optional[str]:
+    def dispatch_job(self, job_name: str, log_id: Optional[int] = None, user_id: Optional[uuid.UUID] = None) -> str:
         # Pre-assign a task ID and log start
         task_id = str(uuid.uuid4())
         if log_id is None:
@@ -493,7 +493,7 @@ class ConfigService(BaseService):
                 message = f"Provider '{required_provider}' is not configured (status={status}) — job not dispatched"
                 logger.warning(message)
                 self.log_job_end(log_id, JobStatus.FAILED, error=message, task_id=task_id)
-                return None
+                raise ConfigurationError(message)
 
         try:
             from celery import Celery
@@ -535,7 +535,7 @@ class ConfigService(BaseService):
         except Exception as e:
             logger.error(f"Failed to dispatch Celery task for {job_name}: {e}")
             self.log_job_end(log_id, JobStatus.FAILED, error=str(e), task_id=task_id)
-            return None
+            raise InfrastructureError(f"Failed to dispatch job '{job_name}': {e}")
 
     # ── Seed ───────────────────────────────────────────────────────────────
 

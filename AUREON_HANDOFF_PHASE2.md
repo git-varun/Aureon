@@ -1,0 +1,78 @@
+# Aureon — Handoff to Phase 2
+
+**Context for the new chat:** paste this whole file as the first message. It replaces re-explaining the last several weeks of work. If you're using the SPAR/DO mode convention, that context isn't included here — restate it in the new chat if you want it to persist.
+
+---
+
+## 1. What Aureon is
+
+Local-first, single-user Investment Operating System. FastAPI + PostgreSQL + Redis + Celery + RabbitMQ backend, React/Vite frontend, Docker Compose deployment. Tracks stocks, mutual funds, ETFs, crypto (spot/futures/earn), EPF, NPS, and manually-tracked assets (real estate, etc.). Runs on the user's own machine — explicitly not SaaS, not multi-tenant, zero external resource spend beyond free-tier APIs.
+
+## 2. What this thread did (in order)
+
+1. **Removed multi-tenancy entirely.** The codebase had accreted a full org/membership/invitation/RBAC layer plus a separate auth/login system, despite the product being single-user. Both were surgically removed across entities → services/repositories → api → frontend, in scoped, auditable passes. `User` was kept as a stripped single-row identity anchor (for FK integrity on preferences/audit logs/notifications) but login/sessions/password auth were deleted entirely. A live production bug was found and fixed during this work: `Portfolio.organization_id` references breaking Celery sync tasks post-removal.
+2. **Modularized the backend.** Flat layered folders (`domain/`, `infrastructure/`, `api/v1/`) became `core/` (shared infra) + `modules/{market,portfolio,news,ai}/` (feature-scoped, entities+services+repositories+api+providers colocated). `recommendation`/`evaluation`/`intelligence` were folded into `ai` rather than kept as separate modules. Two circular dependencies introduced by the move were found and fixed (`market→ai` via `AssetScore`, `core→ai` via `Recommendation`). A Celery task-discovery bug (`registry.discover()` silently finding zero providers post-move) and a broken `alembic/env.py` (autogenerate would have dropped the entire schema) were both found and fixed.
+3. **Fixed a long tail of real bugs found via direct usage**, not synthetic testing — each one caught by actually running sync/import/edit flows: Zerodha Tradebook detection, NSE/BSE symbol canonicalization, Binance myTrades 400 storm (fixed via exchangeInfo pre-filtering), old printf-style logger calls crashing CSV import, a broken org import in the daily briefing task, manual real-estate asset validation requiring irrelevant fields, **real-estate valuation updates silently corrupting Position quantity/avg_price** (was using `SPLIT` transaction semantics — fixed with a new `VALUATION` type), **futures transaction edit/delete silently no-op'ing or wiping live positions**, futures P&L/leverage/liquidation-price never reaching the frontend, NPS/EPF misclassifying as "stocks" via one entry path while correctly classifying via another, CSS grid track blowout causing futures row text to bleed between columns, CDSL CAS mutual fund names being parsed then discarded, a stale/cached portfolio ID causing "Portfolio not found" 404s (root-caused to `localStorage` surviving a DB reset — self-healing added), a crypto futures signal-404 log storm (now returns 200+null instead of erroring, since the Yahoo pipeline structurally can't resolve those symbols), and the same asset_class-gets-dropped bug pattern recurring across the generic CSV importer.
+4. **Built NPS and EPF statement parsers from scratch**, validated against real user-provided fixtures (both NPS tiers with real transactions; one EPF passbook year, zero-transaction case only — see backlog). Added a `tier` column to `Asset`, wired manual NPS/EPF entry through the correct (`/manual-assets`, snapshot-model) endpoint instead of the broken ledger-style path, added a dedicated "Retirement" filter tab, and added import UI buttons for both.
+5. **Produced `backend/app/modules/portfolio/PROVIDERS.md`** — the living reference for every broker/parser's setup, logic, and known gaps. Read this before touching any provider/importer code.
+
+## 3. Current state — verified
+
+**Full smoke test checklist has been run and passed.** See §6 for the Phase 2 work completed since, which has also been live-verified.
+
+```
+□ docker compose down -v && docker compose up --build
+□ docker compose exec backend alembic upgrade head
+□ Dashboard loads directly, no login/onboarding
+□ Add a manual transaction (stock/crypto) — confirm it appears
+□ Add a manual asset (real estate) — confirm valuation_date is saved correctly
+□ Update the real estate valuation — confirm quantity/avg_price unaffected
+□ Add NPS/EPF via Transactions.jsx — confirm correct name/tier/asset_class, appears under Retirement tab
+□ Re-enter/update an existing NPS/EPF balance — confirm no quantity inflation
+□ Import an NPS statement (Tier I and Tier II) via the UI button
+□ Import an EPF passbook via the UI button — confirm zero-transaction case handled correctly
+□ Import a CSV with a mutual fund row — confirm asset_class is set correctly
+□ Edit and delete a manual (non-synced) transaction
+□ Confirm broker-synced/futures rows show a "Synced" pill, no Edit/Delete buttons
+□ Hit Sync Now — Zerodha, Groww, Binance — confirm all complete without error
+□ View a futures position — confirm LONG/SHORT, leverage, liquidation price display correctly
+□ Import a CSV/Tradebook — confirm it commits cleanly
+□ Import a CDSL CAS statement — confirm mutual fund name populates correctly
+□ Backup (export), then restore into a fresh instance — confirm data matches
+□ DevTools → Network tab — zero requests to /organizations, /auth, /memberships, /invitations
+□ Backend logs — no 500s, ImportErrors, or unhandled exceptions
+```
+
+## 4. Known backlog (from PROVIDERS.md — do not re-discover these)
+
+- No ISIN→symbol resolution — Zerodha Tax P&L/Holdings Statement exports can't be imported (Tradebook/Trade Statement work fine).
+- EPF parser's populated-contribution-row logic is unvalidated — only a zero-transaction fixture was available. If a real passbook year with contributions ever shows up, test against it.
+- Import response field naming inconsistency (`imported_holdings` vs `holdings_imported`) across endpoints — cosmetic.
+- `useAureonData.js` hardcodes `tier: 'active'` for every holding — the Passive filter tab and Manual badge don't reflect real state.
+- `core/repositories/monitoring.py` still imports `LatestQuote`/`Position`/`Transaction` directly — not fully domain-entity-free.
+- No Celery beat wiring for scheduled sync (DB-seeded cron expressions exist but nothing triggers them) — likely by design (manual "Sync Now" was the actual stated requirement), not a bug. Confirm intent before treating as broken.
+- Zerodha Kite Connect tokens expire daily, no refresh flow — external platform constraint, not fixable in-app.
+- Groww requires manual in-app session approval, can 403 with no programmatic bypass — same, external constraint.
+- Crypto futures (`-USDM`/`-COINM`) signals are permanently unresolvable via the Yahoo-based signal pipeline (structural, not a bug). Already handled with a 200+null response instead of log-spamming 404s.
+- `create_manual_asset` and `update_manual_valuation` resolve their target via `get_user_context() → db.query(Portfolio).first()`, ignoring the `portfolio_id` actually passed in. There's also no delete-manual-asset endpoint. Found during the cache-invalidation audit — pre-existing, unrelated to that pass, not fixed. In a multi-portfolio setup, these two endpoints can only ever target the first portfolio in the DB.
+- `dispatch_job`'s Celery-Redis-unreachable failure path now correctly raises `InfrastructureError` (fixed — see §6, Fix A), but the endpoint takes ~20s to return that error, bounded by Celery's own connection-retry budget. Not fixed — out of scope for that pass. User-facing effect: a sync click during a broker outage hangs ~20s before showing an error, rather than failing fast.
+- `CLAUDE.md` documents `GET /api/state` as "the frontend's primary data source." No such route exists in the live OpenAPI schema (checked `/api/state` and `/api/v1/state`, both 404). Looks like stale documentation left over from the modularization refactor — needs correcting, not a code bug.
+
+## 5. Working discipline established this thread (carry forward)
+
+- **Audit before modifying**, always — especially before schema changes, deletions, or anything touching more than one file.
+- **One scoped task per CC session.** Diff review before accept. Explicit "stop and ask, don't guess" instructions in every prompt involving ambiguity.
+- **CC has caught real bugs proactively** (Celery task-naming collisions, circular dependency introductions, alembic autogenerate almost dropping the schema, a CSS layout regression) when given the room to flag rather than guess. Trust that behavior; don't rush past a flag.
+- **The recurring bug pattern across this whole thread**: a value gets correctly parsed/computed, then silently dropped before reaching the database (CDSL fund names, NPS/EPF asset_class, CSV asset_type, futures P&L fields stripped from API responses) — and this pattern recurred at the cache layer in Phase 2 (portfolio snapshot cached forever with no invalidation, intelligence dashboard written under the wrong key) and in error handling (job dispatch failures swallowed and reported as success). When auditing new code, check specifically for this pattern: something computed or handled correctly, then lost, mislabeled, or silently swallowed before it reaches its consumer.
+- **Real usage surfaces bugs that audits miss.** Every "should be done now" checkpoint before the actual smoke test found something — most recently, Fix A's ~20s hang before failure, only found by live-verifying rather than trusting static reasoning. Don't skip live verification on confidence alone, even when static reasoning found zero issues elsewhere in the same pass.
+- **New mutating write paths must call the appropriate cache-invalidation helper** (e.g. `PortfolioService._invalidate_portfolio_caches()`) — checked explicitly in review, no automated/CI enforcement exists for this today (a deliberate tradeoff, not an oversight — see §6).
+
+## 6. Phase 2 — status
+
+Per the original roadmap, Phase 2 was three items:
+
+1. **Centralize cache invalidation** — ✅ done. Audit found the dead-code invalidation functions, the permanently-stale `portfolio:snapshot:{id}` landmine, the `intelligence:dashboard` global-vs-scoped key mismatch, and swallowed exceptions masking cache-refresh failures. All fixed: `_invalidate_portfolio_caches()` wired into all 13 known write paths, GET-on-cache-miss now regenerates and persists rather than trusting a possibly-stale DB row, key mismatch corrected, exceptions now logged instead of swallowed, 900s TTL added as a defense-in-depth backstop. Live-verified via direct API calls. Decision made (SPAR'd): stayed with explicit invalidation calls rather than adding decorator/hook or CI enforcement — accepted risk that a future write path could forget to wire invalidation, mitigated only by the discipline note above, not by tooling.
+2. **Error handling audit** — ✅ done, in two sessions. Session 1 fixed the two "confidently wrong, HTTP 200" bugs: `dispatch_job` swallowing dispatch failures (now raises `InfrastructureError`/`ConfigurationError`, propagates to the existing global `AppException` handler), and AI `get_single_asset_take` fabricating a fake "neutral momentum" response on total provider failure (now raises `ProviderError` properly; also fixed two frontend call sites that were separately masking the failure as success). Session 2 fixed apiService.js discarding the axios `.response` object (was breaking ~5 downstream call sites that depend on it), CSV import discarding all successfully-parsed rows when any row failed (now commits good rows, reports bad ones with untruncated/counted error list), and broker 429s never being distinguished from other failures (now raises the pre-existing but previously-unused `RateLimitError`, correctly avoids the "reconnect" CTA). All five fixes live-verified against the running stack, zero divergence from static reasoning found on final pass. Deferred, not fixed: unused retry/circuit-breaker infrastructure (reliability work, different task), monitoring endpoints existing but unused by frontend (folded into item 3 below), and the two-response-shape inconsistency (`AppException` vs. manually-constructed `HTTPException` — not yet user-visible, fix opportunistically when touching affected routers).
+3. **Data freshness indicators** — open. Last-sync timestamps, stale-data warnings on the dashboard. Starting point: an audit (not yet run) should confirm what's usable as-is from the existing `/monitoring/*` endpoints (asset health, provider health, failed ingestions, dependency status — built but never called from the frontend) before designing anything new.
+
+Lower priority, from the original roadmap, still open: Settings screen, Portfolio Health dashboard, tests for tax engine/transaction CRUD/backup-restore/cache invalidation/sync operations (some of this now partially covered by tests added during earlier work — check current coverage before assuming it's all still missing).

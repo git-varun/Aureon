@@ -764,3 +764,215 @@ def parse_nps_statement(content: bytes) -> Tuple[List[Dict[str, Any]], List[Dict
     }
 
     return holdings, transactions, summary
+
+
+# ── EPF Statement Parser ──────────────────────────────────────────────────────
+
+_EPF_ESTAB_RE = re.compile(r"Establishment\s+ID/Name\s*[:|]\s*(\S+)\s*/\s*(.+)")
+_EPF_MEMBER_RE = re.compile(r"Member\s+ID/Name\s*[:|]\s*(\S+)\s*/\s*(.+)")
+_EPF_UAN_RE = re.compile(r"\bUAN\s*[:|]?\s*(\d+)")
+_EPF_FY_RE = re.compile(r"Financial\s+Year\s*-\s*(\d{4}-\d{4})")
+_EPF_DATE_RE = re.compile(r"(\d{2}/\d{2}/\d{4})")
+
+
+def _epf_header_fields(text: str) -> Dict[str, Optional[str]]:
+    estab = _EPF_ESTAB_RE.search(text)
+    member = _EPF_MEMBER_RE.search(text)
+    uan = _EPF_UAN_RE.search(text)
+    fy = _EPF_FY_RE.search(text)
+    return {
+        "establishment_name": estab.group(2).strip() if estab else None,
+        "member_name": member.group(2).strip() if member else None,
+        "uan": uan.group(1).strip() if uan else None,
+        "financial_year": fy.group(1).strip() if fy else None,
+    }
+
+
+def _epf_row_date(label: str) -> Optional[datetime]:
+    m = _EPF_DATE_RE.search(label)
+    return _parse_date(m.group(1).replace("/", "-")) if m else None
+
+
+def parse_epf_statement(content: bytes) -> Tuple[List[Dict[str, Any]], List[Dict[str, Any]], Dict[str, Any]]:
+    """Parses an EPFO Member Passbook PDF (Page 1: Member Passbook).
+
+    Returns (holdings, transactions, summary):
+    - holdings: one per UAN — {symbol: "EPF-{uan}", name, uan, member_name,
+      establishment_name, quantity=1.0, current_value, as_of_date}. EPF has no
+      per-unit NAV (unlike NPS schemes), so it's modelled as a single lump-sum
+      balance — quantity is always 1.0 and current_value is the Employee +
+      Employer + Pension closing balance, same convention as a manually-valued
+      asset_class (see create_manual_asset).
+    - transactions: one per wage-month contribution row, Employee + Employer +
+      Pension amounts summed into a single combined amount (mirrors NPS's
+      single-amount-per-row transaction shape — NPS has no employee/employer
+      split to begin with, so there's no existing precedent to split EPF's
+      three-way contribution into separate rows). The breakdown is preserved
+      in the transaction's description text. Callers must import these as
+      kind="broker_trade", not kind="trade": EPF contributions have no
+      quantity concept to accumulate the way recalculate_position's BUY
+      replay assumes for genuine unit-based holdings (NPS/CDSL) — the
+      holdings snapshot above (kind="broker_snapshot") is what drives
+      Position.quantity/value, via recalculate_position's broker_snapshot
+      fallback.
+
+    The literal "No Transactions available for the this year" marker (present
+    verbatim in real EPFO exports for years with zero activity) is a valid,
+    non-error state — `summary["zero_transaction_year"]` is set and
+    `transactions` is empty, but `holdings` is still populated from the
+    Closing Balance row so the Asset/Position gets created regardless.
+
+    NOTE: only the header + zero-transaction path has been validated against a
+    real EPFO passbook export. The populated-transaction-row parsing below
+    follows the documented column layout (Wage Month, Date, Type, Particulars,
+    EPF Wages, EPS Wages, Employee, Employer, Pension) but has not been
+    exercised against a real file with actual contribution rows.
+    """
+    try:
+        import pdfplumber
+    except ImportError:
+        raise ImportError("pdfplumber not installed — cannot parse EPF passbook PDF")
+
+    try:
+        pdf = pdfplumber.open(io.BytesIO(content))
+    except Exception as exc:
+        raise ValueError(f"Cannot open PDF: {exc}") from exc
+
+    opening: Optional[Dict[str, Any]] = None
+    closing: Optional[Dict[str, Any]] = None
+    txn_rows: List[Dict[str, Any]] = []
+    zero_txn_year = False
+    page2_total_contribution = 0.0
+
+    with pdf:
+        pages = pdf.pages
+        if not pages:
+            raise ValueError("Empty EPF passbook PDF")
+
+        page1_text = pages[0].extract_text() or ""
+        header = _epf_header_fields(page1_text)
+        if not header.get("uan"):
+            raise ValueError("Could not find UAN in EPF passbook")
+
+        for table in pages[0].extract_tables() or []:
+            for row in table:
+                if not row or all(c is None or not str(c).strip() for c in row):
+                    continue
+                label = _cell(row, 0)
+                label_lower = label.lower()
+
+                if "no transactions available" in label_lower:
+                    zero_txn_year = True
+                    continue
+                if label_lower.startswith("ob int"):
+                    opening = {
+                        "date": _epf_row_date(label),
+                        "employee": _num(_cell(row, 1)) or 0.0,
+                        "employer": _num(_cell(row, 2)) or 0.0,
+                        "pension": _num(_cell(row, 3)) or 0.0,
+                    }
+                    continue
+                if label_lower.startswith("closing balance as on"):
+                    closing = {
+                        "date": _epf_row_date(label),
+                        "employee": _num(_cell(row, 1)) or 0.0,
+                        "employer": _num(_cell(row, 2)) or 0.0,
+                        "pension": _num(_cell(row, 3)) or 0.0,
+                    }
+                    continue
+                if (
+                    label_lower.startswith("total contributions")
+                    or label_lower.startswith("total transfer")
+                    or label_lower.startswith("total withdrawals")
+                    or label_lower.startswith("interest details")
+                ):
+                    continue
+                if label_lower in ("wage month", "date", ""):
+                    continue
+
+                # Candidate transaction row: Wage Month, Date, Type, Particulars,
+                # EPF Wages, EPS Wages, Employee, Employer, Pension.
+                date_val = _epf_row_date(_cell(row, 1))
+                if not date_val:
+                    continue
+                employee_amt = _num(_cell(row, 6)) or 0.0
+                employer_amt = _num(_cell(row, 7)) or 0.0
+                pension_amt = _num(_cell(row, 8)) or 0.0
+                combined = employee_amt + employer_amt + pension_amt
+                if combined <= 0:
+                    continue
+                txn_rows.append({
+                    "wage_month": label,
+                    "date": date_val,
+                    "employee": employee_amt,
+                    "employer": employer_amt,
+                    "pension": pension_amt,
+                    "amount": combined,
+                })
+
+        # Page 2 (Taxable Data): cross-check only — never imported as transactions.
+        if len(pages) > 1:
+            for table in pages[1].extract_tables() or []:
+                for row in table:
+                    if not row:
+                        continue
+                    label = _cell(row, 0).lower()
+                    if not label or label in ("cont. month", "total"):
+                        continue
+                    contrib = _num(_cell(row, 1))
+                    if contrib:
+                        page2_total_contribution += contrib
+
+    if closing is None:
+        raise ValueError("Could not find Closing Balance in EPF passbook")
+
+    uan = header["uan"]
+    symbol = f"EPF-{uan}"
+    member_name = header.get("member_name") or uan
+    total_balance = closing["employee"] + closing["employer"] + closing["pension"]
+
+    holdings = [{
+        "symbol": symbol,
+        "name": f"EPF - {member_name}",
+        "uan": uan,
+        "member_name": member_name,
+        "establishment_name": header.get("establishment_name"),
+        "quantity": 1.0,
+        "current_value": total_balance,
+        "as_of_date": closing["date"],
+    }]
+
+    transactions = []
+    for row in txn_rows:
+        desc = f"{row['wage_month']}: Employee ₹{row['employee']:,.0f} | Employer ₹{row['employer']:,.0f}"
+        if row["pension"]:
+            desc += f" | Pension ₹{row['pension']:,.0f}"
+        transactions.append({
+            "symbol": symbol,
+            "type": "BUY",
+            "amount": row["amount"],
+            "date": row["date"],
+            "description": desc,
+            "broker_reference": f"{symbol}|{row['wage_month']}|{row['date'].date().isoformat()}",
+        })
+
+    page1_total_contribution = sum(r["employee"] + r["employer"] for r in txn_rows)
+    cross_check_ok = zero_txn_year or abs(page1_total_contribution - page2_total_contribution) < 1.0
+    if not cross_check_ok:
+        logger.warning(
+            f"epf importer: page1/page2 contribution total mismatch for UAN={uan} "
+            f"(page1={page1_total_contribution}, page2={page2_total_contribution})"
+        )
+
+    summary = {
+        "uan": uan,
+        "member_name": member_name,
+        "establishment_name": header.get("establishment_name"),
+        "financial_year": header.get("financial_year"),
+        "zero_transaction_year": zero_txn_year,
+        "transactions_parsed": len(transactions),
+        "closing_balance": total_balance,
+        "page2_cross_check_ok": cross_check_ok,
+    }
+
+    return holdings, transactions, summary

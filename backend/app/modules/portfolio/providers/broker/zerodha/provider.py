@@ -3,7 +3,7 @@ from typing import Any, List, Optional
 
 import requests
 
-from app.core.exceptions import ZerodhaAuthError
+from app.core.exceptions import RateLimitError, ZerodhaAuthError
 from app.core.logging.http import http_client
 from app.core.providers.capabilities import Capability
 from app.core.providers.interfaces import BrokerProvider
@@ -69,6 +69,8 @@ class ZerodhaClient:
 
         if res.status_code == 403:
             raise ZerodhaAuthError("AUTH_REQUIRED: Zerodha access token expired")
+        if res.status_code == 429:
+            raise RateLimitError("Zerodha rate limited the request — try again later")
         res.raise_for_status()
         return res.json().get("data") or []
 

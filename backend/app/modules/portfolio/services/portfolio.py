@@ -10,6 +10,11 @@ from sqlalchemy import select
 from app.core.binance import STABLECOIN_ASSETS, WALLET_SUFFIXES, split_quote_asset
 from app.core.exceptions import NotFoundError, ValidationError
 from app.core.logging import logger
+from app.core.redis import (
+    invalidate_intelligence_health,
+    invalidate_intelligence_portfolio,
+    invalidate_portfolio_snapshot,
+)
 from app.modules.market.entities.market import LatestQuote
 from app.modules.market.services.market import ensure_asset_exists
 from app.modules.portfolio.entities.portfolio import (
@@ -39,6 +44,12 @@ class PortfolioService(BaseService):
         self.positions_repo = positions_repo
         self.snapshot_repo = snapshot_repo
         self.session = portfolios_repo.session
+
+    def _invalidate_portfolio_caches(self, portfolio_id: uuid.UUID) -> None:
+        pid = str(portfolio_id)
+        invalidate_portfolio_snapshot(pid)
+        invalidate_intelligence_portfolio(pid)
+        invalidate_intelligence_health(pid)
 
     def create_portfolio(self, name: str, actor_id: Optional[uuid.UUID] = None) -> Portfolio:
         portfolio = Portfolio(name=name)
@@ -99,6 +110,8 @@ class PortfolioService(BaseService):
             details={"name": portfolio_name}
         )
         self.session.commit()
+        if deleted:
+            self._invalidate_portfolio_caches(portfolio_id)
         return deleted
 
     def record_transaction(
@@ -142,6 +155,7 @@ class PortfolioService(BaseService):
         self.recalculate_position(portfolio_id, symbol)
         self.session.commit()
         self.session.refresh(txn)
+        self._invalidate_portfolio_caches(portfolio_id)
         return txn
 
     def get_transaction(self, txn_id: uuid.UUID) -> Transaction:
@@ -205,6 +219,7 @@ class PortfolioService(BaseService):
 
         self.session.commit()
         self.session.refresh(txn)
+        self._invalidate_portfolio_caches(old_portfolio_id)
         return txn
 
     def delete_transaction(self, txn_id: uuid.UUID) -> bool:
@@ -216,6 +231,7 @@ class PortfolioService(BaseService):
         if deleted:
             self.recalculate_position(portfolio_id, symbol)
             self.session.commit()
+            self._invalidate_portfolio_caches(portfolio_id)
         return deleted
 
     def recalculate_position(self, portfolio_id: uuid.UUID, symbol: str) -> None:
@@ -399,8 +415,10 @@ class PortfolioService(BaseService):
         ext = filename.split(".")[-1].lower() if "." in filename else "csv"
         from app.modules.portfolio.services.portfolio_importer import parse_transaction_file
         rows, errors = parse_transaction_file(file_bytes, ext, broker)
-        if errors:
-            raise ValidationError(f"File parsing errors: {'; '.join(errors[:5])}")
+        if not rows and errors:
+            shown = errors[:5]
+            more = f"; and {len(errors) - 5} more" if len(errors) > 5 else ""
+            raise ValidationError(f"File parsing errors: {'; '.join(shown)}{more}")
 
         committed = 0
         skipped = 0
@@ -436,7 +454,12 @@ class PortfolioService(BaseService):
                 seen_this_call.add(key)
 
             symbol = row["symbol"]
-            asset_id = ensure_asset_exists(self.session, symbol)
+            asset_id = ensure_asset_exists(
+                self.session,
+                symbol,
+                name=row.get("name"),
+                asset_class=row.get("asset_type") or "equity",
+            )
 
             txn = Transaction(
                 portfolio_id=portfolio_id,
@@ -458,6 +481,7 @@ class PortfolioService(BaseService):
             self.recalculate_position(portfolio_id, sym)
 
         self.session.commit()
+        self._invalidate_portfolio_caches(portfolio_id)
         return {"committed": committed, "skipped": skipped, "errors": errors}
 
     def import_cdsl_cas(
@@ -512,6 +536,7 @@ class PortfolioService(BaseService):
             self.recalculate_position(portfolio_id, sym)
 
         self.session.commit()
+        self._invalidate_portfolio_caches(portfolio_id)
         return {
             "status": "success",
             "imported_holdings": len(payloads),
@@ -614,6 +639,118 @@ class PortfolioService(BaseService):
             self.recalculate_position(portfolio_id, sym)
 
         self.session.commit()
+        self._invalidate_portfolio_caches(portfolio_id)
+        return {
+            "holdings_imported": len(holdings),
+            "transactions_committed": committed,
+            "transactions_skipped": skipped,
+            "errors": [],
+            "summary": summary,
+        }
+
+    def import_epf_statement(
+        self,
+        portfolio_id: uuid.UUID,
+        file_bytes: bytes,
+    ) -> Dict[str, Any]:
+        # Validate portfolio exists
+        self.get_portfolio(portfolio_id)
+
+        from app.modules.portfolio.services.portfolio_importer import parse_epf_statement
+        try:
+            holdings, rows, summary = parse_epf_statement(file_bytes)
+        except (ValueError, ImportError) as e:
+            raise ValidationError(str(e))
+
+        symbols_to_recalc = set()
+
+        # Holdings snapshot (one per UAN) — same upsert-one-broker_snapshot-per-symbol
+        # pattern as import_nps_statement/import_cdsl_cas. quantity is always 1.0:
+        # EPF is a lump-sum INR balance, not a per-unit NAV holding like NPS schemes.
+        for h in holdings:
+            symbol = h["symbol"]
+            asset_id = ensure_asset_exists(self.session, symbol, name=h["name"], asset_class="epf")
+
+            stmt = select(Transaction).where(
+                (Transaction.portfolio_id == portfolio_id) &
+                (Transaction.symbol == symbol) &
+                (Transaction.kind == "broker_snapshot") &
+                (Transaction.broker == "epf")
+            )
+            existing = self.session.execute(stmt).scalars().first()
+
+            if existing:
+                existing.quantity = h["quantity"]
+                existing.price = h["current_value"]
+                existing.transaction_date = h["as_of_date"] or datetime.now(timezone.utc)
+            else:
+                txn = Transaction(
+                    portfolio_id=portfolio_id,
+                    symbol=symbol,
+                    asset_id=asset_id,
+                    transaction_type="BUY",
+                    quantity=h["quantity"],
+                    price=h["current_value"],
+                    transaction_date=h["as_of_date"] or datetime.now(timezone.utc),
+                    broker="epf",
+                    kind="broker_snapshot",
+                )
+                self.transactions_repo.create(txn)
+
+            symbols_to_recalc.add(symbol)
+
+        # Per-row contribution history — recorded as kind="broker_trade" (not
+        # "trade"): EPF contributions aren't per-unit purchases the way NPS's
+        # recalculate_position BUY replay assumes, so they must never drive
+        # Position.quantity. They're an audit trail only; the holdings snapshot
+        # above (kind="broker_snapshot") is what recalculate_position uses to
+        # set Position.quantity/avg_buy_price via its fallback path. Same
+        # (broker, broker_reference) dedup pattern as import_transaction_file.
+        refs = {row["broker_reference"] for row in rows}
+        existing_refs: set = set()
+        if refs:
+            stmt = select(Transaction.broker_reference).where(
+                (Transaction.portfolio_id == portfolio_id) &
+                (Transaction.broker == "epf") &
+                (Transaction.broker_reference.in_(refs))
+            )
+            existing_refs = set(self.session.execute(stmt).scalars().all())
+
+        committed = 0
+        skipped = 0
+        seen_this_call: set = set()
+        for row in rows:
+            broker_ref = row["broker_reference"]
+            if broker_ref in existing_refs or broker_ref in seen_this_call:
+                skipped += 1
+                continue
+            seen_this_call.add(broker_ref)
+
+            symbol = row["symbol"]
+            asset_id = ensure_asset_exists(self.session, symbol)
+
+            txn = Transaction(
+                portfolio_id=portfolio_id,
+                symbol=symbol,
+                asset_id=asset_id,
+                transaction_type=row["type"],
+                quantity=1.0,
+                price=row["amount"],
+                transaction_date=row["date"],
+                broker="epf",
+                broker_reference=broker_ref,
+                kind="broker_trade",
+                notes=row["description"],
+            )
+            self.transactions_repo.create(txn)
+            committed += 1
+            symbols_to_recalc.add(symbol)
+
+        for sym in symbols_to_recalc:
+            self.recalculate_position(portfolio_id, sym)
+
+        self.session.commit()
+        self._invalidate_portfolio_caches(portfolio_id)
         return {
             "holdings_imported": len(holdings),
             "transactions_committed": committed,
@@ -736,7 +873,9 @@ class PortfolioService(BaseService):
                 "asset_class": "equity",
             })
 
-        return self._sync_broker_snapshot(portfolio_id, "zerodha", rows)
+        result = self._sync_broker_snapshot(portfolio_id, "zerodha", rows)
+        self._invalidate_portfolio_caches(portfolio_id)
+        return result
 
     def sync_binance_holdings(
         self,
@@ -789,6 +928,7 @@ class PortfolioService(BaseService):
         result["imported_trades"] += self._import_broker_trades(portfolio_id, "binance", trades.get("futures_coinm") or [], "futures_coinm")
 
         self.session.commit()
+        self._invalidate_portfolio_caches(portfolio_id)
         return result
 
     def _sync_spot_with_cost_basis(
@@ -1040,7 +1180,9 @@ class PortfolioService(BaseService):
                 "asset_class": "equity",
             })
 
-        return self._sync_broker_snapshot(portfolio_id, "groww", rows)
+        result = self._sync_broker_snapshot(portfolio_id, "groww", rows)
+        self._invalidate_portfolio_caches(portfolio_id)
+        return result
 
     def create_manual_asset(
         self,
@@ -1052,6 +1194,7 @@ class PortfolioService(BaseService):
         price: float,
         transaction_date: Optional[datetime] = None,
         notes: Optional[str] = None,
+        tier: Optional[int] = None,
     ) -> str:
         from app.modules.market.entities.market import Asset
 
@@ -1063,9 +1206,13 @@ class PortfolioService(BaseService):
                 symbol=symbol_clean,
                 name=name,
                 asset_class=asset_class,
+                tier=tier,
                 metadata_payload={"sector": "Manual"}
             )
             self.session.add(asset)
+            self.session.flush()
+        elif tier is not None and asset.tier != tier:
+            asset.tier = tier
             self.session.flush()
 
         ensure_asset_exists(self.session, symbol_clean)
@@ -1087,6 +1234,7 @@ class PortfolioService(BaseService):
 
         self.recalculate_position(portfolio_id, symbol_clean)
         self.session.commit()
+        self._invalidate_portfolio_caches(portfolio_id)
         return symbol_clean
 
     def update_manual_valuation(
@@ -1123,6 +1271,7 @@ class PortfolioService(BaseService):
         )
         self.transactions_repo.create(txn)
         self.session.commit()
+        self._invalidate_portfolio_caches(portfolio_id)
         return new_unit_price
 
     def count_broker_positions(self, broker: str) -> int:

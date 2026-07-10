@@ -35,6 +35,19 @@ from app.infrastructure.repositories import WatchlistsRepository
 
 router = APIRouter()
 
+
+def _serialize_snapshot_for_cache(snapshot) -> Dict[str, Any]:
+    return {
+        "portfolio_id": str(snapshot.portfolio_id),
+        "market_value": float(snapshot.market_value) if snapshot.market_value is not None else 0.0,
+        "cash_balance": float(snapshot.cash_balance) if snapshot.cash_balance is not None else 0.0,
+        "allocation": snapshot.allocation,
+        "daily_return": float(snapshot.daily_return) if snapshot.daily_return is not None else 0.0,
+        "total_return": float(snapshot.total_return) if snapshot.total_return is not None else 0.0,
+        "updated_at": snapshot.updated_at.isoformat() if snapshot.updated_at else datetime.now(timezone.utc).isoformat()
+    }
+
+
 # --- Portfolio CRUD ---
 
 @router.post("/portfolios", response_model=PortfolioResponse, status_code=status.HTTP_201_CREATED)
@@ -228,10 +241,12 @@ def get_portfolio_snapshot_route(
             updated_at=datetime.fromisoformat(cached["updated_at"]) if cached.get("updated_at") else datetime.now(timezone.utc)
         )
 
+    # Cache miss: regenerate fresh rather than trusting a possibly-stale
+    # persisted PortfolioSnapshot row (that row is only otherwise refreshed
+    # by this same regeneration, so it can lag behind position changes).
     try:
-        snapshot = service.snapshot_repo.get(portfolio_id)
-        if not snapshot:
-            snapshot = service.generate_portfolio_snapshot(portfolio_id)
+        snapshot = service.generate_portfolio_snapshot(portfolio_id)
+        cache_portfolio_snapshot(str(portfolio_id), _serialize_snapshot_for_cache(snapshot))
         return snapshot
     except NotFoundError as e:
         raise HTTPException(status_code=404, detail=str(e))
@@ -244,17 +259,7 @@ def generate_portfolio_snapshot_route(
 ):
     try:
         snapshot = service.generate_portfolio_snapshot(portfolio_id)
-        # Update cache
-        cache_data = {
-            "portfolio_id": str(snapshot.portfolio_id),
-            "market_value": float(snapshot.market_value) if snapshot.market_value is not None else 0.0,
-            "cash_balance": float(snapshot.cash_balance) if snapshot.cash_balance is not None else 0.0,
-            "allocation": snapshot.allocation,
-            "daily_return": float(snapshot.daily_return) if snapshot.daily_return is not None else 0.0,
-            "total_return": float(snapshot.total_return) if snapshot.total_return is not None else 0.0,
-            "updated_at": snapshot.updated_at.isoformat() if snapshot.updated_at else datetime.now(timezone.utc).isoformat()
-        }
-        cache_portfolio_snapshot(str(portfolio_id), cache_data)
+        cache_portfolio_snapshot(str(portfolio_id), _serialize_snapshot_for_cache(snapshot))
         return snapshot
     except NotFoundError as e:
         raise HTTPException(status_code=404, detail=str(e))
@@ -321,6 +326,24 @@ async def import_nps_statement(
     except NotFoundError as e:
         raise HTTPException(status_code=404, detail=str(e))
 
+@router.post("/portfolios/{portfolio_id}/import/epf")
+async def import_epf_statement(
+    portfolio_id: uuid.UUID,
+    file: UploadFile = File(...),
+    current_user: User = Depends(get_current_user),
+    service: PortfolioService = Depends(get_portfolio_service),
+):
+    content = await file.read()
+    try:
+        return service.import_epf_statement(
+            portfolio_id=portfolio_id,
+            file_bytes=content,
+        )
+    except ValidationError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+    except NotFoundError as e:
+        raise HTTPException(status_code=404, detail=str(e))
+
 
 # --- Manual Assets, Sync, Backup/Restore (single-user facade via get_user_context) ---
 
@@ -339,6 +362,7 @@ class CreateManualAssetRequest(BaseModel):
     cost_basis: Optional[float] = None
     valuation_date: Optional[str] = None
     notes: Optional[str] = None
+    tier: Optional[int] = None
 
     @model_validator(mode="after")
     def _validate_fields_for_asset_class(self):
@@ -378,6 +402,7 @@ def create_manual_asset(
         price=body.price if is_tradeable else body.current_value,
         transaction_date=transaction_date,
         notes=body.notes,
+        tier=body.tier,
     )
     return {"status": "success", "symbol": symbol}
 

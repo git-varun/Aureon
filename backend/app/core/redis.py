@@ -143,7 +143,12 @@ def get_portfolio_snapshot_key(portfolio_id: str) -> str:
 def cache_portfolio_snapshot(portfolio_id: str, snapshot_data: dict[str, Any]) -> None:
     try:
         client = get_redis_client()
-        client.set(get_portfolio_snapshot_key(portfolio_id), json.dumps(snapshot_data, default=str))
+        # Defense-in-depth only: every known write path invalidates this key
+        # explicitly (see PortfolioService._invalidate_portfolio_caches). The
+        # TTL bounds worst-case staleness for a write path that misses that
+        # call, matching the other derived-aggregate caches (intelligence:*,
+        # evaluation:scores) rather than the raw quote tier (60s).
+        client.setex(get_portfolio_snapshot_key(portfolio_id), 900, json.dumps(snapshot_data, default=str))
     except redis.RedisError as e:
         logger.warning(f"redis_operation_failed operation=cache_portfolio_snapshot key={get_portfolio_snapshot_key(portfolio_id)} error={str(e)}")
 

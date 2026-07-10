@@ -9,7 +9,6 @@ from app.api.dependencies import get_config_service, get_current_user
 from app.core.config import settings
 from app.core.exceptions import NotFoundError, ZerodhaAuthError
 from app.core.logging import logger
-from app.core.entities.config import JobStatus
 from app.core.entities.system import User
 from app.core.services.config import ConfigService
 
@@ -251,11 +250,7 @@ def run_job(
         raise HTTPException(status_code=404, detail=f"Job {job_name} not found")
 
     log = svc.log_job_start(job_name)
-    try:
-        task_id = svc.dispatch_job(job_name, log_id=log.id, user_id=user.id)
-    except Exception as e:
-        svc.log_job_end(log.id, JobStatus.FAILED, error=str(e))
-        raise HTTPException(status_code=500, detail=f"Failed to dispatch {job_name}: {e}")
+    task_id = svc.dispatch_job(job_name, log_id=log.id, user_id=user.id)
 
     svc.mark_job_ran(job_name)
     return {"status": "triggered", "job_name": job_name, "task_id": task_id}

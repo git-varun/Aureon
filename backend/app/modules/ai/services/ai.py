@@ -803,10 +803,12 @@ class AIService(BaseService):
 
         prompt = f"Role: Investment Advisor.\nAnalyze this asset: {symbol}.\nContext:\n{context}\n\nProvide 3 sentences of technical/fundamental analysis. Return JSON only with key: 'take'."
 
+        ans = self.execute_completion(prompt, "single", user_id=user_id, json_mode=True)
         try:
-            ans = self.execute_completion(prompt, "single", user_id=user_id, json_mode=True)
             res = json.loads(ans)
         except Exception:
-            res = {"take": f"The technical signals for {symbol} suggest a neutral momentum structure. Fundamentals show support around current valuation bands."}
+            cleaned = re.sub(r"^```(?:json)?\s*", "", ans.strip(), flags=re.IGNORECASE)
+            cleaned = re.sub(r"\s*```$", "", cleaned)
+            res = json.loads(cleaned)
 
         return res
