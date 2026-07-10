@@ -247,8 +247,11 @@ class RecommendationService(BaseService):
 
         try:
             self.update_financial_intelligence_pipeline()
-        except Exception:
-            pass
+        except Exception as e:
+            logger.warning(
+                f"intelligence_pipeline_refresh_failed operation=apply_recommendation "
+                f"recommendation_id={recommendation_id} portfolio_id={portfolio_id} error={str(e)}"
+            )
 
         return serialize_recommendation(rec, self.session)
 
@@ -291,8 +294,11 @@ class RecommendationService(BaseService):
 
         try:
             self.update_financial_intelligence_pipeline()
-        except Exception:
-            pass
+        except Exception as e:
+            logger.warning(
+                f"intelligence_pipeline_refresh_failed operation=dismiss_recommendation "
+                f"recommendation_id={recommendation_id} error={str(e)}"
+            )
 
         return serialize_recommendation(rec, self.session)
 
@@ -336,8 +342,11 @@ class RecommendationService(BaseService):
 
         try:
             self.update_financial_intelligence_pipeline()
-        except Exception:
-            pass
+        except Exception as e:
+            logger.warning(
+                f"intelligence_pipeline_refresh_failed operation=undo_recommendation "
+                f"recommendation_id={recommendation_id} error={str(e)}"
+            )
 
         return serialize_recommendation(rec, self.session)
 
@@ -596,4 +605,4 @@ class RecommendationService(BaseService):
             user_id = uuid.UUID("00000000-0000-0000-0000-000000000000")
 
             dashboard = intel_svc.get_dashboard_aggregation(portfolio_id, user_id)
-            cache_intelligence_dashboard(RECOMMENDATIONS_CACHE_KEY, dashboard)
+            cache_intelligence_dashboard(pid_str, dashboard)

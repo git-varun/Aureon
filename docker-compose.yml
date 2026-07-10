@@ -7,13 +7,10 @@ x-backend-common: &backend-common
     REDIS_URL: redis://redis:6379/0
     CELERY_BROKER_URL: redis://redis:6379/0
     CELERY_RESULT_BACKEND: redis://redis:6379/1
-    FAST2SMS_API_KEY: ${FAST2SMS_API_KEY}
     PYTHONUNBUFFERED: "1"
   volumes:
     - ./backend:/app
     - /app/.venv
-    - ./data:/app/data
-    - ./logs:/app/logs
   depends_on:
     aureon-db:
       condition: service_healthy

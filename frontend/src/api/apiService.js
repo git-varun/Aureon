@@ -22,7 +22,9 @@ const handleRequest = async (promise) => {
         return res.data;
     } catch (err) {
         const detail = err.response?.data?.detail || err.response?.data?.message || err.message || 'Request failed';
-        throw new Error(detail);
+        const wrapped = new Error(detail);
+        wrapped.response = err.response;
+        throw wrapped;
     }
 };
 
@@ -94,6 +96,24 @@ export const apiService = {
         form.append('file', file);
         if (password) form.append('password', password);
         return handleRequest(API.post(`/portfolio/portfolios/${pid}/import/cdsl`, form, {
+            headers: {'Content-Type': 'multipart/form-data'},
+        }));
+    },
+
+    importNPS: (portfolioId, file) => {
+        const pid = portfolioId || getPortfolioId();
+        const form = new FormData();
+        form.append('file', file);
+        return handleRequest(API.post(`/portfolio/portfolios/${pid}/import/nps`, form, {
+            headers: {'Content-Type': 'multipart/form-data'},
+        }));
+    },
+
+    importEPF: (portfolioId, file) => {
+        const pid = portfolioId || getPortfolioId();
+        const form = new FormData();
+        form.append('file', file);
+        return handleRequest(API.post(`/portfolio/portfolios/${pid}/import/epf`, form, {
             headers: {'Content-Type': 'multipart/form-data'},
         }));
     },

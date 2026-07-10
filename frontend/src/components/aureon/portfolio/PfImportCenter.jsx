@@ -12,9 +12,19 @@ export function PfImportCenter() {
   const [casError, setCasErr]  = useState('');
   const [casResult, setCasRes] = useState(null);
   const [casPassword, setCasPw] = useState('');
+  const [npsFile, setNpsFile]  = useState(null);
+  const [npsState, setNpsSt]   = useState('idle'); // idle | processing | done | error
+  const [npsError, setNpsErr]  = useState('');
+  const [npsResult, setNpsRes] = useState(null);
+  const [epfFile, setEpfFile]  = useState(null);
+  const [epfState, setEpfSt]   = useState('idle'); // idle | processing | done | error
+  const [epfError, setEpfErr]  = useState('');
+  const [epfResult, setEpfRes] = useState(null);
   const [showManual, setShowM] = useState(null);
   const casInputRef            = useRef(null);
-  const TABS = [['csv','CSV Import'],['cas','CAS Import'],['manual','Manual Asset']];
+  const npsInputRef            = useRef(null);
+  const epfInputRef            = useRef(null);
+  const TABS = [['csv','CSV Import'],['cas','CAS Import'],['nps','NPS Import'],['epf','EPF Import'],['manual','Manual Asset']];
 
   const handleCsvFile = async (file) => {
     if (!file) return;
@@ -50,6 +60,34 @@ export function PfImportCenter() {
     }
   };
 
+  const handleNpsImport = async () => {
+    if (!npsFile) return;
+    setNpsSt('processing');
+    setNpsErr('');
+    try {
+      const result = await apiService.importNPS(null, npsFile);
+      setNpsRes(result);
+      setNpsSt('done');
+    } catch (err) {
+      setNpsErr(err?.response?.data?.detail || err.message || 'NPS import failed');
+      setNpsSt('error');
+    }
+  };
+
+  const handleEpfImport = async () => {
+    if (!epfFile) return;
+    setEpfSt('processing');
+    setEpfErr('');
+    try {
+      const result = await apiService.importEPF(null, epfFile);
+      setEpfRes(result);
+      setEpfSt('done');
+    } catch (err) {
+      setEpfErr(err?.response?.data?.detail || err.message || 'EPF import failed');
+      setEpfSt('error');
+    }
+  };
+
   return (
     <>
       <div style={{ borderRadius:12, background:'rgba(255,255,255,0.02)', border:'1px solid rgba(255,255,255,0.06)', overflow:'hidden' }}>
@@ -72,7 +110,7 @@ export function PfImportCenter() {
                 {csvState === 'processing'
                   ? <div style={{ display:'inline-block', width:22, height:22, border:'2px solid rgba(201,168,106,0.2)', borderTopColor:'var(--aurum-500)', borderRadius:999, animation:'spin 0.8s linear infinite' }}/>
                   : csvState === 'done'
-                    ? <><div style={{ fontSize:22, marginBottom:6, color:'var(--sage-500)' }}>✓</div><div style={{ fontSize:13, color:'var(--sage-500)', fontWeight:500 }}>Imported — {csvResult?.committed ?? 0} rows committed, {csvResult?.skipped ?? 0} skipped</div></>
+                    ? <><div style={{ fontSize:22, marginBottom:6, color:'var(--sage-500)' }}>✓</div><div style={{ fontSize:13, color:'var(--sage-500)', fontWeight:500 }}>Imported — {csvResult?.committed ?? 0} rows committed, {csvResult?.skipped ?? 0} skipped{csvResult?.errors?.length ? `, ${csvResult.errors.length} failed` : ''}</div>{csvResult?.errors?.length > 0 && <div style={{ fontSize:11.5, color:'var(--ink-40)', marginTop:4 }}>{csvResult.errors.slice(0, 5).join('; ')}{csvResult.errors.length > 5 ? ` — and ${csvResult.errors.length - 5} more` : ''}</div>}</>
                     : csvState === 'error'
                       ? <><div style={{ fontSize:13, color:'rgba(255,80,80,0.9)', fontWeight:500, marginBottom:4 }}>Import failed</div><div style={{ fontSize:12, color:'var(--ink-40)' }}>{csvError}</div><button onClick={() => setCsvSt('idle')} style={{ marginTop:8, fontSize:11, color:'var(--aurum-300)', background:'none', border:'none', cursor:'pointer', textDecoration:'underline' }}>Try again</button></>
                       : <>
@@ -131,6 +169,66 @@ export function PfImportCenter() {
                   {casState === 'processing' ? 'Importing…' : casState === 'password' ? 'Unlock & import' : 'Import CAS statement'}
                 </button>
                 <button onClick={() => { setCasFile(null); setCasSt('idle'); setCasErr(''); setCasRes(null); setCasPw(''); }} disabled={!casFile} className="du3-cta ghost" style={{ opacity:casFile?1:0.4 }}>Clear</button>
+              </div>
+            </div>
+          )}
+          {tab === 'nps' && (
+            <div style={{ display:'flex', flexDirection:'column', gap:14 }}>
+              <p style={{ margin:0, fontSize:13, color:'var(--ink-30)', lineHeight:1.6, maxWidth:540 }}>
+                Upload your NPS (National Pension System) statement PDF. Aureon extracts scheme-wise holdings and contribution history automatically.
+              </p>
+              <div
+                onDragOver={e => e.preventDefault()}
+                onDrop={e => { e.preventDefault(); const f = e.dataTransfer.files[0]; if (f) { setNpsFile(f); setNpsSt('idle'); } }}
+                onClick={() => npsInputRef.current?.click()}
+                style={{ border:'2px dashed rgba(255,255,255,0.12)', borderRadius:10, padding:'28px 20px', textAlign:'center', cursor:'pointer', background:'rgba(255,255,255,0.01)', transition:'all 160ms' }}>
+                <input ref={npsInputRef} type="file" accept=".pdf" style={{ display:'none' }} onChange={e => { const f = e.target.files[0]; if (f) { setNpsFile(f); setNpsSt('idle'); e.target.value = ''; } }}/>
+                {npsFile
+                  ? <><div style={{ fontSize:13, color:'var(--ink-20)', fontWeight:500, marginBottom:4 }}>{npsFile.name}</div><div style={{ fontSize:11.5, color:'var(--ink-50)' }}>{(npsFile.size / 1024).toFixed(1)} KB — click to replace</div></>
+                  : <><div style={{ fontSize:13, color:'var(--ink-20)', marginBottom:4 }}>Drag &amp; drop PDF or click to browse</div><div style={{ fontSize:11.5, color:'var(--ink-50)' }}>NPS statement (.pdf)</div></>
+                }
+              </div>
+              {npsState === 'done' && <div style={{ fontSize:13, color:'var(--sage-500)', fontWeight:500 }}>✓ Imported — {npsResult?.holdings_imported ?? 0} holdings processed</div>}
+              {npsState === 'error' && <div style={{ fontSize:13, color:'rgba(255,80,80,0.9)' }}>{npsError}</div>}
+              <div style={{ display:'flex', gap:8 }}>
+                <button
+                  disabled={!npsFile || npsState === 'processing'}
+                  onClick={handleNpsImport}
+                  className="du3-cta"
+                  style={{ flex:1, background:'rgba(201,168,106,0.14)', border:'1px solid rgba(201,168,106,0.35)', color:'var(--aurum-100)', opacity:(npsFile && npsState !== 'processing')?1:0.45 }}>
+                  {npsState === 'processing' ? 'Importing…' : 'Import NPS statement'}
+                </button>
+                <button onClick={() => { setNpsFile(null); setNpsSt('idle'); setNpsErr(''); setNpsRes(null); }} disabled={!npsFile} className="du3-cta ghost" style={{ opacity:npsFile?1:0.4 }}>Clear</button>
+              </div>
+            </div>
+          )}
+          {tab === 'epf' && (
+            <div style={{ display:'flex', flexDirection:'column', gap:14 }}>
+              <p style={{ margin:0, fontSize:13, color:'var(--ink-30)', lineHeight:1.6, maxWidth:540 }}>
+                Upload your EPF (Employees' Provident Fund) passbook statement PDF. Aureon extracts your balance and contribution history automatically.
+              </p>
+              <div
+                onDragOver={e => e.preventDefault()}
+                onDrop={e => { e.preventDefault(); const f = e.dataTransfer.files[0]; if (f) { setEpfFile(f); setEpfSt('idle'); } }}
+                onClick={() => epfInputRef.current?.click()}
+                style={{ border:'2px dashed rgba(255,255,255,0.12)', borderRadius:10, padding:'28px 20px', textAlign:'center', cursor:'pointer', background:'rgba(255,255,255,0.01)', transition:'all 160ms' }}>
+                <input ref={epfInputRef} type="file" accept=".pdf" style={{ display:'none' }} onChange={e => { const f = e.target.files[0]; if (f) { setEpfFile(f); setEpfSt('idle'); e.target.value = ''; } }}/>
+                {epfFile
+                  ? <><div style={{ fontSize:13, color:'var(--ink-20)', fontWeight:500, marginBottom:4 }}>{epfFile.name}</div><div style={{ fontSize:11.5, color:'var(--ink-50)' }}>{(epfFile.size / 1024).toFixed(1)} KB — click to replace</div></>
+                  : <><div style={{ fontSize:13, color:'var(--ink-20)', marginBottom:4 }}>Drag &amp; drop PDF or click to browse</div><div style={{ fontSize:11.5, color:'var(--ink-50)' }}>EPF passbook statement (.pdf)</div></>
+                }
+              </div>
+              {epfState === 'done' && <div style={{ fontSize:13, color:'var(--sage-500)', fontWeight:500 }}>✓ Imported — {epfResult?.holdings_imported ?? 0} holdings processed</div>}
+              {epfState === 'error' && <div style={{ fontSize:13, color:'rgba(255,80,80,0.9)' }}>{epfError}</div>}
+              <div style={{ display:'flex', gap:8 }}>
+                <button
+                  disabled={!epfFile || epfState === 'processing'}
+                  onClick={handleEpfImport}
+                  className="du3-cta"
+                  style={{ flex:1, background:'rgba(201,168,106,0.14)', border:'1px solid rgba(201,168,106,0.35)', color:'var(--aurum-100)', opacity:(epfFile && epfState !== 'processing')?1:0.45 }}>
+                  {epfState === 'processing' ? 'Importing…' : 'Import EPF statement'}
+                </button>
+                <button onClick={() => { setEpfFile(null); setEpfSt('idle'); setEpfErr(''); setEpfRes(null); }} disabled={!epfFile} className="du3-cta ghost" style={{ opacity:epfFile?1:0.4 }}>Clear</button>
               </div>
             </div>
           )}

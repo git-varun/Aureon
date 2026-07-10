@@ -59,7 +59,7 @@ export function PfHoldingsTable({ holdings, loading, fmt, onLogTrade, onAddManua
           <input value={q} onChange={e => setQ(e.target.value)} placeholder="Search holdings…" style={{ width:'100%', paddingLeft:28, paddingRight:10, height:30, borderRadius:7, background:'rgba(255,255,255,0.04)', border:'1px solid rgba(255,255,255,0.08)', color:'var(--ink-10)', fontSize:12.5, outline:'none' }}/>
         </div>
         <div style={{ display:'flex', gap:3, padding:3, borderRadius:7, background:'rgba(255,255,255,0.03)', border:'1px solid rgba(255,255,255,0.06)' }}>
-          {[['all','All'],['stocks','Stocks'],['crypto','Crypto'],['funds','Funds'],['bonds','Bonds'],['passive','Passive']].map(([k,l]) => (
+          {[['all','All'],['stocks','Stocks'],['crypto','Crypto'],['funds','Funds'],['bonds','Bonds'],['retirement','Retirement'],['passive','Passive']].map(([k,l]) => (
             <button key={k} onClick={() => setCls(k)} style={{ padding:'5px 10px', fontSize:11, borderRadius:5, border:'none', cursor:'pointer', background:cls===k?'rgba(255,255,255,0.08)':'transparent', color:cls===k?'var(--ink-00)':'var(--ink-40)' }}>{l}</button>
           ))}
         </div>
