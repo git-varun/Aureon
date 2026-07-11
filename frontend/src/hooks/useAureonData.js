@@ -200,17 +200,21 @@ export function useAureonData() {
 
     const signalById = useMemo(() => Object.fromEntries(signals.map(s => [s.id, s])), [signals]);
 
-    // 9. Jobs query for data freshness indicators
-    const jobsQuery = useQuery({
-        queryKey: ['config', 'jobs'],
-        queryFn: () => apiService.getJobs(),
+    // 9. fetch_news job logs for the News freshness tile.
+    // JobConfig.last_run_at (GET /config/jobs) is only set by the manual job-run
+    // trigger, never by scheduled Celery-beat runs — so it stays null for a job
+    // that only ever runs on schedule. Read the job's own run log instead, same
+    // pattern GET /portfolio/sync/status already uses for broker syncs.
+    const fetchNewsLogQuery = useQuery({
+        queryKey: ['config', 'jobs', 'fetch_news', 'logs'],
+        queryFn: () => apiService.getJobLogs('fetch_news', 1),
         staleTime: 60000,
     });
 
-    const jobsByName = useMemo(() => {
-        const list = jobsQuery.data?.jobs || [];
-        return Object.fromEntries(list.map(j => [j.job_name, j]));
-    }, [jobsQuery.data]);
+    const fetchNewsLastRunAt = useMemo(() => {
+        const last = fetchNewsLogQuery.data?.logs?.[0];
+        return last?.status === 'SUCCESS' ? last.ended_at : null;
+    }, [fetchNewsLogQuery.data]);
 
     const loading = positionsQuery.isLoading || snapshotQuery.isLoading || recommendationsQuery.isLoading || transactionsQuery.isLoading;
     const error = positionsQuery.error || snapshotQuery.error || recommendationsQuery.error || transactionsQuery.error;
@@ -233,7 +237,7 @@ export function useAureonData() {
         aiBriefing,
         freshness: {
             refresh_prices: snapshot?.updated_at ?? null,
-            fetch_news: jobsByName['fetch_news']?.last_run_at ?? null,
+            fetch_news: fetchNewsLastRunAt,
             daily_briefing: aiBriefing?.created_at ?? null,
         },
         goalProgress: null,

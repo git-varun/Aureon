@@ -3,9 +3,26 @@ import React from 'react';
 import { SectionHead } from '../ui';
 
 const FRESH = {
-  live:  { color: 'var(--sage-500)',  rgb: '111,174,136', label: 'Live'  },
-  fresh: { color: 'var(--aurum-100)', rgb: '201,168,106', label: 'Fresh' },
-  stale: { color: 'var(--dusk-500)',  rgb: '212,162,87',  label: 'Stale' },
+  live:    { color: 'var(--sage-500)',  rgb: '111,174,136', label: 'Live'    },
+  fresh:   { color: 'var(--aurum-100)', rgb: '201,168,106', label: 'Fresh'   },
+  stale:   { color: 'var(--dusk-500)',  rgb: '212,162,87',  label: 'Stale'   },
+  unknown: { color: 'var(--ink-40)',    rgb: '111,116,128', label: 'Unknown' },
+};
+
+// Per-tile live/fresh cutoffs (ms). Above `fresh` = stale. Each is floored on
+// the tile's actual backing cadence, not a generic guess:
+//  - prices: 900s portfolio-snapshot Redis cache TTL (app/core/redis.py)
+//  - news:   fetch_news's real Celery beat interval — "news-refresh" runs
+//            every 4h (app/workers/celery_app.py), not the job's decorative
+//            JobConfig.cron_expression
+//  - ai:     daily_briefing has no beat_schedule entry at all (manual-trigger
+//            only, same root cause as the broker-sync backlog item) — bands
+//            reflect the documented daily intent, widened since there's no
+//            automated run to hold it to a tighter window
+const THRESHOLDS = {
+  prices: { live: 5 * 60_000, fresh: 15 * 60_000 },
+  news:   { live: 4 * 3_600_000, fresh: 8 * 3_600_000 },
+  ai:     { live: 24 * 3_600_000, fresh: 72 * 3_600_000 },
 };
 
 const agoFmt = d => {
@@ -50,12 +67,15 @@ function FItem({ icon, title, item }) {
   );
 }
 
-const deriveItem = (isoStr) => {
-  if (!isoStr) return null;
+// Never returns null — a missing/invalid timestamp is a distinct 'unknown'
+// state (job never completed successfully), not the same as 'stale' (ran
+// before, now past threshold), and must not make the tile disappear.
+const deriveItem = (isoStr, thresholds) => {
+  if (!isoStr) return { at: null, n: '—', status: 'unknown' };
   const at = new Date(isoStr);
-  if (isNaN(at.getTime())) return null;
+  if (isNaN(at.getTime())) return { at: null, n: '—', status: 'unknown' };
   const ageMs = Date.now() - at.getTime();
-  const status = ageMs < 5 * 60000 ? 'live' : ageMs < 60 * 60000 ? 'fresh' : 'stale';
+  const status = ageMs < thresholds.live ? 'live' : ageMs < thresholds.fresh ? 'fresh' : 'stale';
   return { at, n: '—', status };
 };
 
@@ -64,9 +84,9 @@ export function MarketFreshnessSection({ freshness }) {
   if (!freshness) return null;
 
   const data = {
-    prices: deriveItem(freshness.refresh_prices),
-    news: deriveItem(freshness.fetch_news),
-    ai: deriveItem(freshness.daily_briefing),
+    prices: deriveItem(freshness.refresh_prices, THRESHOLDS.prices),
+    news: deriveItem(freshness.fetch_news, THRESHOLDS.news),
+    ai: deriveItem(freshness.daily_briefing, THRESHOLDS.ai),
   };
 
   return (
