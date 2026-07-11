@@ -28,7 +28,7 @@ def ingest_quote(provider_name: str, symbol: str) -> bool:
             quote = adapter.get_quote(symbol)
 
             asset_id = ingestion_svc.save_quote(provider_name, quote)
-            cache_quote(quote.symbol, quote.model_dump())
+            cache_quote(str(asset_id), quote.model_dump())
 
             # Trigger downstream: snapshot → features → signals → scores → health
             from app.workers.snapshots.asset_snapshot import process_asset_snapshot
