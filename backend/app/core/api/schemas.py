@@ -76,6 +76,8 @@ class PositionResponse(BaseModel):
     unrealized_pnl: Optional[float] = None
     side: Optional[str] = None
     created_at: datetime
+    price: Optional[float] = None
+    price_source: Optional[str] = None
 
 class SnapshotResponse(BaseModel):
     model_config = ConfigDict(from_attributes=True)
