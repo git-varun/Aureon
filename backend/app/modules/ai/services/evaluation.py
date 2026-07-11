@@ -9,6 +9,7 @@ from app.core.services.base import BaseService
 from app.modules.market.repositories.asset_features import AssetFeaturesRepository
 from app.modules.market.repositories.asset_scores import AssetScoresRepository
 from app.modules.market.repositories.asset_snapshot import AssetSnapshotRepository
+from app.modules.news.repositories.asset_sentiment import AssetSentimentSnapshotRepository
 
 
 class FeatureValidationError(Exception):
@@ -41,23 +42,40 @@ def validate_features(features: dict[str, Any]) -> None:
 
 
 class FeatureGenerationService(BaseService):
-    def __init__(self, features_repo: AssetFeaturesRepository, snapshot_repo: AssetSnapshotRepository):
+    def __init__(
+        self,
+        features_repo: AssetFeaturesRepository,
+        snapshot_repo: AssetSnapshotRepository,
+        sentiment_repo: AssetSentimentSnapshotRepository,
+    ):
         self.features_repo = features_repo
         self.snapshot_repo = snapshot_repo
+        self.sentiment_repo = sentiment_repo
 
     def generate(self, asset_id: uuid.UUID) -> dict[str, Any] | None:
-        """Builds AssetFeatures from the latest AssetSnapshot. Returns the Redis cache
-        payload, or None if there is no snapshot yet."""
+        """Builds AssetFeatures from the latest AssetSnapshot plus the rolling
+        AssetSentimentSnapshot aggregate. Returns the Redis cache payload, or
+        None if there is no snapshot yet."""
         snapshot = self.snapshot_repo.get(asset_id)
         if not snapshot:
             return None
+
+        sentiment_snapshot = self.sentiment_repo.get_latest(asset_id)
+        # AssetSentimentSnapshot.avg_sentiment_7d is on the -1..1 per-article
+        # scale; AssetFeatures.sentiment_score (and the recommendation rule
+        # engine) assume 0..1 — convert once, here, at the aggregation boundary.
+        sentiment_score = (
+            (sentiment_snapshot.avg_sentiment_7d + 1.0) / 2.0
+            if sentiment_snapshot and sentiment_snapshot.avg_sentiment_7d is not None
+            else None
+        )
 
         features_dict = {
             "price": float(snapshot.price) if snapshot.price is not None else None,
             "market_cap": float(snapshot.market_cap) if snapshot.market_cap is not None else None,
             "momentum_score": float(snapshot.momentum_score) if snapshot.momentum_score is not None else None,
             "volatility_score": float(snapshot.volatility_score) if snapshot.volatility_score is not None else None,
-            "sentiment_score": float(snapshot.sentiment_score) if snapshot.sentiment_score is not None else None,
+            "sentiment_score": sentiment_score,
         }
         validate_features(features_dict)
 
