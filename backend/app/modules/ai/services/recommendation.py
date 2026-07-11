@@ -82,14 +82,26 @@ class RecommendationService(BaseService):
             
             if not features or not scores:
                 continue
-                
-            momentum = float(features.momentum_score) if features.momentum_score is not None else 0.5
-            volatility = float(features.volatility_score) if features.volatility_score is not None else 0.3
-            sentiment = float(features.sentiment_score) if features.sentiment_score is not None else 0.5
-            
-            quality = float(scores.quality_score) if scores.quality_score is not None else 0.8
-            valuation = float(scores.valuation_score) if scores.valuation_score is not None else 0.7
-            
+
+            required_factors = (
+                features.momentum_score,
+                features.volatility_score,
+                features.sentiment_score,
+                scores.quality_score,
+                scores.valuation_score,
+            )
+            if any(f is None for f in required_factors):
+                # A required factor hasn't been computed yet for this asset —
+                # skip rather than run the rule engine on a fabricated neutral value.
+                continue
+
+            momentum = float(features.momentum_score)
+            volatility = float(features.volatility_score)
+            sentiment = float(features.sentiment_score)
+
+            quality = float(scores.quality_score)
+            valuation = float(scores.valuation_score)
+
             # Rule Engine (Deterministic)
             rec_state = "HOLD"
             reasoning = "Asset parameters remain within stable bounds. Recommending holding current position."
@@ -555,6 +567,11 @@ class RecommendationService(BaseService):
                     p0 = float(txn.price)
             if p0 is None:
                 p0 = intel_svc._get_asset_price_at_time(rec.asset_id, rec.created_at)
+
+            if p0 is None:
+                # No real price data at all — skip updating this outcome's
+                # realized_impact rather than fabricate a return.
+                continue
 
             quote = self.repo.get_quote_by_asset(rec.asset_id)
             p_current = float(quote.price) if quote and quote.price is not None else p0

@@ -23,7 +23,7 @@ def _fetch_asset_info(session: Session, symbols: set[str]) -> dict[str, dict]:
     result = {}
     for sym in symbols:
         q = quote_lookup.get(sym)
-        price = float(q.price) if q and q.price is not None else 0.0
+        price = float(q.price) if q and q.price is not None else None
         result[sym] = {
             "name": sym,
             "exchange": "NSE" if sym.endswith(".NS") else "NASDAQ",
@@ -31,7 +31,7 @@ def _fetch_asset_info(session: Session, symbols: set[str]) -> dict[str, dict]:
             "previousClose": price,
             "assetType": "equity",
             "currency": "INR" if sym.endswith(".NS") else "USD",
-            "spark": [price],
+            "spark": [price] if price is not None else [],
         }
     return result
 

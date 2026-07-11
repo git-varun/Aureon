@@ -2,7 +2,7 @@ from app.core.services.base import BaseService
 import json
 import uuid
 from datetime import datetime, timedelta, timezone
-from typing import Any, Dict, List
+from typing import Any, Dict, List, Optional
 
 from sqlalchemy.orm import Session
 
@@ -65,8 +65,12 @@ class FinancialIntelligenceService(BaseService):
             pass
         return default_targets
 
-    def _get_asset_price_at_time(self, asset_id: uuid.UUID, dt: datetime) -> float:
-        """Finds the asset price closest to the specified datetime in PriceHistory."""
+    def _get_asset_price_at_time(self, asset_id: uuid.UUID, dt: datetime) -> Optional[float]:
+        """Finds the asset price closest to the specified datetime in PriceHistory.
+
+        Returns None if no real price data exists from any source — callers must
+        handle absence explicitly rather than assume a float is always returned.
+        """
         # Find closest price history entry
         price_history = self.repo.get_closest_price_history(asset_id, dt)
         if price_history:
@@ -81,8 +85,8 @@ class FinancialIntelligenceService(BaseService):
         quote = self.repo.get_quote_by_asset(asset_id)
         if quote and quote.price is not None:
             return float(quote.price)
-            
-        return 100.0  # Safe default fallback
+
+        return None
 
     def get_recommendation_quality_metrics(self) -> Dict[str, Any]:
         """Initiative 1: Recommendation Quality Metrics"""
@@ -135,14 +139,23 @@ class FinancialIntelligenceService(BaseService):
             created_at = r.created_at
             
             p0 = self._get_asset_price_at_time(asset_id, created_at)
-            
+
             perf = {"recommendation_id": str(r.id), "symbol": "", "state": r.recommendation_state}
-            
+
             # Find symbol
             quote = self.repo.get_quote_by_asset(asset_id)
             if quote:
                 perf["symbol"] = quote.symbol
-                
+
+            if p0 is None:
+                # No real price data at all at recommendation time — surface as
+                # unavailable rather than fabricate a return off a made-up price.
+                perf["performance_available"] = False
+                perf["unavailable_reason"] = "insufficient price history"
+                performance_list.append(perf)
+                continue
+
+            perf["performance_available"] = True
             intervals = [30, 90, 180]
             for days in intervals:
                 target_date = created_at + timedelta(days=days)
@@ -151,23 +164,29 @@ class FinancialIntelligenceService(BaseService):
                     p_target = self._get_asset_price_at_time(asset_id, datetime.now(timezone.utc))
                 else:
                     p_target = self._get_asset_price_at_time(asset_id, target_date)
-                    
+
+                if p_target is None:
+                    perf[f"realized_return_{days}d"] = None
+                    perf[f"benchmark_return_{days}d"] = None
+                    perf[f"excess_return_{days}d"] = None
+                    continue
+
                 raw_return = (p_target - p0) / p0 if p0 > 0 else 0.0
-                
+
                 # Adjust return based on recommendation state (BUY vs REDUCE/AVOID)
                 if r.recommendation_state in ["REDUCE", "AVOID"]:
                     realized_return = -raw_return  # Outperformance is when the asset price drops
                 else:
                     realized_return = raw_return
-                    
+
                 # Benchmark return: annualized return compounded daily
                 benchmark_return = (bench_rate) ** (days / 365.0) - 1.0
                 excess_return = realized_return - benchmark_return
-                
+
                 perf[f"realized_return_{days}d"] = round(realized_return, 4)
                 perf[f"benchmark_return_{days}d"] = round(benchmark_return, 4)
                 perf[f"excess_return_{days}d"] = round(excess_return, 4)
-                
+
             performance_list.append(perf)
             
         return performance_list
@@ -182,23 +201,29 @@ class FinancialIntelligenceService(BaseService):
         score = self.repo.get_score(rec.asset_id)
         
         explanation_lines = []
-        if features:
+
+        if features and features.momentum_score is not None:
             mom = float(features.momentum_score)
-            sent = float(features.sentiment_score)
-            vol = float(features.volatility_score)
-            
             mom_status = "above threshold 0.70" if mom >= 0.70 else "below threshold 0.70"
-            sent_status = "positive" if sent >= 0.50 else "negative"
-            vol_status = "acceptable" if vol <= 0.40 else "elevated"
-            
             explanation_lines.append(f"Momentum: {mom:.2f} ({mom_status})")
+        else:
+            explanation_lines.append("Momentum: data unavailable")
+
+        if features and features.sentiment_score is not None:
+            sent = float(features.sentiment_score)
+            sent_status = "positive" if sent >= 0.50 else "negative"
             explanation_lines.append(f"Sentiment: {sent:.2f} ({sent_status})")
+        else:
+            explanation_lines.append("Sentiment: data unavailable")
+
+        if features and features.volatility_score is not None:
+            vol = float(features.volatility_score)
+            vol_status = "acceptable" if vol <= 0.40 else "elevated"
             explanation_lines.append(f"Volatility: {vol:.2f} ({vol_status})")
         else:
-            explanation_lines.append("Momentum: 0.50 (neutral)")
-            explanation_lines.append("Sentiment: 0.50 (neutral)")
-            explanation_lines.append("Volatility: 0.20 (acceptable)")
-            
+            explanation_lines.append("Volatility: data unavailable")
+
+
         if score:
             explanation_lines.append(f"Recommendation Score: {float(score.recommendation_score):.2f}")
             explanation_lines.append(f"Valuation Score: {float(score.valuation_score):.2f}")
@@ -955,20 +980,33 @@ class FinancialIntelligenceService(BaseService):
             tot_realized = 0.0
             tot_excess = 0.0
             count = 0
-            
+
             for r in active_recs:
                 p0 = self._get_asset_price_at_time(r.asset_id, r.created_at)
                 p_t = self._get_asset_price_at_time(r.asset_id, d)
+                if p0 is None or p_t is None:
+                    # No real price data available — exclude from the average
+                    # rather than fabricate a zero/placeholder return.
+                    continue
                 raw_return = (p_t - p0) / p0 if p0 > 0 else 0.0
-                
+
                 realized = -raw_return if r.recommendation_state in ["REDUCE", "AVOID"] else raw_return
                 bench_return = 0.10 * ((d - r.created_at.replace(tzinfo=timezone.utc)).days / 365.0)
                 excess = realized - bench_return
-                
+
                 tot_realized += realized
                 tot_excess += excess
                 count += 1
-                
+
+            if count == 0:
+                trend.append({
+                    "date": d.strftime("%Y-%m-%d"),
+                    "average_realized_return": None,
+                    "average_excess_return": None,
+                    "total_recommendations": 0
+                })
+                continue
+
             trend.append({
                 "date": d.strftime("%Y-%m-%d"),
                 "average_realized_return": round(tot_realized / count, 4),

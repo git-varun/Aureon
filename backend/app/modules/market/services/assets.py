@@ -31,19 +31,17 @@ class AssetsService(BaseService):
             raise NotFoundError("Asset not found")
 
         price = float(quote.price)
-        high = round(price * 1.005, 2)
-        low = round(price * 0.995, 2)
 
         return {
             "symbol": symbol,
             "price": price,
             "last_price": price,
-            "open": price,
-            "previous_close": price,
-            "high": high,
-            "low": low,
-            "high_52w": round(price * 1.18, 2),
-            "low_52w": round(price * 0.82, 2),
+            "open": None,
+            "previous_close": None,
+            "high": None,
+            "low": None,
+            "high_52w": None,
+            "low_52w": None,
             "last_updated": datetime.now(timezone.utc).isoformat(),
         }
 
@@ -131,14 +129,14 @@ class AssetsService(BaseService):
         sector = metadata.get("sector") if isinstance(metadata, dict) else "General"
 
         snap = self.repo.get_snapshot(quote.asset_id)
-        price = float(quote.price) if quote.price is not None else 100.0
+        price = float(quote.price) if quote.price is not None else None
 
         pos = self.repo.get_position(portfolio_id, ticker) if portfolio_id else None
         qty = float(pos.quantity) if pos else 0.0
         cost = float(pos.avg_buy_price) if pos else None
 
         history = self.repo.get_recent_price_history(quote.asset_id, limit=30)
-        spark = [float(h.price) for h in reversed(history)] if history else [price]
+        spark = [float(h.price) for h in reversed(history)] if history else ([price] if price is not None else [])
 
         return {
             "ticker": ticker,
@@ -146,11 +144,11 @@ class AssetsService(BaseService):
             "currentPrice": price,
             "cost": cost,
             "qty": qty,
-            "dayPct": 0.0064,
-            "marketCap": float(snap.market_cap) if snap and snap.market_cap is not None else 1940000000000.0,
-            "peRatio": float(snap.pe_ratio) if snap and snap.pe_ratio is not None else 28.5,
-            "rsi": float(snap.rsi) if snap and snap.rsi is not None else 58.2,
-            "sentiment": float(snap.sentiment_score) if snap and snap.sentiment_score is not None else 0.65,
+            "dayPct": None,
+            "marketCap": float(snap.market_cap) if snap and snap.market_cap is not None else None,
+            "peRatio": float(snap.pe_ratio) if snap and snap.pe_ratio is not None else None,
+            "rsi": float(snap.rsi) if snap and snap.rsi is not None else None,
+            "sentiment": float(snap.sentiment_score) if snap and snap.sentiment_score is not None else None,
             "class": classify(asset_class, ticker),
             "sector": sector,
             "spark": spark,

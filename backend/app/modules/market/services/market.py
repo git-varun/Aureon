@@ -122,25 +122,17 @@ def ensure_asset_exists(session: Session, symbol: str, name: Optional[str] = Non
                 asset.tier = tier
             session.flush()
 
-    # We must ensure the LatestQuote and AssetSnapshot exist.
+    # LatestQuote is intentionally NOT seeded here: it must only ever hold a real
+    # ingested (or manually-entered, see update_manual_valuation) price. A row
+    # existing is the signal downstream consumers use to mean "a real quote/value
+    # was recorded" — seeding a fake 0.0 here would defeat that.
     quote = session.scalar(select(LatestQuote).filter_by(symbol=symbol))
-    if not quote:
-        quote = LatestQuote(
-            symbol=symbol,
-            asset_id=asset_id,
-            price=0.0,
-            volume=0.0,
-            created_at=datetime.now(timezone.utc),
-            updated_at=datetime.now(timezone.utc)
-        )
-        session.add(quote)
-        session.flush()
 
     snapshot = session.scalar(select(AssetSnapshot).filter_by(asset_id=asset_id))
     if not snapshot:
         snapshot = AssetSnapshot(
             asset_id=asset_id,
-            price=quote.price,
+            price=quote.price if quote else None,
             market_cap=None,
             pe_ratio=None,
             rsi=None,

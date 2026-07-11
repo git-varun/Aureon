@@ -338,6 +338,27 @@ class PortfolioService(BaseService):
             self.session.add(pos)
         self.session.flush()
 
+    def get_position_price(self, pos: Position) -> tuple[float, str]:
+        """Best-available price for a position, plus where it came from.
+
+        Falls back to avg_buy_price when no live quote exists — a newly-added
+        position with no ingested quote yet must still value at something, but
+        callers need price_source to tell a real market price from that fallback.
+        A LatestQuote row for a manually-created asset (see create_manual_asset /
+        update_manual_valuation) holds a user-entered value, not an ingested
+        quote, so it's labeled "manual" rather than "market".
+        """
+        quote = self.session.scalar(select(LatestQuote).filter_by(symbol=pos.symbol))
+        if quote and quote.price is not None:
+            from app.modules.market.entities.market import Asset
+            asset = self.session.get(Asset, pos.asset_id) if pos.asset_id else None
+            is_manual = bool(
+                asset and isinstance(asset.metadata_payload, dict)
+                and asset.metadata_payload.get("sector") == "Manual"
+            )
+            return float(quote.price), ("manual" if is_manual else "market")
+        return float(pos.avg_buy_price), "cost_basis"
+
     def generate_portfolio_snapshot(self, portfolio_id: uuid.UUID) -> PortfolioSnapshot:
         # Validate portfolio
         self.get_portfolio(portfolio_id)
@@ -348,8 +369,7 @@ class PortfolioService(BaseService):
         position_values = {}
 
         for pos in positions:
-            quote = self.session.scalar(select(LatestQuote).filter_by(symbol=pos.symbol))
-            price = float(quote.price) if quote and quote.price is not None else float(pos.avg_buy_price)
+            price, _price_source = self.get_position_price(pos)
 
             qty = float(pos.quantity)
             if pos.wallet in ("futures_usdm", "futures_coinm"):
@@ -1256,6 +1276,13 @@ class PortfolioService(BaseService):
         quote = self.session.scalar(select(LatestQuote).filter_by(symbol=symbol_clean))
         if quote:
             quote.price = new_unit_price
+        else:
+            self.session.add(LatestQuote(
+                symbol=symbol_clean,
+                asset_id=pos.asset_id,
+                price=new_unit_price,
+                volume=None,
+            ))
 
         txn = Transaction(
             portfolio_id=portfolio_id,
