@@ -216,6 +216,22 @@ export function useAureonData() {
         return last?.status === 'SUCCESS' ? last.ended_at : null;
     }, [fetchNewsLogQuery.data]);
 
+    // Prices freshness tile must reflect actual market-quote staleness, not
+    // portfolio-snapshot regeneration recency — a manual valuation edit or an
+    // unrelated transaction/import both invalidate the snapshot cache and
+    // bump its updated_at without a single real quote having been fetched.
+    // Use the oldest LatestQuote.updated_at among market-sourced positions
+    // instead (price_source === 'market' only — manual/cost_basis positions
+    // don't carry a quote_updated_at). No market-sourced positions at all
+    // means genuinely "unknown", not "live".
+    const oldestMarketQuoteAt = useMemo(() => {
+        const marketQuoteTimes = positions
+            .filter(p => p.price_source === 'market' && p.quote_updated_at)
+            .map(p => new Date(p.quote_updated_at).getTime())
+            .filter(t => !isNaN(t));
+        return marketQuoteTimes.length ? new Date(Math.min(...marketQuoteTimes)).toISOString() : null;
+    }, [positions]);
+
     const loading = positionsQuery.isLoading || snapshotQuery.isLoading || recommendationsQuery.isLoading || transactionsQuery.isLoading;
     const error = positionsQuery.error || snapshotQuery.error || recommendationsQuery.error || transactionsQuery.error;
 
@@ -236,7 +252,7 @@ export function useAureonData() {
         marketPulse: null,
         aiBriefing,
         freshness: {
-            refresh_prices: snapshot?.updated_at ?? null,
+            refresh_prices: oldestMarketQuoteAt,
             fetch_news: fetchNewsLastRunAt,
             daily_briefing: aiBriefing?.created_at ?? null,
         },
