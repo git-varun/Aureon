@@ -9,6 +9,7 @@ from app.core.exceptions import ConflictError, NotFoundError
 from app.modules.market.entities.market import LatestQuote
 from app.modules.market.entities.watchlist import Watchlist, WatchlistSymbol
 from app.modules.market.repositories.watchlist import WatchlistsRepository
+from app.modules.market.services.market import infer_exchange_region
 
 
 def _fetch_asset_info(session: Session, symbols: set[str]) -> dict[str, dict]:
@@ -24,9 +25,10 @@ def _fetch_asset_info(session: Session, symbols: set[str]) -> dict[str, dict]:
     for sym in symbols:
         q = quote_lookup.get(sym)
         price = float(q.price) if q and q.price is not None else None
+        exchange, _region = infer_exchange_region(sym)
         result[sym] = {
             "name": sym,
-            "exchange": "NSE" if sym.endswith(".NS") else "NASDAQ",
+            "exchange": exchange,
             "currentPrice": price,
             "previousClose": price,
             "assetType": "equity",
