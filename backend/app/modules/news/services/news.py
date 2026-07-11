@@ -3,6 +3,7 @@ from datetime import datetime, timezone
 from typing import Any
 
 from sqlalchemy import select
+from vaderSentiment.vaderSentiment import SentimentIntensityAnalyzer
 
 from app.core.logging import logger
 from app.core.providers.capabilities import Capability
@@ -13,6 +14,11 @@ from app.modules.news.entities.news import News, NewsAsset
 from app.core.services.config import ConfigService
 from app.core.repositories.config import ConfigRepository
 from app.modules.news.repositories.news import NewsRepository
+
+# VADER's compound score is already on News.sentiment_score's documented
+# -1..1 scale, so no conversion is needed at this write point.
+_sentiment_analyzer = SentimentIntensityAnalyzer()
+
 
 class NewsService(BaseService):
     def __init__(self, repo: NewsRepository):
@@ -60,6 +66,7 @@ class NewsService(BaseService):
                 summary=payload.title,  # default snippet/summary to title
                 symbols=symbol,
                 published_at=payload.published_at or datetime.now(timezone.utc),
+                sentiment_score=_sentiment_analyzer.polarity_scores(payload.title)["compound"],
             )
             self.repo.save_news(article)
             new_count += 1

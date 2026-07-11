@@ -149,15 +149,8 @@ class YahooAdapter(MarketDataProvider):
                 trend = "Overbought" if (rsi_val or 50) > 70 else "Oversold" if (rsi_val or 50) < 30 else "Neutral"
 
                 news = ticker.news
-                pos_words = {"buy", "bullish", "profit", "grow", "upgrade", "beat", "positive", "strong", "higher"}
-                neg_words = {"sell", "bearish", "loss", "decline", "downgrade", "miss", "negative", "weak", "lower"}
-                pos_count = 0
-                neg_count = 0
                 latest_news_ts = 0
                 for item in news:
-                    title_lower = str(item.get("title", "")).lower()
-                    pos_count += sum(1 for w in pos_words if w in title_lower)
-                    neg_count += sum(1 for w in neg_words if w in title_lower)
                     ts = item.get("providerPublishTime") or item.get("publishTime") or item.get("published_at")
                     if ts:
                         try:
@@ -166,15 +159,13 @@ class YahooAdapter(MarketDataProvider):
                             pass
 
                 news_ts = latest_news_ts if latest_news_ts > 0 else (int(datetime.now(timezone.utc).timestamp()) if news else None)
-                total = pos_count + neg_count
-                sentiment_val = max(0.0, min(1.0, 0.5 + 0.1 * (pos_count - neg_count))) if total > 0 else None
 
                 return {
                     "rsi": rsi_val,
                     "macd": macd_val,
                     "macd_signal": macd_sig,
                     "volatility": volatility_val,
-                    "sentiment": sentiment_val,
+                    "sentiment": None,
                     "action": action,
                     "trend": trend,
                     "source": "yfinance",
