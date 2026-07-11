@@ -11,7 +11,11 @@ const FRESH = {
 
 // Per-tile live/fresh cutoffs (ms). Above `fresh` = stale. Each is floored on
 // the tile's actual backing cadence, not a generic guess:
-//  - prices: 900s portfolio-snapshot Redis cache TTL (app/core/redis.py)
+//  - prices: same live/fresh bands the backend applies per-quote in
+//            resolve_position_price (app/modules/portfolio/services/portfolio.py,
+//            Fix L) — this tile shows the oldest real market quote among the
+//            portfolio's positions (Fix M), not portfolio-snapshot regeneration
+//            recency, so the two must stay in sync intentionally
 //  - news:   fetch_news's real Celery beat interval — "news-refresh" runs
 //            every 4h (app/workers/celery_app.py), not the job's decorative
 //            JobConfig.cron_expression
