@@ -78,6 +78,8 @@ class PositionResponse(BaseModel):
     created_at: datetime
     price: Optional[float] = None
     price_source: Optional[str] = None
+    quote_age_status: Optional[str] = None
+    quote_updated_at: Optional[datetime] = None
 
 class SnapshotResponse(BaseModel):
     model_config = ConfigDict(from_attributes=True)

@@ -3,9 +3,10 @@ from app.core.services.base import BaseService
 
 import uuid
 from datetime import datetime, timezone
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List, NamedTuple, Optional
 
 from sqlalchemy import select
+from sqlalchemy.orm import Session
 
 from app.core.binance import STABLECOIN_ASSETS, WALLET_SUFFIXES, split_quote_asset
 from app.core.exceptions import NotFoundError, ValidationError
@@ -29,6 +30,63 @@ from app.infrastructure.repositories import (
     PositionsRepository,
     TransactionsRepository,
 )
+
+# Same live/fresh/stale bands as the frontend's MarketFreshnessSection
+# THRESHOLDS.prices (5min/15min) — kept in sync intentionally, see Fix M.
+_QUOTE_LIVE_SECONDS = 5 * 60
+_QUOTE_FRESH_SECONDS = 15 * 60
+
+
+def _quote_age_status(updated_at: datetime) -> str:
+    if updated_at.tzinfo is None:
+        updated_at = updated_at.replace(tzinfo=timezone.utc)
+    age_seconds = (datetime.now(timezone.utc) - updated_at).total_seconds()
+    if age_seconds < _QUOTE_LIVE_SECONDS:
+        return "live"
+    if age_seconds < _QUOTE_FRESH_SECONDS:
+        return "fresh"
+    return "stale"
+
+
+class PositionPrice(NamedTuple):
+    price: float
+    price_source: str
+    quote_age_status: Optional[str]
+    quote_updated_at: Optional[datetime]
+
+
+def resolve_position_price(session: Session, pos: Position) -> PositionPrice:
+    """Best-available price for a position, plus where it came from and, for a
+    real market quote, how stale it is.
+
+    Falls back to avg_buy_price when no live quote exists — a newly-added
+    position with no ingested quote yet must still value at something, but
+    callers need price_source to tell a real market price from that fallback.
+    A LatestQuote row for a manually-created asset (see create_manual_asset /
+    update_manual_valuation) holds a user-entered value, not an ingested
+    quote, so it's labeled "manual" rather than "market" and never carries a
+    staleness status (a user-entered value doesn't go stale the way a market
+    quote does). quote_age_status/quote_updated_at are only populated for
+    price_source == "market" — quote_updated_at is the raw LatestQuote
+    timestamp, exposed so callers (e.g. the dashboard's Prices freshness
+    tile, see Fix M) can find the oldest real market quote across a set of
+    positions rather than just a per-position live/fresh/stale label.
+    """
+    quote = session.scalar(select(LatestQuote).filter_by(symbol=pos.symbol))
+    if quote and quote.price is not None:
+        from app.modules.market.entities.market import Asset
+        asset = session.get(Asset, pos.asset_id) if pos.asset_id else None
+        is_manual = bool(
+            asset and isinstance(asset.metadata_payload, dict)
+            and asset.metadata_payload.get("sector") == "Manual"
+        )
+        if is_manual:
+            return PositionPrice(float(quote.price), "manual", None, None)
+        updated_at = quote.updated_at
+        if updated_at.tzinfo is None:
+            updated_at = updated_at.replace(tzinfo=timezone.utc)
+        return PositionPrice(float(quote.price), "market", _quote_age_status(quote.updated_at), updated_at)
+    return PositionPrice(float(pos.avg_buy_price), "cost_basis", None, None)
 
 
 class PortfolioService(BaseService):
@@ -338,26 +396,8 @@ class PortfolioService(BaseService):
             self.session.add(pos)
         self.session.flush()
 
-    def get_position_price(self, pos: Position) -> tuple[float, str]:
-        """Best-available price for a position, plus where it came from.
-
-        Falls back to avg_buy_price when no live quote exists — a newly-added
-        position with no ingested quote yet must still value at something, but
-        callers need price_source to tell a real market price from that fallback.
-        A LatestQuote row for a manually-created asset (see create_manual_asset /
-        update_manual_valuation) holds a user-entered value, not an ingested
-        quote, so it's labeled "manual" rather than "market".
-        """
-        quote = self.session.scalar(select(LatestQuote).filter_by(symbol=pos.symbol))
-        if quote and quote.price is not None:
-            from app.modules.market.entities.market import Asset
-            asset = self.session.get(Asset, pos.asset_id) if pos.asset_id else None
-            is_manual = bool(
-                asset and isinstance(asset.metadata_payload, dict)
-                and asset.metadata_payload.get("sector") == "Manual"
-            )
-            return float(quote.price), ("manual" if is_manual else "market")
-        return float(pos.avg_buy_price), "cost_basis"
+    def get_position_price(self, pos: Position) -> PositionPrice:
+        return resolve_position_price(self.session, pos)
 
     def generate_portfolio_snapshot(self, portfolio_id: uuid.UUID) -> PortfolioSnapshot:
         # Validate portfolio
@@ -369,7 +409,7 @@ class PortfolioService(BaseService):
         position_values = {}
 
         for pos in positions:
-            price, _price_source = self.get_position_price(pos)
+            price = self.get_position_price(pos).price
 
             qty = float(pos.quantity)
             if pos.wallet in ("futures_usdm", "futures_coinm"):

@@ -8,6 +8,7 @@ from sqlalchemy.orm import Session
 
 from app.modules.market.entities.market import Asset, PriceHistory
 from app.modules.portfolio.entities.portfolio import Transaction
+from app.modules.portfolio.services.portfolio import resolve_position_price
 from app.modules.ai.repositories.intelligence import IntelligenceRepository
 
 
@@ -242,8 +243,7 @@ class FinancialIntelligenceService(BaseService):
 
         # Calculate asset values
         for pos in positions:
-            quote = self.repo.get_quote_by_symbol(pos.symbol)
-            price = float(quote.price) if quote and quote.price is not None else float(pos.avg_buy_price)
+            price = resolve_position_price(self.db, pos).price
             qty = float(pos.quantity)
             val = qty * price
             total_val += val
@@ -322,8 +322,7 @@ class FinancialIntelligenceService(BaseService):
                 sector = meta.get("sector", "General") if isinstance(meta, dict) else "General"
                 sectors.add(sector)
 
-            quote = self.repo.get_quote_by_symbol(pos.symbol)
-            price = float(quote.price) if quote and quote.price is not None else float(pos.avg_buy_price)
+            price = resolve_position_price(self.db, pos).price
             val = float(pos.quantity) * price
             total_val += val
             weights.append(val)
@@ -363,8 +362,7 @@ class FinancialIntelligenceService(BaseService):
         sectors = set()
 
         for pos in positions:
-            quote = self.repo.get_quote_by_symbol(pos.symbol)
-            price = float(quote.price) if quote and quote.price is not None else float(pos.avg_buy_price)
+            price = resolve_position_price(self.db, pos).price
             val = float(pos.quantity) * price
             total_val += val
 
@@ -449,8 +447,7 @@ class FinancialIntelligenceService(BaseService):
         for pos in positions:
             asset = self.repo.get_asset(pos.asset_id)
             if asset:
-                quote = self.repo.get_quote_by_symbol(pos.symbol)
-                price = float(quote.price) if quote and quote.price is not None else float(pos.avg_buy_price)
+                price = resolve_position_price(self.db, pos).price
                 val = float(pos.quantity) * price
 
                 # Classify
@@ -645,8 +642,7 @@ class FinancialIntelligenceService(BaseService):
         for pos in positions:
             asset = self.repo.get_asset(pos.asset_id)
             if asset:
-                quote = self.repo.get_quote_by_symbol(pos.symbol)
-                price = float(quote.price) if quote and quote.price is not None else float(pos.avg_buy_price)
+                price = resolve_position_price(self.db, pos).price
                 val = float(pos.quantity) * price
                 cls = asset.asset_class.lower()
                 if cls in ["stocks", "equity"]:
@@ -688,8 +684,7 @@ class FinancialIntelligenceService(BaseService):
         for pos in positions:
             asset = self.repo.get_asset(pos.asset_id)
             if asset:
-                quote = self.repo.get_quote_by_symbol(pos.symbol)
-                price = float(quote.price) if quote and quote.price is not None else float(pos.avg_buy_price)
+                price = resolve_position_price(self.db, pos).price
                 val = float(pos.quantity) * price
                 cls = asset.asset_class.lower()
                 if cls in ["stocks", "equity"]:
