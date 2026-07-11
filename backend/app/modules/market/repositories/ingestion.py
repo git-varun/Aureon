@@ -52,14 +52,14 @@ class IngestionRepository(BaseRepository):
         return asset
 
     def upsert_quote(self, quote: NormalizedQuote, asset_id: uuid.UUID) -> None:
-        now = datetime.now(timezone.utc)
         stmt = insert(LatestQuote).values(
             symbol=quote.symbol,
             asset_id=asset_id,
             price=quote.price,
             volume=quote.volume,
-            created_at=now,
-            updated_at=now
+            provider=quote.provider,
+            created_at=quote.timestamp,
+            updated_at=quote.timestamp
         )
         stmt = stmt.on_conflict_do_update(
             index_elements=["symbol"],
@@ -67,6 +67,7 @@ class IngestionRepository(BaseRepository):
                 "price": stmt.excluded.price,
                 "volume": stmt.excluded.volume,
                 "asset_id": stmt.excluded.asset_id,
+                "provider": stmt.excluded.provider,
                 "updated_at": stmt.excluded.updated_at,
             }
         )

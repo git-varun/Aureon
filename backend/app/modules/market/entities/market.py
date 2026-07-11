@@ -17,6 +17,7 @@ class LatestQuote(TimestampMixin, Base):
     asset_id: Mapped[uuid.UUID | None] = mapped_column(nullable=True, unique=True, index=True)
     price: Mapped[float] = mapped_column(Numeric, nullable=False)
     volume: Mapped[float | None] = mapped_column(Numeric, nullable=True)
+    provider: Mapped[str | None] = mapped_column(String, nullable=True)
 
 class AssetSnapshot(TimestampMixin, Base):
     __tablename__ = "asset_snapshot"
