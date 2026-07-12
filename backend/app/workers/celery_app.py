@@ -50,10 +50,6 @@ celery_app.conf.beat_schedule = {
         "task": "app.workers.ingestion.tasks.seed_price_history_task",
         "schedule": crontab(hour=2, minute=0, day_of_week="sun"),
     },
-    "daily-pipeline": {
-        "task": "app.workers.ingestion.tasks.ingest_all_quotes",
-        "schedule": crontab(hour=9, minute=0, day_of_week="mon-fri"),
-    },
     "hourly-price-refresh": {
         "task": "app.workers.ingestion.tasks.ingest_all_quotes",
         "schedule": crontab(minute=0, hour="*"),
