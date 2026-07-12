@@ -26,8 +26,6 @@ const STATUS = {
 
 function JobRow({job, onUpdate, onRun}) {
     const {label, desc} = JOB_LABELS[job.job_name] ?? {label: job.job_name, desc: ''};
-    const isSystem = job.job_tier === 'system';
-    const [cronEdit, setCronEdit] = useState(job.cron_schedule);
     const [enabled, setEnabled] = useState(Boolean(job.enabled));
     const [saving, setSaving] = useState(false);
     const [running, setRunning] = useState(false);
@@ -35,21 +33,17 @@ function JobRow({job, onUpdate, onRun}) {
     const [logs, setLogs] = useState([]);
 
     useEffect(() => {
-        setCronEdit(job.cron_schedule);
         setEnabled(Boolean(job.enabled));
-    }, [job.cron_schedule, job.enabled]);
+    }, [job.enabled]);
 
-    // System jobs: only dirty when enabled toggle changes (cron is read-only)
-    const dirty = isSystem
-        ? enabled !== Boolean(job.enabled)
-        : cronEdit !== job.cron_schedule || enabled !== Boolean(job.enabled);
+    const dirty = enabled !== Boolean(job.enabled);
     const status = STATUS[job.last_status] ?? STATUS.never_run;
     const tone = !enabled ? 'var(--ink-40)' : status.color;
 
     const handleSave = async () => {
         setSaving(true);
         try {
-            await onUpdate(job.job_name, isSystem ? undefined : cronEdit, enabled);
+            await onUpdate(job.job_name, enabled);
         }
         finally { setSaving(false); }
     };
@@ -77,7 +71,7 @@ function JobRow({job, onUpdate, onRun}) {
 
     return (
         <div style={{borderBottom: '1px solid rgba(255,255,255,0.04)'}}>
-            <div style={{display: 'grid', gridTemplateColumns: '1.4fr 0.8fr 1fr 1fr auto auto auto', gap: 14, padding: '14px 18px', alignItems: 'center'}}>
+            <div style={{display: 'grid', gridTemplateColumns: '1.4fr 0.8fr 1fr auto auto auto', gap: 14, padding: '14px 18px', alignItems: 'center'}}>
                 <div style={{minWidth: 0}}>
                     <div style={{display: 'flex', alignItems: 'center', gap: 8}}>
                         <span style={{width: 6, height: 6, borderRadius: 999, background: tone}}/>
@@ -88,9 +82,6 @@ function JobRow({job, onUpdate, onRun}) {
                 <span style={{fontFamily: 'var(--font-mono)', fontSize: 11, color: 'var(--ink-30)'}}>{job.cron_schedule}</span>
                 <span style={{fontFamily: 'var(--font-mono)', fontSize: 11.5, color: enabled ? 'var(--ink-10)' : 'var(--ink-40)'}}>
                     last · {fmt(job.last_run_at)}
-                </span>
-                <span style={{fontFamily: 'var(--font-mono)', fontSize: 11.5, color: enabled ? 'var(--ink-20)' : 'var(--ink-40)'}}>
-                    next · {enabled ? fmt(job.next_run_at) : '—'}
                 </span>
                 <button
                     onClick={handleRun} disabled={!enabled || running}
@@ -120,18 +111,6 @@ function JobRow({job, onUpdate, onRun}) {
 
             {dirty && (
                 <div style={{padding: '0 18px 14px', display: 'flex', alignItems: 'center', gap: 10}}>
-                    {!isSystem && (
-                        <input
-                            value={cronEdit}
-                            onChange={e => setCronEdit(e.target.value)}
-                            style={{
-                                padding: '7px 12px', borderRadius: 7, width: 180,
-                                background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.07)',
-                                color: 'var(--ink-10)', fontFamily: 'var(--font-mono)', fontSize: 12, outline: 'none',
-                            }}
-                            placeholder="cron expression"
-                        />
-                    )}
                     <button onClick={handleSave} disabled={saving} className="du3-cta primary" style={{height: 34}}>
                         {saving ? 'Saving…' : 'Save'}
                     </button>
@@ -181,15 +160,13 @@ export default function JobConfig() {
 
     useEffect(() => { load(); }, [load]);
 
-    const handleUpdate = async (jobName, cronSchedule, enabled) => {
+    const handleUpdate = async (jobName, enabled) => {
         try {
-            const payload = {enabled};
-            if (cronSchedule !== undefined) payload.cron_schedule = cronSchedule;
-            const res = await apiService.updateJob(jobName, payload);
+            const res = await apiService.updateJob(jobName, {enabled});
             setJobs(res.jobs);
             toast.success(`Updated '${jobName}'.`);
         } catch (e) {
-            toast.error(e?.response?.data?.detail || 'Invalid cron expression.');
+            toast.error(e?.response?.data?.detail || `Failed to update '${jobName}'.`);
         }
     };
 
@@ -212,7 +189,7 @@ export default function JobConfig() {
     const colHead = (
         <div style={{
             display: 'grid',
-            gridTemplateColumns: '1.4fr 0.8fr 1fr 1fr auto auto auto',
+            gridTemplateColumns: '1.4fr 0.8fr 1fr auto auto auto',
             gap: 14,
             padding: '10px 18px',
             fontSize: 10.5,
@@ -222,7 +199,7 @@ export default function JobConfig() {
             fontWeight: 600,
             borderBottom: '1px solid rgba(255,255,255,0.06)'
         }}>
-            <span>Job</span><span>Schedule</span><span>Last run</span><span>Next run</span>
+            <span>Job</span><span>Schedule</span><span>Last run</span>
             <span/><span>Enabled</span><span/>
         </div>
     );
@@ -251,7 +228,6 @@ export default function JobConfig() {
             {loading ? (
                 <div style={{padding: 40, textAlign: 'center', color: 'var(--ink-40)', fontSize: 13}}>Loading jobs…</div>
             ) : (<>
-                {/* User-tier: editable schedule */}
                 <div style={{
                     padding: '10px 18px 6px',
                     fontSize: 10.5,
@@ -267,7 +243,6 @@ export default function JobConfig() {
                     <JobRow key={job.job_name} job={job} onUpdate={handleUpdate} onRun={handleRun}/>
                 ))}
 
-                {/* System-tier: read-only cron, run-only */}
                 <div style={{
                     padding: '14px 18px 6px',
                     fontSize: 10.5,
@@ -279,13 +254,6 @@ export default function JobConfig() {
                     marginTop: 4
                 }}>
                     System Jobs
-                    <span style={{
-                        marginLeft: 8,
-                        fontSize: 10,
-                        fontWeight: 400,
-                        textTransform: 'none',
-                        color: 'var(--ink-40)'
-                    }}>— cron managed by system</span>
                 </div>
                 {colHead}
                 {systemJobs.map(job => (
