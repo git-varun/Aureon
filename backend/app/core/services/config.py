@@ -496,6 +496,8 @@ class ConfigService(BaseService):
                 raise ConfigurationError(message)
 
         try:
+            import concurrent.futures
+
             from app.workers.celery_app import celery_app
 
             # Map legacy job names to celery tasks we will define
@@ -525,11 +527,18 @@ class ConfigService(BaseService):
                 kwargs["user_id"] = str(user_id)
             kwargs["log_id"] = log_id
 
-            celery_app.send_task(
-                celery_task_name,
-                kwargs=kwargs,
-                task_id=task_id
-            )
+            # Bound send_task with a real thread-join timeout, independent of
+            # kombu/celery's own connection-retry budget — a broker that's
+            # reachable but unresponsive (e.g. paused, not stopped) can hang
+            # this call far longer than any caller-facing request should wait.
+            executor = concurrent.futures.ThreadPoolExecutor(max_workers=1)
+            future = executor.submit(celery_app.send_task, celery_task_name, kwargs=kwargs, task_id=task_id)
+            try:
+                future.result(timeout=15.0)
+            except concurrent.futures.TimeoutError:
+                executor.shutdown(wait=False)
+                raise TimeoutError(f"send_task for '{job_name}' timed out after 15s")
+            executor.shutdown(wait=False)
             return task_id
         except Exception as e:
             logger.error(f"Failed to dispatch Celery task for {job_name}: {e}")
