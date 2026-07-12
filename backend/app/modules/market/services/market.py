@@ -585,12 +585,12 @@ class MarketService(BaseService):
         results = []
         for a in assets:
             quote = self.repo.get_quote_by_symbol(a.symbol)
-            price = float(quote.price) if quote else 100.0
+            price = float(quote.price) if quote and quote.price is not None else None
             results.append({
                 "sym": a.symbol,
                 "name": a.name,
                 "price": price,
-                "dayPct": 0.002,
+                "dayPct": self._compute_day_pct(quote.asset_id) if quote else None,
                 "ex": "NSE",
                 "region": "IN",
                 "class": classify(a.asset_class, a.symbol),
@@ -604,12 +604,12 @@ class MarketService(BaseService):
         results = []
         for a in assets:
             quote = self.repo.get_quote_by_symbol(a.symbol)
-            price = float(quote.price) if quote else 100.0
+            price = float(quote.price) if quote and quote.price is not None else None
             results.append({
                 "sym": a.symbol,
                 "name": a.name,
                 "price": price,
-                "dayPct": 0.002,
+                "dayPct": self._compute_day_pct(quote.asset_id) if quote else None,
                 "ex": "NSE",
                 "region": "IN",
                 "class": classify(a.asset_class, a.symbol),
