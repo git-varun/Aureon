@@ -496,9 +496,8 @@ class ConfigService(BaseService):
                 raise ConfigurationError(message)
 
         try:
-            from celery import Celery
-            celery_app = Celery("aureon_workers", broker=settings.REDIS_URL, backend=settings.REDIS_URL)
-            
+            from app.workers.celery_app import celery_app
+
             # Map legacy job names to celery tasks we will define
             task_mapping = {
                 "sync_portfolio": "app.workers.ingestion.tasks.sync_portfolio_task",
