@@ -226,9 +226,12 @@ class FinancialIntelligenceService(BaseService):
 
 
         if score:
-            explanation_lines.append(f"Recommendation Score: {float(score.recommendation_score):.2f}")
-            explanation_lines.append(f"Valuation Score: {float(score.valuation_score):.2f}")
-            explanation_lines.append(f"Quality Score: {float(score.quality_score):.2f}")
+            rec_score_line = f"{float(score.recommendation_score):.2f}" if score.recommendation_score is not None else "unavailable"
+            explanation_lines.append(f"Recommendation Score: {rec_score_line}")
+            val_score_line = f"{float(score.valuation_score):.2f}" if score.valuation_score is not None else "unavailable"
+            explanation_lines.append(f"Valuation Score: {val_score_line}")
+            qual_score_line = f"{float(score.quality_score):.2f}" if score.quality_score is not None else "unavailable"
+            explanation_lines.append(f"Quality Score: {qual_score_line}")
             
         return "\n".join(explanation_lines)
 

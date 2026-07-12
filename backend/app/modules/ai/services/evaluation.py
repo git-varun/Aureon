@@ -118,8 +118,9 @@ class EvaluationService(BaseService):
         return {
             "asset_id": str(scores.asset_id),
             "model_version": scores.model_version,
-            "recommendation_score": float(scores.recommendation_score),
-            "quality_score": float(scores.quality_score),
-            "valuation_score": float(scores.valuation_score),
+            "recommendation_score": float(scores.recommendation_score) if scores.recommendation_score is not None else None,
+            "quality_score": float(scores.quality_score) if scores.quality_score is not None else None,
+            "valuation_score": float(scores.valuation_score) if scores.valuation_score is not None else None,
+            "unavailable_inputs": scores.unavailable_inputs or [],
             "generated_at": scores.generated_at
         }

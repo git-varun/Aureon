@@ -26,6 +26,7 @@ class AssetScoresRepository(BaseRepository):
             recommendation_score=score.recommendation_score,
             quality_score=score.quality_score,
             valuation_score=score.valuation_score,
+            unavailable_inputs=score.unavailable_inputs,
             generated_at=score.generated_at
         )
         upsert_stmt = stmt.on_conflict_do_update(
@@ -34,6 +35,7 @@ class AssetScoresRepository(BaseRepository):
                 recommendation_score=stmt.excluded.recommendation_score,
                 quality_score=stmt.excluded.quality_score,
                 valuation_score=stmt.excluded.valuation_score,
+                unavailable_inputs=stmt.excluded.unavailable_inputs,
                 generated_at=stmt.excluded.generated_at
             )
         ).returning(AssetScore)
