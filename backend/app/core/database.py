@@ -49,6 +49,9 @@ def get_db() -> Generator[Session, None, None]:
     try:
         logger.debug("Database Session: Session opened.", component="DB")
         yield db
+    except Exception:
+        db.rollback()
+        raise
     finally:
         logger.debug("Database Session: Session closed.", component="DB")
         db.close()

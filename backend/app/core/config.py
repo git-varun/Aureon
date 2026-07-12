@@ -41,6 +41,9 @@ class Settings(BaseSettings):
     GEMINI_API_KEY: str | None = None
     GROQ_API_KEY: str | None = None
 
+    API_PORT: int | None = None
+    FRONTEND_PORT: int | None = None
+
     SLA_QUOTE_MAX_AGE_SEC: int = 300
     SLA_FUNDAMENTALS_MAX_AGE_SEC: int = 86400
     SLA_NEWS_MAX_AGE_SEC: int = 3600

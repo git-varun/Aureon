@@ -1,5 +1,3 @@
-import os
-
 from sqlalchemy import text
 
 from app.core.config import settings
@@ -16,15 +14,9 @@ def validate_environment() -> None:
     logger.info("Running startup environment validation...", component="Startup")
 
     # 1. Port Validation
-    for port_var in ["API_PORT", "FRONTEND_PORT"]:
-        val = os.getenv(port_var)
-        if val:
-            try:
-                p = int(val)
-                if not (1 <= p <= 65535):
-                    raise ValueError(f"Environment validation error: {port_var} must be between 1 and 65535, got {val}")
-            except ValueError:
-                raise ValueError(f"Environment validation error: {port_var} must be a valid integer, got {val}")
+    for port_var, port_val in (("API_PORT", settings.API_PORT), ("FRONTEND_PORT", settings.FRONTEND_PORT)):
+        if port_val is not None and not (1 <= port_val <= 65535):
+            raise ValueError(f"Environment validation error: {port_var} must be between 1 and 65535, got {port_val}")
 
     # 2. Broker and Redis URL scheme checks
     if not settings.REDIS_URL.startswith(("redis://", "rediss://")):
