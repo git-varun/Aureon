@@ -51,7 +51,7 @@ celery_app.conf.beat_schedule = {
         "schedule": crontab(hour=2, minute=0, day_of_week="sun"),
     },
     "hourly-price-refresh": {
-        "task": "app.workers.ingestion.tasks.ingest_all_quotes",
+        "task": "app.workers.ingestion.tasks.refresh_prices_task",
         "schedule": crontab(minute=0, hour="*"),
     },
     "news-refresh": {
