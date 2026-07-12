@@ -1,6 +1,7 @@
 from fastapi import APIRouter, Depends, HTTPException, Query
 
-from app.api.dependencies import get_assets_service, get_current_user, get_user_context, get_db
+from app.api.dependencies import get_assets_service, get_current_user, get_user_context
+from app.core.database import get_db
 from app.core.exceptions import NotFoundError
 from app.core.entities.system import User
 from app.modules.market.services.assets import AssetsService

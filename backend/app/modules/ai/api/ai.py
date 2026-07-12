@@ -7,9 +7,9 @@ from sqlalchemy.orm import Session
 from app.api.dependencies import (
     get_ai_service,
     get_current_user,
-    get_db,
     get_user_context,
 )
+from app.core.database import get_db
 from app.core.entities.system import User
 from app.modules.ai.services.ai import AIService
 

@@ -6,10 +6,10 @@ from sqlalchemy.orm import Session
 
 from app.api.dependencies import (
     get_current_user,
-    get_db,
     get_recommendation_service,
     get_user_context,
 )
+from app.core.database import get_db
 from app.core.exceptions import NotFoundError, ValidationError
 from app.core.entities.system import User
 from app.domain.services import RecommendationService
