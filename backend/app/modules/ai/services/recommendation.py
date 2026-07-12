@@ -402,23 +402,44 @@ class RecommendationService(BaseService):
             signals = get_cached_asset_signals(str(asset_id)) or {}
             action = signals.get("action", "HOLD")
 
-            momentum = features_dict["momentum_score"] if features_dict["momentum_score"] is not None else 0.5
-            volatility = features_dict["volatility_score"] if features_dict["volatility_score"] is not None else 0.5
-            sentiment = features_dict["sentiment_score"] if features_dict["sentiment_score"] is not None else 0.5
+            momentum = features_dict["momentum_score"]
+            volatility = features_dict["volatility_score"]
+            sentiment = features_dict["sentiment_score"]
 
             unavailable_inputs = []
 
-            # Compute dynamic scores
-            # High momentum + low volatility + positive sentiment -> high recommendation
-            rec_score = 0.4 * momentum + 0.3 * (1.0 - volatility) + 0.3 * sentiment
+            # Compute recommendation_score from whichever of momentum/volatility/
+            # sentiment are actually present, renormalizing their base weights
+            # (0.4/0.3/0.3) over just the available inputs — a partial score
+            # from real data, never a fabricated neutral substitute for a
+            # missing one. See EVALUATION_MODULE_AUDIT.md 1a.
+            weighted_terms = []
+            if momentum is not None:
+                weighted_terms.append((0.4, momentum))
+            else:
+                unavailable_inputs.append("momentum_score")
+            if volatility is not None:
+                weighted_terms.append((0.3, 1.0 - volatility))
+            else:
+                unavailable_inputs.append("volatility_score")
+            if sentiment is not None:
+                weighted_terms.append((0.3, sentiment))
+            else:
+                unavailable_inputs.append("sentiment_score")
 
-            # Adjust recommendation based on action
-            if action == "BUY":
-                rec_score = min(1.0, rec_score + 0.1)
-            elif action == "SELL":
-                rec_score = max(0.0, rec_score - 0.1)
+            if weighted_terms:
+                total_weight = sum(w for w, _ in weighted_terms)
+                rec_score = sum(w * v for w, v in weighted_terms) / total_weight
 
-            recommendation_score = max(0.0, min(1.0, rec_score))
+                # Adjust recommendation based on action
+                if action == "BUY":
+                    rec_score = min(1.0, rec_score + 0.1)
+                elif action == "SELL":
+                    rec_score = max(0.0, rec_score - 0.1)
+
+                recommendation_score = max(0.0, min(1.0, rec_score))
+            else:
+                recommendation_score = None
 
             # Real quality/valuation scoring needs fundamentals data (market
             # cap, P/E) that this pipeline doesn't have yet — deferred build,
