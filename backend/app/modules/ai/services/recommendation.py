@@ -71,6 +71,98 @@ class RecommendationService(BaseService):
         self.session = session
         self.repo = RecommendationRepository(session)
 
+    def _score_and_materialize(self, asset_id: uuid.UUID, features: Any, scores: Any) -> Optional[Recommendation]:
+        """Shared rule engine + persistence used by both the scheduled per-asset
+        pipeline (materialize_for_asset) and the manual batch trigger
+        (generate_recommendations). Returns None without writing anything if a
+        required factor hasn't been computed yet — never fabricates a neutral
+        substitute for a missing value."""
+        required_factors = (
+            features.momentum_score,
+            features.volatility_score,
+            features.sentiment_score,
+            scores.quality_score,
+            scores.valuation_score,
+        )
+        if any(f is None for f in required_factors):
+            # A required factor hasn't been computed yet for this asset —
+            # skip rather than run the rule engine on a fabricated neutral value.
+            return None
+
+        momentum = float(features.momentum_score)
+        volatility = float(features.volatility_score)
+        sentiment = float(features.sentiment_score)
+
+        quality = float(scores.quality_score)
+        valuation = float(scores.valuation_score)
+
+        # Rule Engine (Deterministic)
+        rec_state = "HOLD"
+        reasoning = "Asset parameters remain within stable bounds. Recommending holding current position."
+        rules_matched = {}
+        confidence_factors = {}
+        confidence_score = 0.5
+
+        if valuation >= 0.7 and momentum >= 0.5 and sentiment >= 0.5:
+            rec_state = "BUY"
+            reasoning = "Asset displays strong underpricing combined with positive momentum and constructive market sentiment."
+            rules_matched = {"underpricing_and_momentum": True}
+            confidence_factors = {"valuation": 0.4, "momentum": 0.3, "sentiment": 0.3}
+            confidence_score = 0.4 * valuation + 0.3 * momentum + 0.3 * sentiment
+        elif sentiment < 0.3 and momentum < 0.4:
+            rec_state = "AVOID"
+            reasoning = "Asset displays weak market sentiment and negative momentum, prompting caution."
+            rules_matched = {"weak_sentiment_and_momentum": True}
+            confidence_factors = {"sentiment": 0.5, "momentum": 0.5}
+            confidence_score = 0.5 * (1.0 - sentiment) + 0.5 * (1.0 - momentum)
+        elif valuation < 0.4 and volatility >= 0.6:
+            rec_state = "REDUCE"
+            reasoning = "Asset is potentially overvalued with elevated volatility, recommending reducing exposure."
+            rules_matched = {"overvaluation_and_volatility": True}
+            confidence_factors = {"valuation": 0.5, "volatility": 0.5}
+            confidence_score = 0.5 * (1.0 - valuation) + 0.5 * volatility
+        else:
+            rec_state = "HOLD"
+            reasoning = "Asset parameters remain within stable bounds. Recommending holding current position."
+            rules_matched = {"stable_parameters": True}
+            confidence_factors = {"quality": 0.5, "volatility": 0.5}
+            confidence_score = 0.5 * quality + 0.5 * (1.0 - volatility)
+
+        existing_rec = self.repo.get_active_recommendation(asset_id, "v2.0.0")
+
+        rec_id = existing_rec.id if existing_rec else uuid.uuid4()
+
+        rec = Recommendation(
+            id=rec_id,
+            asset_id=asset_id,
+            recommendation_state=rec_state,
+            confidence_score=confidence_score,
+            status="active",
+            version="v2.0.0",
+            created_at=existing_rec.created_at if existing_rec else datetime.now(timezone.utc),
+            updated_at=datetime.now(timezone.utc)
+        )
+        self.repo.upsert(rec)
+
+        expl = RecommendationExplanation(
+            recommendation_id=rec_id,
+            rules_matched=rules_matched,
+            reasoning=reasoning,
+            confidence_factors=confidence_factors
+        )
+        self.repo.upsert_explanation(expl)
+
+        existing_outcome = self.repo.get_outcome(rec_id)
+        if not existing_outcome:
+            out = RecommendationOutcome(
+                recommendation_id=rec_id,
+                status="active",
+                action_taken_at=datetime.now(timezone.utc)
+            )
+            self.repo.upsert_outcome(out)
+
+        return rec
+
     def generate_recommendations(self) -> list[dict[str, Any]]:
         snapshots = self.repo.list_all_snapshots()
         recs_created = []
@@ -79,95 +171,13 @@ class RecommendationService(BaseService):
             asset_id = snap.asset_id
             features = self.repo.get_features(asset_id)
             scores = self.repo.get_latest_score(asset_id)
-            
+
             if not features or not scores:
                 continue
 
-            required_factors = (
-                features.momentum_score,
-                features.volatility_score,
-                features.sentiment_score,
-                scores.quality_score,
-                scores.valuation_score,
-            )
-            if any(f is None for f in required_factors):
-                # A required factor hasn't been computed yet for this asset —
-                # skip rather than run the rule engine on a fabricated neutral value.
-                continue
-
-            momentum = float(features.momentum_score)
-            volatility = float(features.volatility_score)
-            sentiment = float(features.sentiment_score)
-
-            quality = float(scores.quality_score)
-            valuation = float(scores.valuation_score)
-
-            # Rule Engine (Deterministic)
-            rec_state = "HOLD"
-            reasoning = "Asset parameters remain within stable bounds. Recommending holding current position."
-            rules_matched = {}
-            confidence_factors = {}
-            confidence_score = 0.5
-            
-            if valuation >= 0.7 and momentum >= 0.5 and sentiment >= 0.5:
-                rec_state = "BUY"
-                reasoning = "Asset displays strong underpricing combined with positive momentum and constructive market sentiment."
-                rules_matched = {"underpricing_and_momentum": True}
-                confidence_factors = {"valuation": 0.4, "momentum": 0.3, "sentiment": 0.3}
-                confidence_score = 0.4 * valuation + 0.3 * momentum + 0.3 * sentiment
-            elif sentiment < 0.3 and momentum < 0.4:
-                rec_state = "AVOID"
-                reasoning = "Asset displays weak market sentiment and negative momentum, prompting caution."
-                rules_matched = {"weak_sentiment_and_momentum": True}
-                confidence_factors = {"sentiment": 0.5, "momentum": 0.5}
-                confidence_score = 0.5 * (1.0 - sentiment) + 0.5 * (1.0 - momentum)
-            elif valuation < 0.4 and volatility >= 0.6:
-                rec_state = "REDUCE"
-                reasoning = "Asset is potentially overvalued with elevated volatility, recommending reducing exposure."
-                rules_matched = {"overvaluation_and_volatility": True}
-                confidence_factors = {"valuation": 0.5, "volatility": 0.5}
-                confidence_score = 0.5 * (1.0 - valuation) + 0.5 * volatility
-            else:
-                rec_state = "HOLD"
-                reasoning = "Asset parameters remain within stable bounds. Recommending holding current position."
-                rules_matched = {"stable_parameters": True}
-                confidence_factors = {"quality": 0.5, "volatility": 0.5}
-                confidence_score = 0.5 * quality + 0.5 * (1.0 - volatility)
-                
-            existing_rec = self.repo.get_active_recommendation(asset_id, "v2.0.0")
-
-            rec_id = existing_rec.id if existing_rec else uuid.uuid4()
-
-            rec = Recommendation(
-                id=rec_id,
-                asset_id=asset_id,
-                recommendation_state=rec_state,
-                confidence_score=confidence_score,
-                status="active",
-                version="v2.0.0",
-                created_at=existing_rec.created_at if existing_rec else datetime.now(timezone.utc),
-                updated_at=datetime.now(timezone.utc)
-            )
-            self.repo.upsert(rec)
-
-            expl = RecommendationExplanation(
-                recommendation_id=rec_id,
-                rules_matched=rules_matched,
-                reasoning=reasoning,
-                confidence_factors=confidence_factors
-            )
-            self.repo.upsert_explanation(expl)
-
-            existing_outcome = self.repo.get_outcome(rec_id)
-            if not existing_outcome:
-                out = RecommendationOutcome(
-                    recommendation_id=rec_id,
-                    status="active",
-                    action_taken_at=datetime.now(timezone.utc)
-                )
-                self.repo.upsert_outcome(out)
-
-            recs_created.append(rec)
+            rec = self._score_and_materialize(asset_id, features, scores)
+            if rec is not None:
+                recs_created.append(rec)
 
         self.session.commit()
         invalidate_org_recommendations(RECOMMENDATIONS_CACHE_KEY)
@@ -468,77 +478,18 @@ class RecommendationService(BaseService):
             if not snap or not features or not scores:
                 return
 
-            momentum = float(features.momentum_score) if features.momentum_score is not None else 0.5
-            volatility = float(features.volatility_score) if features.volatility_score is not None else 0.3
-            sentiment = float(features.sentiment_score) if features.sentiment_score is not None else 0.5
-
-            quality = float(scores.quality_score) if scores.quality_score is not None else 0.8
-            valuation = float(scores.valuation_score) if scores.valuation_score is not None else 0.7
-
-            # Rule Engine (Deterministic)
-            rec_state = "HOLD"
-            reasoning = "Asset parameters remain within stable bounds. Recommending holding current position."
-            rules_matched = {}
-            confidence_factors = {}
-            confidence_score = 0.5
-
-            if valuation >= 0.7 and momentum >= 0.5 and sentiment >= 0.5:
-                rec_state = "BUY"
-                reasoning = "Asset displays strong underpricing combined with positive momentum and constructive market sentiment."
-                rules_matched = {"underpricing_and_momentum": True}
-                confidence_factors = {"valuation": 0.4, "momentum": 0.3, "sentiment": 0.3}
-                confidence_score = 0.4 * valuation + 0.3 * momentum + 0.3 * sentiment
-            elif sentiment < 0.3 and momentum < 0.4:
-                rec_state = "AVOID"
-                reasoning = "Asset displays weak market sentiment and negative momentum, prompting caution."
-                rules_matched = {"weak_sentiment_and_momentum": True}
-                confidence_factors = {"sentiment": 0.5, "momentum": 0.5}
-                confidence_score = 0.5 * (1.0 - sentiment) + 0.5 * (1.0 - momentum)
-            elif valuation < 0.4 and volatility >= 0.6:
-                rec_state = "REDUCE"
-                reasoning = "Asset is potentially overvalued with elevated volatility, recommending reducing exposure."
-                rules_matched = {"overvaluation_and_volatility": True}
-                confidence_factors = {"valuation": 0.5, "volatility": 0.5}
-                confidence_score = 0.5 * (1.0 - valuation) + 0.5 * volatility
-                confidence_score = 0.5 * quality + 0.5 * (1.0 - volatility)
-
-            logger.info(
-                f"AI Evaluation rule engine run: state={rec_state} "
-                f"rules_matched={list(rules_matched.keys())} confidence={confidence_score:.4f}"
-            )
-
-            existing_rec = self.repo.get_active_recommendation(asset_id, "v2.0.0")
-
-            rec_id = existing_rec.id if existing_rec else uuid.uuid4()
-
-            rec = Recommendation(
-                id=rec_id,
-                asset_id=asset_id,
-                recommendation_state=rec_state,
-                confidence_score=confidence_score,
-                status="active",
-                version="v2.0.0",
-                created_at=existing_rec.created_at if existing_rec else datetime.now(timezone.utc),
-                updated_at=datetime.now(timezone.utc)
-            )
-            self.repo.upsert(rec)
-
-            expl = RecommendationExplanation(
-                recommendation_id=rec_id,
-                rules_matched=rules_matched,
-                reasoning=reasoning,
-                confidence_factors=confidence_factors
-            )
-            self.repo.upsert_explanation(expl)
-
-            existing_outcome = self.repo.get_outcome(rec_id)
-            if not existing_outcome:
-                out = RecommendationOutcome(
-                    recommendation_id=rec_id,
-                    status="active",
-                    action_taken_at=datetime.now(timezone.utc)
+            rec = self._score_and_materialize(asset_id, features, scores)
+            if rec is None:
+                logger.info(
+                    f"AI Recommendation materialization skipped: evaluation_id={eval_id} "
+                    f"asset_id={asset_id} reason=required_factor_missing"
                 )
-                self.repo.upsert_outcome(out)
+                return
+
+            # Commit the recommendation write immediately so a later failure in
+            # update_financial_intelligence_pipeline (unrelated outcome/portfolio
+            # work, same session) can't roll back an already-decided recommendation.
+            self.session.commit()
 
             # Invalidate Cache
             invalidate_org_recommendations(RECOMMENDATIONS_CACHE_KEY)
@@ -546,7 +497,7 @@ class RecommendationService(BaseService):
             # Downstream intelligence pipeline update
             self.update_financial_intelligence_pipeline()
 
-            logger.info(f"AI Recommendation materialization completed: state={rec_state} rules_matched={list(rules_matched.keys())}")
+            logger.info(f"AI Recommendation materialization completed: state={rec.recommendation_state}")
 
     def update_financial_intelligence_pipeline(self) -> None:
         """Automatic downstream updates for outcomes, portfolio intelligence, health, and dashboard."""
