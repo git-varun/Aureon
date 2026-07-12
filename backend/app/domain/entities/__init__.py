@@ -34,7 +34,6 @@ from app.modules.ai.entities.recommendation import (
 from app.core.entities.system import (
     AuditLog,
     FailedIngestion,
-    JobRun,
     Provider,
     ProviderUsage,
     User,

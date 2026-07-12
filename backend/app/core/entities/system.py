@@ -47,23 +47,6 @@ class FailedIngestion(UUIDMixin, TimestampMixin, Base):
     attempts: Mapped[int] = mapped_column(Integer, default=1)
     is_exhausted: Mapped[bool] = mapped_column(Boolean, default=False)
 
-class JobRun(TimestampMixin, Base):
-    __tablename__ = "job_runs"
-    __table_args__ = (
-        Index("idx_job_runs_started_at_desc", text("started_at DESC")),
-        Index("idx_job_runs_status", "status"),
-        {"schema": "system"}
-    )
-
-    id: Mapped[uuid.UUID] = mapped_column(primary_key=True, default=uuid.uuid4)
-    job_name: Mapped[str] = mapped_column(String, nullable=False)
-    started_at: Mapped[datetime] = mapped_column(default=lambda: datetime.now(timezone.utc))
-    completed_at: Mapped[datetime | None] = mapped_column(nullable=True)
-    status: Mapped[str] = mapped_column(String, default="RUNNING")
-    rows_processed: Mapped[int] = mapped_column(Integer, default=0)
-    error: Mapped[str | None] = mapped_column(String, nullable=True)
-
-
 class User(UUIDMixin, TimestampMixin, Base):
     __tablename__ = "users"
     __table_args__ = {"schema": "system"}
