@@ -16,28 +16,31 @@ class FeatureValidationError(Exception):
     pass
 
 
-def _check_missing_values(features: dict[str, Any]) -> bool:
+def _check_price_present(features: dict[str, Any]) -> bool:
     return features.get("price") is not None
 
 
-def _check_numeric_ranges(features: dict[str, Any]) -> bool:
+def _check_price_numeric_range(features: dict[str, Any]) -> bool:
     price = features.get("price")
     return price is None or price >= 0
 
 
-def _check_outliers(features: dict[str, Any]) -> bool:
+def _check_price_outliers(features: dict[str, Any]) -> bool:
     price = features.get("price")
     return price is None or price <= 1_000_000_000
 
 
 def validate_features(features: dict[str, Any]) -> None:
+    """Validates price only — market_cap/momentum_score/volatility_score/
+    sentiment_score are allowed to be None and are handled downstream as
+    partial/unavailable, not rejected here. See EVALUATION_MODULE_AUDIT.md 3.3."""
     if not isinstance(features, dict):
         raise FeatureValidationError("Invalid feature vector format")
-    if not _check_missing_values(features):
+    if not _check_price_present(features):
         raise FeatureValidationError("Missing required values")
-    if not _check_numeric_ranges(features):
+    if not _check_price_numeric_range(features):
         raise FeatureValidationError("Values out of numeric bounds")
-    if not _check_outliers(features):
+    if not _check_price_outliers(features):
         raise FeatureValidationError("Outliers detected")
 
 
