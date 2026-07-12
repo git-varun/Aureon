@@ -1,28 +1,27 @@
 import React, { useState } from 'react';
+import { useQueryClient } from '@tanstack/react-query';
 import { useApp } from '../store';
-import { useCardData } from '@/hooks/useCardData';
+import { useAureonData } from '@/hooks/useAureonData';
 import { Sk, SectionHead, Eyebrow } from '../ui';
 
-const stub = async () => {
-  await new Promise(r => setTimeout(r, 440 + Math.random() * 180));
-  return null; // backend provides signals, signalsHigh, pendingRecs counts
-};
-
 export function SupportingStrip({ onNavigate }) {
-  const { notifications } = useApp();
+  const { notifications, active, hydrated } = useApp();
   const unread = (notifications || []).filter(n => !n.read).length;
-  const { status, data, refetch } = useCardData(stub);
+  const { signals, loading } = useAureonData();
   const [refreshing, setRefreshing] = useState(false);
+  const qc = useQueryClient();
+
+  const status = (loading || !hydrated) ? 'loading' : 'ready';
 
   const handleRefresh = () => {
     setRefreshing(true);
-    refetch();
+    qc.invalidateQueries();
     setTimeout(() => setRefreshing(false), 900);
   };
 
-  const sigCount = data?.signals     ?? null;
-  const sigHigh  = data?.signalsHigh ?? null;
-  const recCount = data?.pendingRecs ?? null;
+  const sigCount = status === 'loading' ? null : signals.length;
+  const sigHigh  = status === 'loading' ? null : signals.filter(s => s.severity === 'high').length;
+  const recCount = status === 'loading' ? null : active.length;
 
   const cards = [
     { k: 'signals', title: 'Active Signals',           n: sigCount,  sub: sigCount == null ? null : sigHigh != null ? `${sigHigh} high severity` : 'signals active',      route: 'decisions?tab=signals'         },
