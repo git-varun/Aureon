@@ -579,6 +579,18 @@ class AIService(BaseService):
                     if _circuit_breaker.is_open(cooldown_key):
                         continue
                     try:
+                        # Release the checked-out connection right before each external
+                        # HTTP call (up to 60s timeout apiece — this is the actual
+                        # slow part). provider_factory.get() above just did its own DB
+                        # read, so a connection may be freshly checked out here; not
+                        # releasing it would hold it idle for the call's full duration —
+                        # same defect class as the already-fixed /health pool-exhaustion
+                        # bug. Nothing has been written yet, so this is a clean rollback,
+                        # not a partial commit. SQLAlchemy transparently checks out a
+                        # fresh connection the next time this session is used (the next
+                        # provider_factory.get() call, or the AIGeneration/AIEvaluation
+                        # writes once the loop ends).
+                        self.session.rollback()
                         logger.info(f"Attempting {pname} model: {model}")
                         response_text = provider.fetch(prompt, json_mode=json_mode, model=model)
                         model_used = model
