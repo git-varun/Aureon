@@ -4,7 +4,7 @@ from datetime import datetime, timezone
 from celery import shared_task
 
 from app.core.database import SessionLocal
-from app.core.logging import logger
+from app.core.exceptions import NotFoundError
 from app.core.redis import cache_asset_signals
 
 
@@ -20,8 +20,7 @@ def generate_signals(asset_id: str) -> None:
     with SessionLocal() as session:
         quote = MarketRepository(session).get_quote_by_asset_id(aid)
         if not quote:
-            logger.warning(f"LatestQuote not found for asset: {aid}")
-            return
+            raise NotFoundError(f"LatestQuote not found for asset: {aid}")
         symbol = quote.symbol
 
         adapter = ProviderFactory(ConfigService(ConfigRepository(session))).get("yahoo")
