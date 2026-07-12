@@ -103,20 +103,81 @@ export const AppProvider = ({children}) => {
         const appliedRecs = mappedRecs.filter(r => r.status === 'applied');
         const dismissedRecs = mappedRecs.filter(r => r.status === 'dismissed');
 
-        const mappedActivity = (activityData || []).map(t => ({
-            id: t.id,
-            extId: t.recommendation_id,
-            ts: new Date(t.transaction_date).toLocaleDateString() + ' · ' + new Date(t.transaction_date).toLocaleTimeString('en-US', {hour: '2-digit', minute: '2-digit'}),
-            kind: t.kind || (t.transaction_type === 'BUY' ? 'applied' : 'dismissed'),
-            refId: t.recommendation_id,
-            action: t.transaction_type,
-            asset: t.symbol,
-            detail: `${t.transaction_type} ${t.quantity} ${t.symbol} @ $${t.price}`,
-            predicted: null,
-            realized: null,
-            pending: false,
-            settleDays: 0
-        }));
+        const fmtTs = (d) => d.toLocaleDateString() + ' · ' + d.toLocaleTimeString('en-US', {hour: '2-digit', minute: '2-digit'});
+
+        // Recommendation-derived entries carry real outcome data (predicted/realized
+        // impact, dismiss reason) and must win over the generic transaction row the
+        // apply creates — the transaction has no outcome fields at all.
+        const recActivity = [
+            ...appliedRecs.map(r => {
+                const d = r.outcome?.action_taken_at ? new Date(r.outcome.action_taken_at) : null;
+                const settleDays = (r.impact_one_line || '').includes('realized') ? 2 : 5;
+                return {
+                    id: 'ra-' + r.ext_id,
+                    extId: r.ext_id,
+                    refId: r.ext_id,
+                    ext_id: r.ext_id,
+                    _ts: d,
+                    ts: d ? fmtTs(d) : '',
+                    kind: 'applied',
+                    action: r.recommendation_state,
+                    asset: r.symbol,
+                    detail: r.impact_one_line || r.title || '',
+                    predicted: r.outcome?.predicted_impact ?? null,
+                    realized: r.outcome?.realized_impact ?? null,
+                    pending: (r.outcome?.realized_impact ?? null) == null,
+                    settleDays
+                };
+            }),
+            ...dismissedRecs.map(r => {
+                const d = r.outcome?.action_taken_at ? new Date(r.outcome.action_taken_at) : null;
+                const reason = r.outcome?.dismiss_reason || 'User dismissed';
+                return {
+                    id: 'rd-' + r.ext_id,
+                    extId: r.ext_id,
+                    refId: r.ext_id,
+                    ext_id: r.ext_id,
+                    _ts: d,
+                    ts: d ? fmtTs(d) : '',
+                    kind: 'dismissed',
+                    action: r.recommendation_state,
+                    asset: r.symbol,
+                    detail: `declined — ${reason.toLowerCase()}`,
+                    predicted: null,
+                    realized: null,
+                    pending: false,
+                    settleDays: 0
+                };
+            })
+        ];
+
+        // Transactions have no recommendation_id — the only link back is
+        // outcome.ledger_transaction_id — so exclude those already represented
+        // above and leave the rest (manual/broker trades) as their real kind.
+        const recLinkedTxnIds = new Set(mappedRecs.map(r => r.outcome?.ledger_transaction_id).filter(Boolean));
+        const txnActivity = (activityData || [])
+            .filter(t => !recLinkedTxnIds.has(t.id))
+            .map(t => {
+                const d = new Date(t.transaction_date);
+                return {
+                    id: t.id,
+                    extId: null,
+                    refId: null,
+                    _ts: d,
+                    ts: fmtTs(d),
+                    kind: t.kind,
+                    action: t.transaction_type,
+                    asset: t.symbol,
+                    detail: `${t.transaction_type} ${t.quantity} ${t.symbol} @ $${t.price}`,
+                    predicted: null,
+                    realized: null,
+                    pending: false,
+                    settleDays: 0
+                };
+            });
+
+        const mappedActivity = [...recActivity, ...txnActivity]
+            .sort((a, b) => (b._ts?.getTime() || 0) - (a._ts?.getTime() || 0));
 
         return {
             recommendations: {
@@ -208,16 +269,16 @@ export const AppProvider = ({children}) => {
         setActive((recs.active || []).map(r => r.ext_id));
         setApplied((recs.applied || []).map(r => ({
             id: r.ext_id,
-            ts: r.applied_at ? new Date(r.applied_at).toLocaleTimeString('en-US', {hour: '2-digit', minute: '2-digit'}) : '',
-            predicted: r.predicted_impact,
-            realized: r.realized_impact ?? null,
-            pending: r.realized_impact == null,
+            ts: r.outcome?.action_taken_at ? new Date(r.outcome.action_taken_at).toLocaleTimeString('en-US', {hour: '2-digit', minute: '2-digit'}) : '',
+            predicted: r.outcome?.predicted_impact ?? null,
+            realized: r.outcome?.realized_impact ?? null,
+            pending: (r.outcome?.realized_impact ?? null) == null,
             settleDays: (r.impact_one_line || '').includes('realized') ? 2 : 5,
         })));
         setDismissed((recs.dismissed || []).map(r => ({
             id: r.ext_id,
-            ts: r.dismissed_at ? new Date(r.dismissed_at).toLocaleTimeString('en-US', {hour: '2-digit', minute: '2-digit'}) : '',
-            reason: r.dismiss_reason || 'User dismissed',
+            ts: r.outcome?.action_taken_at ? new Date(r.outcome.action_taken_at).toLocaleTimeString('en-US', {hour: '2-digit', minute: '2-digit'}) : '',
+            reason: r.outcome?.dismiss_reason || 'User dismissed',
         })));
         if (Array.isArray(s.activity) && s.activity.length) setActivity(s.activity);
     }, [s]);
