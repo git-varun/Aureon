@@ -45,7 +45,7 @@ class FinnhubAdapter(MarketDataProvider):
             data = res.json()
             price = data.get("c")
             if price is None or price == 0:
-                raise ValueError(f"No price returned from Finnhub for symbol {symbol}")
+                raise ProviderError(f"No price returned from Finnhub for symbol {symbol}")
             volume = data.get("v")
 
             return NormalizedQuote(
