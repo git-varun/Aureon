@@ -6,6 +6,7 @@ import numpy as np
 import pandas as pd
 import yfinance as yf
 
+from app.core.exceptions import ProviderError
 from app.core.logging import logger
 from app.core.providers.capabilities import Capability
 from app.core.providers.interfaces import MarketDataProvider
@@ -85,25 +86,30 @@ class YahooAdapter(MarketDataProvider):
         return [Capability.PRICE, Capability.NEWS, Capability.SEARCH]
 
     def get_quote(self, symbol: str) -> NormalizedQuote:
-        ticker = yf.Ticker(symbol)
-        info = ticker.info
-        price = (
-            info.get("currentPrice")
-            or info.get("regularMarketPrice")
-            or info.get("ask")
-            or info.get("bid")
-            or info.get("previousClose")
-        )
-        if not price:
-            raise ValueError(f"No price returned by Yahoo Finance for symbol {symbol}")
-        volume = info.get("regularMarketVolume") or info.get("volume") or 0
-        return NormalizedQuote(
-            symbol=symbol,
-            provider=self.provider_name,
-            timestamp=datetime.now(timezone.utc),
-            price=Decimal(str(price)),
-            volume=Decimal(str(volume)) if volume else None
-        )
+        try:
+            ticker = yf.Ticker(symbol)
+            info = ticker.info
+            price = (
+                info.get("currentPrice")
+                or info.get("regularMarketPrice")
+                or info.get("ask")
+                or info.get("bid")
+                or info.get("previousClose")
+            )
+            if not price:
+                raise ProviderError(f"No price returned by Yahoo Finance for symbol {symbol}")
+            volume = info.get("regularMarketVolume") or info.get("volume") or 0
+            return NormalizedQuote(
+                symbol=symbol,
+                provider=self.provider_name,
+                timestamp=datetime.now(timezone.utc),
+                price=Decimal(str(price)),
+                volume=Decimal(str(volume)) if volume else None
+            )
+        except ProviderError:
+            raise
+        except Exception as e:
+            raise ProviderError(f"Yahoo get_quote failed for {symbol}: {e}") from e
 
     def get_news(self, symbol: str) -> List[NormalizedNews]:
         ticker = yf.Ticker(symbol)

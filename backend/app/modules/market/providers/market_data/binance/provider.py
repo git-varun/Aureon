@@ -3,7 +3,6 @@ from decimal import Decimal
 from typing import Any, List
 
 import pandas as pd
-import requests
 
 from app.core.binance import WALLET_SUFFIXES
 from app.core.exceptions import ProviderError
@@ -53,14 +52,16 @@ class BinanceFuturesMarketDataProvider(MarketDataProvider):
             row = data[0] if isinstance(data, list) else data
             price = row.get("price")
             if price is None:
-                raise ValueError(f"No price returned by Binance for symbol {contract}")
+                raise ProviderError(f"No price returned by Binance for symbol {contract}")
             return NormalizedQuote(
                 symbol=symbol,
                 provider=self.provider_name,
                 timestamp=datetime.now(timezone.utc),
                 price=Decimal(str(price)),
             )
-        except requests.RequestException as e:
+        except ProviderError:
+            raise
+        except Exception as e:
             raise ProviderError(f"Binance futures get_quote failed for {symbol}: {e}") from e
 
     def get_technical_indicators(self, symbol: str) -> dict[str, Any]:
