@@ -370,18 +370,25 @@ unpopulated (honest `None`, not fabricated) and still the root cause of
 1.2/quality-valuation's stub — the real fix remains backfilling from a
 fundamentals provider, a deferred build, same as before.
 
-**New finding while re-checking, out of this audit's scope**:
+**New finding while re-checking, out of this audit's scope — RESOLVED
+2026-07-12**:
 `ai/services/ai.py:812-813` (`get_single_asset_take`, the single-asset AI
 briefing endpoint — not part of the `process_asset_snapshot → ... →
-compute_asset_health` chain this audit covers) defaults `rsi` to `50.0` and
-`pe` to `25.0` when `AssetSnapshot.rsi`/`.pe_ratio` are `None`, then feeds
+compute_asset_health` chain this audit covers) defaulted `rsi` to `50.0` and
+`pe` to `25.0` when `AssetSnapshot.rsi`/`.pe_ratio` were `None`, then fed
 those fabricated numbers into the LLM prompt as if real (`f"RSI: {rsi:.1f} |
 PE Ratio: {pe:.1f}"`). Since `pe_ratio` is *always* `None` today, every
-single-asset AI take is currently being given a fabricated "PE Ratio: 25.0"
-with no disclosure. Flagging only — this is the same fabrication pattern
-already fixed elsewhere in this and the market audit, but it lives in the
-AI briefing service, not the evaluation chain, so it's out of scope to fix
-here.
+single-asset AI take was being given a fabricated "PE Ratio: 25.0" with no
+disclosure. Fixed as a follow-up: both `rsi` and `pe` now render `"N/A"`
+in the prompt when unavailable (matching this file's existing `N/A`
+convention elsewhere), and the prompt explicitly instructs the model not
+to invent values for `N/A`-marked metrics. Checked for shared lineage with
+assets.py's already-fixed fabricated-fundamentals bug (market audit #26) —
+unrelated code, not a shared function, same anti-pattern reappearing
+independently. Live-verified the prompt sent for a real asset no longer
+contains "25.0"/"50.0"; the LLM's actual generated output couldn't be
+checked end-to-end (no GEMINI/GROQ credentials in this dev environment) —
+worth a follow-up spot-check once credentials are available.
 
 ### 3.2 `FeatureSnapshot` is write-only — inserted every scoring cycle, read nowhere — **re-confirmed 2026-07-12, unchanged**
 
@@ -491,11 +498,8 @@ trace is unambiguous from the code alone).
 - **`FeatureSnapshot` retention/consumption** (3.2) — decide whether it's an
   intentional audit trail (needs a reader, e.g. a history endpoint) or dead
   weight (drop the insert). Re-confirmed still write-only, still deferred.
-- **`ai.py` single-asset take's fabricated RSI/PE defaults** (new finding,
-  3.1) — `get_single_asset_take` defaults `rsi`/`pe` to `50.0`/`25.0` when
-  unavailable and feeds them into the LLM prompt undisclosed. Out of scope
-  for this pass (AI briefing service, not the evaluation chain) — flagged
-  for a future AI-module audit or a quick follow-up fix.
+- ~~**`ai.py` single-asset take's fabricated RSI/PE defaults**~~ —
+  **RESOLVED as a follow-up fix**, not deferred. See 3.1.
 
 ## Queue status (as of 2026-07-12)
 
