@@ -406,6 +406,8 @@ class RecommendationService(BaseService):
             volatility = features_dict["volatility_score"] if features_dict["volatility_score"] is not None else 0.5
             sentiment = features_dict["sentiment_score"] if features_dict["sentiment_score"] is not None else 0.5
 
+            unavailable_inputs = []
+
             # Compute dynamic scores
             # High momentum + low volatility + positive sentiment -> high recommendation
             rec_score = 0.4 * momentum + 0.3 * (1.0 - volatility) + 0.3 * sentiment
@@ -417,8 +419,16 @@ class RecommendationService(BaseService):
                 rec_score = max(0.0, rec_score - 0.1)
 
             recommendation_score = max(0.0, min(1.0, rec_score))
-            quality_score = 0.8 + (0.05 if sentiment > 0.6 else 0.0)
-            valuation_score = 0.7 + (0.1 if momentum < 0.4 else 0.0)  # lower momentum is undervalued
+
+            # Real quality/valuation scoring needs fundamentals data (market
+            # cap, P/E) that this pipeline doesn't have yet — deferred build,
+            # see EVALUATION_MODULE_AUDIT.md 1b. Presenting a placeholder as a
+            # computed score is exactly the fabrication this fix removes, so
+            # these are always "unavailable" until that data source exists.
+            quality_score = None
+            valuation_score = None
+            unavailable_inputs.append("quality_score")
+            unavailable_inputs.append("valuation_score")
 
             model_version = "v1.0.0"
             feature_schema_version = "1.0"
@@ -444,6 +454,7 @@ class RecommendationService(BaseService):
                 recommendation_score=recommendation_score,
                 quality_score=quality_score,
                 valuation_score=valuation_score,
+                unavailable_inputs=unavailable_inputs,
                 generated_at=now
             )
             updated_score = scores_repo.upsert(score)
@@ -452,9 +463,10 @@ class RecommendationService(BaseService):
             cache_data = {
                 "asset_id": str(updated_score.asset_id),
                 "model_version": updated_score.model_version,
-                "recommendation_score": float(updated_score.recommendation_score),
-                "quality_score": float(updated_score.quality_score),
-                "valuation_score": float(updated_score.valuation_score),
+                "recommendation_score": float(updated_score.recommendation_score) if updated_score.recommendation_score is not None else None,
+                "quality_score": float(updated_score.quality_score) if updated_score.quality_score is not None else None,
+                "valuation_score": float(updated_score.valuation_score) if updated_score.valuation_score is not None else None,
+                "unavailable_inputs": updated_score.unavailable_inputs,
                 "generated_at": updated_score.generated_at.isoformat() if updated_score.generated_at else None
             }
             cache_asset_scores(str(asset_id), cache_data)
