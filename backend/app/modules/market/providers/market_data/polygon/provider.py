@@ -45,7 +45,7 @@ class PolygonAdapter(MarketDataProvider):
             data = res.json()
             results = data.get("results")
             if not results or "p" not in results:
-                raise ValueError(f"No price returned from Polygon for symbol {symbol}")
+                raise ProviderError(f"No price returned from Polygon for symbol {symbol}")
 
             price = results["p"]
             volume = results.get("s")

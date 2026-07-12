@@ -52,7 +52,6 @@ class JobConfig(Base):
     last_run_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     next_run_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     job_tier: Mapped[str] = mapped_column(String(16), default='user')  # 'user' = editable cron, 'system' = read-only
-    config: Mapped[str] = mapped_column(Text, default="{}")  # JSON blob for extra per-job config
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
     updated_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), onupdate=func.now(), nullable=True)
 
