@@ -143,7 +143,7 @@ _DEFAULT_JOBS = [
     {"job_name": "weekly_briefing", "cron_expression": "0 8 * * 1", "enabled": True, "job_tier": "user"},
     {"job_name": "monthly_briefing", "cron_expression": "0 8 1 * *", "enabled": True, "job_tier": "user"},
     {"job_name": "seed_price_history", "cron_expression": "0 2 * * 0", "enabled": True, "job_tier": "user"},
-    {"job_name": "seed_market_universe", "cron_expression": "0 8 * * 1-5", "enabled": False, "job_tier": "system"},
+    {"job_name": "seed_market_universe", "cron_expression": "0 8 * * 1-5", "enabled": True, "job_tier": "system"},
     {"job_name": "validate_data_quality", "cron_expression": "0 0 * * *", "enabled": True, "job_tier": "system"},
 ]
 
