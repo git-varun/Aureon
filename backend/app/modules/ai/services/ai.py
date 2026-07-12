@@ -809,11 +809,11 @@ class AIService(BaseService):
         context = ""
         if quote:
             snap = self.session.query(AssetSnapshot).filter(AssetSnapshot.asset_id == quote.asset_id).first()
-            rsi = float(snap.rsi) if snap and snap.rsi is not None else 50.0
-            pe = float(snap.pe_ratio) if snap and snap.pe_ratio is not None else 25.0
-            context = f"Asset: {symbol} | Price: {quote.price} | RSI: {rsi:.1f} | PE Ratio: {pe:.1f}"
+            rsi = f"{float(snap.rsi):.1f}" if snap and snap.rsi is not None else "N/A"
+            pe = f"{float(snap.pe_ratio):.1f}" if snap and snap.pe_ratio is not None else "N/A"
+            context = f"Asset: {symbol} | Price: {quote.price} | RSI: {rsi} | PE Ratio: {pe}"
 
-        prompt = f"Role: Investment Advisor.\nAnalyze this asset: {symbol}.\nContext:\n{context}\n\nProvide 3 sentences of technical/fundamental analysis. Return JSON only with key: 'take'."
+        prompt = f"Role: Investment Advisor.\nAnalyze this asset: {symbol}.\nContext:\n{context}\n\nProvide 3 sentences of technical/fundamental analysis. Any metric marked N/A is genuinely unavailable — do not invent or assume a value for it; note it as unavailable if relevant instead. Return JSON only with key: 'take'."
 
         ans = self.execute_completion(prompt, "single", user_id=user_id, json_mode=True)
         try:
