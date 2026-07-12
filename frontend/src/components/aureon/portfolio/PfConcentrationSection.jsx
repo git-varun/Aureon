@@ -1,14 +1,16 @@
 import React from 'react';
 import { useCardData } from '@/hooks/useCardData';
+import { apiService } from '@/api/apiService';
+import { usePortfolio } from '@/contexts/PortfolioContext';
+import { concentrationFromRaw } from '@/components/aureon/utils';
 import { Sk, Cerr } from '@/components/aureon/ui';
 
-const stub = async () => {
-  await new Promise(r => setTimeout(r, 560 + Math.random() * 280));
-  return null;
-};
-
 export function PfConcentrationSection() {
-  const { status, data, error, refetch } = useCardData(stub);
+  const { activePortfolioId } = usePortfolio();
+  const { status, data: raw, error, refetch } = useCardData(
+    React.useCallback(() => apiService.getPortfolioConcentration(activePortfolioId), [activePortfolioId])
+  );
+  const data = React.useMemo(() => concentrationFromRaw(raw ?? null), [raw]);
 
   if (status === 'loading') return (
     <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3,1fr)', gap: 14 }}>

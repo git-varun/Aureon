@@ -41,3 +41,19 @@ export const needsModal = (rec) => {
     if (rec.scope?.kind === 'class') return true;
     return false;
 };
+
+// Shared by ConcentrationCard (dashboard) and PfConcentrationSection (portfolio) —
+// both consume GET /intelligence/concentration via apiService.getPortfolioConcentration.
+export const concentrationFromRaw = (raw) => {
+    if (!raw) return null;
+    const allocs = raw.stock_allocations || {};
+    if (!Object.keys(allocs).length) return null;
+    const sorted = Object.entries(allocs).sort((a, b) => b[1] - a[1]);
+    const topHolding = sorted[0]?.[0] ?? '—';
+    const topPct = sorted[0]?.[1] ?? null;
+    const holdingCount = sorted.length;
+    const hhi = Object.values(allocs).reduce((s, v) => s + v * v, 0);
+    const score = Math.round(Math.max(0, Math.min(100, (1 - hhi) * 100)));
+    const label = score >= 70 ? 'Well spread' : score >= 45 ? 'Moderate' : 'Concentrated';
+    return { score, label, hhi, topHolding, topPct, holdingCount };
+};
