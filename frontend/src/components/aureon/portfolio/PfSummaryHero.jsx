@@ -1,7 +1,7 @@
 import React from 'react';
 import { Sk } from '@/components/aureon/ui';
 
-export function PfSummaryHero({ netWorth, dayDelta, loading, fmt, onSnapshot, onLogTrade }) {
+export function PfSummaryHero({ netWorth, investedValue, unrealizedPnl, dayDelta, loading, fmt, onSnapshot, onLogTrade }) {
   if (loading && !netWorth) return (
     <div style={{ marginBottom:28, padding:'22px 24px', borderRadius:14, background:'rgba(255,255,255,0.025)', border:'1px solid rgba(255,255,255,0.07)' }}>
       <div style={{ display:'flex', flexDirection:'column', gap:10 }}>
@@ -25,10 +25,10 @@ export function PfSummaryHero({ netWorth, dayDelta, loading, fmt, onSnapshot, on
   const dayDlt = dayDelta?.dollars ?? 0;
   const dayPct = dayDelta?.pct ?? 0;
   const metricGrid = [
-    { label:'Invested',       val:'—',  sub:null },
+    { label:'Invested',       val: investedValue != null ? fmt(investedValue, 'USD', {dp:0}) : '—', sub:null },
     { label:'Current Value',  val: netWorth ? fmt(netWorth, 'USD', {dp:0}) : '—', sub:null },
-    { label:'Unrealized P/L', val:'—',  sub:null },
-    { label:'Realized P/L',   val:'—',  sub:'booked · closed positions', col:'var(--sage-500)' },
+    { label:'Unrealized P/L', val: unrealizedPnl != null ? fmt(unrealizedPnl, 'USD', {dp:0}) : '—', sub:null, col: unrealizedPnl != null ? (unrealizedPnl >= 0 ? 'var(--sage-500)' : 'var(--crimson-500)') : undefined },
+    { label:'Realized P/L',   val:'—',  sub:'no closed-position ledger yet', col:'var(--sage-500)' },
     { label:'XIRR',           val:'—',  sub:'annualized return',          col:'var(--aurum-300)' },
     { label:'CAGR',           val:'—',  sub:'cost → current value',       col:'var(--aurum-300)' },
   ];

@@ -246,6 +246,8 @@ export function useAureonData() {
         classLabel: CLASS_LABEL,
         classTarget: allocationTargets,
         netWorth,
+        investedValue: snapshot ? (snapshot.market_value || 0) - (snapshot.total_return || 0) : null,
+        unrealizedPnl: snapshot ? (snapshot.total_return ?? null) : null,
         dayDelta: {dollars: snapshot?.daily_return || 0, pct: (snapshot?.daily_return / (netWorth || 1)) || 0},
         signals,
         signalById,
