@@ -12,11 +12,11 @@ from sqlalchemy.orm import Session
 from app.api.dependencies import (
     get_config_service,
     get_current_user,
-    get_db,
     get_portfolio_service,
     get_user_context,
     get_watchlist_repo,
 )
+from app.core.database import get_db
 from app.core.api.schemas import (
     PortfolioCreate,
     PortfolioResponse,

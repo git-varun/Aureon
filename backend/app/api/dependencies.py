@@ -1,10 +1,8 @@
-from typing import Generator
-
 from fastapi import Depends
 from sqlalchemy.orm import Session
 
 from app.core.constants import DEFAULT_USER_ID
-from app.core.database import SessionLocal
+from app.core.database import get_db
 from app.core.entities.system import User
 from app.domain.services import (
     AIService,
@@ -38,14 +36,6 @@ from app.infrastructure.repositories import (
     WebNotificationsRepository,
 )
 
-
-# Database session dependency
-def get_db() -> Generator[Session, None, None]:
-    db = SessionLocal()
-    try:
-        yield db
-    finally:
-        db.close()
 
 # Repository dependencies
 def get_users_repo(db: Session = Depends(get_db)) -> UsersRepository:
