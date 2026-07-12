@@ -1,3 +1,5 @@
+import functools
+
 from celery import shared_task
 
 from app.core.database import SessionLocal
@@ -8,6 +10,42 @@ from app.core.redis import cache_quote
 # ProviderFactory -> ProviderRegistry -> ProviderProtocol (see ingest_quote below);
 # this set only preserves the original "unknown provider" validation surface.
 _MARKET_DATA_PROVIDERS = {"finnhub", "polygon", "yahoo", "binance_price"}
+
+
+def _skip_if_disabled(job_name: str):
+    """Decorator for beat-scheduled tasks: skip execution if JobConfig.enabled
+    is False for this job, logging clearly rather than silently no-op'ing.
+
+    Only apply this to tasks that actually have a beat_schedule entry
+    (celery_app.py) — for jobs with no beat entry, `enabled` implying
+    "scheduled" is a separate, already-flagged gap (CORE_CONFIG_MODULE_AUDIT.md,
+    workers audit 2.1) that this decorator does not address.
+    """
+    def decorator(fn):
+        @functools.wraps(fn)
+        def wrapper(*args, **kwargs):
+            from app.core.entities.config import JobStatus
+            from app.core.repositories.config import ConfigRepository
+            from app.core.services.config import ConfigService
+
+            db = SessionLocal()
+            try:
+                cfg_svc = ConfigService(ConfigRepository(db))
+                job = cfg_svc.get_job(job_name)
+                if job is not None and not job.enabled:
+                    logger.info(f"{job_name}: skipped — JobConfig.enabled is False")
+                    # A manual "Run Now" (unlike beat) pre-creates a RUNNING
+                    # JobLog row before dispatch — close it out here so it
+                    # doesn't sit at RUNNING forever.
+                    log_id = kwargs.get("log_id")
+                    if log_id is not None:
+                        cfg_svc.log_job_end(log_id, JobStatus.SUCCESS, error="skipped — JobConfig.enabled is False")
+                    return None
+            finally:
+                db.close()
+            return fn(*args, **kwargs)
+        return wrapper
+    return decorator
 
 @shared_task(name="app.workers.ingestion.tasks.ingest_quote")  # type: ignore
 def ingest_quote(provider_name: str, symbol: str) -> bool:
@@ -213,11 +251,13 @@ def sync_groww_task(log_id: int | None = None, **kwargs) -> None:
 
 
 @shared_task(name="app.workers.ingestion.tasks.refresh_prices_task")
+@_skip_if_disabled("refresh_prices")
 def refresh_prices_task(log_id: int | None = None, **kwargs) -> None:
     _wrap_job_execution("refresh_prices", log_id, ingest_all_quotes)
 
 
 @shared_task(name="app.workers.ingestion.tasks.fetch_news_task")
+@_skip_if_disabled("fetch_news")
 def fetch_news_task(log_id: int | None = None, **kwargs) -> None:
     def _run_fetch():
         from app.core.exceptions import ProviderError
@@ -284,6 +324,7 @@ def monthly_briefing_task(log_id: int | None = None, **kwargs) -> None:
 
 
 @shared_task(name="app.workers.ingestion.tasks.seed_price_history_task")
+@_skip_if_disabled("seed_price_history")
 def seed_price_history_task(log_id: int | None = None, **kwargs) -> None:
     def _run():
         from app.modules.ai.services.data_maintenance import MarketSeedService
@@ -300,6 +341,7 @@ def seed_price_history_task(log_id: int | None = None, **kwargs) -> None:
 
 
 @shared_task(name="app.workers.ingestion.tasks.seed_market_universe_task")
+@_skip_if_disabled("seed_market_universe")
 def seed_market_universe_task(log_id: int | None = None, **kwargs) -> None:
     def _run():
         from app.modules.ai.services.data_maintenance import MarketSeedService
