@@ -39,7 +39,7 @@ def ingest_quote(provider_name: str, symbol: str) -> bool:
         except Exception as e:
             db.rollback()
             ingestion_svc.record_failure(provider_name, symbol, str(e))
-            return False
+            raise
     finally:
         db.close()
 
@@ -220,6 +220,8 @@ def refresh_prices_task(log_id: int | None = None, **kwargs) -> None:
 @shared_task(name="app.workers.ingestion.tasks.fetch_news_task")
 def fetch_news_task(log_id: int | None = None, **kwargs) -> None:
     def _run_fetch():
+        from app.core.exceptions import ProviderError
+
         db = SessionLocal()
         try:
             from app.modules.news.services.news import NewsService
@@ -231,8 +233,23 @@ def fetch_news_task(log_id: int | None = None, **kwargs) -> None:
                 symbols = ["AAPL", "TSLA", "RELIANCE.NS"]
 
             news_svc = NewsService(NewsRepository(db))
+            failed_symbols = []
             for sym in symbols:
-                news_svc.fetch_and_store(sym)
+                try:
+                    news_svc.fetch_and_store(sym)
+                except ProviderError as e:
+                    # An isolated per-symbol failure (e.g. one delisted ticker
+                    # both providers reject) shouldn't abort the whole run —
+                    # only escalate if every symbol this cycle hit total
+                    # provider failure, which is the real "pipeline is down" signal.
+                    logger.error(f"fetch_news_task: all providers failed for symbol={sym}: {e}")
+                    failed_symbols.append(sym)
+
+            if symbols and len(failed_symbols) == len(symbols):
+                raise ProviderError(
+                    f"fetch_news_task: all {len(symbols)} symbol(s) had total provider failure "
+                    f"this cycle: {', '.join(failed_symbols)}"
+                )
         finally:
             db.close()
     _wrap_job_execution("fetch_news", log_id, _run_fetch)
