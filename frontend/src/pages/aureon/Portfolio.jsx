@@ -44,7 +44,7 @@ export default function Portfolio() {
   const navigate = useNavigate();
   const qc       = useQueryClient();
   const fmt      = useFmtMoney();
-  const { holdings, netWorth, dayDelta, loading, allocByClass, activity } = useAureonData();
+  const { holdings, netWorth, investedValue, unrealizedPnl, dayDelta, loading, allocByClass, activity } = useAureonData();
   const [showTrade,  setShowTrade]  = useState(false);
   const [showManual, setShowManual] = useState(false);
 
@@ -58,6 +58,8 @@ export default function Portfolio() {
       {/* 2 · Summary hero */}
       <PfSummaryHero
         netWorth={netWorth}
+        investedValue={investedValue}
+        unrealizedPnl={unrealizedPnl}
         dayDelta={dayDelta}
         loading={loading}
         fmt={fmt}
