@@ -22,6 +22,7 @@ class ProviderConfigResponse(BaseModel):
     enabled: bool
     key_names: List[str]
     keys_status: Dict[str, bool]
+    keys_health: Dict[str, str] = {}
     config: Dict[str, Any]
     status: str = "PLANNED"
     capabilities: List[str] = []

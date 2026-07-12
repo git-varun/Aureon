@@ -44,6 +44,18 @@ def _decrypt_strict(token: str, secret: str) -> str:
     of a rotation failure."""
     return _fernet(secret).decrypt(token.encode()).decode()
 
+def _decrypt_health(token: str) -> str:
+    """Whether a stored credential still decrypts, without exposing the value.
+    Used only by the Settings UI's credential list so a corrupted/rotation-failed
+    key doesn't look identical to "not configured" — other _decrypt() call sites
+    (broker sync, AI key checks) intentionally keep treating decrypt failure as
+    absent and fail loudly downstream instead."""
+    try:
+        _fernet().decrypt(token.encode())
+        return "ok"
+    except Exception:
+        return "corrupted"
+
 def _safe_json_load(data: str, default: Any) -> Any:
     try:
         return json.loads(data) if data else default
@@ -55,12 +67,14 @@ def _provider_to_dict(p: ProviderConfig) -> dict[str, Any]:
     encrypted = _safe_json_load(p.encrypted_keys, {})
     key_names = _safe_json_load(p.key_names, [])
     keys_status = {k: bool(encrypted.get(k)) for k in key_names}
+    keys_health = {k: (_decrypt_health(encrypted[k]) if encrypted.get(k) else "not_set") for k in key_names}
     return {
         "provider_name": p.provider_name,
         "provider_type": p.provider_type,
         "enabled": p.enabled,
         "key_names": key_names,
         "keys_status": keys_status,
+        "keys_health": keys_health,
         "config": _safe_json_load(p.config, {}),
         "status": p.status,
         "capabilities": _safe_json_load(p.capabilities, []),

@@ -45,6 +45,7 @@ function ProviderRow({provider, onToggle, onSetKey, onRemoveKey}) {
             ? (rawKeys.startsWith('[') ? JSON.parse(rawKeys) : rawKeys.split(',').map(s => s.trim()).filter(Boolean))
             : [];
     const keysStatus = provider.keys_status || {};
+    const keysHealth = provider.keys_health || {};
     const allKeysSet = keyNames.length === 0 || keyNames.every(k => keysStatus[k]);
 
     const statusColor = provider.enabled
@@ -144,9 +145,11 @@ function ProviderRow({provider, onToggle, onSetKey, onRemoveKey}) {
                                     <span style={{fontSize: 10.5, letterSpacing: '0.12em', textTransform: 'uppercase', color: 'var(--ink-30)', fontWeight: 600}}>
                                         {KEY_LABELS[keyName] || keyName}
                                     </span>
-                                    {isSet
-                                        ? <span style={{fontSize: 11, color: 'var(--sage-500)'}}>● Set</span>
-                                        : <span style={{fontSize: 11, color: 'var(--dusk-500)'}}>● Not set</span>}
+                                    {keysHealth[keyName] === 'corrupted'
+                                        ? <span style={{fontSize: 11, color: 'var(--crimson-500)'}}>● Corrupted — re-enter</span>
+                                        : isSet
+                                            ? <span style={{fontSize: 11, color: 'var(--sage-500)'}}>● Set</span>
+                                            : <span style={{fontSize: 11, color: 'var(--dusk-500)'}}>● Not set</span>}
                                 </div>
                                 <div style={{display: 'flex', gap: 8, alignItems: 'center'}}>
                                     <div style={{position: 'relative', flex: 1}}>
