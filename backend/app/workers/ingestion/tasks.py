@@ -316,28 +316,11 @@ def seed_market_universe_task(log_id: int | None = None, **kwargs) -> None:
     _wrap_job_execution("seed_market_universe", log_id, _run)
 
 
-@shared_task(name="app.workers.ingestion.tasks.recompute_features")
-def recompute_features(asset_id: str) -> None:
-    from app.workers.evaluation.features import generate_features
-    generate_features.delay(asset_id)
-
-
-@shared_task(name="app.workers.ingestion.tasks.recompute_signals")
-def recompute_signals(asset_id: str) -> None:
-    from app.workers.evaluation.signals import generate_signals
-    generate_signals.delay(asset_id)
-
-
-@shared_task(name="app.workers.ingestion.tasks.recompute_scores")
-def recompute_scores(asset_id: str) -> None:
-    from app.workers.evaluation.scoring import generate_scores
-    generate_scores.delay(asset_id)
-
-
 @shared_task(name="app.workers.ingestion.tasks.admin_reprocess_all_assets")
 def admin_reprocess_all_assets(log_id: int | None = None, **kwargs) -> None:
     def _run():
         from app.modules.market.repositories.ingestion import IngestionRepository
+        from app.workers.evaluation.features import generate_features
 
         db = SessionLocal()
         try:
@@ -345,14 +328,16 @@ def admin_reprocess_all_assets(log_id: int | None = None, **kwargs) -> None:
         finally:
             db.close()
         for aid in asset_ids:
-            recompute_features.delay(str(aid))
+            generate_features.delay(str(aid))
     _wrap_job_execution("admin_reprocess_all", log_id, _run)
 
 
 @shared_task(name="app.workers.ingestion.tasks.admin_backfill_assets")
 def admin_backfill_assets(asset_ids: list[str]) -> None:
+    from app.workers.evaluation.features import generate_features
+
     for aid in asset_ids:
-        recompute_features.delay(aid)
+        generate_features.delay(aid)
 
 
 @shared_task(name="app.workers.ingestion.tasks.admin_repair_jobs")
@@ -362,6 +347,7 @@ def admin_repair_jobs(log_id: int | None = None, **kwargs) -> None:
         from app.modules.market.repositories.asset_features import AssetFeaturesRepository
         from app.modules.market.repositories.asset_scores import AssetScoresRepository
         from app.modules.ai.repositories.recommendation import RecommendationRepository
+        from app.workers.evaluation.features import generate_features
 
         db = SessionLocal()
         try:
@@ -373,7 +359,7 @@ def admin_repair_jobs(log_id: int | None = None, **kwargs) -> None:
         finally:
             db.close()
         for asset_id in missing:
-            recompute_features.delay(str(asset_id))
+            generate_features.delay(str(asset_id))
     _wrap_job_execution("admin_repair", log_id, _run)
 
 
