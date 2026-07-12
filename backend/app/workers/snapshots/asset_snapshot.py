@@ -32,4 +32,7 @@ def process_asset_snapshot(asset_id: str) -> None:
             cache_asset_snapshot(str(aid), cache_data)
 
     from app.workers.evaluation.features import generate_features
-    generate_features.delay(str(aid))
+    # Pass the indicators already fetched above through to generate_signals so
+    # it doesn't make its own redundant get_technical_indicators call moments
+    # later for the same symbol (see EVALUATION_MODULE_AUDIT.md 2.4).
+    generate_features.delay(str(aid), indicators)
