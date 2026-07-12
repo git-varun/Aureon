@@ -82,7 +82,7 @@ The backend is domain-driven, not module-per-feature. Each layer has one job and
 - domain/services/*.py — Business logic (receives a Session, raises AppException subclasses from app.core.exceptions).  
 - infrastructure/providers/*.py — External market-data adapters (yahoo.py, finnhub.py, polygon.py) implementing get_quote/get_news/health_check. On missing credentials or a failed call they raise ProviderError — no silent mock/fake data fallback in production code.  
 - infrastructure/repositories/*.py — Raw DB query helpers, one per aggregate (portfolios, positions, transactions, users, recommendation, watchlist, notification, news, config, asset_snapshot, asset_features, asset_scores, asset_health, feature_snapshots, job_runs).  
-- workers/*.py — Celery tasks: celery_app.py (app config, task routes, beat schedule, reads REDIS_URL), ingestion/tasks.py (quote ingestion), snapshots/asset_snapshot.py, evaluation/{features,scoring,signals,validation}.py, monitoring/{asset_health,providers,recovery,slas}.py.  
+- workers/*.py — Celery tasks: celery_app.py (app config, task routes, beat schedule, reads REDIS_URL), ingestion/tasks.py (quote ingestion), snapshots/asset_snapshot.py, evaluation/{features,scoring,signals}.py, monitoring/asset_health.py.  
 **Core infrastructure (**app/core/**)**  
 - config.py — Pydantic-Settings singleton (settings); reads .env from project root. PostgreSQL is mandatory.  
 - database.py — SQLAlchemy engine + SessionLocal + get_db(). Schema-qualified tables are managed by Alembic migrations, not create_all, outside of tests.  
