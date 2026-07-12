@@ -90,7 +90,7 @@ The backend is domain-driven, not module-per-feature. Each layer has one job and
 - dependencies.py — FastAPI dependency functions (get_db, get_current_user, get_user_context, serialize_user_profile).  
 - logger.py — Structured logger with correlation ID via contextvars.  
 - security.py — JWT encode/decode helpers.  
-- exceptions.py — AppException hierarchy: InfrastructureError -> DatabaseError, ProviderError, EvaluationError, BusinessRuleError -> ConflictError/NotFoundError, SecurityError -> AuthenticationError/AuthorizationError -> PermissionDeniedError, ValidationError.  
+- exceptions.py — AppException hierarchy: InfrastructureError -> DatabaseError; ProviderError; EvaluationError; BusinessRuleError -> ConflictError/NotFoundError; SecurityError; AuthenticationError; AuthorizationError -> PermissionDeniedError; ValidationError. (SecurityError, AuthenticationError, and AuthorizationError are direct siblings under AppException, not nested under each other.)  
 - observability/ — decorators.py (service/provider call tracing), logging.py, middleware.py, metrics.py, health.py, audit.py, and related cross-cutting concerns.  
 **AI service (**app/domain/services/ai.py**)**  
 Multi-model fallback chain: Gemini (4 models) -> Groq (2 models). On HTTP 429 a model is cooled down and the next is tried automatically. If no credentials are configured or all models are exhausted, it raises ProviderError — no fake/mock briefing fallback in production. All AI results are stored in the AIBriefing table and also cached in Redis. (AUREON_TEST_MOCK_AI=true is an explicit, documented test-only escape hatch, not a production path.)  
@@ -100,7 +100,7 @@ Portfolio provider/parser details: see modules/portfolio/PROVIDERS.md.
 **Frontend (**frontend/**)**  
 React + Vite SPA. All API calls go through the single client frontend/src/api/apiService.js (baseURL /api/v1). Components are under frontend/src/components/aureon/, pages under frontend/src/pages/aureon/. The dev proxy is configured in vite.config.js to forward /api/* to the FastAPI server.  
 **Configuration**  
-Copy .env.example to .env. Required: DATABASE_URL (must be postgresql://...), REDIS_URL. Optional but needed for full functionality: GEMINI_API_KEY/GROQ_API_KEY, FINNHUB_API_KEY, POLYGON_API_KEY, broker credentials (BINANCE_*, ZERODHA_*, GROWW_*). Without these, the corresponding provider/AI calls fail loudly (ProviderError) rather than returning fake data.  
+Copy .env.example to .env. Required: DATABASE_URL (must be postgresql://...), REDIS_URL. Optional but needed for full functionality: GEMINI_API_KEY/GROQ_API_KEY, FINNHUB_API_KEY, POLYGON_API_KEY. Broker credentials (Binance, Zerodha, Groww) are not env vars — they're stored DB-side in ProviderConfig.encrypted_keys and set via the Settings UI / config API. Without these, the corresponding provider/AI calls fail loudly (ProviderError) rather than returning fake data.  
 Without Redis the app will fail startup checks as Redis is required for worker coordination and cache operations.  
 **Adding a New API Resource**  
 1. Add/extend a model in app/domain/entities/<schema>.py (tables are schema-qualified and created via Alembic migrations — see Database migrations above).  
