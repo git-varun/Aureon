@@ -102,7 +102,11 @@ export function useAureonData() {
     const holdings = useMemo(() => {
         return positions.map(pos => {
             const assetData = assetsMap[pos.symbol] || {};
-            const price = assetData.price || pos.avg_buy_price || null;
+            // pos.price is the same resolve_position_price() value the backend's
+            // snapshot.market_value (netWorth) is built from — using it here keeps
+            // allocByClass's numerator and netWorth's denominator on one price
+            // source. assetData.price (from /assets search) disagrees per-asset.
+            const price = pos.price ?? assetData.price ?? pos.avg_buy_price ?? null;
             return {
                 id: pos.symbol,
                 ticker: pos.symbol.toUpperCase().replace(/\.NS$/i, ''),
