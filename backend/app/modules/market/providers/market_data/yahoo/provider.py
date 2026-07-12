@@ -151,8 +151,12 @@ class YahooAdapter(MarketDataProvider):
                 returns = closes.pct_change().dropna()
                 volatility_val = float(returns.std()) if not returns.empty else None
 
-                action = "SELL" if (rsi_val or 50) > 70 else "BUY" if (rsi_val or 50) < 30 else "HOLD"
-                trend = "Overbought" if (rsi_val or 50) > 70 else "Oversold" if (rsi_val or 50) < 30 else "Neutral"
+                if rsi_val is None:
+                    action = None
+                    trend = None
+                else:
+                    action = "SELL" if rsi_val > 70 else "BUY" if rsi_val < 30 else "HOLD"
+                    trend = "Overbought" if rsi_val > 70 else "Oversold" if rsi_val < 30 else "Neutral"
 
                 news = ticker.news
                 latest_news_ts = 0
