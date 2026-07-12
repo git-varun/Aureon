@@ -26,7 +26,6 @@ class HealthResponse(BaseModel):
     dependencies: DependencyStatus
     providers: dict[str, str]
     migration_version: str
-    build_version: str
     configuration: dict[str, Any]
 
 
@@ -102,10 +101,7 @@ async def health_check(
     except Exception:
         migration_version = "none" # Table might not exist yet if not migrated
 
-    # 6. Build Version
-    build_version = "9A.3-production"
-
-    # 7. Configuration Status
+    # 6. Configuration Status
     config_status = {
         "debug_mode": settings.DEBUG,
         "google_oauth_configured": settings.GOOGLE_CLIENT_ID is not None,
@@ -133,7 +129,6 @@ async def health_check(
         ),
         providers=providers_summary,
         migration_version=migration_version,
-        build_version=build_version,
         configuration=config_status
     )
 
