@@ -84,6 +84,15 @@ class AssetHealthService(BaseService):
         if signal_age is None or news_age is None:
             snapshot = self.market_repo.get_snapshot(asset_id)
             if snapshot:
+                # On a signals-cache miss, signal_age falls back to
+                # AssetSnapshot.updated_at — a proxy, not a direct read of
+                # when signals were actually (re)computed. It's a close
+                # proxy in practice (process_asset_snapshot and
+                # generate_signals run back-to-back in the same chain
+                # execution, and as of the get_technical_indicators dedup
+                # fix now share the same fetched indicators), but the field
+                # name doesn't guarantee it's measuring signal freshness
+                # specifically. See EVALUATION_MODULE_AUDIT.md 3.4.
                 if signal_age is None and snapshot.updated_at:
                     snap_updated_at = snapshot.updated_at
                     if snap_updated_at.tzinfo is None:
