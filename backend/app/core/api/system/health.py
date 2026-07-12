@@ -62,7 +62,10 @@ async def health_check(
     redis_status = "healthy" if redis_healthy else "unhealthy"
 
     # 3. Celery check — offloaded to a thread to avoid blocking the event loop
-    celery_status = await asyncio.to_thread(_check_celery_sync)
+    try:
+        celery_status = await asyncio.wait_for(asyncio.to_thread(_check_celery_sync), timeout=15.0)
+    except asyncio.TimeoutError:
+        celery_status = "unknown: timed out"
 
     # 4. Providers health
     providers_summary: dict[str, str] = {}
