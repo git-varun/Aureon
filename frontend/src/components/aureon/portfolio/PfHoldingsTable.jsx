@@ -77,6 +77,7 @@ export function PfHoldingsTable({ holdings, loading, fmt, onLogTrade, onAddManua
         <SortHdr col="pl" sortC={sortC} sortD={sortD} onToggle={toggleSort}>P/L</SortHdr>
         <div style={{ fontSize:10, letterSpacing:'0.12em', textTransform:'uppercase', color:'var(--ink-40)', fontWeight:600, textAlign:'right' }}>Actions</div>
       </div>
+      <div style={{ maxHeight:560, overflowY:'auto' }}>
       {filtered.length === 0 ? (
         <div style={{ padding:'28px 16px', textAlign:'center', fontSize:13, color:'var(--ink-40)' }}>
           {q || cls !== 'all' ? 'No holdings match your filter.' : 'No holdings yet. Import your portfolio to get started.'}
@@ -134,6 +135,7 @@ export function PfHoldingsTable({ holdings, loading, fmt, onLogTrade, onAddManua
           </div>
         );
       })}
+      </div>
     </div>
   );
 }
