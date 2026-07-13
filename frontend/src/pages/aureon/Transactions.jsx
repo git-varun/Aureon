@@ -1,5 +1,6 @@
 /* Aureon — Transactions ledger (prototype-aligned) */
 import React, { useState, useMemo, useCallback, useEffect } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { toast } from 'react-hot-toast';
 import { apiService } from '@/api/apiService';
@@ -753,6 +754,7 @@ const SUB_TABS = [
 ];
 
 export default function Transactions() {
+  const navigate = useNavigate();
   const qc = useQueryClient();
   const { activePortfolioId } = usePortfolio();
   const [subTab, setSubTab] = useState('confirmed');
@@ -780,7 +782,7 @@ export default function Transactions() {
           <h1 style={{ fontFamily:'var(--font-heading)', fontSize:24, fontWeight:700, color:'var(--ink-00)', margin:0, letterSpacing:'-0.02em' }}>Transactions</h1>
         </div>
         <div style={{ display:'flex', gap:8, alignItems:'center' }}>
-          <button disabled title="Coming soon" style={{ height:36, padding:'0 14px', borderRadius:7, fontSize:12.5, background:'rgba(255,255,255,0.02)', border:'1px solid rgba(255,255,255,0.05)', color:'var(--ink-40)', cursor:'not-allowed', fontFamily:'var(--font-ui)', display:'inline-flex', alignItems:'center', gap:6 }}>
+          <button onClick={() => navigate('/settings#import-data')} style={{ height:36, padding:'0 14px', borderRadius:7, fontSize:12.5, background:'rgba(255,255,255,0.03)', border:'1px solid rgba(255,255,255,0.08)', color:'var(--ink-20)', cursor:'pointer', fontFamily:'var(--font-ui)', display:'inline-flex', alignItems:'center', gap:6 }}>
             <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>
             Import CSV
           </button>
