@@ -228,13 +228,16 @@ export function useAureonData() {
     // instead (price_source === 'market' only — manual/cost_basis positions
     // don't carry a quote_updated_at). No market-sourced positions at all
     // means genuinely "unknown", not "live".
+    const marketQuotedPositions = useMemo(() => (
+        positions.filter(p => p.price_source === 'market' && p.quote_updated_at)
+    ), [positions]);
+
     const oldestMarketQuoteAt = useMemo(() => {
-        const marketQuoteTimes = positions
-            .filter(p => p.price_source === 'market' && p.quote_updated_at)
+        const marketQuoteTimes = marketQuotedPositions
             .map(p => new Date(p.quote_updated_at).getTime())
             .filter(t => !isNaN(t));
         return marketQuoteTimes.length ? new Date(Math.min(...marketQuoteTimes)).toISOString() : null;
-    }, [positions]);
+    }, [marketQuotedPositions]);
 
     const loading = positionsQuery.isLoading || snapshotQuery.isLoading || recommendationsQuery.isLoading || transactionsQuery.isLoading;
     const error = positionsQuery.error || snapshotQuery.error || recommendationsQuery.error || transactionsQuery.error;
@@ -259,6 +262,7 @@ export function useAureonData() {
         aiBriefing,
         freshness: {
             refresh_prices: oldestMarketQuoteAt,
+            refresh_prices_count: marketQuotedPositions.length,
             fetch_news: fetchNewsLastRunAt,
             daily_briefing: aiBriefing?.created_at ?? null,
         },
