@@ -671,6 +671,19 @@ class PortfolioService(BaseService):
                 )
                 self.transactions_repo.create(txn)
 
+            if h.get("current_nav"):
+                from app.core.providers.models import NormalizedQuote
+                from app.modules.market.repositories.ingestion import IngestionRepository
+                IngestionRepository(self.session).upsert_quote(
+                    NormalizedQuote(
+                        symbol=symbol,
+                        provider="nps_statement_import",
+                        timestamp=datetime.now(timezone.utc),
+                        price=h["current_nav"],
+                    ),
+                    asset_id,
+                )
+
             symbols_to_recalc.add(symbol)
 
         # Per-row transactions — same (broker, broker_reference) dedup pattern as
