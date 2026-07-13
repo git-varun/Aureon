@@ -71,6 +71,11 @@ def resolve_position_price(session: Session, pos: Position) -> PositionPrice:
     timestamp, exposed so callers (e.g. the dashboard's Prices freshness
     tile, see Fix M) can find the oldest real market quote across a set of
     positions rather than just a per-position live/fresh/stale label.
+    A LatestQuote row can exist with price == 0 (e.g. mutual fund/NPS/EPF
+    symbols with no NAV ingestion path — see AUREON handoff notes); labeling
+    that "market" would claim a real quote backed a value that's actually
+    unpriced, so it's labeled "unavailable" instead and carries no staleness
+    status, same as "manual".
     """
     quote = session.scalar(select(LatestQuote).filter_by(symbol=pos.symbol))
     if quote and quote.price is not None:
@@ -82,6 +87,8 @@ def resolve_position_price(session: Session, pos: Position) -> PositionPrice:
         )
         if is_manual:
             return PositionPrice(float(quote.price), "manual", None, None)
+        if quote.price == 0:
+            return PositionPrice(0.0, "unavailable", None, None)
         updated_at = quote.updated_at
         if updated_at.tzinfo is None:
             updated_at = updated_at.replace(tzinfo=timezone.utc)
