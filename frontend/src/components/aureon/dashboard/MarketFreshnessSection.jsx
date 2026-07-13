@@ -74,13 +74,13 @@ function FItem({ icon, title, item }) {
 // Never returns null — a missing/invalid timestamp is a distinct 'unknown'
 // state (job never completed successfully), not the same as 'stale' (ran
 // before, now past threshold), and must not make the tile disappear.
-const deriveItem = (isoStr, thresholds) => {
+const deriveItem = (isoStr, thresholds, n = '—') => {
   if (!isoStr) return { at: null, n: '—', status: 'unknown' };
   const at = new Date(isoStr);
   if (isNaN(at.getTime())) return { at: null, n: '—', status: 'unknown' };
   const ageMs = Date.now() - at.getTime();
   const status = ageMs < thresholds.live ? 'live' : ageMs < thresholds.fresh ? 'fresh' : 'stale';
-  return { at, n: '—', status };
+  return { at, n, status };
 };
 
 /** Derives freshness data from the `freshness` prop passed in from useAureonData */
@@ -88,7 +88,7 @@ export function MarketFreshnessSection({ freshness }) {
   if (!freshness) return null;
 
   const data = {
-    prices: deriveItem(freshness.refresh_prices, THRESHOLDS.prices),
+    prices: deriveItem(freshness.refresh_prices, THRESHOLDS.prices, freshness.refresh_prices_count ?? '—'),
     news: deriveItem(freshness.fetch_news, THRESHOLDS.news),
     ai: deriveItem(freshness.daily_briefing, THRESHOLDS.ai),
   };
