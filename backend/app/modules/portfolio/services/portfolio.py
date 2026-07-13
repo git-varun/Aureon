@@ -36,14 +36,24 @@ from app.infrastructure.repositories import (
 _QUOTE_LIVE_SECONDS = 5 * 60
 _QUOTE_FRESH_SECONDS = 15 * 60
 
+# mutual_fund/nps NAVs update once daily (statement import or AMFI's daily
+# publish), not continuously like equities/crypto — the 5min/15min bands
+# would always read "stale" for data that's actually current by NAV standards.
+_NAV_ASSET_CLASSES = {"mutual_fund", "nps"}
+_NAV_LIVE_SECONDS = 24 * 60 * 60
+_NAV_FRESH_SECONDS = 48 * 60 * 60
 
-def _quote_age_status(updated_at: datetime) -> str:
+
+def _quote_age_status(updated_at: datetime, asset_class: Optional[str] = None) -> str:
     if updated_at.tzinfo is None:
         updated_at = updated_at.replace(tzinfo=timezone.utc)
     age_seconds = (datetime.now(timezone.utc) - updated_at).total_seconds()
-    if age_seconds < _QUOTE_LIVE_SECONDS:
+    live_seconds, fresh_seconds = _QUOTE_LIVE_SECONDS, _QUOTE_FRESH_SECONDS
+    if asset_class in _NAV_ASSET_CLASSES:
+        live_seconds, fresh_seconds = _NAV_LIVE_SECONDS, _NAV_FRESH_SECONDS
+    if age_seconds < live_seconds:
         return "live"
-    if age_seconds < _QUOTE_FRESH_SECONDS:
+    if age_seconds < fresh_seconds:
         return "fresh"
     return "stale"
 
@@ -92,7 +102,8 @@ def resolve_position_price(session: Session, pos: Position) -> PositionPrice:
         updated_at = quote.updated_at
         if updated_at.tzinfo is None:
             updated_at = updated_at.replace(tzinfo=timezone.utc)
-        return PositionPrice(float(quote.price), "market", _quote_age_status(quote.updated_at), updated_at)
+        asset_class = asset.asset_class if asset else None
+        return PositionPrice(float(quote.price), "market", _quote_age_status(quote.updated_at, asset_class), updated_at)
     return PositionPrice(float(pos.avg_buy_price), "cost_basis", None, None)
 
 
