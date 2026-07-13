@@ -317,7 +317,8 @@ class FinancialIntelligenceService(BaseService):
         sectors = set()
         total_val = 0.0
         weights = []
-        
+        class_values: Dict[str, float] = {}
+
         for pos in positions:
             asset = self.repo.get_asset(pos.asset_id)
             if asset:
@@ -330,7 +331,13 @@ class FinancialIntelligenceService(BaseService):
             total_val += val
             weights.append(val)
 
+            if asset:
+                class_values[asset.asset_class] = class_values.get(asset.asset_class, 0.0) + val
+
         s_sector = min(100.0, len(sectors) * (100.0 / sector_count_thresh) if sector_count_thresh > 0 else 20.0)
+
+        top_class, top_class_value = max(class_values.items(), key=lambda kv: kv[1]) if class_values else (None, 0.0)
+        top_class_weight = (top_class_value / total_val) if total_val > 0 else 0.0
         
         # 3. Herfindahl-Hirschman Index (HHI) for allocation balance
         hhi = 0.0
@@ -350,6 +357,10 @@ class FinancialIntelligenceService(BaseService):
             "allocation_balance_score": round(s_balance, 1),
             "hhi": round(hhi, 4),
             "position_count": asset_count,
+            "asset_class_count": len(class_values),
+            "sector_count": len(sectors),
+            "top_asset_class": top_class,
+            "top_asset_class_weight": round(top_class_weight, 4),
         }
 
     def get_portfolio_risk_summary(self, portfolio_id: uuid.UUID) -> Dict[str, Any]:
