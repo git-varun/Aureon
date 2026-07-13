@@ -58,6 +58,10 @@ celery_app.conf.beat_schedule = {
         "task": "app.workers.ingestion.tasks.fetch_news_task",
         "schedule": crontab(minute=0, hour="*/4"),
     },
+    "refresh-mutual-fund-navs": {
+        "task": "app.workers.ingestion.tasks.refresh_mutual_fund_navs_task",
+        "schedule": crontab(hour=23, minute=0),
+    },
 }
 
 

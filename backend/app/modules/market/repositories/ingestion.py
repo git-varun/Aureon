@@ -103,3 +103,18 @@ class IngestionRepository(BaseRepository):
 
     def list_quoted_symbols(self, limit: int) -> list[str]:
         return [r[0] for r in self.session.query(LatestQuote.symbol).limit(limit).all()]
+
+    def list_mutual_fund_assets_with_quotes(self) -> list[tuple[uuid.UUID, str]]:
+        """(asset_id, symbol) for every mutual_fund asset — used by the daily AMFI
+        NAV task. Unlike list_equity_assets_with_quotes, this isn't gated on an
+        existing LatestQuote: mutual_fund Assets are only ever created via
+        ensure_asset_exists during a real holdings import (no canonical-universe
+        seeding for this asset_class), so asset_class alone already scopes this
+        to ISINs actually held — see NAV_INGESTION_SCOPE.md §5."""
+        return [
+            (r[0], r[1])
+            for r in self.session.query(Asset.id, Asset.symbol)
+            .filter(Asset.asset_class == "mutual_fund")
+            .distinct()
+            .all()
+        ]

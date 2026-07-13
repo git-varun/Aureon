@@ -405,6 +405,71 @@ def admin_repair_jobs(log_id: int | None = None, **kwargs) -> None:
     _wrap_job_execution("admin_repair", log_id, _run)
 
 
+@shared_task(name="app.workers.ingestion.tasks.refresh_mutual_fund_navs_task")
+@_skip_if_disabled("refresh_mutual_fund_navs")
+def refresh_mutual_fund_navs_task(log_id: int | None = None, **kwargs) -> None:
+    def _run():
+        from datetime import datetime, timezone
+        from app.core.exceptions import ProviderError
+        from app.core.providers.factory import ProviderFactory
+        from app.core.providers.models import NormalizedQuote
+        from app.core.repositories.config import ConfigRepository
+        from app.core.services.config import ConfigService
+        from app.modules.market.repositories.ingestion import IngestionRepository
+
+        db = SessionLocal()
+        try:
+            assets = IngestionRepository(db).list_mutual_fund_assets_with_quotes()
+        finally:
+            db.close()
+
+        if not assets:
+            logger.info("refresh_mutual_fund_navs_task: no mutual fund holdings found")
+            return
+
+        db = SessionLocal()
+        try:
+            adapter = ProviderFactory(ConfigService(ConfigRepository(db))).get("mfapi")
+            isin_to_nav = adapter.get_all_navs()
+        finally:
+            db.close()
+
+        matched = 0
+        unmatched = []
+        db = SessionLocal()
+        try:
+            repo = IngestionRepository(db)
+            for asset_id, symbol in assets:
+                isin = symbol.removesuffix("_MF")
+                nav = isin_to_nav.get(isin)
+                if nav is None:
+                    unmatched.append(symbol)
+                    continue
+                repo.upsert_quote(
+                    NormalizedQuote(
+                        symbol=symbol,
+                        provider="mfapi",
+                        timestamp=datetime.now(timezone.utc),
+                        price=nav,
+                    ),
+                    asset_id,
+                )
+                matched += 1
+            db.commit()
+        finally:
+            db.close()
+
+        if unmatched:
+            logger.warning(
+                f"refresh_mutual_fund_navs_task: no AMFI NAV match for {len(unmatched)} symbol(s): {', '.join(unmatched)}"
+            )
+        logger.info(f"refresh_mutual_fund_navs_task: updated {matched}/{len(assets)} mutual fund NAV(s)")
+
+        if matched == 0:
+            raise ProviderError("refresh_mutual_fund_navs_task: no AMFI NAV matched any held mutual fund symbol")
+    _wrap_job_execution("refresh_mutual_fund_navs", log_id, _run)
+
+
 @shared_task(name="app.workers.ingestion.tasks.validate_data_quality_task")
 def validate_data_quality_task(log_id: int | None = None, **kwargs) -> None:
     def _run():
