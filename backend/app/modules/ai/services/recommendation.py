@@ -79,14 +79,30 @@ class RecommendationService(BaseService):
         pipeline (materialize_for_asset) and the manual batch trigger
         (generate_recommendations). Returns None without writing anything if a
         required factor hasn't been computed yet — never fabricates a neutral
-        substitute for a missing value."""
-        required_factors = (
-            features.momentum_score,
-            features.volatility_score,
-            features.sentiment_score,
-            scores.quality_score,
-            scores.valuation_score,
-        )
+        substitute for a missing value.
+
+        Crypto has no fundamentals analog (FUNDAMENTALS_SCORING_SCOPE.md §6) so
+        quality_score/valuation_score are permanently None for it — the gate and
+        rule engine branch on asset_class so crypto materializes off
+        momentum/volatility/sentiment alone instead of staying dark forever.
+        """
+        asset = self.session.get(Asset, asset_id)
+        is_crypto = asset is not None and asset.asset_class == "crypto"
+
+        if is_crypto:
+            required_factors = (
+                features.momentum_score,
+                features.volatility_score,
+                features.sentiment_score,
+            )
+        else:
+            required_factors = (
+                features.momentum_score,
+                features.volatility_score,
+                features.sentiment_score,
+                scores.quality_score,
+                scores.valuation_score,
+            )
         if any(f is None for f in required_factors):
             # A required factor hasn't been computed yet for this asset —
             # skip rather than run the rule engine on a fabricated neutral value.
@@ -96,9 +112,6 @@ class RecommendationService(BaseService):
         volatility = float(features.volatility_score)
         sentiment = float(features.sentiment_score)
 
-        quality = float(scores.quality_score)
-        valuation = float(scores.valuation_score)
-
         # Rule Engine (Deterministic)
         rec_state = "HOLD"
         reasoning = "Asset parameters remain within stable bounds. Recommending holding current position."
@@ -106,30 +119,68 @@ class RecommendationService(BaseService):
         confidence_factors = {}
         confidence_score = 0.5
 
-        if valuation >= 0.7 and momentum >= 0.5 and sentiment >= 0.5:
-            rec_state = "BUY"
-            reasoning = "Asset displays strong underpricing combined with positive momentum and constructive market sentiment."
-            rules_matched = {"underpricing_and_momentum": True}
-            confidence_factors = {"valuation": 0.4, "momentum": 0.3, "sentiment": 0.3}
-            confidence_score = 0.4 * valuation + 0.3 * momentum + 0.3 * sentiment
-        elif sentiment < 0.3 and momentum < 0.4:
-            rec_state = "AVOID"
-            reasoning = "Asset displays weak market sentiment and negative momentum, prompting caution."
-            rules_matched = {"weak_sentiment_and_momentum": True}
-            confidence_factors = {"sentiment": 0.5, "momentum": 0.5}
-            confidence_score = 0.5 * (1.0 - sentiment) + 0.5 * (1.0 - momentum)
-        elif valuation < 0.4 and volatility >= 0.6:
-            rec_state = "REDUCE"
-            reasoning = "Asset is potentially overvalued with elevated volatility, recommending reducing exposure."
-            rules_matched = {"overvaluation_and_volatility": True}
-            confidence_factors = {"valuation": 0.5, "volatility": 0.5}
-            confidence_score = 0.5 * (1.0 - valuation) + 0.5 * volatility
+        if is_crypto:
+            # No valuation/quality signal exists for crypto (§6) — this is a
+            # distinct 3-factor rule set, not the equity formula with
+            # quality/valuation zeroed out. BUY/AVOID drop the valuation/
+            # quality terms and renormalize weights over momentum+sentiment
+            # (or momentum+volatility) alone; REDUCE substitutes weakening
+            # momentum for "overvalued" since there's no valuation to read
+            # overvaluation from; HOLD's confidence substitutes sentiment for
+            # quality since quality doesn't exist for crypto — sentiment is
+            # the closest available "constructive state" signal.
+            if momentum >= 0.5 and sentiment >= 0.5:
+                rec_state = "BUY"
+                reasoning = "Asset displays positive momentum combined with constructive market sentiment (crypto: no valuation signal available)."
+                rules_matched = {"momentum_and_sentiment": True}
+                confidence_factors = {"momentum": 0.5, "sentiment": 0.5}
+                confidence_score = 0.5 * momentum + 0.5 * sentiment
+            elif sentiment < 0.3 and momentum < 0.4:
+                rec_state = "AVOID"
+                reasoning = "Asset displays weak market sentiment and negative momentum, prompting caution."
+                rules_matched = {"weak_sentiment_and_momentum": True}
+                confidence_factors = {"sentiment": 0.5, "momentum": 0.5}
+                confidence_score = 0.5 * (1.0 - sentiment) + 0.5 * (1.0 - momentum)
+            elif volatility >= 0.6 and momentum < 0.4:
+                rec_state = "REDUCE"
+                reasoning = "Asset displays weakening momentum with elevated volatility, recommending reducing exposure (crypto: no valuation signal available)."
+                rules_matched = {"weakening_momentum_and_volatility": True}
+                confidence_factors = {"volatility": 0.5, "momentum": 0.5}
+                confidence_score = 0.5 * volatility + 0.5 * (1.0 - momentum)
+            else:
+                rec_state = "HOLD"
+                reasoning = "Asset parameters remain within stable bounds. Recommending holding current position."
+                rules_matched = {"stable_parameters": True}
+                confidence_factors = {"sentiment": 0.5, "volatility": 0.5}
+                confidence_score = 0.5 * sentiment + 0.5 * (1.0 - volatility)
         else:
-            rec_state = "HOLD"
-            reasoning = "Asset parameters remain within stable bounds. Recommending holding current position."
-            rules_matched = {"stable_parameters": True}
-            confidence_factors = {"quality": 0.5, "volatility": 0.5}
-            confidence_score = 0.5 * quality + 0.5 * (1.0 - volatility)
+            quality = float(scores.quality_score)
+            valuation = float(scores.valuation_score)
+
+            if valuation >= 0.7 and momentum >= 0.5 and sentiment >= 0.5:
+                rec_state = "BUY"
+                reasoning = "Asset displays strong underpricing combined with positive momentum and constructive market sentiment."
+                rules_matched = {"underpricing_and_momentum": True}
+                confidence_factors = {"valuation": 0.4, "momentum": 0.3, "sentiment": 0.3}
+                confidence_score = 0.4 * valuation + 0.3 * momentum + 0.3 * sentiment
+            elif sentiment < 0.3 and momentum < 0.4:
+                rec_state = "AVOID"
+                reasoning = "Asset displays weak market sentiment and negative momentum, prompting caution."
+                rules_matched = {"weak_sentiment_and_momentum": True}
+                confidence_factors = {"sentiment": 0.5, "momentum": 0.5}
+                confidence_score = 0.5 * (1.0 - sentiment) + 0.5 * (1.0 - momentum)
+            elif valuation < 0.4 and volatility >= 0.6:
+                rec_state = "REDUCE"
+                reasoning = "Asset is potentially overvalued with elevated volatility, recommending reducing exposure."
+                rules_matched = {"overvaluation_and_volatility": True}
+                confidence_factors = {"valuation": 0.5, "volatility": 0.5}
+                confidence_score = 0.5 * (1.0 - valuation) + 0.5 * volatility
+            else:
+                rec_state = "HOLD"
+                reasoning = "Asset parameters remain within stable bounds. Recommending holding current position."
+                rules_matched = {"stable_parameters": True}
+                confidence_factors = {"quality": 0.5, "volatility": 0.5}
+                confidence_score = 0.5 * quality + 0.5 * (1.0 - volatility)
 
         existing_rec = self.repo.get_active_recommendation(asset_id, "v2.0.0")
 
