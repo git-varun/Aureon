@@ -597,6 +597,19 @@ class PortfolioService(BaseService):
                 )
                 self.transactions_repo.create(txn)
 
+            if p.get("current_price"):
+                from app.core.providers.models import NormalizedQuote
+                from app.modules.market.repositories.ingestion import IngestionRepository
+                IngestionRepository(self.session).upsert_quote(
+                    NormalizedQuote(
+                        symbol=symbol,
+                        provider="cas_cdsl_import",
+                        timestamp=datetime.now(timezone.utc),
+                        price=p["current_price"],
+                    ),
+                    asset_id,
+                )
+
             symbols_to_recalc.add(symbol)
 
         for sym in symbols_to_recalc:
