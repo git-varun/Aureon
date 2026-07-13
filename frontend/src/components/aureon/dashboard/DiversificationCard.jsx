@@ -8,7 +8,14 @@ const transform = (raw) => {
   if (!raw || (raw.position_count != null ? raw.position_count === 0 : raw.diversification_score === 0)) return null;
   const score = Math.round(raw.diversification_score);
   const label = score >= 75 ? 'Well diversified' : score >= 55 ? 'Moderate' : 'Concentrated';
-  return { score, label, classCount: '—', sectors: '—', topClass: '—', topPct: null };
+  return {
+    score,
+    label,
+    classCount: raw.asset_class_count ?? '—',
+    sectors: raw.sector_count ?? '—',
+    topClass: raw.top_asset_class ?? '—',
+    topPct: raw.top_asset_class_weight ?? null,
+  };
 };
 
 export function DiversificationCard() {
