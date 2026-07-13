@@ -54,7 +54,7 @@ export default function DecisionLineageDrawer({ extId, open, onClose }) {
                     </span>
                     {sig.confidence != null && (
                         <span style={{color: 'var(--aurum-100)', fontFamily: 'var(--font-mono)', fontSize: 11}}>
-                            {sig.confidence}% confidence
+                            {Math.round(sig.confidence)}% confidence
                         </span>
                     )}
                 </div>
@@ -91,7 +91,7 @@ export default function DecisionLineageDrawer({ extId, open, onClose }) {
                 </div>
                 <div style={{fontSize: 12, color: 'var(--ink-30)', display: 'flex', gap: 16, marginTop: 8}}>
                     <div>Scope: <span style={{fontWeight: 500, color: 'var(--ink-10)'}}>{rec.scope_kind} ({rec.scope_ref})</span></div>
-                    {rec.confidence != null && <div>Confidence: <span style={{fontFamily: 'var(--font-mono)', color: 'var(--aurum-100)'}}>{rec.confidence}%</span></div>}
+                    {rec.confidence != null && <div>Confidence: <span style={{fontFamily: 'var(--font-mono)', color: 'var(--aurum-100)'}}>{Math.round(rec.confidence)}%</span></div>}
                 </div>
                 {rec.predicted_impact && (
                     <div style={{fontSize: 12, color: 'var(--ink-30)', marginTop: 6}}>

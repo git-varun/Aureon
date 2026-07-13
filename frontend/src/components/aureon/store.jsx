@@ -55,7 +55,9 @@ const apiRecToFE = (r) => ({
     scope: r.scope || (r.symbol ? { ref: r.symbol, type: 'equity' } : null),
     title: r.title || (r.recommendation_state && r.symbol ? `${r.recommendation_state} ${r.symbol}` : null),
     impactOneLine: r.impactOneLine || r.impact_one_line || null,
-    confidence: r.confidence ?? r.confidence_score ?? null,
+    // confidence_score comes off the wire as a 0-1 fraction; every consumer
+    // (ConfidenceIndicator, band()/bandLabel()) expects a 0-100 scale.
+    confidence: r.confidence ?? (r.confidence_score != null ? r.confidence_score * 100 : null),
     horizon: r.horizon || null,
     change: r.change || null,
     impact: r.impact || null,

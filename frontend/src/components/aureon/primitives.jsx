@@ -4,15 +4,16 @@ import {band, bandLabel, fmt$} from './utils';
 
 export const ConfidenceIndicator = ({score, variant = 'compact', factors}) => {
     const b = band(score);
-    const filled = Math.round(score / 10);
+    const pct = Math.round(score ?? 0);
+    const filled = Math.round(pct / 10);
     const segs = Array.from({length: 10}, (_, i) => (
         <span key={i} className={`ci-seg ${i < filled ? 'on' : ''} ${b}`}/>
     ));
     if (variant === 'compact') {
         return (
-            <span className="ci-compact" title={`${score}% · ${bandLabel(score)}`}>
+            <span className="ci-compact" title={`${pct}% · ${bandLabel(score)}`}>
         <span className="ci-bar">{segs}</span>
-        <span>{score}%</span>
+        <span>{pct}%</span>
       </span>
         );
     }
@@ -31,7 +32,7 @@ export const ConfidenceIndicator = ({score, variant = 'compact', factors}) => {
                     fontFamily: 'var(--font-mono)',
                     fontSize: 13,
                     color: 'var(--ink-00)'
-                }}>{score}% · {bandLabel(score)}</span>
+                }}>{pct}% · {bandLabel(score)}</span>
             </div>
             <div className="ci-bar"
                  style={{gridTemplateColumns: 'repeat(10, 1fr)', gap: 3, marginBottom: 10}}>{segs}</div>
