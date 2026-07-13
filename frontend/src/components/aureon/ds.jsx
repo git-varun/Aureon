@@ -323,6 +323,36 @@ export const EmptyState = ({title, body, actions}) => (
     </div>
 );
 
+/* ── NotBuiltState ──────────────────────────────────────────── */
+/* For surfaces with no backend/data source anywhere in the stack yet —
+   visually distinct from EmptyState (which means "wired up, just no data"). */
+export const NotBuiltState = ({title, body}) => (
+    <div style={{
+        padding: '36px 24px', textAlign: 'center',
+        border: '1px dashed rgba(201,168,106,0.30)',
+        borderRadius: 12, background: 'rgba(201,168,106,0.03)',
+    }}>
+        <div style={{
+            display: 'inline-block', fontSize: 10, letterSpacing: '0.12em', textTransform: 'uppercase',
+            fontWeight: 700, color: 'var(--aurum-100)', background: 'rgba(201,168,106,0.12)',
+            border: '1px solid rgba(201,168,106,0.25)', borderRadius: 999, padding: '3px 9px', marginBottom: 12,
+        }}>
+            Not built yet
+        </div>
+        <div style={{
+            fontFamily: 'var(--font-heading)', fontSize: 15, fontWeight: 600,
+            color: 'var(--ink-10)', marginBottom: 6,
+        }}>
+            {title}
+        </div>
+        {body && (
+            <div style={{fontSize: 12.5, color: 'var(--ink-40)', maxWidth: 400, margin: '0 auto', lineHeight: 1.6}}>
+                {body}
+            </div>
+        )}
+    </div>
+);
+
 /* ── ErrorState ─────────────────────────────────────────────── */
 export const ErrorState = ({title, body, actions}) => (
     <div style={{

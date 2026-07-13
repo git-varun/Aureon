@@ -17,6 +17,7 @@ import { PfActivityFeed }      from '@/components/aureon/portfolio/PfActivityFee
 import { PfImportCenter }          from '@/components/aureon/portfolio/PfImportCenter';
 import { ManualAssetModal }        from '@/components/aureon/portfolio/ManualAssetModal';
 import { PfConcentrationSection }  from '@/components/aureon/portfolio/PfConcentrationSection';
+import { NotBuiltState } from '@/components/aureon/ds.jsx';
 
 const PfSection = ({ eyebrow, title, action, children }) => (
   <section style={{ marginBottom: 32 }}>
@@ -31,13 +32,6 @@ const PfSection = ({ eyebrow, title, action, children }) => (
     )}
     {children}
   </section>
-);
-
-const PfEmptyBox = ({ title, body }) => (
-  <div style={{ padding:'40px 24px', textAlign:'center', border:'1px dashed rgba(255,255,255,0.10)', borderRadius:12, background:'rgba(255,255,255,0.012)' }}>
-    <div style={{ fontFamily:'var(--font-heading)', fontSize:15, fontWeight:600, color:'var(--ink-20)', marginBottom:6 }}>{title}</div>
-    {body && <div style={{ fontSize:13, color:'var(--ink-40)', maxWidth:400, margin:'0 auto', lineHeight:1.6 }}>{body}</div>}
-  </div>
 );
 
 export default function Portfolio() {
@@ -117,17 +111,17 @@ export default function Portfolio() {
 
       {/* 9 · Trend Analysis */}
       <PfSection eyebrow="Intelligence" title="Portfolio Trend Analysis">
-        <PfEmptyBox
-          title="No trend data yet"
-          body="Trend analysis will appear here once a provider is connected and portfolio snapshots have accumulated."
+        <NotBuiltState
+          title="Trend Analysis"
+          body="Trend analysis isn't built yet — there's no backend endpoint computing it, regardless of provider or snapshot data."
         />
       </PfSection>
 
       {/* 10 · Recommendation Outcomes */}
       <PfSection eyebrow="Decisions" title="Recommendation Outcomes">
-        <PfEmptyBox
-          title="No outcomes yet"
-          body="Recommendation outcomes will appear here once applied decisions have had time to settle."
+        <NotBuiltState
+          title="Recommendation Outcomes"
+          body="Outcome tracking isn't built yet — there's no endpoint that measures how applied recommendations performed."
         />
       </PfSection>
 
