@@ -125,7 +125,7 @@ export default function ExplainPanel({ rec, status, signals, onClose, onApply, o
                 fontSize:   11,
                 color:      'var(--ink-40)',
               }}>
-                Conf {rec.confidence}%
+                Conf {Math.round(rec.confidence ?? 0)}%
               </span>
               <span style={{ fontSize: 11, color: 'var(--ink-60)' }}>·</span>
               <span style={{ fontSize: 11, color: 'var(--ink-50)' }}>{rec.ts}</span>

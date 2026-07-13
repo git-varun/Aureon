@@ -110,7 +110,7 @@ function RecNode({ rec }) {
                 </div>
             )}
             <div style={{ fontSize: 10.5, color: 'var(--ink-40)', marginTop: 4 }}>
-                confidence {rec.confidence}% · {bandLabel(rec.confidence)}
+                confidence {Math.round(rec.confidence ?? 0)}% · {bandLabel(rec.confidence)}
             </div>
         </>
     );
