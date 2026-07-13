@@ -11,6 +11,13 @@ from app.core.redis import cache_quote
 # this set only preserves the original "unknown provider" validation surface.
 _MARKET_DATA_PROVIDERS = {"finnhub", "polygon", "yahoo", "binance_price"}
 
+# Asset classes with no ISIN/ticker coverage on Yahoo — routing them through the
+# generic ingest_all_quotes fan-out just generates an hourly ProviderError per
+# symbol. mutual_fund gets its NAV from refresh_mutual_fund_navs_task (AMFI);
+# nps/epf get theirs from statement-import wiring (import_nps_statement,
+# NAV_INGESTION_SCOPE.md §4/§6) or don't have a source at all (epf, §7).
+_NO_YAHOO_COVERAGE_ASSET_CLASSES = {"mutual_fund", "nps", "epf"}
+
 
 def _skip_if_disabled(job_name: str):
     """Decorator for beat-scheduled tasks: skip execution if JobConfig.enabled
@@ -96,6 +103,8 @@ def ingest_all_quotes() -> None:
         logger.warning("ingest_all_quotes: market.assets is empty — run seed_market_universe_task first")
         return
     for symbol, asset_class in assets:
+        if asset_class in _NO_YAHOO_COVERAGE_ASSET_CLASSES:
+            continue
         provider_name = "binance_price" if asset_class == "crypto_futures" else "yahoo"
         ingest_quote.delay(provider_name, symbol)
 
