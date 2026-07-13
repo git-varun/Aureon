@@ -5,6 +5,7 @@ import {PageHeader} from '../../components/aureon/ds';
 import UserProfile from '@/components/aureon/profile/UserProfile';
 import ProviderConfig from '@/components/aureon/profile/ProviderConfig';
 import JobConfig from '@/components/aureon/profile/JobConfig';
+import {PfImportCenter} from '@/components/aureon/portfolio/PfImportCenter';
 import {apiService} from '@/api/apiService';
 import {useApp} from '@/components/aureon/store';
 
@@ -74,6 +75,7 @@ const SETTINGS_NAV = [
         {id: 'profile',        label: 'Profile',        icon: <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>},
     ]},
     {group: 'Portfolio', items: [
+        {id: 'import-data',    label: 'Import Data',    icon: <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>},
         {id: 'portfolio-mgmt', label: 'Management',     icon: <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round"><rect x="2" y="7" width="20" height="14" rx="2"/><path d="M16 7V5a2 2 0 0 0-2-2h-4a2 2 0 0 0-2 2v2"/></svg>},
         {id: 'alloc-targets',  label: 'Allocation',     icon: <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round"><path d="M21.21 15.89A10 10 0 1 1 8 2.83"/><path d="M22 12A10 10 0 0 0 12 2v10z"/></svg>},
     ]},
@@ -440,6 +442,22 @@ function JobHistorySection() {
     );
 }
 
+// ── Section: Import Data ──────────────────────────────────────────────────────
+function ImportDataSection() {
+    return (
+        <section className="layer-1" style={{padding: 0}}>
+            <div style={{padding: 24}}>
+                <SettingSectionHead
+                    icon={<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>}
+                    title="Import Data"
+                    desc="Import transactions and holdings via CSV, CAS, NPS, EPF, or add a manual asset"
+                />
+                <PfImportCenter/>
+            </div>
+        </section>
+    );
+}
+
 // ── Section: Export ───────────────────────────────────────────────────────────
 function ExportSection() {
     const [exporting, setExporting] = useState(false);
@@ -704,6 +722,7 @@ export default function Settings() {
     const renderSection = () => {
         switch (section) {
             case 'profile':        return <ProfileSection/>;
+            case 'import-data':    return <ImportDataSection/>;
             case 'portfolio-mgmt': return <EmptySection icon={<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><rect x="2" y="7" width="20" height="14" rx="2"/><path d="M16 7V5a2 2 0 0 0-2-2h-4a2 2 0 0 0-2 2v2"/></svg>} title="Portfolio Management" desc="Create and manage named portfolios" note="Portfolio management features are not yet available in this version."/>;
             case 'alloc-targets':  return <EmptySection icon={<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><path d="M21.21 15.89A10 10 0 1 1 8 2.83"/><path d="M22 12A10 10 0 0 0 12 2v10z"/></svg>} title="Allocation Targets" desc="Set target weights by asset class" note="Allocation target configuration is not yet available in this version."/>;
             case 'provider-list':  return <ProviderConfig/>;

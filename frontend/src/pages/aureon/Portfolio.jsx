@@ -14,7 +14,6 @@ import { PfPerformanceChart }  from '@/components/aureon/portfolio/PfPerformance
 import { PfAllocationSection } from '@/components/aureon/portfolio/PfAllocationSection';
 import { PfHoldingsTable }     from '@/components/aureon/portfolio/PfHoldingsTable';
 import { PfActivityFeed }      from '@/components/aureon/portfolio/PfActivityFeed';
-import { PfImportCenter }          from '@/components/aureon/portfolio/PfImportCenter';
 import { ManualAssetModal }        from '@/components/aureon/portfolio/ManualAssetModal';
 import { PfConcentrationSection }  from '@/components/aureon/portfolio/PfConcentrationSection';
 import { NotBuiltState } from '@/components/aureon/ds.jsx';
@@ -125,9 +124,14 @@ export default function Portfolio() {
         />
       </PfSection>
 
-      {/* 11 · Import Center */}
-      <PfSection eyebrow="Import" title="Import Center">
-        <PfImportCenter />
+      {/* 11 · Import shortcut */}
+      <PfSection eyebrow="Import" title="Import Data">
+        <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between', gap:12, padding:'16px 20px', borderRadius:12, background:'rgba(255,255,255,0.02)', border:'1px solid rgba(255,255,255,0.06)' }}>
+          <div style={{ fontSize:13, color:'var(--ink-30)', lineHeight:1.5 }}>
+            Import transactions and holdings via CSV, CAS, NPS, EPF, or add a manual asset from Settings.
+          </div>
+          <button onClick={() => navigate('/settings#import-data')} className="du3-cta" style={{ fontSize:12.5, padding:'0 14px', height:32, whiteSpace:'nowrap' }}>Go to Import Center →</button>
+        </div>
       </PfSection>
 
       <div style={{ height: 24 }} />
