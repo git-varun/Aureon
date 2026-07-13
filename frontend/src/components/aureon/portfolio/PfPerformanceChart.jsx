@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { useCardData } from '@/hooks/useCardData';
 import { Sk, Cerr } from '@/components/aureon/ui';
+import { NotBuiltState } from '@/components/aureon/ds.jsx';
 
 const stub = async () => {
   await new Promise(r => setTimeout(r, 620 + Math.random() * 200));
@@ -42,11 +43,10 @@ export function PfPerformanceChart() {
       <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:10 }}>
         <div/>{rangeBar}
       </div>
-      <div style={{ padding:'40px 24px', textAlign:'center', border:'1px dashed rgba(255,255,255,0.10)', borderRadius:10 }}>
-        <div style={{ fontFamily:'var(--font-heading)', fontSize:15, fontWeight:600, color:'var(--ink-20)', marginBottom:6 }}>No performance history</div>
-        <div style={{ fontSize:13, color:'var(--ink-40)', maxWidth:400, margin:'0 auto 14px', lineHeight:1.6 }}>No portfolio history yet. Connect a provider or import holdings to begin tracking performance.</div>
-        <span style={{ fontSize:12, color:'var(--ink-50)' }}>Use Import Center ↓</span>
-      </div>
+      <NotBuiltState
+        title="Performance History"
+        body="Portfolio history charting isn't built yet — there's no backend endpoint serving snapshot history, regardless of provider or holdings data."
+      />
     </div>
   );
 

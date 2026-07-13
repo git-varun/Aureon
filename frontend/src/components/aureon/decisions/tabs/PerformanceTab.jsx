@@ -1,12 +1,5 @@
 import React from 'react';
-import { ErrorState } from '@/components/aureon/ds.jsx';
-
-const _DTabEmpty = ({ title, body }) => (
-  <div style={{padding:'36px 24px',textAlign:'center',border:'1px dashed rgba(255,255,255,0.08)',borderRadius:12,background:'rgba(255,255,255,0.01)'}}>
-    <div style={{fontFamily:'var(--font-heading)',fontSize:15,fontWeight:600,color:'var(--ink-10)',marginBottom:6}}>{title}</div>
-    <div style={{fontSize:12.5,color:'var(--ink-40)',maxWidth:400,margin:'0 auto',lineHeight:1.6}}>{body}</div>
-  </div>
-);
+import { ErrorState, NotBuiltState } from '@/components/aureon/ds.jsx';
 
 export default function PerformanceTab({ tabState = 'ready', onRetry }) {
   if (tabState === 'loading') {
@@ -20,9 +13,9 @@ export default function PerformanceTab({ tabState = 'ready', onRetry }) {
     return <ErrorState onRetry={onRetry} />;
   }
   return (
-    <_DTabEmpty
+    <NotBuiltState
       title="AI Performance"
-      body="AI performance metrics will appear here after enough recommendations have been evaluated."
+      body="AI performance tracking isn't built yet — there's no pipeline evaluating recommendation quality over time."
     />
   );
 }
