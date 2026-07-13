@@ -28,10 +28,13 @@ from app.modules.ai.entities.recommendation import (
     RecommendationExplanation,
     RecommendationOutcome,
 )
+from app.modules.market.entities.market import Asset
 from app.modules.market.repositories.asset_features import AssetFeaturesRepository
+from app.modules.market.repositories.asset_fundamentals import AssetFundamentalsRepository
 from app.modules.market.repositories.asset_scores import AssetScoresRepository
 from app.modules.ai.repositories.feature_snapshots import FeatureSnapshotsRepository
 from app.modules.ai.repositories.recommendation import RecommendationRepository
+from app.modules.ai.services.fundamentals_scoring import compute_quality_valuation_scores
 
 
 def serialize_recommendation(rec: Recommendation, session: Session) -> dict[str, Any]:
@@ -441,15 +444,15 @@ class RecommendationService(BaseService):
             else:
                 recommendation_score = None
 
-            # Real quality/valuation scoring needs fundamentals data (market
-            # cap, P/E) that this pipeline doesn't have yet — deferred build,
-            # see EVALUATION_MODULE_AUDIT.md 1b. Presenting a placeholder as a
-            # computed score is exactly the fabrication this fix removes, so
-            # these are always "unavailable" until that data source exists.
-            quality_score = None
-            valuation_score = None
-            unavailable_inputs.append("quality_score")
-            unavailable_inputs.append("valuation_score")
+            # Real quality/valuation scoring from AssetFundamentals, equities
+            # only — see FUNDAMENTALS_SCORING_SCOPE.md §2, §5. Crypto/funds/
+            # NPS/EPF have no fundamentals data source and stay "unavailable".
+            asset = self.session.get(Asset, asset_id)
+            fundamentals = AssetFundamentalsRepository(self.session).get(asset_id)
+            quality_score, valuation_score, fundamentals_unavailable = compute_quality_valuation_scores(
+                asset.asset_class if asset else None, fundamentals
+            )
+            unavailable_inputs.extend(fundamentals_unavailable)
 
             model_version = "v1.0.0"
             feature_schema_version = "1.0"
