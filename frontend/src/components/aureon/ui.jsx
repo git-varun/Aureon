@@ -2,12 +2,15 @@
 import React from 'react';
 
 export const Sparkline = ({data, w = 80, h = 22, color, fill = true}) => {
-    if (!data || !data.length) return null;
-    const min = Math.min(...data), max = Math.max(...data);
+    const clean = (data || []).filter(v => typeof v === 'number' && Number.isFinite(v));
+    // Fewer than 2 points can't form a line — (i / (data.length - 1)) divides
+    // by zero at the single point, producing a NaN x-coordinate in the path.
+    if (clean.length < 2) return null;
+    const min = Math.min(...clean), max = Math.max(...clean);
     const r = max - min || 1;
-    const pts = data.map((v, i) => [(i / (data.length - 1)) * w, h - ((v - min) / r) * h]);
+    const pts = clean.map((v, i) => [(i / (clean.length - 1)) * w, h - ((v - min) / r) * h]);
     const d = pts.map((p, i) => (i ? 'L' : 'M') + p[0].toFixed(1) + ' ' + p[1].toFixed(1)).join(' ');
-    const c = color || (data[data.length - 1] >= data[0] ? 'var(--sage-500)' : 'var(--crimson-500)');
+    const c = color || (clean[clean.length - 1] >= clean[0] ? 'var(--sage-500)' : 'var(--crimson-500)');
     return (
         <svg width={w} height={h} viewBox={`0 0 ${w} ${h}`} style={{display: 'block'}}>
             {fill && <path d={d + ` L ${w} ${h} L 0 ${h} Z`} fill={c} opacity="0.10"/>}
