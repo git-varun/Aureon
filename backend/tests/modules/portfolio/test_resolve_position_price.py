@@ -1,5 +1,5 @@
 import uuid
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 
 import pytest
 
@@ -117,6 +117,86 @@ def test_manual_asset_zero_price_still_labeled_manual(db_session, portfolio):
 
     assert result.price == 0.0
     assert result.price_source == "manual"
+
+    db_session.delete(pos)
+    db_session.delete(quote)
+    db_session.delete(snapshot)
+    db_session.delete(asset)
+    db_session.commit()
+
+
+def test_mutual_fund_nav_20_hours_old_is_live_not_stale(db_session, portfolio):
+    """A mutual fund/NPS NAV only updates once daily — a 20-hour-old NAV is
+    normal, not degraded, so it must not be labeled "stale" under the
+    5min/15min bands tuned for continuously-traded equities."""
+    asset = Asset(
+        id=uuid.uuid4(),
+        symbol="MF-NAV-TEST",
+        name="Mutual Fund NAV Test Asset",
+        asset_class="mutual_fund",
+    )
+    db_session.add(asset)
+    db_session.commit()
+
+    snapshot = AssetSnapshot(asset_id=asset.id, price=100.0)
+    db_session.add(snapshot)
+    db_session.commit()
+
+    stale_by_equity_bands = datetime.now(timezone.utc) - timedelta(hours=20)
+    quote = LatestQuote(
+        symbol=asset.symbol,
+        price=100.0,
+        provider="amfi",
+        asset_id=asset.id,
+        updated_at=stale_by_equity_bands,
+    )
+    db_session.add(quote)
+    db_session.commit()
+
+    pos = _make_position(db_session, portfolio, asset.symbol, asset_id=asset.id)
+
+    result = resolve_position_price(db_session, pos)
+
+    assert result.price_source == "market"
+    assert result.quote_age_status == "live"
+
+    db_session.delete(pos)
+    db_session.delete(quote)
+    db_session.delete(snapshot)
+    db_session.delete(asset)
+    db_session.commit()
+
+
+def test_equity_freshness_bands_unchanged(db_session, portfolio):
+    asset = Asset(
+        id=uuid.uuid4(),
+        symbol="EQ-NAV-TEST",
+        name="Equity Freshness Test Asset",
+        asset_class="equity",
+    )
+    db_session.add(asset)
+    db_session.commit()
+
+    snapshot = AssetSnapshot(asset_id=asset.id, price=100.0)
+    db_session.add(snapshot)
+    db_session.commit()
+
+    stale_by_equity_bands = datetime.now(timezone.utc) - timedelta(hours=20)
+    quote = LatestQuote(
+        symbol=asset.symbol,
+        price=100.0,
+        provider="yahoo",
+        asset_id=asset.id,
+        updated_at=stale_by_equity_bands,
+    )
+    db_session.add(quote)
+    db_session.commit()
+
+    pos = _make_position(db_session, portfolio, asset.symbol, asset_id=asset.id)
+
+    result = resolve_position_price(db_session, pos)
+
+    assert result.quote_age_status == "stale"
 
     db_session.delete(pos)
     db_session.delete(quote)
