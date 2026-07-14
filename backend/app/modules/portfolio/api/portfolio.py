@@ -219,7 +219,7 @@ def get_positions(
     service.get_portfolio(portfolio_id)
     positions = service.positions_repo.get_by_portfolio(portfolio_id)
     for pos in positions:
-        pos.price, pos.price_source, pos.quote_age_status, pos.quote_updated_at = service.get_position_price(pos)
+        pos.price, pos.price_source, pos.quote_age_status, pos.quote_updated_at, pos.epf_estimate_basis = service.get_position_price(pos)
     return positions
 
 @router.get("/portfolios/{portfolio_id}/snapshot", response_model=SnapshotResponse)
