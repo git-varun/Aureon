@@ -134,6 +134,11 @@ _DEFAULT_PROVIDERS = [
     {"provider_name": "real_estate_valuation", "provider_type": "valuation", "key_names": '[]', "status": "PLANNED", "capabilities": "[]"},
     {"provider_name": "signal_eligibility", "provider_type": "config", "key_names": '[]', "config": '{"types": ["equity", "crypto", "commodity"]}', "status": "ACTIVE", "capabilities": "[]"},
     {"provider_name": "financial_intelligence", "provider_type": "config", "key_names": '[]', "config": '{"expected_return_default": 0.11, "expected_return_high_risk": 0.14, "expected_return_low_risk": 0.07, "benchmark_annual_return": 0.10, "single_stock_concentration_threshold": 15.0, "sector_concentration_threshold": 30.0, "theme_concentration_threshold": 25.0, "diversification_asset_count_threshold": 10.0, "diversification_sector_count_threshold": 5.0, "diversification_target_score": 80.0, "risk_high_crypto_threshold": 20.0, "risk_high_equity_threshold": 75.0, "risk_low_crypto_threshold": 5.0, "risk_low_equity_threshold": 35.0}', "status": "ACTIVE", "capabilities": "[]"},
+    # Per-FY EPF interest rates (e.g. {"2023-2024": 8.25}), maintained manually since
+    # EPFO publishes no API for this — see EPF_ESTIMATE_SCOPE.md §4. Left empty rather
+    # than seeded with guessed historical rates: an unconfigured FY must degrade the
+    # estimate to "unavailable", not silently use a wrong number.
+    {"provider_name": "epf_interest_rates", "provider_type": "config", "key_names": '[]', "config": '{"rates": {}}', "status": "ACTIVE", "capabilities": "[]"},
 ]
 
 _DEFAULT_ALLOCATION_TARGETS = [
@@ -153,6 +158,7 @@ _DEFAULT_JOBS = [
     {"job_name": "sync_groww", "cron_expression": "40 8 * * 1-5", "enabled": False, "job_tier": "user"},
     {"job_name": "refresh_prices", "cron_expression": "*/15 9-15 * * 1-5", "enabled": True, "job_tier": "user"},
     {"job_name": "fetch_news", "cron_expression": "0 8 * * *", "enabled": True, "job_tier": "user"},
+    {"job_name": "refresh_fundamentals", "cron_expression": "0 6 * * *", "enabled": True, "job_tier": "user"},
     {"job_name": "refresh_mutual_fund_navs", "cron_expression": "0 23 * * *", "enabled": True, "job_tier": "user"},
     {"job_name": "daily_briefing", "cron_expression": "0 7 * * *", "enabled": True, "job_tier": "user"},
     {"job_name": "weekly_briefing", "cron_expression": "0 8 * * 1", "enabled": True, "job_tier": "user"},
@@ -523,6 +529,7 @@ class ConfigService(BaseService):
                 "sync_groww": "app.workers.ingestion.tasks.sync_groww_task",
                 "refresh_prices": "app.workers.ingestion.tasks.refresh_prices_task",
                 "fetch_news": "app.workers.ingestion.tasks.fetch_news_task",
+                "refresh_fundamentals": "app.workers.ingestion.tasks.refresh_fundamentals_task",
                 "refresh_mutual_fund_navs": "app.workers.ingestion.tasks.refresh_mutual_fund_navs_task",
                 "daily_briefing": "app.workers.ingestion.tasks.daily_briefing_task",
                 "weekly_briefing": "app.workers.ingestion.tasks.weekly_briefing_task",

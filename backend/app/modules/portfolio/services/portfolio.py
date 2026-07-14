@@ -63,6 +63,125 @@ class PositionPrice(NamedTuple):
     price_source: str
     quote_age_status: Optional[str]
     quote_updated_at: Optional[datetime]
+    epf_estimate_basis: Optional[Dict[str, Any]] = None
+
+
+_EPF_RATE_PROVIDER_NAME = "epf_interest_rates"
+
+
+def _fy_label(d: datetime) -> str:
+    """EPFO's financial year runs April-March; label as "start-end", e.g. April
+    2023-March 2024 is "2023-2024" (matches EPF_ESTIMATE_SCOPE.md §4's config shape)."""
+    start_year = d.year if d.month >= 4 else d.year - 1
+    return f"{start_year}-{start_year + 1}"
+
+
+def _month_start(d: datetime) -> datetime:
+    return d.replace(day=1, hour=0, minute=0, second=0, microsecond=0)
+
+
+def _next_month(d: datetime) -> datetime:
+    if d.month == 12:
+        return d.replace(year=d.year + 1, month=1)
+    return d.replace(month=d.month + 1)
+
+
+def _estimate_epf_price(session: Session, pos: Position) -> PositionPrice:
+    """Projects an EPF position's current balance forward from the last known
+    broker_snapshot balance, replaying broker_trade contributions through the
+    exact EPFO mechanics: interest computed monthly on the opening-balance-of-
+    month (before that month's own contribution), accumulated off to the side,
+    and credited as one annual lump sum at FY-end (April-March) — see
+    EPF_ESTIMATE_SCOPE.md §2. Degrades to "unavailable" if there's no snapshot
+    to project from, or if a FY the projection spans has no configured rate
+    (no silent fallback to a neighboring year's rate — §4/§7). A gap in
+    contribution rows between two real snapshots does not block the estimate;
+    it just understates slightly if some contributions were missed (§7).
+    """
+    snapshot = session.scalar(
+        select(Transaction).filter_by(
+            portfolio_id=pos.portfolio_id,
+            symbol=pos.symbol,
+            broker="epf",
+            kind="broker_snapshot",
+        )
+    )
+    if not snapshot:
+        return PositionPrice(0.0, "unavailable", None, None, None)
+
+    from app.core.entities.config import ProviderConfig
+    provider = session.scalar(select(ProviderConfig).filter_by(provider_name=_EPF_RATE_PROVIDER_NAME))
+    rates: Dict[str, float] = {}
+    if provider and provider.config:
+        import json
+        try:
+            rates = json.loads(provider.config).get("rates", {}) or {}
+        except (ValueError, TypeError, AttributeError):
+            rates = {}
+
+    statement_date = snapshot.transaction_date
+    if statement_date.tzinfo is None:
+        statement_date = statement_date.replace(tzinfo=timezone.utc)
+    now = datetime.now(timezone.utc)
+
+    contributions = session.scalars(
+        select(Transaction).filter(
+            Transaction.portfolio_id == pos.portfolio_id,
+            Transaction.symbol == pos.symbol,
+            Transaction.broker == "epf",
+            Transaction.kind == "broker_trade",
+            Transaction.transaction_date > statement_date,
+        )
+    ).all()
+
+    contributions_by_month: Dict[tuple, float] = {}
+    for c in contributions:
+        c_date = c.transaction_date
+        if c_date.tzinfo is None:
+            c_date = c_date.replace(tzinfo=timezone.utc)
+        if c_date > now:
+            continue
+        key = (c_date.year, c_date.month)
+        contributions_by_month[key] = contributions_by_month.get(key, 0.0) + float(c.price)
+
+    principal = float(snapshot.price)
+    fy_accumulator: Dict[str, float] = {}
+    applied_rates: Dict[str, float] = {}
+
+    month = _next_month(_month_start(statement_date))
+    last_month = _month_start(now)
+
+    while month <= last_month:
+        fy = _fy_label(month)
+        if fy not in rates:
+            return PositionPrice(0.0, "unavailable", None, None, None)
+        rate = float(rates[fy])
+        applied_rates[fy] = rate
+        interest = principal * rate / 100.0 / 12.0
+        fy_accumulator[fy] = fy_accumulator.get(fy, 0.0) + interest
+        principal += contributions_by_month.get((month.year, month.month), 0.0)
+        if month.month == 3:  # FY-end (March): credit the year's accumulated interest
+            principal += fy_accumulator[fy]
+            fy_accumulator[fy] = 0.0
+        month = _next_month(month)
+
+    estimated_balance = principal + sum(fy_accumulator.values())
+
+    basis = {
+        "as_of": now.isoformat(),
+        "statement_date": statement_date.isoformat(),
+        "rates_applied": [
+            {"financial_year": fy, "rate_pct": rate} for fy, rate in sorted(applied_rates.items())
+        ],
+        "note": (
+            "Estimate applies interest to the combined Employee+Employer+Pension "
+            "balance; the EPS/pension share does not actually earn interest, so "
+            "the true EPF-only balance may be somewhat lower than this figure. "
+            "Also assumes every contribution was recorded via statement upload — "
+            "any missed contributions between uploads will understate the total."
+        ),
+    }
+    return PositionPrice(estimated_balance, "epf_estimated", None, None, basis)
 
 
 def resolve_position_price(session: Session, pos: Position) -> PositionPrice:
@@ -87,10 +206,13 @@ def resolve_position_price(session: Session, pos: Position) -> PositionPrice:
     unpriced, so it's labeled "unavailable" instead and carries no staleness
     status, same as "manual".
     """
+    from app.modules.market.entities.market import Asset
+    asset = session.get(Asset, pos.asset_id) if pos.asset_id else None
+    if asset and asset.asset_class == "epf":
+        return _estimate_epf_price(session, pos)
+
     quote = session.scalar(select(LatestQuote).filter_by(symbol=pos.symbol))
     if quote and quote.price is not None:
-        from app.modules.market.entities.market import Asset
-        asset = session.get(Asset, pos.asset_id) if pos.asset_id else None
         is_manual = bool(
             asset and isinstance(asset.metadata_payload, dict)
             and asset.metadata_payload.get("sector") == "Manual"

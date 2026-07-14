@@ -80,6 +80,7 @@ class PositionResponse(BaseModel):
     price_source: Optional[str] = None
     quote_age_status: Optional[str] = None
     quote_updated_at: Optional[datetime] = None
+    epf_estimate_basis: Optional[dict[str, Any]] = None
 
 class SnapshotResponse(BaseModel):
     model_config = ConfigDict(from_attributes=True)
