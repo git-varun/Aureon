@@ -115,6 +115,28 @@ def get_cached_quote(asset_id: str) -> dict[str, Any] | None:
         logger.warning(f"redis_operation_failed operation=get_cached_quote key={get_quote_cache_key(asset_id)} error={str(e)}")
     return None
 
+def get_fx_rates_key() -> str:
+    return "fx:rates"
+
+def cache_fx_rates(rates: dict[str, float]) -> None:
+    try:
+        client = get_redis_client()
+        client.setex(get_fx_rates_key(), 3600, json.dumps(rates))
+    except redis.RedisError as e:
+        logger.warning(f"redis_operation_failed operation=cache_fx_rates key={get_fx_rates_key()} error={str(e)}")
+
+def get_cached_fx_rates() -> dict[str, float] | None:
+    try:
+        client = get_redis_client()
+        data = client.get(get_fx_rates_key())
+        if data:
+            result = json.loads(str(data))
+            if isinstance(result, dict):
+                return result
+    except redis.RedisError as e:
+        logger.warning(f"redis_operation_failed operation=get_cached_fx_rates key={get_fx_rates_key()} error={str(e)}")
+    return None
+
 def get_asset_snapshot_key(asset_id: str) -> str:
     return f"market:snapshot:{asset_id}"
 
