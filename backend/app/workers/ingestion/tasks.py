@@ -4,6 +4,7 @@ from celery import shared_task
 
 from app.core.database import SessionLocal
 from app.core.logging import logger
+from app.core.providers.retry import with_retry
 from app.core.redis import cache_quote
 
 # Provider names ingest_quote accepts — resolution itself always goes through
@@ -17,6 +18,11 @@ _MARKET_DATA_PROVIDERS = {"finnhub", "polygon", "yahoo", "binance_price"}
 # nps/epf get theirs from statement-import wiring (import_nps_statement,
 # NAV_INGESTION_SCOPE.md §4/§6) or don't have a source at all (epf, §7).
 _NO_YAHOO_COVERAGE_ASSET_CLASSES = {"mutual_fund", "nps", "epf"}
+
+
+@with_retry()
+def _get_quote_with_retry(adapter, symbol: str):
+    return adapter.get_quote(symbol)
 
 
 def _skip_if_disabled(job_name: str):
@@ -70,7 +76,7 @@ def ingest_quote(provider_name: str, symbol: str) -> bool:
         ingestion_svc = QuoteIngestionService(IngestionRepository(db))
         try:
             adapter = ProviderFactory(ConfigService(ConfigRepository(db))).get(provider_name)
-            quote = adapter.get_quote(symbol)
+            quote = _get_quote_with_retry(adapter, symbol)
 
             asset_id = ingestion_svc.save_quote(provider_name, quote)
             cache_quote(str(asset_id), quote.model_dump())
@@ -412,6 +418,52 @@ def admin_repair_jobs(log_id: int | None = None, **kwargs) -> None:
         for asset_id in missing:
             generate_features.delay(str(asset_id))
     _wrap_job_execution("admin_repair", log_id, _run)
+
+
+@shared_task(name="app.workers.ingestion.tasks.refresh_fundamentals_task")
+@_skip_if_disabled("refresh_fundamentals")
+def refresh_fundamentals_task(log_id: int | None = None, **kwargs) -> None:
+    def _run():
+        from app.core.exceptions import ProviderError
+        from app.core.providers.factory import ProviderFactory
+        from app.core.repositories.config import ConfigRepository
+        from app.core.services.config import ConfigService
+        from app.modules.market.repositories.asset_fundamentals import AssetFundamentalsRepository
+        from app.modules.market.repositories.ingestion import IngestionRepository
+
+        db = SessionLocal()
+        try:
+            assets = IngestionRepository(db).list_equity_assets_with_quotes()
+        finally:
+            db.close()
+
+        if not assets:
+            logger.warning("refresh_fundamentals_task: no quoted equities found")
+            return
+
+        failed = []
+        for asset_id, symbol in assets:
+            db = SessionLocal()
+            try:
+                adapter = ProviderFactory(ConfigService(ConfigRepository(db))).get("yahoo")
+                fundamentals = adapter.get_fundamentals(symbol)
+                AssetFundamentalsRepository(db).upsert(asset_id, fundamentals)
+                db.commit()
+            except ProviderError as e:
+                # Isolated per-symbol failure (e.g. yfinance has no fundamentals
+                # coverage for this ticker) shouldn't abort the whole daily run —
+                # only escalate if every symbol this cycle failed outright.
+                db.rollback()
+                logger.warning(f"refresh_fundamentals_task: failed for symbol={symbol}: {e}")
+                failed.append(symbol)
+            finally:
+                db.close()
+
+        if len(failed) == len(assets):
+            raise ProviderError(
+                f"refresh_fundamentals_task: all {len(assets)} symbol(s) had total provider failure this cycle"
+            )
+    _wrap_job_execution("refresh_fundamentals", log_id, _run)
 
 
 @shared_task(name="app.workers.ingestion.tasks.refresh_mutual_fund_navs_task")

@@ -5,10 +5,12 @@ from typing import Any
 from sqlalchemy import select
 from vaderSentiment.vaderSentiment import SentimentIntensityAnalyzer
 
+from app.core.exceptions import ProviderError
 from app.core.logging import logger
 from app.core.providers.capabilities import Capability
 from app.core.providers.factory import ProviderFactory
 from app.core.providers.registry import registry
+from app.core.providers.retry import with_retry
 from app.modules.market.entities.market import LatestQuote
 from app.modules.news.entities.news import News, NewsAsset
 from app.core.services.config import ConfigService
@@ -18,6 +20,11 @@ from app.modules.news.repositories.news import NewsRepository
 # VADER's compound score is already on News.sentiment_score's documented
 # -1..1 scale, so no conversion is needed at this write point.
 _sentiment_analyzer = SentimentIntensityAnalyzer()
+
+
+@with_retry()
+def _get_news_with_retry(provider, symbol: str):
+    return provider.get_news(symbol)
 
 
 class NewsService(BaseService):
@@ -35,19 +42,32 @@ class NewsService(BaseService):
         seen_urls = set()
 
         news_providers = registry.list(Capability.NEWS)
+        attempted = 0
+        failed_providers = []
         for provider in news_providers:
             name = provider.provider_name
+            live = self.provider_factory.get(name, required=False)
+            if live is None:
+                continue
+            attempted += 1
             try:
-                live = self.provider_factory.get(name, required=False)
-                if live is None:
-                    continue
-                headlines = live.get_news(symbol)
-                for hl in headlines:
-                    if hl.url and hl.url not in seen_urls:
-                        seen_urls.add(hl.url)
-                        all_payloads.append(hl)
+                headlines = _get_news_with_retry(live, symbol)
             except Exception as e:
                 logger.error(f"Failed to fetch news from provider {name} for {symbol}: {e}")
+                failed_providers.append(name)
+                continue
+            for hl in headlines:
+                if hl.url and hl.url not in seen_urls:
+                    seen_urls.add(hl.url)
+                    all_payloads.append(hl)
+
+        # Every live provider genuinely errored (not merely returned zero
+        # articles) — surface this loudly instead of returning 0, which would
+        # be indistinguishable from a genuine "no news today".
+        if attempted > 0 and len(failed_providers) == attempted:
+            raise ProviderError(
+                f"All {attempted} news provider(s) failed for symbol={symbol}: {', '.join(failed_providers)}"
+            )
 
         if not all_payloads:
             return 0
