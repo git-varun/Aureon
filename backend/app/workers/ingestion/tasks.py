@@ -283,7 +283,8 @@ def fetch_news_task(log_id: int | None = None, **kwargs) -> None:
             from app.modules.market.repositories.ingestion import IngestionRepository
             from app.modules.news.repositories.news import NewsRepository
 
-            symbols = IngestionRepository(db).list_quoted_symbols(limit=10)
+            ingestion_repo = IngestionRepository(db)
+            symbols = ingestion_repo.list_quoted_symbols(limit=10)
             if not symbols:
                 symbols = ["AAPL", "TSLA", "RELIANCE.NS"]
 
@@ -299,6 +300,12 @@ def fetch_news_task(log_id: int | None = None, **kwargs) -> None:
                     # provider failure, which is the real "pipeline is down" signal.
                     logger.error(f"fetch_news_task: all providers failed for symbol={sym}: {e}")
                     failed_symbols.append(sym)
+                finally:
+                    # Stamped regardless of outcome (including zero articles found)
+                    # so list_quoted_symbols' staleness ordering treats "we tried and
+                    # found nothing" as attempted, not as permanently "never fetched" —
+                    # see CRYPTO_SENTIMENT_GAP §1.
+                    ingestion_repo.mark_news_fetch_attempted(sym)
 
             if symbols and len(failed_symbols) == len(symbols):
                 raise ProviderError(
