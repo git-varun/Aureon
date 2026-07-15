@@ -81,6 +81,7 @@ class PositionResponse(BaseModel):
     quote_age_status: Optional[str] = None
     quote_updated_at: Optional[datetime] = None
     epf_estimate_basis: Optional[dict[str, Any]] = None
+    currency: Optional[str] = None
 
 class SnapshotResponse(BaseModel):
     model_config = ConfigDict(from_attributes=True)

@@ -1,6 +1,7 @@
 import React, { useState, useMemo } from 'react';
 import { TierChip, Sk, EpfEstimateBadge } from '@/components/aureon/ui';
-import { valueOf, plOf, plPctOf, isFutures } from '@/components/aureon/utils';
+import { valueOf, valueOfBase, plOf, plPctOf, isFutures } from '@/components/aureon/utils';
+import { useV4 } from '@/contexts/V4Context';
 
 const COL = 'minmax(0,1.8fr) minmax(0,0.7fr) minmax(0,1fr) minmax(0,0.8fr) minmax(0,1fr) minmax(0,1.1fr) minmax(0,0.65fr) 76px';
 
@@ -17,6 +18,7 @@ export function PfHoldingsTable({ holdings, loading, fmt, onLogTrade, onAddManua
   const [cls, setCls]     = useState('all');
   const [sortC, setSortC] = useState('value');
   const [sortD, setSortD] = useState(-1);
+  const { fxRates } = useV4();
 
   const filtered = useMemo(() => {
     let list = [...holdings];
@@ -30,10 +32,10 @@ export function PfHoldingsTable({ holdings, loading, fmt, onLogTrade, onAddManua
       if (sortC === 'name')   return sortD * (a.name < b.name ? -1 : a.name > b.name ? 1 : 0);
       if (sortC === 'day')    return sortD * ((a.dayPct||0) - (b.dayPct||0));
       if (sortC === 'pl')     return sortD * (plPctOf(a) - plPctOf(b));
-      return sortD * (valueOf(a) - valueOf(b));
+      return sortD * (valueOfBase(a, fxRates) - valueOfBase(b, fxRates));
     });
     return list;
-  }, [holdings, q, cls, sortC, sortD]);
+  }, [holdings, q, cls, sortC, sortD, fxRates]);
 
   const toggleSort = c => { if (sortC === c) setSortD(d => -d); else { setSortC(c); setSortD(-1); } };
 
@@ -88,8 +90,9 @@ export function PfHoldingsTable({ holdings, loading, fmt, onLogTrade, onAddManua
         const futures = isFutures(h);
         const pl = plOf(h);
         const plp = h.cost > 0 ? plPctOf(h) : null;
-        const fmtVal = v => fmt ? fmt(v, 'USD', {dp:0}) : `$${Math.round(v).toLocaleString()}`;
-        const fmtPrice = v => fmt ? fmt(v, 'USD', {dp:2}) : `$${v?.toFixed(2)}`;
+        const hCcy = h.currency || 'USD';
+        const fmtVal = v => fmt ? fmt(v, hCcy, {dp:0}) : `$${Math.round(v).toLocaleString()}`;
+        const fmtPrice = v => fmt ? fmt(v, hCcy, {dp:2}) : `$${v?.toFixed(2)}`;
         return (
           <div key={h.id || h.ticker} style={{ display:'grid', gridTemplateColumns:COL, gap:10, padding:'11px 16px', borderBottom:'1px solid rgba(255,255,255,0.03)', alignItems:'center', transition:'background 120ms' }}
             onMouseEnter={e => e.currentTarget.style.background='rgba(255,255,255,0.02)'}

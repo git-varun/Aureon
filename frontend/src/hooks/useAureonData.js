@@ -2,12 +2,14 @@ import {useMemo} from 'react';
 import {useQuery, useQueries} from '@tanstack/react-query';
 import {apiService} from '@/api/apiService';
 import {usePortfolio} from '@/contexts/PortfolioContext';
-import {CLASS_LABEL, CLASS_TARGET, valueOf} from '@/components/aureon/utils';
+import {useV4} from '@/contexts/V4Context';
+import {CLASS_LABEL, CLASS_TARGET, valueOfBase} from '@/components/aureon/utils';
 
 export const AUREON_STATE_KEY = ['aureon-state']; // Kept for backward compatibility references
 
 export function useAureonData() {
     const {activePortfolioId} = usePortfolio();
+    const {fxRates} = useV4();
 
     // 1. Positions Query
     const positionsQuery = useQuery({
@@ -127,6 +129,7 @@ export function useAureonData() {
                 side: pos.side,
                 priceSource: pos.price_source,
                 epfEstimateBasis: pos.epf_estimate_basis,
+                currency: pos.currency || 'USD',
             };
         });
     }, [positions, assetsMap]);
@@ -135,13 +138,15 @@ export function useAureonData() {
         if (snapshot) {
             return (snapshot.market_value || 0) + (snapshot.cash_balance || 0);
         }
-        return holdings.reduce((s, h) => s + valueOf(h), 0);
-    }, [snapshot, holdings]);
+        // Holdings mix native currencies (INR for NSE/EPF/NPS/mutual funds,
+        // USD otherwise) — normalize each to INR before summing.
+        return holdings.reduce((s, h) => s + valueOfBase(h, fxRates), 0);
+    }, [snapshot, holdings, fxRates]);
 
     const allocByClass = useMemo(() => {
         const map = {};
         holdings.forEach(h => {
-            map[h.class] = (map[h.class] || 0) + valueOf(h);
+            map[h.class] = (map[h.class] || 0) + valueOfBase(h, fxRates);
         });
         if (netWorth > 0) {
             Object.keys(map).forEach(k => {
@@ -149,19 +154,19 @@ export function useAureonData() {
             });
         }
         return map;
-    }, [holdings, netWorth]);
+    }, [holdings, netWorth, fxRates]);
 
     const techTarget = 0.28;
     const { techWt, techDriftPp, techDriftLabel, techDriftProse } = useMemo(() => {
         const investable = holdings.filter(h => h.tier !== 'passive');
-        const base = investable.reduce((s, h) => s + valueOf(h), 0) || 1;
-        const tech = investable.filter(h => h.sector === 'Tech').reduce((s, h) => s + valueOf(h), 0);
+        const base = investable.reduce((s, h) => s + valueOfBase(h, fxRates), 0) || 1;
+        const tech = investable.filter(h => h.sector === 'Tech').reduce((s, h) => s + valueOfBase(h, fxRates), 0);
         const wt = tech / base;
         const driftPp = (wt - techTarget) * 100;
         const driftLabel = (driftPp >= 0 ? '+' : '−') + Math.abs(driftPp).toFixed(1) + 'pp';
         const driftProse = `${Math.abs(driftPp).toFixed(1)}pp ${driftPp >= 0 ? 'above' : 'below'} target`;
         return { techWt: wt, techDriftPp: driftPp, techDriftLabel: driftLabel, techDriftProse: driftProse };
-    }, [holdings]);
+    }, [holdings, fxRates]);
 
     // 8. Per-position signals from RSI/signal endpoint
     const signalQueries = useQueries({

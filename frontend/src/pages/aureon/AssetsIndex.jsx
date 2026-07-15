@@ -3,13 +3,15 @@ import React, {useMemo} from 'react';
 import {useNavigate} from 'react-router-dom';
 import {useApp} from '@/components/aureon/store';
 import {Sparkline, Eyebrow, TierChip, MiniBar} from '@/components/aureon/ui';
-import {valueOf, plOf, plPctOf} from '@/components/aureon/utils';
+import {valueOf, valueOfBase, plOf, plPctOf} from '@/components/aureon/utils';
 import {useAureonData} from '@/hooks/useAureonData';
 import {useFmtMoney} from '@/hooks/useFmtMoney';
+import {useV4} from '@/contexts/V4Context';
 
 export default function AssetsIndex() {
     const navigate = useNavigate();
     const fmt = useFmtMoney();
+    const {fxRates} = useV4();
     const {allRecs, active} = useApp();
     const {holdings, classLabel, classTarget, netWorth, allocByClass} = useAureonData();
 
@@ -43,7 +45,7 @@ export default function AssetsIndex() {
                     letterSpacing: '-0.015em',
                     marginTop: 6
                 }}>
-                    {Object.keys(grouped).length} classes · {fmt(netWorth, 'USD', {dp: 0})} under management
+                    {Object.keys(grouped).length} classes · {fmt(netWorth, 'INR', {dp: 0})} under management
                 </div>
                 <div style={{fontSize: 12, color: 'var(--ink-30)', marginTop: 6, maxWidth: 680}}>
                     Active assets receive real-time signals and recommendations. Semi-active receive low-frequency
@@ -55,7 +57,7 @@ export default function AssetsIndex() {
             {order.map(cls => {
                 const items = grouped[cls] || [];
                 if (!items.length) return null;
-                const value = items.reduce((s, h) => s + valueOf(h), 0);
+                const value = items.reduce((s, h) => s + valueOfBase(h, fxRates), 0);
                 const tier = items[0].tier;
                 return (
                     <section key={cls} style={{marginBottom: 24}}>
@@ -76,7 +78,7 @@ export default function AssetsIndex() {
                                 }}>{classLabel[cls]}</h3>
                                 <TierChip tier={tier}/>
                                 <span style={{fontFamily: 'var(--font-mono)', fontSize: 12, color: 'var(--ink-30)'}}>
-                  {fmt(value, 'USD', {dp: 0})} · {netWorth > 0 ? ((value / netWorth) * 100).toFixed(1) : '0.0'}% · target {((classTarget[cls] || 0) * 100).toFixed(0)}%
+                  {fmt(value, 'INR', {dp: 0})} · {netWorth > 0 ? ((value / netWorth) * 100).toFixed(1) : '0.0'}% · target {((classTarget[cls] || 0) * 100).toFixed(0)}%
                 </span>
                             </div>
                             <div style={{display: 'flex', alignItems: 'center', gap: 14}}>
@@ -151,7 +153,7 @@ export default function AssetsIndex() {
                                                 fontSize: 16,
                                                 color: 'var(--ink-00)',
                                                 fontWeight: 500
-                                            }}>{fmt(valueOf(h), 'USD', {dp: 0})}</div>
+                                            }}>{fmt(valueOf(h), h.currency || 'USD', {dp: 0})}</div>
                                             <div style={{
                                                 fontFamily: 'var(--font-mono)',
                                                 fontSize: 11,

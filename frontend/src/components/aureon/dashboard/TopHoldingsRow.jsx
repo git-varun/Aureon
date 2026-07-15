@@ -1,14 +1,16 @@
 import React from 'react';
 import {useNavigate} from 'react-router-dom';
 import {Sparkline} from '../ui';
-import {valueOf} from '../utils';
+import {valueOf, valueOfBase} from '../utils';
 import {useFmtMoney} from '../../../hooks/useFmtMoney';
+import {useV4} from '../../../contexts/V4Context';
 import s from './TopHoldingsRow.module.css';
 
 export const TopHoldingsRow = ({holdings}) => {
     const navigate = useNavigate();
     const fmt = useFmtMoney();
-    const top = holdings.filter(h => h.tier !== 'passive').slice().sort((a, b) => valueOf(b) - valueOf(a)).slice(0, 5);
+    const {fxRates} = useV4();
+    const top = holdings.filter(h => h.tier !== 'passive').slice().sort((a, b) => valueOfBase(b, fxRates) - valueOfBase(a, fxRates)).slice(0, 5);
     return (
         <div className={s.grid}>
             {top.map(h => (
@@ -17,7 +19,7 @@ export const TopHoldingsRow = ({holdings}) => {
                         <span className={s.ticker}>{h.ticker}</span>
                         <Sparkline data={h.spark?.length ? h.spark : [h.cost, h.price]} w={56} h={18}/>
                     </div>
-                    <div className={s.value}>{h.price == null ? '—' : fmt(valueOf(h), 'USD', {dp: 0})}</div>
+                    <div className={s.value}>{h.price == null ? '—' : fmt(valueOf(h), h.currency || 'USD', {dp: 0})}</div>
                     <div className={s.dayPct} style={{color: h.dayPct == null ? 'var(--ink-50)' : h.dayPct >= 0 ? 'var(--sage-500)' : 'var(--crimson-500)'}}>
                         {h.dayPct == null ? '—' : `${h.dayPct >= 0 ? '▲' : '▼'} ${(Math.abs(h.dayPct) * 100).toFixed(2)}%`}
                     </div>

@@ -1,4 +1,5 @@
 /* Aureon — pure helpers and configuration constants. */
+import {convert} from '../../pages/aureon/marketData';
 
 export const CLASS_LABEL = {
     stocks: 'Stocks', crypto: 'Crypto', funds: 'Funds', bonds: 'Bonds',
@@ -21,6 +22,17 @@ export const valueOf = (h) => isFutures(h) ? marginOf(h) + (h.unrealizedPnl || 0
 export const costOf = (h) => isFutures(h) ? marginOf(h) : h.qty * h.cost;
 export const plOf = (h) => isFutures(h) ? (h.unrealizedPnl || 0) : valueOf(h) - costOf(h);
 export const plPctOf = (h) => { const c = costOf(h); return c > 0 ? plOf(h) / c : 0; };
+
+// valueOf/costOf are in each holding's native currency (h.currency) — fine for
+// a single holding's own display, but summing them across holdings that don't
+// all share a currency (e.g. an INR EPF balance + a USD equity) adds raw
+// numbers as if they were the same unit. These *Base variants normalize every
+// holding to INR before the caller reduces/sums, so class/portfolio totals
+// are financially meaningful. Single-holding display should keep using
+// valueOf/costOf/plOf with h.currency, not these.
+export const valueOfBase = (h, rates) => convert(valueOf(h), h.currency || 'USD', 'INR', rates);
+export const costOfBase = (h, rates) => convert(costOf(h), h.currency || 'USD', 'INR', rates);
+export const plOfBase = (h, rates) => valueOfBase(h, rates) - costOfBase(h, rates);
 
 export const fmt$ = (n, d = 0) => (n < 0 ? '−' : '') + '$' + Math.abs(n).toLocaleString('en-US', {
     minimumFractionDigits: d,

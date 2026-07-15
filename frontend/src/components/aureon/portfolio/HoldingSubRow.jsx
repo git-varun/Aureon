@@ -26,11 +26,11 @@ export const HoldingSubRow = ({h}) => {
                     {h.side === 'SHORT' ? 'SHORT' : 'LONG'} {h.leverage ? `${h.leverage}x` : ''}
                 </span>
             ) : (
-                <span className={s.price}>{fmt(h.price, 'USD', {dp: 2})}</span>
+                <span className={s.price}>{fmt(h.price, h.currency || 'USD', {dp: 2})}</span>
             )}
             {futures ? (
                 <span style={{fontFamily: 'var(--font-mono)', fontSize: 11, color: 'var(--ink-40)'}}>
-                    Liq. {h.liquidationPrice != null ? fmt(h.liquidationPrice, 'USD', {dp: 2}) : '—'}
+                    Liq. {h.liquidationPrice != null ? fmt(h.liquidationPrice, h.currency || 'USD', {dp: 2}) : '—'}
                 </span>
             ) : (
                 <Sparkline data={h.spark?.length ? h.spark : [h.cost, h.price]} w={70} h={18}/>
@@ -42,7 +42,7 @@ export const HoldingSubRow = ({h}) => {
                     {h.dayPct === 0 ? '—' : (h.dayPct >= 0 ? '▲' : '▼') + ' ' + (Math.abs(h.dayPct) * 100).toFixed(2) + '%'}
                 </span>
             )}
-            <span className={s.value}>{fmt(valueOf(h), 'USD', {dp: 0})}</span>
+            <span className={s.value}>{fmt(valueOf(h), h.currency || 'USD', {dp: 0})}</span>
             <span style={{
                 display: 'inline-flex', alignItems: 'center',
                 padding: '1px 6px', borderRadius: 4,

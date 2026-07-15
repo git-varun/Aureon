@@ -16,8 +16,9 @@ from app.core.redis import (
     invalidate_intelligence_portfolio,
     invalidate_portfolio_snapshot,
 )
+from app.core.fx import to_inr
 from app.modules.market.entities.market import LatestQuote
-from app.modules.market.services.market import ensure_asset_exists
+from app.modules.market.services.market import ensure_asset_exists, infer_currency
 from app.modules.portfolio.entities.portfolio import (
     Portfolio,
     PortfolioSnapshot,
@@ -64,6 +65,7 @@ class PositionPrice(NamedTuple):
     quote_age_status: Optional[str]
     quote_updated_at: Optional[datetime]
     epf_estimate_basis: Optional[Dict[str, Any]] = None
+    currency: str = "USD"
 
 
 _EPF_RATE_PROVIDER_NAME = "epf_interest_rates"
@@ -107,7 +109,7 @@ def _estimate_epf_price(session: Session, pos: Position) -> PositionPrice:
         )
     )
     if not snapshot:
-        return PositionPrice(0.0, "unavailable", None, None, None)
+        return PositionPrice(0.0, "unavailable", None, None, None, "INR")
 
     from app.core.entities.config import ProviderConfig
     provider = session.scalar(select(ProviderConfig).filter_by(provider_name=_EPF_RATE_PROVIDER_NAME))
@@ -154,7 +156,7 @@ def _estimate_epf_price(session: Session, pos: Position) -> PositionPrice:
     while month <= last_month:
         fy = _fy_label(month)
         if fy not in rates:
-            return PositionPrice(0.0, "unavailable", None, None, None)
+            return PositionPrice(0.0, "unavailable", None, None, None, "INR")
         rate = float(rates[fy])
         applied_rates[fy] = rate
         interest = principal * rate / 100.0 / 12.0
@@ -181,7 +183,7 @@ def _estimate_epf_price(session: Session, pos: Position) -> PositionPrice:
             "any missed contributions between uploads will understate the total."
         ),
     }
-    return PositionPrice(estimated_balance, "epf_estimated", None, None, basis)
+    return PositionPrice(estimated_balance, "epf_estimated", None, None, basis, "INR")
 
 
 def resolve_position_price(session: Session, pos: Position) -> PositionPrice:
@@ -211,6 +213,8 @@ def resolve_position_price(session: Session, pos: Position) -> PositionPrice:
     if asset and asset.asset_class == "epf":
         return _estimate_epf_price(session, pos)
 
+    currency = infer_currency(asset.asset_class if asset else None, pos.symbol)
+
     quote = session.scalar(select(LatestQuote).filter_by(symbol=pos.symbol))
     if quote and quote.price is not None:
         is_manual = bool(
@@ -218,15 +222,15 @@ def resolve_position_price(session: Session, pos: Position) -> PositionPrice:
             and asset.metadata_payload.get("sector") == "Manual"
         )
         if is_manual:
-            return PositionPrice(float(quote.price), "manual", None, None)
+            return PositionPrice(float(quote.price), "manual", None, None, None, currency)
         if quote.price == 0:
-            return PositionPrice(0.0, "unavailable", None, None)
+            return PositionPrice(0.0, "unavailable", None, None, None, currency)
         updated_at = quote.updated_at
         if updated_at.tzinfo is None:
             updated_at = updated_at.replace(tzinfo=timezone.utc)
         asset_class = asset.asset_class if asset else None
-        return PositionPrice(float(quote.price), "market", _quote_age_status(quote.updated_at, asset_class), updated_at)
-    return PositionPrice(float(pos.avg_buy_price), "cost_basis", None, None)
+        return PositionPrice(float(quote.price), "market", _quote_age_status(quote.updated_at, asset_class), updated_at, None, currency)
+    return PositionPrice(float(pos.avg_buy_price), "cost_basis", None, None, None, currency)
 
 
 class PortfolioService(BaseService):
@@ -549,7 +553,8 @@ class PortfolioService(BaseService):
         position_values = {}
 
         for pos in positions:
-            price = self.get_position_price(pos).price
+            pp = self.get_position_price(pos)
+            price = pp.price
 
             qty = float(pos.quantity)
             if pos.wallet in ("futures_usdm", "futures_coinm"):
@@ -563,6 +568,12 @@ class PortfolioService(BaseService):
             else:
                 val = qty * price
                 cost = qty * float(pos.avg_buy_price)
+
+            # Positions carry native currency (INR for NSE/EPF/NPS/mutual funds,
+            # USD otherwise) — normalize to INR before summing, or an INR EPF
+            # balance gets added to a USD crypto value as if they were one unit.
+            val = to_inr(val, pp.currency)
+            cost = to_inr(cost, pp.currency)
 
             market_value += val
             total_invested += cost

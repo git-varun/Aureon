@@ -1,7 +1,8 @@
 import React, {useState} from 'react';
 import {Sparkline} from '../ui';
-import {valueOf, plOf} from '../utils';
+import {valueOfBase, plOfBase, costOfBase} from '../utils';
 import {useFmtMoney} from '../../../hooks/useFmtMoney';
+import {useV4} from '../../../contexts/V4Context';
 import {AllocBar} from './AllocBar';
 import {HoldingSubRow} from './HoldingSubRow';
 import s from './ClassRow.module.css';
@@ -28,10 +29,14 @@ const TIER_STYLES = {
 export const ClassRow = ({cls, items, alloc, target, color}) => {
     const [expanded, setExpanded] = useState(false);
     const fmt = useFmtMoney();
-    const value = items.reduce((sum, h) => sum + valueOf(h), 0);
-    const pl    = items.reduce((sum, h) => sum + plOf(h), 0);
+    const {fxRates} = useV4();
+    // Holdings in a class can mix currencies (e.g. "stocks" holds both NSE
+    // .NS equities in INR and US equities in USD) — normalize to INR before
+    // summing, or these totals silently add raw INR + raw USD together.
+    const value = items.reduce((sum, h) => sum + valueOfBase(h, fxRates), 0);
+    const pl    = items.reduce((sum, h) => sum + plOfBase(h, fxRates), 0);
     const avgDayPct = value > 0
-        ? items.reduce((sum, h) => sum + h.dayPct * valueOf(h), 0) / value
+        ? items.reduce((sum, h) => sum + h.dayPct * valueOfBase(h, fxRates), 0) / value
         : 0;
     const avgBeta = (() => {
         const withBeta = items.filter(h => h.beta != null);
@@ -77,7 +82,7 @@ export const ClassRow = ({cls, items, alloc, target, color}) => {
 
                 <div>
                     <div className={s.colLabel}>Value</div>
-                    <div className={s.colValue}>{fmt(value, 'USD', {dp: 0})}</div>
+                    <div className={s.colValue}>{fmt(value, 'INR', {dp: 0})}</div>
                     <div className={s.colValueMeta} style={{color: avgDayPct >= 0 ? 'var(--sage-500)' : 'var(--crimson-500)'}}>
                         {avgDayPct >= 0 ? '▲' : '▼'} {(Math.abs(avgDayPct) * 100).toFixed(2)}% today
                     </div>
@@ -86,12 +91,12 @@ export const ClassRow = ({cls, items, alloc, target, color}) => {
                 <div>
                     <div className={s.colLabel}>Unrealized P/L</div>
                     <div className={s.colValue} style={{color: pl >= 0 ? 'var(--sage-500)' : 'var(--crimson-500)'}}>
-                        {pl >= 0 ? '+' : '−'}{fmt(Math.abs(pl), 'USD', {dp: 0})}
+                        {pl >= 0 ? '+' : '−'}{fmt(Math.abs(pl), 'INR', {dp: 0})}
                     </div>
                     {(() => {
                         const pricedItems = items.filter(h => (h.cost || 0) > 0);
-                        const cost = pricedItems.reduce((sum, h) => sum + (h.cost * h.qty || 0), 0);
-                        const pricedPl = pricedItems.reduce((sum, h) => sum + plOf(h), 0);
+                        const cost = pricedItems.reduce((sum, h) => sum + costOfBase(h, fxRates), 0);
+                        const pricedPl = pricedItems.reduce((sum, h) => sum + plOfBase(h, fxRates), 0);
                         const pct = cost > 0 ? Math.min(1, Math.abs(pricedPl) / cost) : 0;
                         return (
                             <div style={{height: 4, borderRadius: 999, marginTop: 5, background: 'rgba(255,255,255,0.04)', overflow: 'hidden'}}>

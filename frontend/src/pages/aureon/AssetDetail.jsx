@@ -9,7 +9,7 @@ import {useApp} from '@/components/aureon/store';
 import {Eyebrow, TierChip, PriceChart, Empty, EpfEstimateBadge} from '@/components/aureon/ui';
 import {DecisionUnit, ActionConfirmationModal} from '@/components/aureon/flow';
 import {apiService} from '@/api/apiService';
-import {valueOf, plOf, plPctOf} from '@/components/aureon/utils';
+import {valueOf, valueOfBase, plOf, plPctOf} from '@/components/aureon/utils';
 import {useAureonData} from '@/hooks/useAureonData';
 import {useV4} from '@/contexts/V4Context';
 import {useFmtMoney} from '@/hooks/useFmtMoney';
@@ -557,7 +557,7 @@ export default function AssetDetail() {
     const [generating, setGenerating] = useState(false);
 
     const h = holdings.find(x => x.ticker === ticker);
-    const currency = h?.region === 'IN' ? 'INR' : 'USD';
+    const currency = h?.currency || 'USD';
 
     /* Load main asset data */
     useEffect(() => {
@@ -622,7 +622,9 @@ export default function AssetDetail() {
     const v      = h ? valueOf(h) : 0;
     const pl     = h ? plOf(h) : 0;
     const plPct  = h ? plPctOf(h) : 0;
-    const wt     = h && netWorth > 0 ? v / netWorth : 0;
+    // netWorth is INR-normalized (useAureonData); v is in h's native currency,
+    // so the weight ratio needs v converted to the same base before dividing.
+    const wt     = h && netWorth > 0 ? valueOfBase(h, v4?.fxRates) / netWorth : 0;
     const rec    = allRecs.find(r => r.scope?.kind === 'asset' && r.scope.ref === ticker && active.includes(r.id));
     const openModal = (r, onConfirm) => setModal({rec: r, onConfirm});
 
