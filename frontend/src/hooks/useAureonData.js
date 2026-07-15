@@ -125,6 +125,8 @@ export function useAureonData() {
                 liquidationPrice: pos.liquidation_price,
                 unrealizedPnl: pos.unrealized_pnl,
                 side: pos.side,
+                priceSource: pos.price_source,
+                epfEstimateBasis: pos.epf_estimate_basis,
             };
         });
     }, [positions, assetsMap]);

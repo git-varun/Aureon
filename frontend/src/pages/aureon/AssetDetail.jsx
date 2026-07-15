@@ -6,7 +6,7 @@
 import React, {useState, useEffect, useCallback} from 'react';
 import {useNavigate, useParams} from 'react-router-dom';
 import {useApp} from '@/components/aureon/store';
-import {Eyebrow, TierChip, PriceChart, Empty} from '@/components/aureon/ui';
+import {Eyebrow, TierChip, PriceChart, Empty, EpfEstimateBadge} from '@/components/aureon/ui';
 import {DecisionUnit, ActionConfirmationModal} from '@/components/aureon/flow';
 import {apiService} from '@/api/apiService';
 import {valueOf, plOf, plPctOf} from '@/components/aureon/utils';
@@ -445,7 +445,7 @@ function NewsSection({ticker}) {
     };
 
     const getSentiment = (score) => {
-        if (score == null) return 'neutral';
+        if (score == null) return 'unassessed';
         if (score > 0.1)  return 'positive';
         if (score < -0.1) return 'negative';
         return 'neutral';
@@ -475,7 +475,12 @@ function NewsSection({ticker}) {
                                     <div style={{fontSize: 11.5, color: 'var(--ink-30)', marginTop: 4, lineHeight: 1.5}}>{item.summary}</div>
                                 )}
                             </div>
-                            <span style={{width: 6, height: 6, borderRadius: 999, flexShrink: 0, marginTop: 6, background: sentCol[sent]}}/>
+                            <span
+                                title={sent === 'unassessed' ? 'Sentiment not assessed' : undefined}
+                                style={sent === 'unassessed'
+                                    ? {width: 6, height: 6, borderRadius: 999, flexShrink: 0, marginTop: 6, background: 'transparent', border: '1px solid var(--ink-40)', boxSizing: 'border-box'}
+                                    : {width: 6, height: 6, borderRadius: 999, flexShrink: 0, marginTop: 6, background: sentCol[sent]}}
+                            />
                         </div>
                     );
                 })}
@@ -704,7 +709,10 @@ export default function AssetDetail() {
                 </div>
                 <div style={{flex: 1, minWidth: 80}}/>
                 <div style={{textAlign: 'left'}}>
-                    <Eyebrow>Last price</Eyebrow>
+                    <div style={{display: 'flex', alignItems: 'center', gap: 8}}>
+                        <Eyebrow>Last price</Eyebrow>
+                        {displayAsset.priceSource === 'epf_estimated' && <EpfEstimateBadge basis={displayAsset.epfEstimateBasis}/>}
+                    </div>
                     <div style={{fontFamily: 'var(--font-mono)', fontSize: 36, fontWeight: 500, color: 'var(--ink-00)', marginTop: 6, lineHeight: 1, letterSpacing: '-0.015em'}}>
                         {fmt(displayAsset.price, currency, {dp: 2})}
                     </div>
