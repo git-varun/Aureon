@@ -42,7 +42,8 @@ class ProviderKeyResponse(BaseModel):
     provider: ProviderConfigResponse
 
 class ProviderEnableToggle(BaseModel):
-    enabled: bool
+    enabled: Optional[bool] = None
+    config: Optional[Dict[str, Any]] = None
 
 class SetProviderKeyRequest(BaseModel):
     key_name: str = Field(..., min_length=1)
@@ -127,7 +128,7 @@ def update_provider(
     svc: ConfigService = Depends(get_config_service)
 ):
     try:
-        svc.update_provider(provider_name, enabled=payload.enabled, actor_id=user.id)
+        svc.update_provider(provider_name, enabled=payload.enabled, config=payload.config, actor_id=user.id)
     except NotFoundError as e:
         raise HTTPException(status_code=404, detail=str(e))
     return {"providers": svc.get_all_providers()}

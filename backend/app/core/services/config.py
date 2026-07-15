@@ -186,12 +186,14 @@ class ConfigService(BaseService):
         p = self.repo.get_provider(provider_name)
         return _provider_to_dict(p) if p else None
 
-    def update_provider(self, provider_name: str, enabled: Optional[bool] = None, actor_id: Optional[uuid.UUID] = None) -> Optional[dict[str, Any]]:
+    def update_provider(self, provider_name: str, enabled: Optional[bool] = None, config: Optional[dict[str, Any]] = None, actor_id: Optional[uuid.UUID] = None) -> Optional[dict[str, Any]]:
         p = self.repo.get_provider(provider_name)
         if not p:
             raise NotFoundError(f"Provider {provider_name} not found")
         if enabled is not None:
             p.enabled = enabled
+        if config is not None:
+            p.config = json.dumps(config)
         self.repo.session.flush()
         from app.core.services.audit import log_audit_action
         log_audit_action(
@@ -200,7 +202,7 @@ class ConfigService(BaseService):
             entity_type="provider_config",
             entity_id=provider_name,
             actor_id=actor_id,
-            details={"enabled": enabled}
+            details={"enabled": enabled, "config": config}
         )
         self.repo.session.commit()
         self.repo.session.refresh(p)

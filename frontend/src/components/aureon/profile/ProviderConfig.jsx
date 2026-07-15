@@ -31,7 +31,93 @@ const inputStyle = {
     boxSizing: 'border-box',
 };
 
-function ProviderRow({provider, onToggle, onSetKey, onRemoveKey}) {
+/* EPF interest rates (EPF_ESTIMATE_SCOPE.md §4) are maintained manually — EPFO
+   publishes no rate API — via this provider's `config.rates` blob
+   ({"2023-2024": 8.25, ...}). No provider's config JSON has a form anywhere
+   else in Settings; this is new, not an extension of the credentials pattern
+   above. Saves through the same generic PUT /config/providers/{name} the
+   enable/disable toggle uses, just with a `config` body instead of `enabled`. */
+function EpfRateEditor({provider, onSaveConfig}) {
+    const rates = provider.config?.rates || {};
+    const entries = Object.entries(rates).sort((a, b) => b[0].localeCompare(a[0]));
+    const [fy, setFy] = useState('');
+    const [rate, setRate] = useState('');
+    const [saving, setSaving] = useState(false);
+
+    const fyPattern = /^\d{4}-\d{4}$/;
+
+    const handleSave = async () => {
+        if (!fyPattern.test(fy)) {
+            toast.error('Financial year must look like 2024-2025.');
+            return;
+        }
+        const rateNum = parseFloat(rate);
+        if (!Number.isFinite(rateNum)) {
+            toast.error('Rate must be a number.');
+            return;
+        }
+        setSaving(true);
+        try {
+            await onSaveConfig({rates: {...rates, [fy]: rateNum}});
+            setFy('');
+            setRate('');
+            toast.success(`FY ${fy} rate saved.`);
+        } catch {
+            toast.error('Failed to save rate.');
+        } finally {
+            setSaving(false);
+        }
+    };
+
+    const handleRemove = async (yr) => {
+        const next = {...rates};
+        delete next[yr];
+        try {
+            await onSaveConfig({rates: next});
+            toast.success(`FY ${yr} rate removed.`);
+        } catch {
+            toast.error('Failed to remove rate.');
+        }
+    };
+
+    return (
+        <div style={{padding: '4px 18px 18px', borderTop: '1px dashed rgba(255,255,255,0.05)', display: 'flex', flexDirection: 'column', gap: 12}}>
+            <div style={{fontSize: 10.5, letterSpacing: '0.12em', textTransform: 'uppercase', color: 'var(--ink-30)', fontWeight: 600}}>
+                Financial year → rate %
+            </div>
+            {entries.length === 0 ? (
+                <div style={{fontSize: 12, color: 'var(--ink-40)'}}>No rates configured yet — EPF estimates degrade to "unavailable" until a FY's rate is set.</div>
+            ) : (
+                <div style={{display: 'flex', flexDirection: 'column', gap: 6}}>
+                    {entries.map(([yr, r]) => (
+                        <div key={yr} style={{display: 'flex', alignItems: 'center', gap: 10}}>
+                            <span style={{fontFamily: 'var(--font-mono)', fontSize: 12.5, color: 'var(--ink-10)', width: 100}}>{yr}</span>
+                            <span style={{fontFamily: 'var(--font-mono)', fontSize: 12.5, color: 'var(--ink-00)'}}>{r}%</span>
+                            <button onClick={() => handleRemove(yr)} className="du3-cta ghost" style={{marginLeft: 'auto', height: 26, padding: '0 10px', fontSize: 11}}>Remove</button>
+                        </div>
+                    ))}
+                </div>
+            )}
+            <div style={{display: 'flex', gap: 8, alignItems: 'center'}}>
+                <input
+                    value={fy} onChange={e => setFy(e.target.value)}
+                    placeholder="2024-2025"
+                    style={{...inputStyle, width: 110}}
+                />
+                <input
+                    value={rate} onChange={e => setRate(e.target.value)}
+                    placeholder="Rate %" type="number" step="0.01"
+                    style={{...inputStyle, width: 90}}
+                />
+                <button onClick={handleSave} disabled={saving || !fy || !rate} className="du3-cta primary" style={{height: 34, padding: '0 14px', whiteSpace: 'nowrap'}}>
+                    {saving ? '…' : 'Add / update'}
+                </button>
+            </div>
+        </div>
+    );
+}
+
+function ProviderRow({provider, onToggle, onSetKey, onRemoveKey, onSaveConfig}) {
     const [expanded, setExpanded] = useState(false);
     const [toggling, setToggling] = useState(false);
     const [keyDrafts, setKeyDrafts] = useState({});
@@ -89,6 +175,8 @@ function ProviderRow({provider, onToggle, onSetKey, onRemoveKey}) {
     };
 
     const brand = PROVIDER_BRAND[provider.provider_name.toLowerCase()] || null;
+    const isEpfRates = provider.provider_name === 'epf_interest_rates';
+    const expandable = keyNames.length > 0 || isEpfRates;
 
     return (
         <div style={{borderBottom: '1px solid rgba(255,255,255,0.04)'}}>
@@ -103,16 +191,16 @@ function ProviderRow({provider, onToggle, onSetKey, onRemoveKey}) {
                 }}>
                     {brand ? brand.letter : provider.provider_name.slice(0, 2).toUpperCase()}
                 </div>
-                <div style={{minWidth: 0, cursor: keyNames.length ? 'pointer' : 'default'}} onClick={() => keyNames.length && setExpanded(v => !v)}>
+                <div style={{minWidth: 0, cursor: expandable ? 'pointer' : 'default'}} onClick={() => expandable && setExpanded(v => !v)}>
                     <div style={{display: 'flex', alignItems: 'baseline', gap: 10}}>
                         <span style={{fontFamily: 'var(--font-heading)', fontSize: 14, fontWeight: 600, color: 'var(--ink-00)'}}>{provider.provider_name}</span>
                         <span style={{fontSize: 10.5, letterSpacing: '0.10em', textTransform: 'uppercase', color: 'var(--ink-40)', fontWeight: 600}}>
                             {PROVIDER_TYPE_LABELS[provider.provider_type] ?? provider.provider_type}
                         </span>
                     </div>
-                    {keyNames.length > 0 && (
+                    {expandable && (
                         <div style={{fontSize: 11.5, color: 'var(--ink-40)', marginTop: 2}}>
-                            {expanded ? '▲ Hide credentials' : '▼ Configure credentials'}
+                            {expanded ? `▲ Hide ${isEpfRates ? 'rates' : 'credentials'}` : `▼ Configure ${isEpfRates ? 'rates' : 'credentials'}`}
                         </div>
                     )}
                 </div>
@@ -126,14 +214,18 @@ function ProviderRow({provider, onToggle, onSetKey, onRemoveKey}) {
                 >
                     {toggling ? '…' : (provider.enabled ? 'Disable' : 'Enable')}
                 </button>
-                {keyNames.length > 0 && (
+                {expandable && (
                     <button onClick={() => setExpanded(v => !v)} className="du3-cta ghost">
                         {expanded ? 'Hide' : 'Configure'}
                     </button>
                 )}
             </div>
 
-            {expanded && keyNames.length > 0 && (
+            {expanded && isEpfRates && (
+                <EpfRateEditor provider={provider} onSaveConfig={(config) => onSaveConfig(provider.provider_name, config)}/>
+            )}
+
+            {expanded && !isEpfRates && keyNames.length > 0 && (
                 <div style={{padding: '4px 18px 18px', borderTop: '1px dashed rgba(255,255,255,0.05)', display: 'flex', flexDirection: 'column', gap: 12}}>
                     {keyNames.map(keyName => {
                         const isSet = keysStatus[keyName];
@@ -336,6 +428,11 @@ export default function ProviderConfig() {
         setProviders(prev => prev.map(p => p.provider_name === providerName ? res.provider : p));
     };
 
+    const handleSaveConfig = async (providerName, config) => {
+        const res = await apiService.updateProvider(providerName, {config});
+        setProviders(res.providers);
+    };
+
     const grouped = providers.reduce((acc, p) => {
         const k = p.provider_type;
         if (!acc[k]) acc[k] = [];
@@ -373,7 +470,7 @@ export default function ProviderConfig() {
                                 : null;
                             return (
                                 <div key={p.provider_name}>
-                                    <ProviderRow provider={p} onToggle={handleToggle} onSetKey={handleSetKey} onRemoveKey={handleRemoveKey}/>
+                                    <ProviderRow provider={p} onToggle={handleToggle} onSetKey={handleSetKey} onRemoveKey={handleRemoveKey} onSaveConfig={handleSaveConfig}/>
                                     {syncEntry && <SyncStatusRow syncEntry={syncEntry} onSync={handleBrokerSync} onConnect={handleBrokerConnect}/>}
                                 </div>
                             );
