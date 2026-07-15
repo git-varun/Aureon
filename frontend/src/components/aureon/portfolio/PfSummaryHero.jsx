@@ -25,9 +25,9 @@ export function PfSummaryHero({ netWorth, investedValue, unrealizedPnl, dayDelta
   const dayDlt = dayDelta?.dollars ?? 0;
   const dayPct = dayDelta?.pct ?? 0;
   const metricGrid = [
-    { label:'Invested',       val: investedValue != null ? fmt(investedValue, 'USD', {dp:0}) : '—', sub:null },
-    { label:'Current Value',  val: netWorth ? fmt(netWorth, 'USD', {dp:0}) : '—', sub:null },
-    { label:'Unrealized P/L', val: unrealizedPnl != null ? fmt(unrealizedPnl, 'USD', {dp:0}) : '—', sub:null, col: unrealizedPnl != null ? (unrealizedPnl >= 0 ? 'var(--sage-500)' : 'var(--crimson-500)') : undefined },
+    { label:'Invested',       val: investedValue != null ? fmt(investedValue, 'INR', {dp:0}) : '—', sub:null },
+    { label:'Current Value',  val: netWorth ? fmt(netWorth, 'INR', {dp:0}) : '—', sub:null },
+    { label:'Unrealized P/L', val: unrealizedPnl != null ? fmt(unrealizedPnl, 'INR', {dp:0}) : '—', sub:null, col: unrealizedPnl != null ? (unrealizedPnl >= 0 ? 'var(--sage-500)' : 'var(--crimson-500)') : undefined },
     { label:'Realized P/L',   val:'—',  sub:'no closed-position ledger yet', col:'var(--sage-500)' },
     { label:'XIRR',           val:'—',  sub:'annualized return',          col:'var(--aurum-300)' },
     { label:'CAGR',           val:'—',  sub:'cost → current value',       col:'var(--aurum-300)' },
@@ -38,12 +38,12 @@ export function PfSummaryHero({ netWorth, investedValue, unrealizedPnl, dayDelta
       <div>
         <div style={{ fontSize:10.5, letterSpacing:'0.14em', textTransform:'uppercase', color:'var(--ink-40)', fontWeight:600, marginBottom:8 }}>Net Worth · all classes</div>
         <div style={{ fontFamily:'var(--font-mono)', fontSize:48, fontWeight:500, color:'var(--ink-00)', letterSpacing:'-0.025em', lineHeight:1, marginBottom:8 }}>
-          {netWorth ? fmt(netWorth, 'USD', {dp:0}) : '—'}
+          {netWorth ? fmt(netWorth, 'INR', {dp:0}) : '—'}
         </div>
         <div style={{ display:'flex', alignItems:'center', gap:10, flexWrap:'wrap' }}>
           {dayDlt !== 0 && (
             <span style={{ fontFamily:'var(--font-mono)', fontSize:13, color:dayDlt>=0?'var(--sage-500)':'var(--crimson-500)', fontWeight:500 }}>
-              {dayDlt>=0?'▲':'▼'} {fmt(Math.abs(dayDlt), 'USD', {dp:0})} ({dayDlt>=0?'+':'−'}{(Math.abs(dayPct)*100).toFixed(2)}%) today
+              {dayDlt>=0?'▲':'▼'} {fmt(Math.abs(dayDlt), 'INR', {dp:0})} ({dayDlt>=0?'+':'−'}{(Math.abs(dayPct)*100).toFixed(2)}%) today
             </span>
           )}
           <span style={{ width:1, height:14, background:'rgba(255,255,255,0.10)' }}/>

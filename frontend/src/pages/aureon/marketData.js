@@ -23,6 +23,11 @@ const _rate = (from, to, rates) => {
     return r[to] / r[from];
 };
 
+/* Converts an amount from one currency to another using the same rate table
+   fmtMoneyWith uses — for normalizing values to one currency before summing
+   across holdings that aren't all natively priced the same way. */
+export const convert = (n, from, to, rates) => n * _rate(from, to, rates);
+
 /* Pure formatter — accepts explicit toCcy and live rates. Used by useFmtMoney hook. */
 export const fmtMoneyWith = (n, sourceCcy = 'INR', toCcy = 'INR', rates = null, opts = {}) => {
     if (n == null || !isFinite(n)) return '—';

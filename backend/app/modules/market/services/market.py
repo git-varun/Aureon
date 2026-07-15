@@ -161,6 +161,18 @@ def infer_exchange_region(symbol: str) -> tuple[str, str]:
     return "NASDAQ", "US"
 
 
+def infer_currency(asset_class: Optional[str], symbol: str) -> str:
+    """EPF/NPS/mutual_fund symbols (EPF-<uan>, NPS-<pran>-<letter>-T<tier>,
+    <isin>_MF) carry no currency-bearing suffix the way equities (.NS/.BO) or
+    crypto (-USD) do, so asset_class must be checked before falling back to
+    infer_exchange_region's suffix rules."""
+    if asset_class in ("epf", "nps", "mutual_fund"):
+        return "INR"
+    if symbol.endswith(".NS") or symbol.endswith(".BO"):
+        return "INR"
+    return "USD"
+
+
 def classify(asset_class: Optional[str], symbol: str = "") -> str:
     if not asset_class:
         return "stocks"
