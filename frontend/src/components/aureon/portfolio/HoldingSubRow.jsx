@@ -1,6 +1,6 @@
 import React from 'react';
 import {useNavigate} from 'react-router-dom';
-import {Sparkline, TierChip} from '../ui';
+import {Sparkline, TierChip, EpfEstimateBadge} from '../ui';
 import {valueOf, plPctOf, isFutures} from '../utils';
 import {useFmtMoney} from '../../../hooks/useFmtMoney';
 import s from './HoldingSubRow.module.css';
@@ -14,7 +14,10 @@ export const HoldingSubRow = ({h}) => {
     return (
         <button onClick={() => navigate('/assets/' + h.ticker)} className={s.row}>
             <div className={s.name}>
-                <div className={s.ticker}>{h.ticker}</div>
+                <div className={s.ticker} style={{display: 'flex', alignItems: 'center', gap: 6}}>
+                    {h.ticker}
+                    {h.priceSource === 'epf_estimated' && <EpfEstimateBadge basis={h.epfEstimateBasis}/>}
+                </div>
                 <div className={s.fullName}>{h.name}</div>
             </div>
             <div><TierChip tier={h.tier}/></div>

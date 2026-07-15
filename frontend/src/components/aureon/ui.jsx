@@ -1,5 +1,6 @@
 /* Aureon — Shared UI primitives (ported from app/ui.jsx). */
-import React from 'react';
+import React, {useRef, useState} from 'react';
+import {createPortal} from 'react-dom';
 
 export const Sparkline = ({data, w = 80, h = 22, color, fill = true}) => {
     const clean = (data || []).filter(v => typeof v === 'number' && Number.isFinite(v));
@@ -62,6 +63,81 @@ export const TierChip = ({tier}) => {
             fontSize: 9.5, fontWeight: 600, letterSpacing: '0.10em', textTransform: 'uppercase',
             background: m.bg, color: m.col, border: '1px solid rgba(255,255,255,0.06)',
         }}>{m.label}</span>
+    );
+};
+
+/* ── EpfEstimateBadge ───────────────────────────────────────── */
+/* Marks a price as a projected EPF interest-accrual estimate, not a real
+   ingested quote — amber/dashed, matching the NotBuiltState precedent
+   (ds.jsx) so "this number is provisional" reads consistently app-wide.
+   Distinct from the blue solid-border "Manual" chip (PfHoldingsTable). Click
+   toggles a detail panel with the basis the backend computed the estimate
+   from (see EPF_ESTIMATE_SCOPE.md §6) — the badge alone would be dishonest
+   about how the number was derived. */
+export const EpfEstimateBadge = ({basis}) => {
+    const [open, setOpen] = useState(false);
+    const [pos, setPos] = useState(null);
+    const btnRef = useRef(null);
+    if (!basis) return null;
+    const fmtDate = (iso) => {
+        if (!iso) return '—';
+        const d = new Date(iso);
+        return Number.isNaN(d.getTime()) ? iso : d.toLocaleDateString(undefined, {year: 'numeric', month: 'short', day: 'numeric'});
+    };
+    const toggle = (e) => {
+        e.stopPropagation();
+        if (!open && btnRef.current) {
+            const r = btnRef.current.getBoundingClientRect();
+            setPos({top: r.bottom + 6, left: r.left});
+        }
+        setOpen(o => !o);
+    };
+    return (
+        <span style={{display: 'inline-flex'}}>
+            <button
+                ref={btnRef}
+                onClick={toggle}
+                style={{
+                    display: 'inline-flex', alignItems: 'center', height: 18, padding: '0 7px', borderRadius: 999,
+                    fontSize: 9.5, fontWeight: 600, letterSpacing: '0.10em', textTransform: 'uppercase',
+                    background: 'rgba(201,168,106,0.08)', color: 'var(--aurum-100)',
+                    border: '1px dashed rgba(201,168,106,0.35)', cursor: 'pointer', fontFamily: 'var(--font-ui)',
+                }}
+            >Estimated</button>
+            {open && pos && createPortal(
+                <>
+                    <div onClick={() => setOpen(false)} style={{position: 'fixed', inset: 0, zIndex: 999}}/>
+                    <div
+                        onClick={e => e.stopPropagation()}
+                        style={{
+                            position: 'fixed', top: pos.top, left: pos.left, zIndex: 1000, width: 260,
+                            padding: '10px 12px', borderRadius: 8, background: 'rgba(18,20,24,0.97)',
+                            border: '1px dashed rgba(201,168,106,0.35)', boxShadow: '0 8px 24px rgba(0,0,0,0.35)',
+                            fontSize: 11.5, color: 'var(--ink-20)', lineHeight: 1.5,
+                        }}
+                    >
+                        <div style={{fontWeight: 600, color: 'var(--aurum-100)', marginBottom: 6, fontSize: 10, letterSpacing: '0.08em', textTransform: 'uppercase'}}>
+                            EPF interest estimate
+                        </div>
+                        <div>Statement date: <span style={{color: 'var(--ink-10)'}}>{fmtDate(basis.statement_date)}</span></div>
+                        <div>As of: <span style={{color: 'var(--ink-10)'}}>{fmtDate(basis.as_of)}</span></div>
+                        {basis.rates_applied?.length > 0 && (
+                            <div style={{marginTop: 6}}>
+                                {basis.rates_applied.map(r => (
+                                    <div key={r.financial_year}>FY {r.financial_year}: <span style={{color: 'var(--ink-10)'}}>{r.rate_pct}%</span></div>
+                                ))}
+                            </div>
+                        )}
+                        {basis.note && (
+                            <div style={{marginTop: 8, paddingTop: 8, borderTop: '1px solid rgba(255,255,255,0.08)', color: 'var(--ink-40)', fontSize: 11}}>
+                                {basis.note}
+                            </div>
+                        )}
+                    </div>
+                </>,
+                document.body
+            )}
+        </span>
     );
 };
 
