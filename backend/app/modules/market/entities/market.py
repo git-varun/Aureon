@@ -75,6 +75,12 @@ class Asset(Base):
     name: Mapped[str] = mapped_column(String, nullable=False)
     asset_class: Mapped[str] = mapped_column(String, nullable=False)  # equity, bond, crypto, fx
     tier: Mapped[int | None] = mapped_column(nullable=True)  # NPS sub-account tier (1 or 2)
+    # Set whenever fetch_news_task actually attempts this symbol, regardless of
+    # whether any article was found — distinct from "has linked News", since a
+    # symbol Yahoo has no coverage for (e.g. a synthetic staking-product ticker)
+    # would otherwise tie for "never fetched" forever and starve rotation for
+    # every other symbol behind it. See CRYPTO_SENTIMENT_GAP §1.
+    last_news_fetch_at: Mapped[datetime | None] = mapped_column(nullable=True)
     metadata_payload: Mapped[dict[str, Any] | None] = mapped_column(JSON().with_variant(JSONB, "postgresql"), name="metadata", nullable=True)
     classification: Mapped[dict[str, Any] | None] = mapped_column(JSON().with_variant(JSONB, "postgresql"), nullable=True)
     created_at: Mapped[datetime] = mapped_column(nullable=False, default=lambda: datetime.now(timezone.utc))
