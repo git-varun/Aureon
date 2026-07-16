@@ -76,13 +76,18 @@ docker-compose up -d             # start everything
    
 **Architecture**  
 **Backend layout (**backend/app/**)**  
-The backend is domain-driven, not module-per-feature. Each layer has one job and a fixed home:  
-- api/v1/*.py — FastAPI routers, one file per resource area: market, portfolio, recommendation, ai, watchlist, notification, news, monitoring, evaluation, config, intelligence, assets. api/v1/system/health.py holds health endpoints.  
-- domain/entities/*.py — SQLAlchemy ORM models (extend app.domain.entities.base.Base), one file per schema (system, market, portfolio, evaluation, recommendation, watchlist, notification, news, ai, config).  
-- domain/services/*.py — Business logic (receives a Session, raises AppException subclasses from app.core.exceptions).  
-- infrastructure/providers/*.py — External market-data adapters (yahoo.py, finnhub.py, polygon.py) implementing get_quote/get_news/health_check. On missing credentials or a failed call they raise ProviderError — no silent mock/fake data fallback in production code.  
-- infrastructure/repositories/*.py — Raw DB query helpers, one per aggregate (portfolios, positions, transactions, users, recommendation, watchlist, notification, news, config, asset_snapshot, asset_features, asset_scores, asset_health, feature_snapshots, job_runs).  
-- workers/*.py — Celery tasks: celery_app.py (app config, task routes, beat schedule, reads REDIS_URL), ingestion/tasks.py (quote ingestion), snapshots/asset_snapshot.py, evaluation/{features,scoring,signals}.py, monitoring/asset_health.py.  
+Since the 2026-07-07 modularization (commit 52f09a9), the backend is split into
+per-domain modules plus a shared core, not the domain/infrastructure split
+described in earlier versions of this doc. Each domain module
+(app/modules/{market,portfolio,ai,news}/) owns its own entities/services/
+api/providers/repositories; app/core/ holds cross-cutting pieces used by
+more than one domain. Each layer has one job and a fixed home:  
+- app/modules/<domain>/api/*.py — FastAPI routers for that domain (market: assets.py, market.py, watchlist.py; portfolio: portfolio.py; ai: ai.py, evaluation.py, intelligence.py, recommendation.py; news: news.py). Cross-cutting routers live in app/core/api/*.py (config.py, notification.py, users.py) and app/core/api/system/health.py; app/api/v1/monitoring.py hasn't moved yet. All are wired up in app/api/main.py's create_app().  
+- app/modules/<domain>/entities/*.py — SQLAlchemy ORM models for that domain (extend app.core.entities.base.Base), one file per schema area (market: market.py, evaluation.py, watchlist.py; portfolio: portfolio.py; ai: ai.py, recommendation.py; news: news.py). Cross-cutting entities (system, config, notification) live in app/core/entities/*.py.  
+- app/modules/<domain>/services/*.py — Business logic for that domain (receives a Session, raises AppException subclasses from app.core.exceptions). Cross-cutting services (config, audit, users, notification, monitoring) live in app/core/services/*.py.  
+- app/modules/<domain>/providers/*.py — External adapters scoped to that domain, e.g. market/providers/market_data/{yahoo,finnhub,polygon}.py (get_quote/get_news/health_check) and portfolio/providers/broker/{zerodha,groww,binance}/. On missing credentials or a failed call they raise ProviderError — no silent mock/fake data fallback in production code. Provider registry/factory/lifecycle plumbing lives in app/core/providers/.  
+- app/modules/<domain>/repositories/*.py — Raw DB query helpers for that domain's aggregates (portfolios/positions/transactions in modules/portfolio/repositories/; asset_snapshot/asset_features/asset_scores/asset_health/watchlist in modules/market/repositories/). Cross-cutting repositories (config, users, notification, monitoring/job_runs) live in app/core/repositories/*.py.  
+- app/workers/*.py — Celery tasks, unchanged by the modularization: celery_app.py (app config, task routes, beat schedule, reads REDIS_URL), ingestion/tasks.py (quote/broker-sync ingestion), snapshots/asset_snapshot.py, evaluation/{features,scoring,signals}.py, monitoring/asset_health.py.  
 **Core infrastructure (**app/core/**)**  
 - config.py — Pydantic-Settings singleton (settings); reads .env from project root. PostgreSQL is mandatory.  
 - database.py — SQLAlchemy engine + SessionLocal + get_db(). Schema-qualified tables are managed by Alembic migrations, not create_all, outside of tests.  
@@ -92,7 +97,7 @@ The backend is domain-driven, not module-per-feature. Each layer has one job and
 - security.py — JWT encode/decode helpers.  
 - exceptions.py — AppException hierarchy: InfrastructureError -> DatabaseError; ProviderError; EvaluationError; BusinessRuleError -> ConflictError/NotFoundError; SecurityError; AuthenticationError; AuthorizationError -> PermissionDeniedError; ValidationError. (SecurityError, AuthenticationError, and AuthorizationError are direct siblings under AppException, not nested under each other.)  
 - observability/ — decorators.py (service/provider call tracing), logging.py, middleware.py, metrics.py, health.py, audit.py, and related cross-cutting concerns.  
-**AI service (**app/domain/services/ai.py**)**  
+**AI service (**app/modules/ai/services/ai.py**)**  
 Multi-model fallback chain: Gemini (4 models) -> Groq (2 models). On HTTP 429 a model is cooled down and the next is tried automatically. If no credentials are configured or all models are exhausted, it raises ProviderError — no fake/mock briefing fallback in production. All AI results are stored in the AIBriefing table and also cached in Redis. (AUREON_TEST_MOCK_AI=true is an explicit, documented test-only escape hatch, not a production path.)  
 **Key composite endpoint**  
 GET /api/state — the frontend's primary data source. Returns portfolio positions joined with technical indicators, signals, recent news, and the latest AI briefing in a single response.  
@@ -103,9 +108,9 @@ React + Vite SPA. All API calls go through the single client frontend/src/api/ap
 Copy .env.example to .env. Required: DATABASE_URL (must be postgresql://...), REDIS_URL. Optional but needed for full functionality: GEMINI_API_KEY/GROQ_API_KEY, FINNHUB_API_KEY, POLYGON_API_KEY. Broker credentials (Binance, Zerodha, Groww) are not env vars — they're stored DB-side in ProviderConfig.encrypted_keys and set via the Settings UI / config API. Without these, the corresponding provider/AI calls fail loudly (ProviderError) rather than returning fake data.  
 Without Redis the app will fail startup checks as Redis is required for worker coordination and cache operations.  
 **Adding a New API Resource**  
-1. Add/extend a model in app/domain/entities/<schema>.py (tables are schema-qualified and created via Alembic migrations — see Database migrations above).  
-2. Add business logic in app/domain/services/<name>.py, and a repository in app/infrastructure/repositories/<name>.py if raw queries are needed.  
-3. Add a router in app/api/v1/<name>.py and include it in create_app() in app/api/main.py.  
+1. Add/extend a model in app/modules/<domain>/entities/<schema>.py (or app/core/entities/<schema>.py if cross-cutting) — tables are schema-qualified and created via Alembic migrations, see Database migrations above.  
+2. Add business logic in app/modules/<domain>/services/<name>.py, and a repository in app/modules/<domain>/repositories/<name>.py if raw queries are needed (app/core/services|repositories/ if cross-cutting).  
+3. Add a router in app/modules/<domain>/api/<name>.py (or app/core/api/<name>.py if cross-cutting) and include it in create_app() in app/api/main.py.  
 4. Generate and run a migration: ./scripts/migrate.sh new "..." then ./scripts/migrate.sh upgrade.  
    
    
