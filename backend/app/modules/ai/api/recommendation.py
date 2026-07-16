@@ -12,7 +12,7 @@ from app.api.dependencies import (
 from app.core.database import get_db
 from app.core.exceptions import NotFoundError, ValidationError
 from app.core.entities.system import User
-from app.domain.services import RecommendationService
+from app.modules.ai.services.recommendation import RecommendationService
 
 router = APIRouter()
 

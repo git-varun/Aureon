@@ -14,6 +14,13 @@ from app.modules.market.repositories.assets import AssetsRepository
 # so it shouldn't surface as a 404 the frontend keeps retrying against.
 _UNRESOLVABLE_SIGNAL_SUFFIXES = tuple(f"-{s}" for s in WALLET_SUFFIXES.values())
 
+# NPS-/EPF-/MANUAL- prefixed symbols (portfolio/services/portfolio_importer.py,
+# portfolio/api/portfolio.py's create_manual_asset) have no continuous price
+# history feed — their LatestQuote, if any, comes from a one-off statement
+# import or manual valuation, never from the ingestion pipeline that populates
+# AssetSnapshot.rsi. Same permanent-unresolvable case as the suffixes above.
+_UNRESOLVABLE_SIGNAL_PREFIXES = ("NPS-", "EPF-", "MANUAL-")
+
 
 class AssetsService(BaseService):
     def __init__(self, repo: AssetsRepository, market_svc: MarketService):
@@ -66,7 +73,7 @@ class AssetsService(BaseService):
     def get_signal(self, symbol: str) -> dict[str, Any]:
         symbol = symbol.upper().strip()
 
-        if symbol.endswith(_UNRESOLVABLE_SIGNAL_SUFFIXES):
+        if symbol.endswith(_UNRESOLVABLE_SIGNAL_SUFFIXES) or symbol.startswith(_UNRESOLVABLE_SIGNAL_PREFIXES):
             return {
                 "symbol": symbol,
                 "rsi_14": None,

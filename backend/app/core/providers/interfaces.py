@@ -80,6 +80,11 @@ class MarketDataProvider(ProviderProtocol):
         Only Yahoo implements this today; other providers may leave it unsupported."""
         raise NotImplementedError(f"{self.provider_name} does not support technical indicators")
 
+    def get_fundamentals(self, symbol: str) -> dict[str, Any]:
+        """Optional — quality/valuation metrics (P/E, P/B, ROE, debt/equity, etc.).
+        Only Yahoo implements this today; other providers may leave it unsupported."""
+        raise NotImplementedError(f"{self.provider_name} does not support fundamentals")
+
 
 class NewsProvider(ProviderProtocol):
     """Dedicated news-only providers (NewsAPI, Moneycontrol, RSS — none implemented yet)."""

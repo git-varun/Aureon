@@ -89,9 +89,10 @@ class FinnhubAdapter(MarketDataProvider):
                         published_at=pub
                     ))
             return results
+        except ProviderError:
+            raise
         except Exception as e:
-            logger.warning(f"Finnhub get_news failed for {symbol}: {e}")
-            return []
+            raise ProviderError(f"Finnhub get_news failed for {symbol}: {e}") from e
 
     def health_check(self) -> bool:
         api_key = self._resolved_key()

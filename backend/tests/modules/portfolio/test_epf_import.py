@@ -3,12 +3,12 @@ from unittest.mock import patch
 
 from sqlalchemy import select
 
-from app.infrastructure.repositories import (
+from app.modules.portfolio.repositories.portfolio_snapshot import (
     PortfolioSnapshotRepository,
-    PortfoliosRepository,
-    PositionsRepository,
-    TransactionsRepository,
 )
+from app.modules.portfolio.repositories.portfolios import PortfoliosRepository
+from app.modules.portfolio.repositories.positions import PositionsRepository
+from app.modules.portfolio.repositories.transactions import TransactionsRepository
 from app.modules.market.entities.market import Asset
 from app.modules.portfolio.entities.portfolio import Portfolio, Position, Transaction
 from app.modules.portfolio.services.portfolio import PortfolioService

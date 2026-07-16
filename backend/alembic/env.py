@@ -6,11 +6,19 @@ from alembic import context
 from app.core.config import settings
 from app.core.entities.base import Base
 
-# Importing app.domain.entities registers every entity class (across
-# core/entities and modules/{ai,market,portfolio,news}/entities) onto
-# Base.metadata as a side effect of its __init__.py — without this,
-# autogenerate sees an empty metadata and proposes dropping the whole schema.
-import app.domain.entities  # noqa: F401
+# Importing these entity modules registers every entity class onto
+# Base.metadata as a side effect — without this, autogenerate sees an
+# empty metadata and proposes dropping the whole schema.
+import app.core.entities.config  # noqa: F401
+import app.core.entities.notification  # noqa: F401
+import app.core.entities.system  # noqa: F401
+import app.modules.ai.entities.ai  # noqa: F401
+import app.modules.ai.entities.recommendation  # noqa: F401
+import app.modules.market.entities.evaluation  # noqa: F401
+import app.modules.market.entities.market  # noqa: F401
+import app.modules.market.entities.watchlist  # noqa: F401
+import app.modules.news.entities.news  # noqa: F401
+import app.modules.portfolio.entities.portfolio  # noqa: F401
 
 config = context.config
 

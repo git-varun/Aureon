@@ -12,6 +12,20 @@ from app.core.repositories.monitoring import MonitoringRepository
 from app.modules.news.repositories.news import NewsRepository
 from app.modules.ai.repositories.recommendation import RecommendationRepository
 
+# Mirrors app.workers.ingestion.tasks._NO_YAHOO_COVERAGE_ASSET_CLASSES — these
+# asset classes have no ISIN/ticker coverage on Yahoo (NAV/value comes from
+# AMFI or statement import instead), so sending them to yfinance here just
+# generates a "possibly delisted" error per symbol on every run. MANUAL-
+# prefixed symbols are user-entered manually-valued assets (portfolio/api/
+# portfolio.py's create_manual_asset) whose asset_class is a free-text label,
+# so they're excluded by symbol prefix rather than by class.
+_NO_YAHOO_COVERAGE_ASSET_CLASSES = {"mutual_fund", "nps", "epf"}
+
+
+def _has_no_yahoo_coverage(asset) -> bool:
+    return asset.asset_class in _NO_YAHOO_COVERAGE_ASSET_CLASSES or asset.symbol.startswith("MANUAL-")
+
+
 # (symbol, name, asset_class) — canonical seed universe.
 CANONICAL_ASSETS: list[tuple[str, str, str]] = [
     ("AAPL", "Apple Inc.", "equity"),
@@ -102,6 +116,8 @@ class MarketSeedService(BaseService):
 
         total_rows = 0
         for asset in assets:
+            if _has_no_yahoo_coverage(asset):
+                continue
             try:
                 ticker = yf.Ticker(asset.symbol)
                 hist = ticker.history(period="3mo", interval="1d")

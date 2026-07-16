@@ -4,37 +4,35 @@ from sqlalchemy.orm import Session
 from app.core.constants import DEFAULT_USER_ID
 from app.core.database import get_db
 from app.core.entities.system import User
-from app.domain.services import (
-    AIService,
-    ConfigService,
-    FinancialIntelligenceService,
-    NewsService,
-    NotificationService,
-    PortfolioService,
-    RecommendationService,
-    WatchlistService,
-)
+from app.modules.ai.services.ai import AIService
+from app.core.services.config import ConfigService
+from app.modules.ai.services.intelligence import FinancialIntelligenceService
+from app.modules.news.services.news import NewsService
+from app.core.services.notification import NotificationService
+from app.modules.portfolio.services.portfolio import PortfolioService
+from app.modules.ai.services.recommendation import RecommendationService
+from app.modules.market.services.watchlist import WatchlistService
 from app.modules.market.services.assets import AssetsService
 from app.modules.ai.services.evaluation import EvaluationService
 from app.modules.market.services.market import MarketService
 from app.core.services.monitoring import MonitoringService
-from app.infrastructure.repositories import (
-    AssetHealthRepository,
-    AssetScoresRepository,
-    AssetsRepository,
-    ConfigRepository,
-    MarketRepository,
-    MonitoringRepository,
-    NewsRepository,
+from app.modules.market.repositories.asset_health import AssetHealthRepository
+from app.modules.market.repositories.asset_scores import AssetScoresRepository
+from app.modules.market.repositories.assets import AssetsRepository
+from app.core.repositories.config import ConfigRepository
+from app.modules.market.repositories.market import MarketRepository
+from app.core.repositories.monitoring import MonitoringRepository
+from app.modules.news.repositories.news import NewsRepository
+from app.modules.portfolio.repositories.portfolio_snapshot import (
     PortfolioSnapshotRepository,
-    PortfoliosRepository,
-    PositionsRepository,
-    RecommendationRepository,
-    TransactionsRepository,
-    UsersRepository,
-    WatchlistsRepository,
-    WebNotificationsRepository,
 )
+from app.modules.portfolio.repositories.portfolios import PortfoliosRepository
+from app.modules.portfolio.repositories.positions import PositionsRepository
+from app.modules.ai.repositories.recommendation import RecommendationRepository
+from app.modules.portfolio.repositories.transactions import TransactionsRepository
+from app.core.repositories.users import UsersRepository
+from app.modules.market.repositories.watchlist import WatchlistsRepository
+from app.core.repositories.notification import WebNotificationsRepository
 
 
 # Repository dependencies
