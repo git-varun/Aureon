@@ -92,17 +92,27 @@ class MonitoringService(BaseService):
             "providers": providers_summary,
         }
 
-    def verify_backups(self) -> dict[str, Any]:
+    def check_transaction_integrity(self) -> dict[str, Any]:
+        """Live count/consistency check over the Transaction table.
+
+        Not a backup-file check — this codebase's actual backup/restore
+        mechanism is the JSON export/import at GET/POST /portfolio/backup
+        and /portfolio/restore. A real backup-integrity check (e.g.
+        validating that export path produces importable output) would be
+        a legitimate future addition, but isn't implemented here.
+        """
         txn_count = self.repo.count_transactions()
-        status_val = "verified" if txn_count > 0 else "empty_database"
+        status_val = "consistent" if txn_count > 0 else "empty"
         return {
             "status": status_val,
-            "message": f"Database verification checked. Active ledger has {txn_count} transactions.",
+            "message": f"Transaction table integrity check: {txn_count} transactions present.",
             "timestamp": datetime.now(timezone.utc).isoformat(),
             "verification_metrics": {"transaction_count": txn_count},
         }
 
-    def verify_restore_procedures(self) -> dict[str, Any]:
+    def check_position_quote_integrity(self) -> dict[str, Any]:
+        """Live referential-integrity check: every Position has a matching
+        LatestQuote. Not a restore-procedure test — no restore is exercised."""
         positions = self.repo.list_positions()
         orphans = 0
         for p in positions:
@@ -111,10 +121,10 @@ class MonitoringService(BaseService):
 
         return {
             "status": "healthy" if orphans == 0 else "warning",
-            "restore_integrity_check": "passed" if orphans == 0 else "failed",
+            "quote_integrity_check": "passed" if orphans == 0 else "failed",
             "orphan_positions_found": orphans,
             "message": (
-                "Restore integrity check: position references to market quotes are fully valid."
+                "Position/quote integrity check: all position references to market quotes are valid."
                 if orphans == 0
                 else f"Found {orphans} position records without corresponding market quotes."
             ),
