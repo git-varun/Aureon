@@ -25,12 +25,12 @@ from app.modules.portfolio.entities.portfolio import (
     Position,
     Transaction,
 )
-from app.infrastructure.repositories import (
+from app.modules.portfolio.repositories.portfolio_snapshot import (
     PortfolioSnapshotRepository,
-    PortfoliosRepository,
-    PositionsRepository,
-    TransactionsRepository,
 )
+from app.modules.portfolio.repositories.portfolios import PortfoliosRepository
+from app.modules.portfolio.repositories.positions import PositionsRepository
+from app.modules.portfolio.repositories.transactions import TransactionsRepository
 
 # Same live/fresh/stale bands as the frontend's MarketFreshnessSection
 # THRESHOLDS.prices (5min/15min) — kept in sync intentionally, see Fix M.
@@ -60,7 +60,7 @@ def _quote_age_status(updated_at: datetime, asset_class: Optional[str] = None) -
 
 
 class PositionPrice(NamedTuple):
-    price: float
+    price: Optional[float]
     price_source: str
     quote_age_status: Optional[str]
     quote_updated_at: Optional[datetime]
@@ -224,7 +224,7 @@ def resolve_position_price(session: Session, pos: Position) -> PositionPrice:
         if is_manual:
             return PositionPrice(float(quote.price), "manual", None, None, None, currency)
         if quote.price == 0:
-            return PositionPrice(0.0, "unavailable", None, None, None, currency)
+            return PositionPrice(None, "unavailable", None, None, None, currency)
         updated_at = quote.updated_at
         if updated_at.tzinfo is None:
             updated_at = updated_at.replace(tzinfo=timezone.utc)
@@ -566,7 +566,7 @@ class PortfolioService(BaseService):
                 val = margin + float(pos.unrealized_pnl or 0)
                 cost = margin
             else:
-                val = qty * price
+                val = qty * price if price is not None else 0.0
                 cost = qty * float(pos.avg_buy_price)
 
             # Positions carry native currency (INR for NSE/EPF/NPS/mutual funds,
