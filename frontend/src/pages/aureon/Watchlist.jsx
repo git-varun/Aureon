@@ -686,6 +686,9 @@ export default function Watchlist() {
             let updated = created;
             for (const s of (l.symbols || [])) {
                 try { updated = await apiService.addWatchlistSymbol(created.id, s.symbol); } catch { /* skip */ }
+                if (s.alertPrice != null) {
+                    try { updated = await apiService.setWatchlistAlert(created.id, s.symbol, s.alertPrice); } catch { /* skip */ }
+                }
             }
             setLists((ls) => {
                 const idx  = ls.findIndex((x) => x.id === l.id);
