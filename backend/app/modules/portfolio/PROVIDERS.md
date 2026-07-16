@@ -435,10 +435,28 @@ Only creates/touches the `Asset` row when a `name` is supplied by the caller
 — callers that omit `name` rely on an Asset already existing (universe
 seeding or an earlier import). When it does touch the row, it won't clobber
 an existing real name (only upgrades a placeholder that's empty or equals the
-symbol itself), and updates `tier` if given. Separately guarantees a
-`LatestQuote` (price=0.0 placeholder) and `AssetSnapshot` (all metrics None)
-row exist for the asset. Every branch is existence-checked, so it's safe to
-call repeatedly.
+symbol itself), and updates `tier` if given.
+
+**`LatestQuote` is never seeded here** — a prior fake-data fix removed the
+old `price=0.0` placeholder; the function's own comment now states this
+explicitly ("must only ever hold a real ingested... price... seeding a fake
+0.0 here would defeat that [signal]"). It only *reads* `LatestQuote` (to
+carry a real price into the snapshot below, if one already exists) and never
+writes it. An `AssetSnapshot` row is still always created if missing
+(`price` copied from `LatestQuote` if present, else `None`; every other
+metric `None`). Every branch is existence-checked, so it's safe to call
+repeatedly.
+
+All current callers are in `services/portfolio.py` (thirteen call sites, all
+listed above per-parser). Watchlist's `add_symbol` used to call this too but
+never passed `name` (so it never touched `Asset`) and never stored the
+returned `asset_id` anywhere (`WatchlistSymbol` has no such column) — the
+call's only live effect was an orphaned, permanently-empty `AssetSnapshot`
+row every time a new symbol was searched. That call was removed entirely
+(`BACKLOG_SWEEP_SCOPE.md` Part 1); this function's snapshot-creation
+behavior itself is unchanged and still required by every remaining
+(portfolio) caller, since `Position`/`Transaction.asset_id` FK into
+`AssetSnapshot.asset_id`, not `Asset.id`.
 
 ### ProviderFactory / Registry Autodiscovery
 
@@ -529,33 +547,19 @@ not a `classify()` output (see Known Backlog below).
    file living under `core/`, which the layering convention (`core/` =
    domain-entity-free) says shouldn't happen.
 
-7. **No scheduler wires broker sync `JobConfig` cron expressions to actual
-   dispatch — newly surfaced, not previously documented.** `sync_zerodha`/
-   `sync_binance`/`sync_groww` all have `JobConfig` rows with cron
-   expressions and `enabled: False`; `sync_portfolio` has `enabled: True`
-   with a cron expression — but none of these appear in
-   `celery_app.conf.beat_schedule`, and no code reads `JobConfig.cron_expression`
-   to schedule anything. All four `sync_*` jobs are reachable only via the
-   manual `POST /portfolio/sync` endpoint today, regardless of `enabled`/cron
-   values in the DB.
+Four more backlog items are already documented in full above, in their
+respective sections — listed here only as index pointers, not restated, to
+avoid the doc disagreeing with itself:
 
-8. **Zerodha has no access-token refresh flow — newly surfaced.** Kite
-   Connect access tokens expire daily; there's no refresh-token mechanism in
-   this codebase, so `sync_zerodha` fails with `AUTH_REQUIRED` every day
-   until the user manually redoes the OAuth login in a browser.
-
-9. **Groww requires a daily manual in-app approval step — newly surfaced.**
-   A 403 during Groww's token exchange commonly means the user needs to
-   approve the API session inside the Groww mobile app first — no
-   programmatic bypass exists.
-
-10. **Generic CSV importer's `asset_type` field is parsed but unused —
-    newly surfaced.** `_rows_from_records` sets `row["asset_type"]`
-    (`"mutual_fund"` for `groww_mf` rows, else `None`), but
-    `import_transaction_file` calls `ensure_asset_exists()` without passing it
-    through — so MF classification from this importer never reaches the
-    `Asset.asset_class` field (relies on the asset already existing with the
-    right class from elsewhere).
+7. No scheduler wires broker sync `JobConfig` cron expressions to actual
+   dispatch — see the **Broker Sync Providers** intro above (`sync_zerodha`/
+   `sync_binance`/`sync_groww`/`sync_portfolio` all have cron expressions
+   that nothing reads; manual `/portfolio/sync` is the only real trigger).
+8. Zerodha has no access-token refresh flow — see **Zerodha → Auth** above.
+9. Groww requires a daily manual in-app approval step — see **Groww → Auth**
+   above.
+10. Generic CSV importer's `asset_type` field is parsed but unused — see
+    **Generic CSV/XLSX/Tradebook → Symbol/Asset creation** above.
 
 Only two `TODO`/`FIXME`/`unvalidated`-style comments exist in the portfolio
 module tree, both already covered above: the EPF populated-row caveat (#3)
