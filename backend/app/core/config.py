@@ -51,7 +51,6 @@ class Settings(BaseSettings):
 
     # Auth & security settings
     SECRET_KEY: str = "a7ab7603b94dfe3dd6c0fa505548081fc5cda3bc340ac80e0f37aaf2f05623fa"
-    GOOGLE_CLIENT_ID: str | None = None
 
     # Public frontend URL — used to build the redirect target after the Zerodha OAuth callback.
     # Must match the redirect_uri registered in the Kite Developer Console once one exists.

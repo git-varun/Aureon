@@ -104,7 +104,6 @@ async def health_check(
     # 6. Configuration Status
     config_status = {
         "debug_mode": settings.DEBUG,
-        "google_oauth_configured": settings.GOOGLE_CLIENT_ID is not None,
         "finnhub_api_configured": settings.FINNHUB_API_KEY is not None,
         "polygon_api_configured": settings.POLYGON_API_KEY is not None,
         "cors_origins_configured": len(settings.CORS_ALLOWED_ORIGINS) > 0
