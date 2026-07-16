@@ -11,7 +11,7 @@ const NAV_ITEMS = [
     {path: ROUTES.RECOMMENDATIONS, label: 'Recommendations',icon: I.recs},
 ];
 
-export function BottomNav({unreadCount, signalCount, userName, onLogout}) {
+export function BottomNav({unreadCount, signalCount, userName}) {
     const navigate = useNavigate();
     const {pathname} = useLocation();
     const [accountOpen, setAccountOpen] = useState(false);
@@ -56,7 +56,6 @@ export function BottomNav({unreadCount, signalCount, userName, onLogout}) {
                             <div className={s.avatarLg}>{initials}</div>
                             <div>
                                 <div className={s.accountName}>{userName || 'You'}</div>
-                                <div className={s.accountSub}>Personal account</div>
                             </div>
                         </div>
 
@@ -81,17 +80,6 @@ export function BottomNav({unreadCount, signalCount, userName, onLogout}) {
                                 <span>{item.label}</span>
                             </button>
                         ))}
-
-                        <div className={s.drawerDivider}/>
-
-                        <button className={`${s.drawerItem} ${s.drawerItemDanger}`} onClick={() => { onLogout?.(); setAccountOpen(false); }}>
-                            <span className={s.drawerIcon}>
-                                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
-                                    <path d="M9 21H5a2 2 0 01-2-2V5a2 2 0 012-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/>
-                                </svg>
-                            </span>
-                            <span>Sign out</span>
-                        </button>
                     </div>
                 </div>
             )}
