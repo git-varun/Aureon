@@ -6,34 +6,44 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from app.core.exceptions import ConflictError, NotFoundError
-from app.modules.market.entities.market import LatestQuote
+from app.modules.market.entities.market import Asset, LatestQuote
 from app.modules.market.entities.watchlist import Watchlist, WatchlistSymbol
 from app.modules.market.repositories.watchlist import WatchlistsRepository
-from app.modules.market.services.market import infer_exchange_region
+from app.modules.market.services.market import infer_currency, infer_exchange_region
 
 
 def _fetch_asset_info(session: Session, symbols: set[str]) -> dict[str, dict]:
-    """Single-query enrichment: name, price for each symbol."""
+    """Single-query enrichment: name, price, type, currency, spark history for each symbol."""
     if not symbols:
         return {}
 
     stmt = select(LatestQuote).where(LatestQuote.symbol.in_(symbols))
     quotes = session.execute(stmt).scalars().all()
     quote_lookup = {q.symbol: q for q in quotes}
-    
+
+    asset_stmt = select(Asset).where(Asset.symbol.in_(symbols))
+    assets = session.execute(asset_stmt).scalars().all()
+    asset_lookup = {a.symbol: a for a in assets}
+
+    watchlist_repo = WatchlistsRepository(session)
+    history_lookup = watchlist_repo.get_recent_price_history_by_symbols(symbols)
+
     result = {}
     for sym in symbols:
         q = quote_lookup.get(sym)
+        asset = asset_lookup.get(sym)
         price = float(q.price) if q and q.price is not None else None
         exchange, _region = infer_exchange_region(sym)
+        history = history_lookup.get(sym)
+        spark = [float(h.price) for h in history] if history else ([price] if price is not None else [])
         result[sym] = {
-            "name": sym,
+            "name": asset.name if asset else sym,
             "exchange": exchange,
             "currentPrice": price,
             "previousClose": price,
-            "assetType": "equity",
-            "currency": "INR" if sym.endswith(".NS") else "USD",
-            "spark": [price] if price is not None else [],
+            "assetType": asset.asset_class if asset else "equity",
+            "currency": infer_currency(asset.asset_class if asset else None, sym),
+            "spark": spark,
         }
     return result
 
