@@ -204,20 +204,21 @@ class MarketService(BaseService):
         self.snapshot_repo = AssetSnapshotRepository(repo.session)
         self.features_repo = AssetFeaturesRepository(repo.session)
 
-    def _compute_day_pct(self, asset_id: Optional[uuid.UUID]) -> float:
+    def _compute_day_pct(self, asset_id: Optional[uuid.UUID]) -> Optional[float]:
         """Latest PriceHistory sample vs. the nearest sample >=24h prior. Approximates
-        day-over-day change without a dedicated prior-close field (none exists in the schema)."""
+        day-over-day change without a dedicated prior-close field (none exists in the schema).
+        Returns None when no real change can be computed — callers must not treat that as 0%."""
         if not asset_id:
-            return 0.0
+            return None
         latest = self.repo.get_latest_price_history(asset_id)
         if not latest:
-            return 0.0
+            return None
         cutoff = latest.timestamp - timedelta(hours=24)
         prior = self.repo.get_price_history_before(asset_id, cutoff)
         if not prior:
             prior = self.repo.get_earliest_price_history(asset_id)
         if not prior or float(prior.price) == 0 or prior.id == latest.id:
-            return 0.0
+            return None
         return round((float(latest.price) - float(prior.price)) / float(prior.price), 4)
 
     def get_asset_snapshot(self, asset_id: uuid.UUID) -> dict[str, Any]:
@@ -290,8 +291,13 @@ class MarketService(BaseService):
         for sector, entries in sector_entries.items():
             sector_value = sum(price for price, _ in entries)
             wt = (sector_value / total_value) if total_value else 0.0
-            avg_day_pct = sum(pct for _, pct in entries) / len(entries)
-            results.append({"name": sector, "wt": round(wt, 4), "dayPct": round(avg_day_pct, 4)})
+            known_pcts = [pct for _, pct in entries if pct is not None]
+            avg_day_pct = (sum(known_pcts) / len(known_pcts)) if known_pcts else None
+            results.append({
+                "name": sector,
+                "wt": round(wt, 4),
+                "dayPct": round(avg_day_pct, 4) if avg_day_pct is not None else None,
+            })
 
         return sorted(results, key=lambda r: -r["wt"])
 
@@ -312,7 +318,7 @@ class MarketService(BaseService):
                 "sector": SYMBOL_SECTOR_MAP.get(asset.symbol, "General"),
             })
 
-        scored.sort(key=lambda r: r["dayPct"], reverse=True)
+        scored.sort(key=lambda r: r["dayPct"] if r["dayPct"] is not None else 0.0, reverse=True)
         n = min(5, len(scored) // 2)
         gainers = scored[:n]
         losers = list(reversed(scored[-n:])) if n else []
@@ -597,7 +603,7 @@ class MarketService(BaseService):
         results = []
         for a in assets:
             quote = self.repo.get_quote_by_symbol(a.symbol)
-            price = float(quote.price) if quote and quote.price is not None else None
+            price = float(quote.price) if quote and quote.price is not None and quote.price != 0 else None
             results.append({
                 "sym": a.symbol,
                 "name": a.name,
@@ -616,7 +622,7 @@ class MarketService(BaseService):
         results = []
         for a in assets:
             quote = self.repo.get_quote_by_symbol(a.symbol)
-            price = float(quote.price) if quote and quote.price is not None else None
+            price = float(quote.price) if quote and quote.price is not None and quote.price != 0 else None
             results.append({
                 "sym": a.symbol,
                 "name": a.name,

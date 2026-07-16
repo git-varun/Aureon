@@ -9,7 +9,7 @@ import {useApp} from '@/components/aureon/store';
 import {Eyebrow, TierChip, PriceChart, Empty, EpfEstimateBadge} from '@/components/aureon/ui';
 import {DecisionUnit, ActionConfirmationModal} from '@/components/aureon/flow';
 import {apiService} from '@/api/apiService';
-import {valueOf, valueOfBase, plOf, plPctOf} from '@/components/aureon/utils';
+import {valueOf, valueOfBase, plOf, plPctOf, isFutures} from '@/components/aureon/utils';
 import {useAureonData} from '@/hooks/useAureonData';
 import {useV4} from '@/contexts/V4Context';
 import {useFmtMoney} from '@/hooks/useFmtMoney';
@@ -584,7 +584,7 @@ export default function AssetDetail() {
             class:  raw.class  || 'stocks',
             tier:   null,
             price:  raw.currentPrice ?? raw.price ?? 0,
-            dayPct: raw.dayPct ?? 0,
+            dayPct: raw.dayPct ?? null,
             sector: raw.sector || null,
             cost: 0, qty: 0, beta: null, spark: raw.spark || [],
           }
@@ -718,8 +718,8 @@ export default function AssetDetail() {
                     <div style={{fontFamily: 'var(--font-mono)', fontSize: 36, fontWeight: 500, color: 'var(--ink-00)', marginTop: 6, lineHeight: 1, letterSpacing: '-0.015em'}}>
                         {fmt(displayAsset.price, currency, {dp: 2})}
                     </div>
-                    <div style={{fontFamily: 'var(--font-mono)', fontSize: 13, color: displayAsset.dayPct >= 0 ? 'var(--sage-500)' : 'var(--crimson-500)', marginTop: 6}}>
-                        {displayAsset.dayPct >= 0 ? '▲' : '▼'} {(Math.abs(displayAsset.dayPct) * 100).toFixed(2)}% today
+                    <div style={{fontFamily: 'var(--font-mono)', fontSize: 13, color: (isFutures(displayAsset) || displayAsset.dayPct == null) ? 'var(--ink-50)' : displayAsset.dayPct >= 0 ? 'var(--sage-500)' : 'var(--crimson-500)', marginTop: 6}}>
+                        {(isFutures(displayAsset) || displayAsset.dayPct == null) ? '—' : `${displayAsset.dayPct >= 0 ? '▲' : '▼'} ${(Math.abs(displayAsset.dayPct) * 100).toFixed(2)}% today`}
                     </div>
                 </div>
                 <div style={{display: 'flex', flexDirection: 'column', gap: 8, alignSelf: 'flex-start', minWidth: 150}}>

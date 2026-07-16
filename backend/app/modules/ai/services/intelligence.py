@@ -246,7 +246,7 @@ class FinancialIntelligenceService(BaseService):
 
         # Calculate asset values
         for pos in positions:
-            price = resolve_position_price(self.db, pos).price
+            price = resolve_position_price(self.db, pos).price or 0.0
             qty = float(pos.quantity)
             val = qty * price
             total_val += val
@@ -326,7 +326,7 @@ class FinancialIntelligenceService(BaseService):
                 sector = meta.get("sector", "General") if isinstance(meta, dict) else "General"
                 sectors.add(sector)
 
-            price = resolve_position_price(self.db, pos).price
+            price = resolve_position_price(self.db, pos).price or 0.0
             val = float(pos.quantity) * price
             total_val += val
             weights.append(val)
@@ -376,7 +376,7 @@ class FinancialIntelligenceService(BaseService):
         sectors = set()
 
         for pos in positions:
-            price = resolve_position_price(self.db, pos).price
+            price = resolve_position_price(self.db, pos).price or 0.0
             val = float(pos.quantity) * price
             total_val += val
 
@@ -461,7 +461,7 @@ class FinancialIntelligenceService(BaseService):
         for pos in positions:
             asset = self.repo.get_asset(pos.asset_id)
             if asset:
-                price = resolve_position_price(self.db, pos).price
+                price = resolve_position_price(self.db, pos).price or 0.0
                 val = float(pos.quantity) * price
 
                 # Classify
@@ -656,7 +656,7 @@ class FinancialIntelligenceService(BaseService):
         for pos in positions:
             asset = self.repo.get_asset(pos.asset_id)
             if asset:
-                price = resolve_position_price(self.db, pos).price
+                price = resolve_position_price(self.db, pos).price or 0.0
                 val = float(pos.quantity) * price
                 cls = asset.asset_class.lower()
                 if cls in ["stocks", "equity"]:
@@ -698,7 +698,7 @@ class FinancialIntelligenceService(BaseService):
         for pos in positions:
             asset = self.repo.get_asset(pos.asset_id)
             if asset:
-                price = resolve_position_price(self.db, pos).price
+                price = resolve_position_price(self.db, pos).price or 0.0
                 val = float(pos.quantity) * price
                 cls = asset.asset_class.lower()
                 if cls in ["stocks", "equity"]:

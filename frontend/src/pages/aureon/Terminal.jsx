@@ -5,6 +5,7 @@ import { useFmtMoney } from '@/hooks/useFmtMoney';
 import { useAureonData } from '@/hooks/useAureonData';
 import { useApp } from '@/components/aureon/store';
 import { TerminalChart } from '@/components/aureon/terminal/TerminalChart';
+import { isFutures } from '@/components/aureon/utils';
 
 const CLASS_LABEL = {
     stocks: 'Equity', funds: 'Fund / ETF', bonds: 'Bond',
@@ -281,8 +282,8 @@ function LeftPanel({ sym, picked, fmtPrice, quote, quoteStatus, quoteRetry, sign
                 </div>
                 <div style={{ display: 'flex', alignItems: 'baseline', gap: 8 }}>
                     <span style={{ fontFamily: 'var(--font-mono)', fontSize: 20, fontWeight: 500, color: 'var(--ink-00)', letterSpacing: '-0.015em' }}>{fmtPrice(picked.price)}</span>
-                    <span style={{ fontFamily: 'var(--font-mono)', fontSize: 12, color: picked.dayPct >= 0 ? 'var(--sage-500)' : 'var(--crimson-500)' }}>
-                        {picked.dayPct >= 0 ? '▲' : '▼'} {(Math.abs(picked.dayPct) * 100).toFixed(2)}%
+                    <span style={{ fontFamily: 'var(--font-mono)', fontSize: 12, color: (isFutures(picked) || picked.dayPct == null) ? 'var(--ink-40)' : picked.dayPct >= 0 ? 'var(--sage-500)' : 'var(--crimson-500)' }}>
+                        {(isFutures(picked) || picked.dayPct == null) ? '—' : `${picked.dayPct >= 0 ? '▲' : '▼'} ${(Math.abs(picked.dayPct) * 100).toFixed(2)}%`}
                     </span>
                 </div>
                 <div style={{ fontSize: 10.5, color: 'var(--ink-40)', marginTop: 4 }}>
@@ -942,8 +943,8 @@ function AssetView({ sym, picked, fmtPrice, watchlists, setWatchlists, recsActiv
                 </div>
                 <div style={{ marginLeft: 'auto', display: 'flex', alignItems: 'baseline', gap: 12, flexWrap: 'wrap' }}>
                     <span style={{ fontFamily: 'var(--font-mono)', fontSize: 26, fontWeight: 500, color: 'var(--ink-00)', letterSpacing: '-0.02em' }}>{fmtPrice(picked.price)}</span>
-                    <span style={{ fontFamily: 'var(--font-mono)', fontSize: 13, color: picked.dayPct >= 0 ? 'var(--sage-500)' : 'var(--crimson-500)' }}>
-                        {picked.dayPct >= 0 ? '▲' : '▼'} {(Math.abs(picked.dayPct) * 100).toFixed(2)}%
+                    <span style={{ fontFamily: 'var(--font-mono)', fontSize: 13, color: (isFutures(picked) || picked.dayPct == null) ? 'var(--ink-40)' : picked.dayPct >= 0 ? 'var(--sage-500)' : 'var(--crimson-500)' }}>
+                        {(isFutures(picked) || picked.dayPct == null) ? '—' : `${picked.dayPct >= 0 ? '▲' : '▼'} ${(Math.abs(picked.dayPct) * 100).toFixed(2)}%`}
                     </span>
                     <span style={{ fontSize: 10.5, color: 'var(--ink-40)', padding: '2px 7px', background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.07)', borderRadius: 4 }}>
                         {picked.ex} · {picked.region}
@@ -1033,7 +1034,7 @@ export default function Terminal() {
         const seedSyms = new Set(universe.map(u => u.sym));
         const portfolioEntries = holdings
             .filter(h => !seedSyms.has(h.ticker))
-            .map(h => ({ sym: h.ticker, name: h.name || h.ticker, ex: h.ticker.endsWith('.NS') ? 'NSE' : '', region: 'IN', class: h.class, sector: h.sector || '', price: h.price, dayPct: h.dayPct, spark: h.spark, mcap: null }));
+            .map(h => ({ sym: h.ticker, name: h.name || h.ticker, ex: h.ticker.endsWith('.NS') ? 'NSE' : '', region: 'IN', class: h.class, sector: h.sector || '', price: h.price, dayPct: h.dayPct, spark: h.spark, mcap: null, wallet: h.wallet }));
         const indexEntries = indices
             .filter(idx => !seedSyms.has(idx.sym))
             .map(idx => ({ sym: idx.sym, name: idx.sym, ex: idx.region === 'IN' ? 'NSE' : '', region: idx.region || 'IN', class: 'index', sector: 'Market Index', price: idx.value || 0, dayPct: idx.dayPct || 0, spark: idx.spark || [], mcap: null }));

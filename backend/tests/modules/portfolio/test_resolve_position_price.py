@@ -45,7 +45,7 @@ def test_zero_price_quote_labeled_unavailable_not_market(db_session, portfolio):
 
     result = resolve_position_price(db_session, pos)
 
-    assert result.price == 0.0
+    assert result.price is None
     assert result.price_source == "unavailable"
     assert result.quote_age_status is None
     assert result.quote_updated_at is None
