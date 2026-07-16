@@ -114,10 +114,6 @@ class WatchlistService(BaseService):
     def add_symbol(self, watchlist_id: uuid.UUID, user_id: uuid.UUID, symbol: str) -> dict[str, Any]:
         wl = self._get_or_404(watchlist_id, user_id)
         sym_upper = symbol.upper().strip()
-        
-        # In canonical code, we ensure asset exists in latest_quotes
-        from app.modules.market.services.market import ensure_asset_exists
-        ensure_asset_exists(self.repo.session, sym_upper)
 
         exists = self.repo.get_symbol(watchlist_id, sym_upper)
         if exists:
