@@ -92,11 +92,11 @@ more than one domain. Each layer has one job and a fixed home:
 - config.py — Pydantic-Settings singleton (settings); reads .env from project root. PostgreSQL is mandatory.  
 - database.py — SQLAlchemy engine + SessionLocal + get_db(). Schema-qualified tables are managed by Alembic migrations, not create_all, outside of tests.  
 - redis.py — Redis cache helpers (cache_quote, cache_asset_snapshot, check_redis_health, etc.).  
-- dependencies.py — FastAPI dependency functions (get_db, get_current_user, get_user_context, serialize_user_profile).  
-- logger.py — Structured logger with correlation ID via contextvars.  
+- app/api/dependencies.py (not app/core/) — FastAPI dependency functions (get_db, get_current_user, get_user_context, serialize_user_profile).  
+- logging/ — structured logging package (no single logger.py file): core.py (the `logger` instance + compact one-line formatter), context.py (contextvars-based request/task/user/worker correlation IDs), sanitizer.py (masks secrets/JWTs before they hit the log line), http.py (outbound HTTP call logging), middleware.py (RequestLoggingMiddleware, assigns a correlation ID per request), instrument.py (the `instrument()` decorator wrapping service/provider methods with OK/FAIL + duration logging).  
 - security.py — JWT encode/decode helpers.  
 - exceptions.py — AppException hierarchy: InfrastructureError -> DatabaseError; ProviderError; EvaluationError; BusinessRuleError -> ConflictError/NotFoundError; SecurityError; AuthenticationError; AuthorizationError -> PermissionDeniedError; ValidationError. (SecurityError, AuthenticationError, and AuthorizationError are direct siblings under AppException, not nested under each other.)  
-- observability/ — decorators.py (service/provider call tracing), logging.py, middleware.py, metrics.py, health.py, audit.py, and related cross-cutting concerns.  
+- observability/ — health.py only today: system/error health monitoring, two classes — ErrorFingerprinter (error dedup/fingerprinting) and HealthScoreEngine (DB/cache/CPU/memory-bounded health score, via get_system_metrics/compute_health_score), plus a module-level `fingerprinter = ErrorFingerprinter()` singleton imported elsewhere. The logging/tracing pieces this bullet used to list live in logging/ (above); audit logging is app/core/services/audit.py; there's no metrics.py anywhere in the codebase.  
 **AI service (**app/modules/ai/services/ai.py**)**  
 Multi-model fallback chain: Gemini (4 models) -> Groq (2 models). On HTTP 429 a model is cooled down and the next is tried automatically. If no credentials are configured or all models are exhausted, it raises ProviderError — no fake/mock briefing fallback in production. All AI results are stored in the AIBriefing table and also cached in Redis. (AUREON_TEST_MOCK_AI=true is an explicit, documented test-only escape hatch, not a production path.)  
 **Key composite endpoint**  
