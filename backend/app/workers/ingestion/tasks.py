@@ -124,10 +124,10 @@ def _wrap_job_execution(job_name: str, log_id: int | None, fn, *args, **kwargs) 
         from app.core.entities.config import JobStatus
         from app.core.services.config import ConfigService
         from app.core.repositories.config import ConfigRepository
-        
+
         cfg_repo = ConfigRepository(db)
         cfg_svc = ConfigService(cfg_repo)
-        
+
         if log_id is None:
             log = cfg_svc.log_job_start(job_name)
             log_id = log.id
@@ -139,6 +139,17 @@ def _wrap_job_execution(job_name: str, log_id: int | None, fn, *args, **kwargs) 
             cfg_svc.log_job_end(log_id, JobStatus.FAILED, error=str(e))
             logger.error(f"Job {job_name} failed (log_id={log_id}): {e}", exc_info=True)
             raise e
+        finally:
+            # Releases dispatch_job's concurrency-guard lock (config.py's
+            # _JOB_LOCK_TTL_SECONDS) for the three broker-sync jobs it's taken
+            # for — a harmless no-op (compare-then-delete against a key that was
+            # never set) for every other job. Token is this task's own Celery
+            # task_id, set into context by celery_app.py's task_prerun handler.
+            from app.core.logging import ctx_task_id
+            from app.core.redis import release_job_lock
+            token = ctx_task_id.get()
+            if token:
+                release_job_lock(job_name, token)
     finally:
         db.close()
 

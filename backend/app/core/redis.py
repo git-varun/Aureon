@@ -503,4 +503,26 @@ def invalidate_intelligence_outcomes(portfolio_id: str) -> None:
         logger.warning(f"redis_operation_failed operation=invalidate_intelligence_outcomes key={get_intelligence_outcomes_key(portfolio_id)} error={str(e)}")
 
 
+def get_job_lock_key(job_name: str) -> str:
+    return f"job_lock:{job_name}"
+
+
+def try_acquire_job_lock(job_name: str, token: str, ttl_seconds: int) -> bool:
+    """Atomic claim for dispatch_job's concurrency guard (SET NX EX) — the TTL is
+    the sole recovery path for a worker process that dies mid-task, so no
+    RedisError swallowing here: an outage should surface, not silently let
+    every dispatch through as if unlocked."""
+    client = get_redis_client()
+    return bool(client.set(get_job_lock_key(job_name), token, nx=True, ex=ttl_seconds))
+
+
+def release_job_lock(job_name: str, token: str) -> None:
+    """Compare-then-delete so a lock this caller no longer owns (already expired
+    and re-claimed by a later dispatch) is never deleted out from under it."""
+    client = get_redis_client()
+    key = get_job_lock_key(job_name)
+    if client.get(key) == token:
+        client.delete(key)
+
+
 

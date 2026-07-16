@@ -10,7 +10,7 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from app.core.config import settings
-from app.core.exceptions import ConfigurationError, InfrastructureError, NotFoundError
+from app.core.exceptions import ConfigurationError, ConflictError, InfrastructureError, NotFoundError
 from app.core.logging import logger
 from app.core.entities.config import (
     AllocationTarget,
@@ -496,16 +496,36 @@ class ConfigService(BaseService):
         "sync_groww": "groww",
     }
 
+    # Dispatch-time concurrency guard TTL for the three broker-sync jobs above —
+    # the only jobs dispatch_job gates and the double-click ("Sync Now") scenario
+    # this guards against. Real full-cycle (queue-to-completion) durations
+    # measured via TaskRun on 2026-07-16 for the one broker with live credentials
+    # (binance): 42.2s and 50.0s. 600s gives >10x margin over both observed runs —
+    # enough headroom for a slow provider day without leaving a crashed-worker
+    # lock stuck for an unreasonable time. See WORKERS_OBSERVABILITY_SCOPE.md §1.
+    _JOB_LOCK_TTL_SECONDS = 600
+
     def dispatch_job(self, job_name: str, log_id: Optional[int] = None, user_id: Optional[uuid.UUID] = None) -> str:
         # Pre-assign a task ID and log start
         task_id = str(uuid.uuid4())
+
+        required_provider = self._PROVIDER_REQUIRED_JOBS.get(job_name)
+        if required_provider:
+            from app.core.redis import try_acquire_job_lock
+
+            if not try_acquire_job_lock(job_name, task_id, self._JOB_LOCK_TTL_SECONDS):
+                message = f"Job '{job_name}' is already running — rejected duplicate dispatch"
+                logger.warning(message)
+                if log_id is not None:
+                    self.log_job_end(log_id, JobStatus.FAILED, error=message)
+                raise ConflictError(message)
+
         if log_id is None:
             log = self.log_job_start(job_name, task_id)
             log_id = log.id
         else:
             self.attach_task_id(log_id, task_id)
 
-        required_provider = self._PROVIDER_REQUIRED_JOBS.get(job_name)
         if required_provider:
             cfg = self.get_provider(required_provider)
             from app.core.providers.lifecycle import ProviderStatus
@@ -513,6 +533,8 @@ class ConfigService(BaseService):
                 status = cfg.status if cfg else "NOT_FOUND"
                 message = f"Provider '{required_provider}' is not configured (status={status}) — job not dispatched"
                 logger.warning(message)
+                from app.core.redis import release_job_lock
+                release_job_lock(job_name, task_id)
                 self.log_job_end(log_id, JobStatus.FAILED, error=message, task_id=task_id)
                 raise ConfigurationError(message)
 
@@ -565,6 +587,9 @@ class ConfigService(BaseService):
             return task_id
         except Exception as e:
             logger.error(f"Failed to dispatch Celery task for {job_name}: {e}")
+            if required_provider:
+                from app.core.redis import release_job_lock
+                release_job_lock(job_name, task_id)
             self.log_job_end(log_id, JobStatus.FAILED, error=str(e), task_id=task_id)
             raise InfrastructureError(f"Failed to dispatch job '{job_name}': {e}")
 
