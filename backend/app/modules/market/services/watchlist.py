@@ -148,7 +148,13 @@ class WatchlistService(BaseService):
         if not ws:
             raise NotFoundError(f"Symbol {symbol} not in watchlist")
 
+        current = self.repo.session.execute(
+            select(LatestQuote.price).where(LatestQuote.symbol == ws.symbol)
+        ).scalar_one_or_none()
+
         ws.alert_price = price
+        ws.alert_direction = "gte" if current is None or price >= float(current) else "lte"
+        ws.alert_triggered = False
         self.repo.session.commit()
         self.repo.session.refresh(wl)
 
@@ -163,9 +169,44 @@ class WatchlistService(BaseService):
             raise NotFoundError(f"Symbol {symbol} not in watchlist")
 
         ws.alert_price = None
+        ws.alert_direction = None
+        ws.alert_triggered = False
         self.repo.session.commit()
         self.repo.session.refresh(wl)
 
         all_symbols = {s.symbol for s in wl.symbols}
         info = _fetch_asset_info(self.repo.session, all_symbols)
         return _to_dict(wl, info)
+
+    def evaluate_alerts(self, symbol: str, price: float) -> list[dict[str, Any]]:
+        """Checks every watchlist alert on `symbol` against the latest `price`.
+
+        Fires (returns a notification payload for) each alert whose threshold
+        was just crossed, and updates alert_triggered so a stale-but-still-
+        crossed price doesn't re-fire on the next evaluation. Resets
+        alert_triggered once price moves back to the non-triggered side, so a
+        later re-crossing can fire again.
+        """
+        fired: list[dict[str, Any]] = []
+        changed = False
+        for ws, user_id in self.repo.list_active_alerts_for_symbol(symbol):
+            target = float(ws.alert_price)
+            is_triggered_side = price >= target if ws.alert_direction == "gte" else price <= target
+
+            if is_triggered_side and not ws.alert_triggered:
+                ws.alert_triggered = True
+                changed = True
+                verb = "rose to" if ws.alert_direction == "gte" else "fell to"
+                fired.append({
+                    "user_id": user_id,
+                    "title": f"{symbol} alert triggered",
+                    "message": f"{symbol} {verb} {price:g}, target was {target:g}",
+                    "type": "info",
+                })
+            elif not is_triggered_side and ws.alert_triggered:
+                ws.alert_triggered = False
+                changed = True
+
+        if changed:
+            self.repo.session.commit()
+        return fired
