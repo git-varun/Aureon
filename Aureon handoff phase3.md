@@ -71,6 +71,13 @@ commit, report hashes. Only then proceed to new work.
   state), threshold values, consolidation timing, deletion of stale data.
   Mechanical fixes (typed exceptions, deduplication, key-naming
   consistency) don't need this.
+- **Reference doc upkeep**: if a session's audit/scope work materially
+  changes what's true about a piloted folder (`market/`, `portfolio/`),
+  update that folder's `reference.md` as part of the same session/commit —
+  not a separate maintenance task, not deferred. If the folder doesn't have
+  a `reference.md` yet and the work touching it would take more than ~3
+  sentences to summarize, that's a signal to create one following the
+  template in `PROVIDER_TOGGLE_AND_PILOT_DOCS_SCOPE.md` §Part 2.
 
 ## 4. What happened since Phase 2 closed
 
