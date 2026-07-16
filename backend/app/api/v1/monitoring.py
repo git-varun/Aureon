@@ -32,10 +32,10 @@ def get_dependencies_status(svc: MonitoringService = Depends(get_monitoring_serv
 def get_aggregate_health(svc: MonitoringService = Depends(get_monitoring_service)) -> dict[str, Any]:
     return svc.get_aggregate_health()
 
-@router.get("/backups/verify")
-def verify_backups(svc: MonitoringService = Depends(get_monitoring_service)) -> dict[str, Any]:
-    return svc.verify_backups()
+@router.get("/transactions/integrity")
+def check_transaction_integrity(svc: MonitoringService = Depends(get_monitoring_service)) -> dict[str, Any]:
+    return svc.check_transaction_integrity()
 
-@router.get("/restore/verify")
-def verify_restore_procedures(svc: MonitoringService = Depends(get_monitoring_service)) -> dict[str, Any]:
-    return svc.verify_restore_procedures()
+@router.get("/positions/quote-integrity")
+def check_position_quote_integrity(svc: MonitoringService = Depends(get_monitoring_service)) -> dict[str, Any]:
+    return svc.check_position_quote_integrity()
