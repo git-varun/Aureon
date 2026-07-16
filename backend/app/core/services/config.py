@@ -220,7 +220,6 @@ class ConfigService(BaseService):
         keys = _safe_json_load(p.encrypted_keys, {})
         keys[key_name] = _encrypt(value) if value else ""
         p.encrypted_keys = json.dumps(keys)
-        p.enabled = True
         self.repo.session.flush()
         from app.core.services.audit import log_audit_action
         log_audit_action(
@@ -276,7 +275,6 @@ class ConfigService(BaseService):
                 raise ValueError(f"Invalid key name {key_name} for provider {provider_name}")
             stored[key_name] = _encrypt(value) if value else ""
         p.encrypted_keys = json.dumps(stored)
-        p.enabled = True
         self.repo.session.flush()
         from app.core.services.audit import log_audit_action
         log_audit_action(
