@@ -28,13 +28,13 @@ const PageSkeleton = () => (
     </div>
 );
 
-function AureonShellInner({onLogout, userName}) {
+function AureonShellInner({userName}) {
     const {holdings, signals, activity, unreadCount} = useAureonData();
 
     return (
         <div style={{display: 'flex', height: '100vh', overflow: 'hidden', background: 'var(--canvas)', color: 'var(--ink-10)'}}>
             <Sidebar
-                userName={userName} onLogout={onLogout}
+                userName={userName}
                 portfolioCount={holdings.length || null}
                 transactionCount={activity.length || null}
             />
@@ -71,18 +71,18 @@ function AureonShellInner({onLogout, userName}) {
                     </div>
                 </div>
             </main>
-            <BottomNav unreadCount={unreadCount} signalCount={signals.length} userName={userName} onLogout={onLogout}/>
+            <BottomNav unreadCount={unreadCount} signalCount={signals.length} userName={userName}/>
             <Toast/>
         </div>
     );
 }
 
-export default function AureonShell({onLogout, userName}) {
+export default function AureonShell({userName}) {
     // V4Provider must wrap AppProvider: store.jsx calls useV4() internally
     return (
         <V4Provider>
             <AppProvider>
-                <AureonShellInner onLogout={onLogout} userName={userName}/>
+                <AureonShellInner userName={userName}/>
                 <Toaster position="top-right" toastOptions={{
                     style: {
                         background: '#16181c',

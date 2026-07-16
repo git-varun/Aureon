@@ -30,7 +30,7 @@ const SidebarLabel = ({children, first}) => (
     <div className={first ? s.sectionLabelFirst : s.sectionLabel}>{children}</div>
 );
 
-export const Sidebar = ({userName, onLogout, portfolioCount, transactionCount}) => {
+export const Sidebar = ({userName, portfolioCount, transactionCount}) => {
     const navigate = useNavigate();
     const {active} = useApp();
     const [menuOpen, setMenuOpen] = useState(false);
@@ -118,7 +118,6 @@ export const Sidebar = ({userName, onLogout, portfolioCount, transactionCount}) 
                                 <div style={{fontSize: 12.5, fontWeight: 500, color: 'var(--ink-00)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap'}}>
                                     {userName || 'You'}
                                 </div>
-                                <div style={{fontSize: 10.5, color: 'var(--ink-40)'}}>Personal account</div>
                             </div>
                         </div>
                         <button onClick={() => { navigate(ROUTES.SETTINGS); setMenuOpen(false); }} className={s.userMenuItem}>
@@ -126,10 +125,6 @@ export const Sidebar = ({userName, onLogout, portfolioCount, transactionCount}) 
                                 {I.gear}
                                 <span>Settings</span>
                             </span>
-                        </button>
-                        <div style={{borderTop: '1px solid rgba(255,255,255,0.06)', margin: '4px 0'}}/>
-                        <button onClick={() => { onLogout(); setMenuOpen(false); }} className={s.userMenuItem} style={{color: 'var(--crimson-500)'}}>
-                            Sign out
                         </button>
                     </div>
                 )}

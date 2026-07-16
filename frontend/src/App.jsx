@@ -17,7 +17,7 @@ export default function App() {
 
     const shell = !onboarded
         ? <Onboarding onDone={handleOnboardingDone}/>
-        : <AureonShell onLogout={() => {}} userName=""/>;
+        : <AureonShell userName=""/>;
 
     return (
         <>
