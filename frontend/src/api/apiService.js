@@ -6,15 +6,6 @@ const API = axios.create({baseURL: '/api/v1', timeout: 60000});
 // Helper to retrieve the active portfolio context synchronously
 const getPortfolioId = () => localStorage.getItem('active_portfolio_id');
 
-// Add Authorization header if session token exists
-API.interceptors.request.use((config) => {
-    const token = localStorage.getItem('access_token');
-    if (token) {
-        config.headers.Authorization = `Bearer ${token}`;
-    }
-    return config;
-}, (error) => Promise.reject(error));
-
 // Centralized error extractor
 const handleRequest = async (promise) => {
     try {

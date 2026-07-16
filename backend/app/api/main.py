@@ -17,7 +17,6 @@ from app.modules.portfolio.api import portfolio
 from app.core.config import settings
 from app.core.exceptions import (
     AppException,
-    AuthenticationError,
     ConflictError,
     NotFoundError,
     PermissionDeniedError,
