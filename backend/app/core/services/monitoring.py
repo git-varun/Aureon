@@ -26,7 +26,6 @@ class MonitoringService(BaseService):
         health = health_records[0]
         return {
             "asset_id": str(health.asset_id),
-            "provider_name": health.provider_name,
             "status": health.status,
             "quote_age_seconds": health.quote_age_seconds,
             "updated_at": health.updated_at,

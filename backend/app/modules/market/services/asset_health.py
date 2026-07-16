@@ -140,6 +140,13 @@ class AssetHealthService(BaseService):
 
         health = AssetHealth(
             asset_id=asset_id,
+            # provider_name is part of AssetHealth's composite PK (asset_id,
+            # provider_name) and the upsert conflict target — wiring in the
+            # real, potentially-changing LatestQuote.provider here would
+            # create a new row per provider switch instead of updating the
+            # existing one. Left as a fixed placeholder key; not surfaced in
+            # any API response (see MonitoringService.get_asset_health and
+            # AssetHealthService.compute's return dict).
             provider_name="default",
             last_successful_ingestion=last_success,
             quote_age_seconds=quote_age,
@@ -154,7 +161,6 @@ class AssetHealthService(BaseService):
 
         return {
             "asset_id": str(updated_health.asset_id),
-            "provider_name": updated_health.provider_name,
             "status": updated_health.status,
             "quote_age_seconds": updated_health.quote_age_seconds,
             "fundamentals_age_seconds": updated_health.fundamentals_age_seconds,
