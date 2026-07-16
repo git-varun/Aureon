@@ -22,8 +22,9 @@ from app.core.redis import (
     get_cached_intelligence_recommendations,
 )
 from app.core.entities.system import User
-from app.domain.services import FinancialIntelligenceService, RecommendationService
-from app.infrastructure.repositories import RecommendationRepository
+from app.modules.ai.services.intelligence import FinancialIntelligenceService
+from app.modules.ai.services.recommendation import RecommendationService
+from app.modules.ai.repositories.recommendation import RecommendationRepository
 
 router = APIRouter()
 

@@ -44,6 +44,20 @@ class AssetFeatures(TimestampMixin, Base):
     volatility_score: Mapped[float | None] = mapped_column(Numeric, nullable=True)
     sentiment_score: Mapped[float | None] = mapped_column(Numeric, nullable=True)
 
+class AssetFundamentals(TimestampMixin, Base):
+    __tablename__ = "asset_fundamentals"
+    __table_args__ = {"schema": "market"}
+
+    asset_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("market.asset_snapshot.asset_id", ondelete="CASCADE"), primary_key=True)
+    trailing_pe: Mapped[float | None] = mapped_column(Numeric, nullable=True)
+    price_to_book: Mapped[float | None] = mapped_column(Numeric, nullable=True)
+    roe: Mapped[float | None] = mapped_column(Numeric, nullable=True)
+    debt_to_equity: Mapped[float | None] = mapped_column(Numeric, nullable=True)
+    profit_margin: Mapped[float | None] = mapped_column(Numeric, nullable=True)
+    revenue_growth: Mapped[float | None] = mapped_column(Numeric, nullable=True)
+    dividend_yield: Mapped[float | None] = mapped_column(Numeric, nullable=True)
+
+
 class AssetHealth(TimestampMixin, Base):
     __tablename__ = "asset_health"
 

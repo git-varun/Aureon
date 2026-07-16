@@ -129,7 +129,7 @@ class YahooAdapter(MarketDataProvider):
                 f"Yahoo news symbol={symbol} received={received} parsed={len(results)} skipped={skipped}"
             )
         except Exception as e:
-            logger.warning(f"Yahoo get_news failed for {symbol}: {e}")
+            raise ProviderError(f"Yahoo get_news failed for {symbol}: {e}") from e
         return results
 
     def get_technical_indicators(self, symbol: str) -> dict[str, Any]:
@@ -190,6 +190,35 @@ class YahooAdapter(MarketDataProvider):
             "action": None, "trend": None,
             "source": "unavailable", "news_timestamp": None,
         }
+
+    def get_fundamentals(self, symbol: str) -> dict[str, Any]:
+        """Optional capability — quality/valuation metrics from ticker.info.
+
+        Runs on the daily fundamentals cadence (SLA_FUNDAMENTALS_MAX_AGE_SEC),
+        decoupled from the 300s quote-refresh cycle that calls get_quote(), so
+        this makes its own ticker.info call rather than reusing get_quote()'s —
+        the two never run in the same cycle to share one.
+        """
+        try:
+            ticker = yf.Ticker(symbol)
+            info = ticker.info
+            return {
+                "trailing_pe": info.get("trailingPE"),
+                "forward_pe": info.get("forwardPE"),
+                "price_to_book": info.get("priceToBook"),
+                "roe": info.get("returnOnEquity"),
+                "debt_to_equity": info.get("debtToEquity"),
+                "profit_margin": info.get("profitMargins"),
+                "revenue_growth": info.get("revenueGrowth"),
+                "earnings_growth": info.get("earningsGrowth"),
+                "dividend_yield": info.get("dividendYield"),
+                "beta": info.get("beta"),
+                "market_cap": info.get("marketCap"),
+                "sector": info.get("sector"),
+                "industry": info.get("industry"),
+            }
+        except Exception as e:
+            raise ProviderError(f"Yahoo get_fundamentals failed for {symbol}: {e}") from e
 
     def health_check(self) -> bool:
         try:

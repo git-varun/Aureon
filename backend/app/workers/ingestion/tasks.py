@@ -18,6 +18,9 @@ _MARKET_DATA_PROVIDERS = {"finnhub", "polygon", "yahoo", "binance_price"}
 # nps/epf get theirs from statement-import wiring (import_nps_statement,
 # NAV_INGESTION_SCOPE.md §4/§6) or don't have a source at all (epf, §7).
 _NO_YAHOO_COVERAGE_ASSET_CLASSES = {"mutual_fund", "nps", "epf"}
+# MANUAL- prefixed symbols (manually-valued assets, portfolio/api/portfolio.py's
+# create_manual_asset) use a free-text asset_class, so they're excluded by
+# symbol prefix below rather than added to the class set above.
 
 
 @with_retry()
@@ -109,7 +112,7 @@ def ingest_all_quotes() -> None:
         logger.warning("ingest_all_quotes: market.assets is empty — run seed_market_universe_task first")
         return
     for symbol, asset_class in assets:
-        if asset_class in _NO_YAHOO_COVERAGE_ASSET_CLASSES:
+        if asset_class in _NO_YAHOO_COVERAGE_ASSET_CLASSES or symbol.startswith("MANUAL-"):
             continue
         provider_name = "binance_price" if asset_class == "crypto_futures" else "yahoo"
         ingest_quote.delay(provider_name, symbol)
@@ -158,12 +161,12 @@ def sync_portfolio_task(log_id: int | None = None, **kwargs) -> None:
         ingest_all_quotes()
 
         from app.modules.portfolio.services.portfolio import PortfolioService
-        from app.infrastructure.repositories import (
+        from app.modules.portfolio.repositories.portfolio_snapshot import (
             PortfolioSnapshotRepository,
-            PortfoliosRepository,
-            PositionsRepository,
-            TransactionsRepository,
         )
+        from app.modules.portfolio.repositories.portfolios import PortfoliosRepository
+        from app.modules.portfolio.repositories.positions import PositionsRepository
+        from app.modules.portfolio.repositories.transactions import TransactionsRepository
 
         for portfolio_id in _list_portfolio_entries():
             db = SessionLocal()
@@ -207,12 +210,12 @@ def _run_broker_sync(job_name: str, provider_name: str, sync_method_name: str) -
     holdings = provider.sync()  # raises <Provider>AuthError("AUTH_REQUIRED: ...") if not connected / expired
 
     from app.modules.portfolio.services.portfolio import PortfolioService
-    from app.infrastructure.repositories import (
+    from app.modules.portfolio.repositories.portfolio_snapshot import (
         PortfolioSnapshotRepository,
-        PortfoliosRepository,
-        PositionsRepository,
-        TransactionsRepository,
     )
+    from app.modules.portfolio.repositories.portfolios import PortfoliosRepository
+    from app.modules.portfolio.repositories.positions import PositionsRepository
+    from app.modules.portfolio.repositories.transactions import TransactionsRepository
 
     for portfolio_id in _list_portfolio_entries():
         db = SessionLocal()

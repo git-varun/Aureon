@@ -30,8 +30,9 @@ from app.core.api.schemas import (
 from app.core.exceptions import NotFoundError, ValidationError
 from app.core.redis import cache_portfolio_snapshot, get_cached_portfolio_snapshot
 from app.core.entities.system import User
-from app.domain.services import ConfigService, PortfolioService
-from app.infrastructure.repositories import WatchlistsRepository
+from app.core.services.config import ConfigService
+from app.modules.portfolio.services.portfolio import PortfolioService
+from app.modules.market.repositories.watchlist import WatchlistsRepository
 
 router = APIRouter()
 

@@ -64,6 +64,7 @@ Local-first, single-user Investment Operating System. FastAPI + PostgreSQL + Red
 - No currency field anywhere in Asset/LatestQuote/AssetSnapshot, despite mixed-currency symbols coexisting (INR/USD/USDT). Real schema/migration work, no confirmed live impact today (flagged as a cross-check risk by the market-module audit, not a demonstrated wrong-number bug). Decision made (SPAR'd): defer.
 - Fix U/V/W's provider-agnostic sentiment computation was only live-verified against Yahoo (Finnhub returned 0 articles during testing, external API behavior). The code has no provider special-casing, so it should work identically for any provider, but this hasn't been confirmed with real non-Yahoo data — re-verify next time Finnhub actually returns articles.
 - `signal_healthy` (`asset_health.py`) has the same silent-default-to-healthy bug `news_healthy` had before Fix S — found during Fix S, not fixed, in scope for a future pass.
+- Terminal.jsx's NewsPanel reads `n.sentiment || n.s || 'neutral'` from `/news/{symbol}`, but that endpoint returns `sentiment_score` (a raw float) — this field mismatch means the panel has always silently rendered 'neutral' regardless of real data, pre-existing and unrelated to Fix U/V/W. Found during that fix's verification, not fixed — should use `sentiment_score` directly, matching the `getSentiment`/null-vs-neutral distinction already built for AssetDetail.jsx in Fix T.
 
 ## 5. Working discipline established this thread (carry forward)
 
