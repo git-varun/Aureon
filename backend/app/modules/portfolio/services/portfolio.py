@@ -1144,6 +1144,17 @@ class PortfolioService(BaseService):
             asset = (b.get("asset") or "").upper().strip()
             if not asset:
                 continue
+            # Simple Earn Flexible auto-subscribes free spot balance and holds
+            # it as a distinct SPOT asset code prefixed "LD" (e.g. "LDBTC"), a
+            # 1:1-redeemable receipt token for the real "BTC" — confirmed live,
+            # this is on the spot balance list itself, not on the Simple Earn
+            # position endpoint (whose own "asset" field already reports the
+            # plain underlying symbol, e.g. "BTC", nothing to strip there).
+            # Strip it so the balance merges into the same Position as the
+            # real spot holding — otherwise it becomes its own Position with no
+            # quote/price source any provider can ever resolve.
+            if asset.startswith("LD") and len(asset) > 2:
+                asset = asset[2:]
             quantities[asset] = quantities.get(asset, 0.0) + float(b.get("free") or 0) + float(b.get("locked") or 0)
         for e in holdings.get("earn") or []:
             asset = (e.get("asset") or "").upper().strip()
