@@ -604,13 +604,14 @@ class MarketService(BaseService):
         for a in assets:
             quote = self.repo.get_quote_by_symbol(a.symbol)
             price = float(quote.price) if quote and quote.price is not None and quote.price != 0 else None
+            ex, region = infer_exchange_region(a.symbol)
             results.append({
                 "sym": a.symbol,
                 "name": a.name,
                 "price": price,
                 "dayPct": self._compute_day_pct(quote.asset_id) if quote else None,
-                "ex": "NSE",
-                "region": "IN",
+                "ex": ex,
+                "region": region,
                 "class": classify(a.asset_class, a.symbol),
                 "sector": (a.metadata_payload or {}).get("sector", "General")
             })
@@ -623,13 +624,14 @@ class MarketService(BaseService):
         for a in assets:
             quote = self.repo.get_quote_by_symbol(a.symbol)
             price = float(quote.price) if quote and quote.price is not None and quote.price != 0 else None
+            ex, region = infer_exchange_region(a.symbol)
             results.append({
                 "sym": a.symbol,
                 "name": a.name,
                 "price": price,
                 "dayPct": self._compute_day_pct(quote.asset_id) if quote else None,
-                "ex": "NSE",
-                "region": "IN",
+                "ex": ex,
+                "region": region,
                 "class": classify(a.asset_class, a.symbol),
                 "sector": (a.metadata_payload or {}).get("sector", "General")
             })
