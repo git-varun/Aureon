@@ -1,9 +1,11 @@
 from app.core.repositories.base import BaseRepository
 import uuid
+from collections import defaultdict
 
-from sqlalchemy import select
-from sqlalchemy.orm import Session
+from sqlalchemy import func, select
+from sqlalchemy.orm import Session, aliased
 
+from app.modules.market.entities.market import PriceHistory
 from app.modules.market.entities.watchlist import Watchlist, WatchlistSymbol
 
 
@@ -47,3 +49,29 @@ class WatchlistsRepository(BaseRepository):
     def delete_symbol(self, ws: WatchlistSymbol) -> None:
         self.session.delete(ws)
         self.session.flush()
+
+    def get_recent_price_history_by_symbols(self, symbols: set[str], limit: int = 30) -> dict[str, list[PriceHistory]]:
+        """Batched, single-query fetch of the most recent `limit` price points per symbol."""
+        if not symbols:
+            return {}
+
+        ranked = (
+            select(
+                PriceHistory,
+                func.row_number()
+                .over(partition_by=PriceHistory.symbol, order_by=PriceHistory.timestamp.desc())
+                .label("rn"),
+            )
+            .where(PriceHistory.symbol.in_(symbols))
+            .subquery()
+        )
+        ranked_history = aliased(PriceHistory, ranked)
+        stmt = select(ranked_history).where(ranked.c.rn <= limit)
+        rows = self.session.execute(stmt).scalars().all()
+
+        by_symbol: dict[str, list[PriceHistory]] = defaultdict(list)
+        for row in rows:
+            by_symbol[row.symbol].append(row)
+        for rows_for_symbol in by_symbol.values():
+            rows_for_symbol.sort(key=lambda h: h.timestamp)
+        return dict(by_symbol)
