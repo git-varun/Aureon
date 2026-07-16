@@ -38,6 +38,7 @@ class BinanceClient:
         self.api_key = api_key
         self.api_secret = api_secret
         self._spot_symbols: Optional[set[str]] = None
+        self._coinm_contract_sizes: Optional[dict[str, float]] = None
 
     def _signed_get(self, path: str, params: Optional[dict] = None, base_url: str = _BASE_URL) -> Any:
         params = dict(params or {})
@@ -100,9 +101,38 @@ class BinanceClient:
         positions = self._signed_get("/fapi/v2/positionRisk", base_url=_FAPI_URL) or []
         return [p for p in positions if float(p.get("positionAmt") or 0) != 0]
 
+    def get_coinm_contract_sizes(self) -> dict[str, float]:
+        """contractSize per COIN-M symbol (e.g. BTCUSD_PERP -> 100, ETHUSD_PERP
+        -> 10) from Binance's public dapi exchangeInfo — a COIN-M position's
+        positionAmt is denominated in contracts, not coins, so this is required
+        to convert to a real coin-denominated notional. Public endpoint,
+        unsigned, static per symbol; cached on this client instance for the
+        lifetime of one sync run."""
+        if self._coinm_contract_sizes is not None:
+            return self._coinm_contract_sizes
+        try:
+            res = http_client.get("Binance", f"{_DAPI_URL}/dapi/v1/exchangeInfo", timeout=15)
+            res.raise_for_status()
+            data = res.json()
+        except requests.RequestException as e:
+            from app.core.logging import logger
+            logger.warning(f"Binance COIN-M exchangeInfo fetch failed: {e}")
+            return {}
+        self._coinm_contract_sizes = {
+            s["symbol"]: float(s["contractSize"])
+            for s in data.get("symbols", [])
+            if s.get("symbol") and s.get("contractSize") is not None
+        }
+        return self._coinm_contract_sizes
+
     def get_futures_coinm_positions(self) -> List[dict[str, Any]]:
         positions = self._signed_get("/dapi/v1/positionRisk", base_url=_DAPI_URL) or []
-        return [p for p in positions if float(p.get("positionAmt") or 0) != 0]
+        positions = [p for p in positions if float(p.get("positionAmt") or 0) != 0]
+        if positions:
+            contract_sizes = self.get_coinm_contract_sizes()
+            for p in positions:
+                p["contractSize"] = contract_sizes.get((p.get("symbol") or "").upper())
+        return positions
 
     def get_valid_spot_symbols(self) -> Optional[set[str]]:
         """All symbols Binance's Spot exchange currently knows about (regardless

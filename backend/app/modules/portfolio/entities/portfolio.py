@@ -68,6 +68,11 @@ class Position(UUIDMixin, TimestampMixin, Base):
     liquidation_price: Mapped[float | None] = mapped_column(Numeric, nullable=True)
     unrealized_pnl: Mapped[float | None] = mapped_column(Numeric, nullable=True)
     side: Mapped[str | None] = mapped_column(String, nullable=True)  # LONG, SHORT (futures only)
+    # USD notional margin for futures_coinm positions only (qty is contracts,
+    # not coins, there — see _sync_futures_positions). futures_usdm's margin is
+    # still computed from qty*entryPrice/leverage at read time, since qty there
+    # is already coin-denominated and that formula is correct.
+    margin_usd: Mapped[float | None] = mapped_column(Numeric, nullable=True)
 
 
 class PortfolioSnapshot(TimestampMixin, Base):

@@ -126,6 +126,7 @@ export function useAureonData() {
                 leverage: pos.leverage,
                 liquidationPrice: pos.liquidation_price,
                 unrealizedPnl: pos.unrealized_pnl,
+                marginUsd: pos.margin_usd,
                 side: pos.side,
                 priceSource: pos.price_source,
                 epfEstimateBasis: pos.epf_estimate_basis,
