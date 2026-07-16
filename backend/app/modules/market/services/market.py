@@ -154,7 +154,7 @@ def infer_exchange_region(symbol: str) -> tuple[str, str]:
         return "NSE", "IN"
     if symbol.endswith(".BO"):
         return "BSE", "IN"
-    if symbol.endswith("-USD"):
+    if symbol.endswith("-USD") or symbol.endswith("-USDM") or symbol.endswith("-COINM"):
         return "CRYPTO", "GLOBAL"
     if symbol.startswith("^"):
         return "INDEX", "GLOBAL"
