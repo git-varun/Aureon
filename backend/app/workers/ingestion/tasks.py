@@ -88,6 +88,9 @@ def ingest_quote(provider_name: str, symbol: str) -> bool:
             from app.workers.snapshots.asset_snapshot import process_asset_snapshot
             process_asset_snapshot.delay(str(asset_id))
 
+            from app.workers.monitoring.watchlist_alerts import evaluate_watchlist_alerts
+            evaluate_watchlist_alerts.delay(symbol)
+
             return True
 
         except Exception as e:

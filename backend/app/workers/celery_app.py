@@ -28,6 +28,7 @@ celery_app = Celery(
         "app.workers.evaluation.signals",
         "app.workers.evaluation.scoring",
         "app.workers.monitoring.asset_health",
+        "app.workers.monitoring.watchlist_alerts",
     ]
 )
 
@@ -36,6 +37,7 @@ celery_app.conf.task_routes = {
     "app.workers.snapshots.asset_snapshot.*": {"queue": "q_ingestion"},
     "app.workers.evaluation.*": {"queue": "q_ingestion"},
     "app.workers.monitoring.asset_health.*": {"queue": "q_ingestion"},
+    "app.workers.monitoring.watchlist_alerts.*": {"queue": "q_ingestion"},
 }
 celery_app.conf.task_default_queue = "q_ingestion"
 

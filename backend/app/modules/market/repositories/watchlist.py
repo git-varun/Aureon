@@ -50,6 +50,16 @@ class WatchlistsRepository(BaseRepository):
         self.session.delete(ws)
         self.session.flush()
 
+    def list_active_alerts_for_symbol(self, symbol: str) -> list[tuple[WatchlistSymbol, uuid.UUID]]:
+        """WatchlistSymbol rows with a live alert_price for this symbol, paired with
+        their owning watchlist's user_id (needed to address the notification)."""
+        stmt = (
+            select(WatchlistSymbol, Watchlist.user_id)
+            .join(Watchlist, WatchlistSymbol.watchlist_id == Watchlist.id)
+            .where(WatchlistSymbol.symbol == symbol, WatchlistSymbol.alert_price.is_not(None))
+        )
+        return [(ws, user_id) for ws, user_id in self.session.execute(stmt).all()]
+
     def get_recent_price_history_by_symbols(self, symbols: set[str], limit: int = 30) -> dict[str, list[PriceHistory]]:
         """Batched, single-query fetch of the most recent `limit` price points per symbol."""
         if not symbols:
