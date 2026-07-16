@@ -1,8 +1,9 @@
+import enum
 import uuid
 from datetime import datetime, timezone
 from typing import Any
 
-from sqlalchemy import JSON, Boolean, ForeignKey, Index, Integer, Numeric, String, text
+from sqlalchemy import JSON, Boolean, DateTime, Enum, ForeignKey, Index, Integer, Numeric, String, text
 from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.orm import Mapped, mapped_column
 
@@ -73,6 +74,33 @@ class UserPreference(UUIDMixin, TimestampMixin, Base):
     swing_trading_enabled: Mapped[bool] = mapped_column(Boolean, default=True)
     bio: Mapped[str | None] = mapped_column(String, nullable=True)
 
+
+
+class TaskRunStatus(str, enum.Enum):
+    STARTED = "STARTED"
+    SUCCESS = "SUCCESS"
+    FAILED = "FAILED"
+
+
+class TaskRun(UUIDMixin, Base):
+    """One row per Celery task invocation, written by celery_app.py's signal
+    handlers (task_prerun/task_success/task_failure) — covers all @shared_tasks,
+    not just the asset evaluation chain. See WORKERS_OBSERVABILITY_SCOPE.md §2."""
+    __tablename__ = "task_runs"
+    __table_args__ = (
+        Index("idx_task_runs_task_name_asset_id", "task_name", "asset_id"),
+        Index("idx_task_runs_started_at_desc", text("started_at DESC")),
+        {"schema": "system"}
+    )
+
+    task_name: Mapped[str] = mapped_column(String, nullable=False)
+    task_id: Mapped[str] = mapped_column(String, nullable=False, index=True)
+    asset_id: Mapped[str | None] = mapped_column(String, nullable=True)
+    status: Mapped[TaskRunStatus] = mapped_column(Enum(TaskRunStatus), nullable=False, default=TaskRunStatus.STARTED)
+    error_message: Mapped[str | None] = mapped_column(String, nullable=True)
+    duration_ms: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    started_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False, default=lambda: datetime.now(timezone.utc))
+    ended_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
 
 
 class AuditLog(Base):

@@ -98,6 +98,69 @@ def on_worker_ready(sender=None, **kwargs):
     ctx_worker_id.set(_worker_name)
     logger.info(f"Celery worker ready: hostname={_worker_name}", component="Celery")
 
+# The five asset-evaluation-chain tasks (ingest_quote -> ... -> compute_asset_health)
+# take asset_id as their first positional arg; every other task's first arg is
+# something else (or none), so TaskRun.asset_id is only populated for these —
+# see WORKERS_OBSERVABILITY_SCOPE.md §2.2.
+_CHAIN_TASK_NAMES = {
+    "process_asset_snapshot",
+    "generate_features",
+    "generate_signals",
+    "generate_scores",
+    "compute_asset_health",
+}
+
+
+@task_prerun.connect
+def record_task_run_start(sender=None, task_id=None, task=None, args=None, kwargs=None, **kw):
+    from app.core.database import SessionLocal
+    from app.core.repositories.task_run import TaskRunRepository
+
+    task_name = (sender or task).name.split(".")[-1]
+    asset_id = args[0] if (task_name in _CHAIN_TASK_NAMES and args) else None
+
+    db = SessionLocal()
+    try:
+        TaskRunRepository(db).create_started(task_name, task_id, asset_id)
+    except Exception:
+        logger.error(f"record_task_run_start failed for {task_name}", component="Celery", exc_info=True)
+    finally:
+        db.close()
+
+
+@task_success.connect
+def record_task_run_success(sender=None, result=None, **kwargs):
+    from app.core.database import SessionLocal
+    from app.core.entities.system import TaskRunStatus
+    from app.core.repositories.task_run import TaskRunRepository
+
+    task_id = getattr(sender.request, "id", None) if sender is not None else None
+    if not task_id:
+        return
+    db = SessionLocal()
+    try:
+        TaskRunRepository(db).mark_terminal(task_id, TaskRunStatus.SUCCESS)
+    except Exception:
+        logger.error("record_task_run_success failed", component="Celery", exc_info=True)
+    finally:
+        db.close()
+
+
+@task_failure.connect
+def record_task_run_failure(sender=None, task_id=None, exception=None, traceback=None, einfo=None, **kwargs):
+    from app.core.database import SessionLocal
+    from app.core.entities.system import TaskRunStatus
+    from app.core.repositories.task_run import TaskRunRepository
+
+    db = SessionLocal()
+    try:
+        TaskRunRepository(db).mark_terminal(task_id, TaskRunStatus.FAILED, error_message=str(exception))
+    except Exception:
+        logger.error("record_task_run_failure failed", component="Celery", exc_info=True)
+    finally:
+        db.close()
+
+
 @task_prerun.connect
 def on_task_prerun(task_id, task, *args, **kwargs):
     ctx_task_id.set(task_id)
