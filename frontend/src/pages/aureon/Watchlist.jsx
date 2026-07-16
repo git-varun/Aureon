@@ -268,8 +268,8 @@ const WLAlertRuleBuilder = ({sym, price, region, existingRule, onSave, onDelete,
     const pctTgt  = op === 'pct' && price > 0 ? price * (1 + numVal / 100) : null;
     const preview = !valid ? '—'
         : op === 'pct'
-            ? `Notify when ${sym} moves ${numVal >= 0 ? '+' : ''}${numVal}%${pctTgt ? ` (≈ ${fmtP(pctTgt)})` : ''}`
-            : `Notify when ${sym} ${op === 'gte' ? 'rises to or above' : 'falls to or below'} ${fmtP(numVal)}`;
+            ? `Alert target: ${sym} moves ${numVal >= 0 ? '+' : ''}${numVal}%${pctTgt ? ` (≈ ${fmtP(pctTgt)})` : ''}`
+            : `Alert target: ${sym} ${op === 'gte' ? 'at or above' : 'at or below'} ${fmtP(numVal)}`;
 
     const save = () => {
         if (!valid) return;
@@ -805,7 +805,7 @@ export default function Watchlist() {
                             <div style={{fontFamily: 'var(--font-mono)', fontSize: 11, color: 'var(--ink-40)', textAlign: 'right', flexShrink: 0}}>
                                 {enriched.length} {enriched.length === 1 ? 'symbol' : 'symbols'}
                                 {totalAlerts > 0 && (
-                                    <><br/><span style={{color: 'var(--aurum-100)'}}>{totalAlerts} {totalAlerts === 1 ? 'alert' : 'alerts'} armed</span></>
+                                    <><br/><span style={{color: 'var(--aurum-100)'}}>{totalAlerts} {totalAlerts === 1 ? 'alert' : 'alerts'} set</span></>
                                 )}
                             </div>
                         )}
