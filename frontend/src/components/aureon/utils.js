@@ -16,7 +16,11 @@ export const UNDO_WINDOW_MS = 20000;
 // Futures wallets carry leverage/liquidation/side; value and P&L there aren't
 // price * qty (see backend generate_portfolio_snapshot, portfolio.py:322-341).
 export const isFutures = (h) => h.wallet === 'futures_usdm' || h.wallet === 'futures_coinm';
-const marginOf = (h) => Math.abs(h.qty * h.cost) / (h.leverage || 1);
+// COIN-M's qty is contracts, not coins — qty*cost/leverage has no financial
+// meaning there. h.marginUsd is precomputed backend-side from Binance's
+// contractSize (see _sync_futures_positions); USDⓈ-M's qty is already
+// coin-denominated, so qty*cost/leverage is correct as-is for that wallet.
+const marginOf = (h) => h.wallet === 'futures_coinm' ? (h.marginUsd || 0) : Math.abs(h.qty * h.cost) / (h.leverage || 1);
 
 export const valueOf = (h) => isFutures(h) ? marginOf(h) + (h.unrealizedPnl || 0) : h.qty * h.price;
 export const costOf = (h) => isFutures(h) ? marginOf(h) : h.qty * h.cost;

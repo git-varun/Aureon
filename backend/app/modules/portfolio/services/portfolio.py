@@ -557,7 +557,15 @@ class PortfolioService(BaseService):
             price = pp.price
 
             qty = float(pos.quantity)
-            if pos.wallet in ("futures_usdm", "futures_coinm"):
+            if pos.wallet == "futures_coinm":
+                # qty is contracts, not coins, for COIN-M — qty*entryPrice/leverage
+                # (correct for USDⓈ-M below) has no financial meaning here.
+                # margin_usd is precomputed at sync time from contractSize (see
+                # _sync_futures_positions), where the real USD notional is known.
+                margin = float(pos.margin_usd) if pos.margin_usd is not None else 0.0
+                val = margin + float(pos.unrealized_pnl or 0)
+                cost = margin
+            elif pos.wallet == "futures_usdm":
                 # Leveraged derivative: reporting qty * markPrice as "value" would
                 # overstate capital exposure by the leverage multiple. What the user
                 # actually has at risk is the margin posted plus unrealized PnL.
@@ -1236,9 +1244,30 @@ class PortfolioService(BaseService):
             pos.avg_buy_price = float(p.get("entryPrice") or 0)
             pos.leverage = float(p.get("leverage")) if p.get("leverage") is not None else None
             pos.liquidation_price = float(p.get("liquidationPrice")) if p.get("liquidationPrice") is not None else None
-            pos.unrealized_pnl = float(p.get("unRealizedProfit") or 0)
             pos.side = side
             pos.asset_id = asset_id
+
+            if wallet == "futures_coinm":
+                # COIN-M's positionAmt is contracts, not coins, and unRealizedProfit
+                # is settlement-coin-denominated, not USD — qty*entryPrice/leverage
+                # (correct for USDⓈ-M) is meaningless here. contractSize is a fixed
+                # USD notional per contract (from Binance's dapi exchangeInfo, see
+                # get_coinm_contract_sizes), so qty*contractSize/leverage is already
+                # a real USD margin figure with no markPrice conversion needed.
+                contract_size = p.get("contractSize")
+                mark_price = p.get("markPrice")
+                leverage = float(p.get("leverage")) if p.get("leverage") else 1.0
+                if contract_size is not None and mark_price is not None:
+                    pos.margin_usd = abs(position_amt) * float(contract_size) / leverage
+                    pos.unrealized_pnl = float(p.get("unRealizedProfit") or 0) * float(mark_price)
+                else:
+                    # Can't honestly compute either figure without contractSize/
+                    # markPrice — don't fabricate a wrong-unit number.
+                    pos.margin_usd = None
+                    pos.unrealized_pnl = None
+            else:
+                pos.margin_usd = None
+                pos.unrealized_pnl = float(p.get("unRealizedProfit") or 0)
         self.session.flush()
 
         stale_query = self.session.query(Position).filter(

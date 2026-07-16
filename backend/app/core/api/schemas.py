@@ -74,6 +74,7 @@ class PositionResponse(BaseModel):
     leverage: Optional[float] = None
     liquidation_price: Optional[float] = None
     unrealized_pnl: Optional[float] = None
+    margin_usd: Optional[float] = None
     side: Optional[str] = None
     created_at: datetime
     price: Optional[float] = None
