@@ -18,19 +18,9 @@ class RequestLoggingMiddleware(BaseHTTPMiddleware):
     async def dispatch(self, request: Request, call_next: Callable) -> Response:
         request_id = request.headers.get("X-Request-Id") or f"REQ-{uuid.uuid4().hex[:8].upper()}"
 
-        user_id = None
-        auth_header = request.headers.get("authorization")
-        if auth_header and auth_header.lower().startswith("bearer "):
-            try:
-                from app.core.security import verify_access_token
-                payload = verify_access_token(auth_header.split(" ", 1)[1])
-                user_id = payload.get("sub") if payload else None
-            except Exception:
-                user_id = None
-
         label = f"{request.method} {request.url.path}"
 
-        with ContextManager(request_id=request_id, user_id=user_id):
+        with ContextManager(request_id=request_id):
             start = time.perf_counter()
             try:
                 response = await call_next(request)
