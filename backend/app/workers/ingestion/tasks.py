@@ -135,6 +135,13 @@ def _wrap_job_execution(job_name: str, log_id: int | None, fn, *args, **kwargs) 
             log = cfg_svc.log_job_start(job_name)
             log_id = log.id
 
+        # Single source of truth for last_run_at: every execution path (beat-fired
+        # or manually dispatched) goes through here, so this is the one place that
+        # needs to record it — see JOBCONFIG_SCHEDULING_SCOPE.md §0 for why the
+        # old manual-only mark_job_ran() call left beat-scheduled jobs' last_run_at
+        # stale despite last_status already being correct.
+        cfg_svc.mark_job_ran(job_name)
+
         try:
             fn(*args, **kwargs)
             cfg_svc.log_job_end(log_id, JobStatus.SUCCESS)

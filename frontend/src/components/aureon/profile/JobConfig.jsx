@@ -79,7 +79,7 @@ function JobRow({job, onUpdate, onRun}) {
                     </div>
                     <div style={{fontSize: 11.5, color: 'var(--ink-30)', marginTop: 3}}>{desc}</div>
                 </div>
-                <span style={{fontFamily: 'var(--font-mono)', fontSize: 11, color: 'var(--ink-30)'}}>{job.cron_schedule}</span>
+                <span style={{fontFamily: 'var(--font-mono)', fontSize: 11, color: 'var(--ink-30)'}}>{job.schedule_display}</span>
                 <span style={{fontFamily: 'var(--font-mono)', fontSize: 11.5, color: enabled ? 'var(--ink-10)' : 'var(--ink-40)'}}>
                     last · {fmt(job.last_run_at)}
                 </span>

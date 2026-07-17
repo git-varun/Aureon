@@ -152,20 +152,20 @@ _DEFAULT_ALLOCATION_TARGETS = [
 ]
 
 _DEFAULT_JOBS = [
-    {"job_name": "sync_portfolio", "cron_expression": "0 9 * * 1-5", "enabled": True, "job_tier": "user"},
-    {"job_name": "sync_zerodha", "cron_expression": "30 8 * * 1-5", "enabled": False, "job_tier": "user"},
-    {"job_name": "sync_binance", "cron_expression": "35 8 * * 1-5", "enabled": False, "job_tier": "user"},
-    {"job_name": "sync_groww", "cron_expression": "40 8 * * 1-5", "enabled": False, "job_tier": "user"},
-    {"job_name": "refresh_prices", "cron_expression": "*/15 9-15 * * 1-5", "enabled": True, "job_tier": "user"},
-    {"job_name": "fetch_news", "cron_expression": "0 8 * * *", "enabled": True, "job_tier": "user"},
-    {"job_name": "refresh_fundamentals", "cron_expression": "0 6 * * *", "enabled": True, "job_tier": "user"},
-    {"job_name": "refresh_mutual_fund_navs", "cron_expression": "0 23 * * *", "enabled": True, "job_tier": "user"},
-    {"job_name": "daily_briefing", "cron_expression": "0 7 * * *", "enabled": True, "job_tier": "user"},
-    {"job_name": "weekly_briefing", "cron_expression": "0 8 * * 1", "enabled": True, "job_tier": "user"},
-    {"job_name": "monthly_briefing", "cron_expression": "0 8 1 * *", "enabled": True, "job_tier": "user"},
-    {"job_name": "seed_price_history", "cron_expression": "0 2 * * 0", "enabled": True, "job_tier": "user"},
-    {"job_name": "seed_market_universe", "cron_expression": "0 8 * * 1-5", "enabled": True, "job_tier": "system"},
-    {"job_name": "validate_data_quality", "cron_expression": "0 0 * * *", "enabled": True, "job_tier": "system"},
+    {"job_name": "sync_portfolio", "enabled": True, "job_tier": "user"},
+    {"job_name": "sync_zerodha", "enabled": False, "job_tier": "user"},
+    {"job_name": "sync_binance", "enabled": False, "job_tier": "user"},
+    {"job_name": "sync_groww", "enabled": False, "job_tier": "user"},
+    {"job_name": "refresh_prices", "enabled": True, "job_tier": "user"},
+    {"job_name": "fetch_news", "enabled": True, "job_tier": "user"},
+    {"job_name": "refresh_fundamentals", "enabled": True, "job_tier": "user"},
+    {"job_name": "refresh_mutual_fund_navs", "enabled": True, "job_tier": "user"},
+    {"job_name": "daily_briefing", "enabled": True, "job_tier": "user"},
+    {"job_name": "weekly_briefing", "enabled": True, "job_tier": "user"},
+    {"job_name": "monthly_briefing", "enabled": True, "job_tier": "user"},
+    {"job_name": "seed_price_history", "enabled": True, "job_tier": "user"},
+    {"job_name": "seed_market_universe", "enabled": True, "job_tier": "system"},
+    {"job_name": "validate_data_quality", "enabled": True, "job_tier": "system"},
 ]
 
 
@@ -371,14 +371,12 @@ class ConfigService(BaseService):
     def get_job(self, job_name: str) -> Optional[JobConfig]:
         return self.repo.get_job(job_name)
 
-    def update_job(self, job_name: str, enabled: Optional[bool] = None, cron_expression: Optional[str] = None, actor_id: Optional[uuid.UUID] = None) -> Optional[dict[str, Any]]:
+    def update_job(self, job_name: str, enabled: Optional[bool] = None, actor_id: Optional[uuid.UUID] = None) -> Optional[dict[str, Any]]:
         j = self.repo.get_job(job_name)
         if not j:
             raise NotFoundError(f"Job {job_name} not found")
         if enabled is not None:
             j.enabled = enabled
-        if cron_expression is not None:
-            j.cron_expression = cron_expression
         self.repo.session.flush()
         from app.core.services.audit import log_audit_action
         log_audit_action(
@@ -387,7 +385,7 @@ class ConfigService(BaseService):
             entity_type="job_config",
             entity_id=job_name,
             actor_id=actor_id,
-            details={"enabled": enabled, "cron_expression": cron_expression}
+            details={"enabled": enabled}
         )
         self.repo.session.commit()
         self.repo.session.refresh(j)
@@ -398,6 +396,78 @@ class ConfigService(BaseService):
         if j:
             j.last_run_at = datetime.now(timezone.utc)
             self.repo.session.commit()
+
+    # Weekday index (celery crontab's day_of_week, 0=Sunday) -> display abbreviation.
+    _WEEKDAY_NAMES = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"]
+
+    # job_name -> fully-qualified Celery task path. Shared by dispatch_job (which
+    # jobs to send) and _schedule_display (which beat_schedule entry, if any, a
+    # job maps to) so the two never drift against each other the way
+    # JobConfig.cron_expression used to drift against the real beat_schedule.
+    _TASK_MAPPING: dict[str, str] = {
+        "sync_portfolio": "app.workers.ingestion.tasks.sync_portfolio_task",
+        "sync_zerodha": "app.workers.ingestion.tasks.sync_zerodha_task",
+        "sync_binance": "app.workers.ingestion.tasks.sync_binance_task",
+        "sync_groww": "app.workers.ingestion.tasks.sync_groww_task",
+        "refresh_prices": "app.workers.ingestion.tasks.refresh_prices_task",
+        "fetch_news": "app.workers.ingestion.tasks.fetch_news_task",
+        "refresh_fundamentals": "app.workers.ingestion.tasks.refresh_fundamentals_task",
+        "refresh_mutual_fund_navs": "app.workers.ingestion.tasks.refresh_mutual_fund_navs_task",
+        "daily_briefing": "app.workers.ingestion.tasks.daily_briefing_task",
+        "weekly_briefing": "app.workers.ingestion.tasks.weekly_briefing_task",
+        "monthly_briefing": "app.workers.ingestion.tasks.monthly_briefing_task",
+        "seed_price_history": "app.workers.ingestion.tasks.seed_price_history_task",
+        "seed_market_universe": "app.workers.ingestion.tasks.seed_market_universe_task",
+        "validate_data_quality": "app.workers.ingestion.tasks.validate_data_quality_task",
+        "admin_reprocess_all": "app.workers.ingestion.tasks.admin_reprocess_all_assets",
+        "admin_repair": "app.workers.ingestion.tasks.admin_repair_jobs",
+    }
+
+    @classmethod
+    def _humanize_crontab(cls, cb) -> str:
+        """Best-effort human string for a celery crontab schedule. Not a general
+        cron-string formatter — covers the hourly/every-N-hours/daily/weekly-at-time
+        shapes actually used in celery_app.py's beat_schedule (see
+        JOBCONFIG_SCHEDULING_SCOPE.md §3 for why this reads the real schedule
+        instead of a separately-stored, driftable cron string)."""
+        minutes = sorted(cb.minute)
+        hours = sorted(cb.hour)
+        days = sorted(cb.day_of_week)
+        full_hours = len(hours) == 24
+        full_days = len(days) == 7
+        at_minute0 = minutes == [0]
+
+        if full_hours and at_minute0:
+            time_part = "hourly"
+        elif len(hours) > 1 and at_minute0 and hours == list(range(0, 24, hours[1] - hours[0])):
+            time_part = f"every {hours[1] - hours[0]}h"
+        elif len(hours) == 1 and at_minute0:
+            time_part = f"{hours[0]:02d}:00"
+        else:
+            time_part = ",".join(f"{h:02d}:{m:02d}" for h in hours for m in minutes)
+
+        if full_days:
+            day_part = "" if time_part == "hourly" or time_part.startswith("every ") else "daily"
+        elif len(days) == 1:
+            day_part = f"weekly {cls._WEEKDAY_NAMES[days[0]]}"
+        else:
+            day_part = ",".join(cls._WEEKDAY_NAMES[d] for d in days)
+
+        return f"{day_part} {time_part}".strip() if day_part else time_part
+
+    def _schedule_display(self, job_name: str) -> str:
+        """Real, live beat cadence for a job, or 'manual only' if it has no
+        beat_schedule entry — sourced directly from celery_app.py, never from a
+        stored field, so it can't say something that isn't what actually runs."""
+        task_name = self._TASK_MAPPING.get(job_name)
+        if not task_name:
+            return "manual only"
+        from app.workers.celery_app import celery_app
+
+        for entry in celery_app.conf.beat_schedule.values():
+            if entry["task"] == task_name:
+                return self._humanize_crontab(entry["schedule"])
+        return "manual only"
 
     def _job_to_dict(self, j: JobConfig) -> dict[str, Any]:
         last_log = (
@@ -411,11 +481,10 @@ class ConfigService(BaseService):
             "id": j.id,
             "job_name": j.job_name,
             "enabled": j.enabled,
-            "cron_schedule": j.cron_expression,
+            "schedule_display": self._schedule_display(j.job_name),
             "job_tier": j.job_tier or "user",
             "last_status": last_status,
             "last_run_at": j.last_run_at.isoformat() if j.last_run_at else None,
-            "next_run_at": j.next_run_at.isoformat() if j.next_run_at else None,
         }
 
     # ── Job Logs ───────────────────────────────────────────────────────────
@@ -509,6 +578,14 @@ class ConfigService(BaseService):
         # Pre-assign a task ID and log start
         task_id = str(uuid.uuid4())
 
+        job = self.get_job(job_name)
+        if job is not None and not job.enabled:
+            message = f"Job '{job_name}' is disabled — not dispatched"
+            logger.warning(message)
+            if log_id is not None:
+                self.log_job_end(log_id, JobStatus.FAILED, error=message)
+            raise ConflictError(message)
+
         required_provider = self._PROVIDER_REQUIRED_JOBS.get(job_name)
         if required_provider:
             from app.core.redis import try_acquire_job_lock
@@ -544,26 +621,7 @@ class ConfigService(BaseService):
             from app.workers.celery_app import celery_app
 
             # Map legacy job names to celery tasks we will define
-            task_mapping = {
-                "sync_portfolio": "app.workers.ingestion.tasks.sync_portfolio_task",
-                "sync_zerodha": "app.workers.ingestion.tasks.sync_zerodha_task",
-                "sync_binance": "app.workers.ingestion.tasks.sync_binance_task",
-                "sync_groww": "app.workers.ingestion.tasks.sync_groww_task",
-                "refresh_prices": "app.workers.ingestion.tasks.refresh_prices_task",
-                "fetch_news": "app.workers.ingestion.tasks.fetch_news_task",
-                "refresh_fundamentals": "app.workers.ingestion.tasks.refresh_fundamentals_task",
-                "refresh_mutual_fund_navs": "app.workers.ingestion.tasks.refresh_mutual_fund_navs_task",
-                "daily_briefing": "app.workers.ingestion.tasks.daily_briefing_task",
-                "weekly_briefing": "app.workers.ingestion.tasks.weekly_briefing_task",
-                "monthly_briefing": "app.workers.ingestion.tasks.monthly_briefing_task",
-                "seed_price_history": "app.workers.ingestion.tasks.seed_price_history_task",
-                "seed_market_universe": "app.workers.ingestion.tasks.seed_market_universe_task",
-                "validate_data_quality": "app.workers.ingestion.tasks.validate_data_quality_task",
-                "admin_reprocess_all": "app.workers.ingestion.tasks.admin_reprocess_all_assets",
-                "admin_repair": "app.workers.ingestion.tasks.admin_repair_jobs",
-            }
-            
-            celery_task_name = task_mapping.get(job_name)
+            celery_task_name = self._TASK_MAPPING.get(job_name)
             if not celery_task_name:
                 raise ValueError(f"Unknown job {job_name}")
 

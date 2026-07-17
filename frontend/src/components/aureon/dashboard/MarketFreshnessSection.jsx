@@ -17,8 +17,7 @@ const FRESH = {
 //            portfolio's positions (Fix M), not portfolio-snapshot regeneration
 //            recency, so the two must stay in sync intentionally
 //  - news:   fetch_news's real Celery beat interval — "news-refresh" runs
-//            every 4h (app/workers/celery_app.py), not the job's decorative
-//            JobConfig.cron_expression
+//            every 4h (app/workers/celery_app.py)
 //  - ai:     daily_briefing has no beat_schedule entry at all (manual-trigger
 //            only, same root cause as the broker-sync backlog item) — bands
 //            reflect the documented daily intent, widened since there's no
