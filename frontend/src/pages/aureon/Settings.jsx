@@ -339,7 +339,7 @@ function ManualRunSection() {
                                 <div key={job.job_name} className="layer-1" style={{padding: '13px 16px', display: 'flex', alignItems: 'center', gap: 14}}>
                                     <div style={{flex: 1, minWidth: 0}}>
                                         <div style={{fontSize: 13, fontWeight: 600, color: job.enabled ? 'var(--ink-00)' : 'var(--ink-40)', fontFamily: 'var(--font-heading)'}}>{label}</div>
-                                        <div style={{fontSize: 11.5, color: 'var(--ink-40)', marginTop: 2, fontFamily: 'var(--font-mono)'}}>{job.cron_schedule}</div>
+                                        <div style={{fontSize: 11.5, color: 'var(--ink-40)', marginTop: 2, fontFamily: 'var(--font-mono)'}}>{job.schedule_display}</div>
                                         {result && <div style={{fontSize: 11.5, color: 'var(--sage-500)', marginTop: 4}}>✓ Triggered at {result.ts}</div>}
                                     </div>
                                     <button onClick={() => run(job.job_name)} disabled={isRunning || !job.enabled} className="du3-cta primary" style={{height: 30, padding: '0 12px', fontSize: 12, opacity: !job.enabled ? 0.4 : 1, display: 'inline-flex', alignItems: 'center', gap: 6}}>

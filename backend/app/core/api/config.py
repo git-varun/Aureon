@@ -69,11 +69,10 @@ class JobConfigResponse(BaseModel):
     id: int
     job_name: str
     enabled: bool
-    cron_schedule: str
+    schedule_display: str
     job_tier: str = "user"
     last_status: Optional[str] = None
     last_run_at: Optional[datetime] = None
-    next_run_at: Optional[datetime] = None
 
     model_config = ConfigDict(from_attributes=True)
 
@@ -82,14 +81,6 @@ class JobsListResponse(BaseModel):
 
 class JobUpdateRequest(BaseModel):
     enabled: Optional[bool] = None
-    cron_schedule: Optional[str] = Field(None, description="Cron expression (e.g., '0 9 * * *')")
-    schedule: Optional[str] = Field(None, description="Alias for cron_schedule (FE compat)")
-
-    @model_validator(mode="after")
-    def resolve_cron_schedule(self) -> "JobUpdateRequest":
-        if self.cron_schedule is None and self.schedule is not None:
-            self.cron_schedule = self.schedule
-        return self
 
 class JobRunResponse(BaseModel):
     status: str
@@ -234,10 +225,8 @@ def update_job(
     job = svc.get_job(job_name)
     if not job:
         raise HTTPException(status_code=404, detail=f"Job {job_name} not found")
-    if (job.job_tier or "user") == "system" and payload.cron_schedule is not None:
-        raise HTTPException(status_code=403, detail="Cron schedule is read-only for system jobs")
     try:
-        svc.update_job(job_name, enabled=payload.enabled, cron_expression=payload.cron_schedule, actor_id=user.id)
+        svc.update_job(job_name, enabled=payload.enabled, actor_id=user.id)
     except NotFoundError as e:
         raise HTTPException(status_code=404, detail=str(e))
     return {"jobs": svc.get_all_jobs()}
@@ -254,7 +243,6 @@ def run_job(
     log = svc.log_job_start(job_name)
     task_id = svc.dispatch_job(job_name, log_id=log.id, user_id=user.id)
 
-    svc.mark_job_ran(job_name)
     return {"status": "triggered", "job_name": job_name, "task_id": task_id}
 
 @router.get("/jobs/{job_name}/logs", response_model=JobLogsResponse)

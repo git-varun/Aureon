@@ -48,10 +48,8 @@ class JobConfig(Base):
     id: Mapped[int] = mapped_column(Integer, primary_key=True, index=True)
     job_name: Mapped[str] = mapped_column(String(64), unique=True, nullable=False, index=True)
     enabled: Mapped[bool] = mapped_column(Boolean, default=True)
-    cron_expression: Mapped[str] = mapped_column(String(64), nullable=False)
     last_run_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
-    next_run_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
-    job_tier: Mapped[str] = mapped_column(String(16), default='user')  # 'user' = editable cron, 'system' = read-only
+    job_tier: Mapped[str] = mapped_column(String(16), default='user')  # 'user'/'system' — Settings UI grouping only
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
     updated_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), onupdate=func.now(), nullable=True)
 
