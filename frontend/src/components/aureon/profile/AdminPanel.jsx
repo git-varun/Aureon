@@ -17,7 +17,7 @@ const ACTIONS = [
     {
         key: 'news',
         label: 'Analyze News Batch',
-        desc: 'Queue AI.news sentiment to score recent headlines.',
+        desc: 'Queue news ingestion to fetch and score recent headlines.',
         fn: () => apiService.analyzeNewsBatch(),
     },
     {

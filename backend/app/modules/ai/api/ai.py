@@ -6,11 +6,13 @@ from sqlalchemy.orm import Session
 
 from app.api.dependencies import (
     get_ai_service,
+    get_config_service,
     get_current_user,
     get_user_context,
 )
 from app.core.database import get_db
 from app.core.entities.system import User
+from app.core.services.config import ConfigService
 from app.modules.ai.services.ai import AIService
 
 router = APIRouter()
@@ -98,5 +100,8 @@ def get_ai_take(
     return ai_service.get_single_asset_take(symbol, user_id=user.id)
 
 @router.post("/analytics/ai/news/batch")
-def analyze_news_batch():
-    return {"status": "success", "message": "News batch processed"}
+def analyze_news_batch(
+    config_svc: ConfigService = Depends(get_config_service),
+):
+    task_id = config_svc.dispatch_job("fetch_news")
+    return {"status": "queued", "message": "News batch queued", "task_id": task_id}
