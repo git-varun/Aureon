@@ -34,9 +34,9 @@ class NewsService(BaseService):
         cfg_svc = ConfigService(cfg_repo)
         self.provider_factory = ProviderFactory(cfg_svc)
 
-    def fetch_and_store(self, symbol: str, is_crypto: bool = False) -> int:
+    def fetch_and_store(self, symbol: str) -> int:
         symbol = symbol.upper().strip()
-        logger.info(f"fetch_and_store news: symbol={symbol} is_crypto={is_crypto}")
+        logger.info(f"fetch_and_store news: symbol={symbol}")
 
         all_payloads = []
         seen_urls = set()
