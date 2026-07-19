@@ -2,7 +2,8 @@ from app.core.services.base import BaseService
 """Portfolio domain services."""
 
 import uuid
-from datetime import datetime, timezone
+from collections import defaultdict
+from datetime import datetime, timedelta, timezone
 from typing import Any, Dict, List, NamedTuple, Optional
 
 from sqlalchemy import select
@@ -17,7 +18,7 @@ from app.core.redis import (
     invalidate_portfolio_snapshot,
 )
 from app.core.fx import to_inr
-from app.modules.market.entities.market import LatestQuote
+from app.modules.market.entities.market import Asset, LatestQuote, PriceHistory
 from app.modules.market.services.market import ensure_asset_exists, infer_currency
 from app.modules.portfolio.entities.portfolio import (
     Portfolio,
@@ -621,6 +622,115 @@ class PortfolioService(BaseService):
         self.session.commit()
         return result
 
+    def get_history(self, portfolio_id: uuid.UUID, days: int = 90) -> dict[str, Any]:
+        """Reconstructs net-worth over time from real Transaction + PriceHistory
+        data. There is no persisted daily snapshot to read from —
+        PortfolioSnapshot (see generate_portfolio_snapshot) is a single
+        current-state row per portfolio, upserted in place, not a time series.
+
+        Only symbols with a genuine BUY/SELL/BONUS/SPLIT trade ledger
+        (kind="trade") are reconstructable: broker-synced holdings that only
+        ever get a single `broker_snapshot` row (recalculate_position's
+        fallback, no historical trail) and futures positions (upserted
+        directly from Binance's live snapshot, no ledger at all — see
+        _sync_futures_positions) have no historical quantity to replay, so
+        they're excluded from this series entirely rather than assumed to
+        have been held at today's size for the whole window. Each day is
+        also skipped per-symbol until real PriceHistory exists for it — no
+        flat-lined placeholder for the period before ingestion started.
+        Consequently this series can genuinely be shorter than `days`, or
+        empty, if the reconstructable data doesn't reach that far back.
+        """
+        self.get_portfolio(portfolio_id)
+
+        txns = (
+            self.session.query(Transaction)
+            .filter(
+                Transaction.portfolio_id == portfolio_id,
+                Transaction.transaction_type.in_({"BUY", "SELL", "BONUS", "SPLIT"}),
+                Transaction.kind == "trade",
+            )
+            .order_by(Transaction.transaction_date.asc(), Transaction.id.asc())
+            .all()
+        )
+        if not txns:
+            return {"snapshots": []}
+
+        symbols = sorted({t.symbol for t in txns})
+        txns_by_symbol: dict[str, list[Transaction]] = defaultdict(list)
+        for t in txns:
+            txns_by_symbol[t.symbol].append(t)
+
+        assets = self.session.query(Asset).filter(Asset.symbol.in_(symbols)).all()
+        asset_class_by_symbol = {a.symbol: a.asset_class for a in assets}
+
+        price_rows = (
+            self.session.query(PriceHistory)
+            .filter(PriceHistory.symbol.in_(symbols))
+            .order_by(PriceHistory.timestamp.asc())
+            .all()
+        )
+        price_by_symbol: dict[str, list[PriceHistory]] = defaultdict(list)
+        for p in price_rows:
+            price_by_symbol[p.symbol].append(p)
+
+        def qty_as_of(symbol: str, as_of: datetime) -> float:
+            net = 0.0
+            for t in txns_by_symbol[symbol]:
+                if t.transaction_date > as_of:
+                    break
+                qty = float(t.quantity)
+                price = float(t.price)
+                t_type = t.transaction_type.upper()
+                if t_type == "BUY":
+                    net += qty
+                elif t_type == "SELL":
+                    net = max(net - qty, 0.0)
+                elif t_type == "BONUS":
+                    net += qty
+                elif t_type == "SPLIT":
+                    multiplier = price if price else 1.0
+                    if multiplier > 0:
+                        net *= multiplier
+            return net
+
+        def price_as_of(symbol: str, as_of: datetime) -> Optional[float]:
+            best = None
+            for p in price_by_symbol.get(symbol, []):
+                if p.timestamp > as_of:
+                    break
+                best = p
+            return float(best.price) if best is not None else None
+
+        # DB timestamps are naive (TIMESTAMP WITHOUT TIME ZONE, implicitly UTC —
+        # see transaction_date/PriceHistory.timestamp columns), so "now" must be
+        # naive too or every comparison above raises.
+        now = datetime.now(timezone.utc).replace(tzinfo=None)
+        requested_start = now - timedelta(days=days)
+        earliest_txn_date = txns[0].transaction_date
+        start = max(requested_start, earliest_txn_date)
+
+        snapshots = []
+        day = start
+        while day <= now:
+            value = 0.0
+            contributed = False
+            for symbol in symbols:
+                qty = qty_as_of(symbol, day)
+                if qty <= 0:
+                    continue
+                price = price_as_of(symbol, day)
+                if price is None:
+                    continue
+                currency = infer_currency(asset_class_by_symbol.get(symbol), symbol)
+                value += to_inr(qty * price, currency)
+                contributed = True
+            if contributed:
+                snapshots.append({"ts": day.isoformat(), "value": round(value, 2)})
+            day += timedelta(days=1)
+
+        return {"snapshots": snapshots}
+
     def import_transaction_file(
         self,
         portfolio_id: uuid.UUID,
@@ -897,13 +1007,14 @@ class PortfolioService(BaseService):
         self,
         portfolio_id: uuid.UUID,
         file_bytes: bytes,
+        password: Optional[str] = None,
     ) -> Dict[str, Any]:
         # Validate portfolio exists
         self.get_portfolio(portfolio_id)
 
         from app.modules.portfolio.services.portfolio_importer import parse_epf_statement
         try:
-            holdings, rows, summary = parse_epf_statement(file_bytes)
+            holdings, rows, summary = parse_epf_statement(file_bytes, password)
         except (ValueError, ImportError) as e:
             raise ValidationError(str(e))
 

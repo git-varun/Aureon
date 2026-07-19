@@ -394,8 +394,7 @@ const WLErrorState = ({onRetry}) => (
    ================================================================ */
 const WLAssetRow = ({u, onRemoveAsset, alerts, onAddAlert, onEditAlert, onRemoveAlert, fmt, navigate}) => {
     const spark = u.spark && u.spark.length > 1 ? u.spark : [];
-    /* Day Δ: backend sets previousClose = currentPrice as fallback → show — */
-    const hasDayPct = u.dayPct !== null && u.price !== u.previousClose;
+    const hasDayPct = u.dayPct !== null;
     return (
         <div style={{borderBottom: '1px solid rgba(255,255,255,0.04)'}}>
             <div className="wl-row" style={{display: 'grid', gridTemplateColumns: WL_GRID, gap: 10, padding: '11px 18px', alignItems: 'center', transition: 'background 80ms'}}>
@@ -634,8 +633,8 @@ export default function Watchlist() {
             name:          s.name || s.symbol,
             ex:            s.exchange || '',
             price:         s.currentPrice || 0,
-            previousClose: s.previousClose || 0,
-            dayPct:        (s.currentPrice && s.previousClose && s.currentPrice !== s.previousClose)
+            previousClose: s.previousClose ?? null,
+            dayPct:        (s.currentPrice != null && s.previousClose)
                                ? (s.currentPrice - s.previousClose) / s.previousClose
                                : null,
             spark:         s.spark || [],

@@ -287,7 +287,8 @@ class RecommendationService(BaseService):
             taxes=0.0,
             notes=f"Applied recommendation {rec.id} ({rec.recommendation_state})",
             broker="aureon",
-            kind="trade"
+            kind="trade",
+            recommendation_id=rec.id,
         )
         self.repo.add_transaction(txn)
         

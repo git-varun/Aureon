@@ -100,10 +100,11 @@ export const apiService = {
         }));
     },
 
-    importEPF: (portfolioId, file) => {
+    importEPF: (portfolioId, file, password = null) => {
         const pid = portfolioId || getPortfolioId();
         const form = new FormData();
         form.append('file', file);
+        if (password) form.append('password', password);
         return handleRequest(API.post(`/portfolio/portfolios/${pid}/import/epf`, form, {
             headers: {'Content-Type': 'multipart/form-data'},
         }));
@@ -193,6 +194,13 @@ export const apiService = {
             question
         })),
 
+    submitAiFeedback: (generationId, rating, comment) =>
+        handleRequest(API.post('/ai/feedback', {
+            generation_id: generationId,
+            rating,
+            comment
+        })),
+
     // UI pending — recommendation analysis
     explainRecommendation: (recId) =>
         handleRequest(API.post(`/ai/recommendations/${recId}/explain`)),
@@ -255,6 +263,13 @@ export const apiService = {
     updateManualValuation: (symbol, newValue, notes) =>
         handleRequest(API.put(`/portfolio/manual-assets/${encodeURIComponent(symbol)}/valuation`, {new_value: newValue, notes})),
 
+    // Monitoring (ops-facing health checks)
+    getMonitoringDependencies: () => handleRequest(API.get('/monitoring/dependencies')),
+    getMonitoringProviders: () => handleRequest(API.get('/monitoring/providers')),
+    getFailedIngestions: (limit = 20) => handleRequest(API.get('/monitoring/failed-ingestions', {params: {limit}})),
+    getTransactionIntegrity: () => handleRequest(API.get('/monitoring/transactions/integrity')),
+    getPositionQuoteIntegrity: () => handleRequest(API.get('/monitoring/positions/quote-integrity')),
+
     // Providers configuration
     getProviders: () => handleRequest(API.get('/config/providers')),
     updateProvider: (providerName, payload) => handleRequest(API.put(`/config/providers/${encodeURIComponent(providerName)}`, payload)),
@@ -274,9 +289,9 @@ export const apiService = {
     fetchBriefingHistory: (limit = 30) =>
         handleRequest(API.get(`/analytics/ai/briefings?limit=${limit}`)),
 
-    fetchPortfolioHistory: async () => {
-        // No backend history endpoint — return null so callers show their empty state
-        return null;
+    fetchPortfolioHistory: (portfolioId, days = 90) => {
+        const pid = portfolioId || getPortfolioId();
+        return handleRequest(API.get(`/portfolio/portfolios/${pid}/history`, {params: {days}}));
     },
 
     // ── Intelligence (per-portfolio AI analysis) ──────────────────────────────
@@ -290,6 +305,10 @@ export const apiService = {
         handleRequest(API.get('/intelligence/cash-opportunities', {params: {portfolio_id: portfolioId}})),
     getIntelligenceCalibration: () =>
         handleRequest(API.get('/intelligence/calibration')),
+    getRecommendationOutcomes: (portfolioId) => {
+        const pid = portfolioId || getPortfolioId();
+        return handleRequest(API.get('/intelligence/outcomes', {params: {portfolio_id: pid}}));
+    },
 
     cleanError: (err) => {
         let msg = err.message || 'An error occurred';

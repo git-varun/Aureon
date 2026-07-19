@@ -1,4 +1,6 @@
 import uuid
+from datetime import datetime
+from typing import Optional
 
 from fastapi import APIRouter, Depends, HTTPException, Query
 from pydantic import BaseModel
@@ -12,6 +14,7 @@ from app.api.dependencies import (
 )
 from app.core.database import get_db
 from app.core.entities.system import User
+from app.core.exceptions import NotFoundError, ValidationError
 from app.core.services.config import ConfigService
 from app.modules.ai.services.ai import AIService
 
@@ -21,6 +24,11 @@ class AskAureonRequest(BaseModel):
     context_type: str  # "signal" or "recommendation"
     context_id: uuid.UUID
     question: str
+
+class AIFeedbackRequest(BaseModel):
+    generation_id: uuid.UUID
+    rating: int  # 1 (thumbs up) or -1 (thumbs down)
+    comment: Optional[str] = None
 
 @router.post("/ai/global")
 def generate_global_briefing(
@@ -59,10 +67,24 @@ def ask_aureon(
     ai_service: AIService = Depends(get_ai_service)
 ):
     try:
-        response = ai_service.ask_aureon(req.context_type, req.context_id, req.question, user_id=current_user.id)
-        return {"response": response}
+        response, generation_id = ai_service.ask_aureon(req.context_type, req.context_id, req.question, user_id=current_user.id)
+        return {"response": response, "generation_id": str(generation_id)}
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
+
+@router.post("/ai/feedback")
+def submit_ai_feedback(
+    req: AIFeedbackRequest,
+    current_user: User = Depends(get_current_user),
+    ai_service: AIService = Depends(get_ai_service)
+):
+    try:
+        feedback = ai_service.submit_feedback(req.generation_id, req.rating, req.comment, user_id=current_user.id)
+        return {"id": str(feedback.id), "generation_id": str(feedback.generation_id), "rating": feedback.rating}
+    except NotFoundError as e:
+        raise HTTPException(status_code=404, detail=str(e.message)) from e
+    except ValidationError as e:
+        raise HTTPException(status_code=400, detail=str(e.message)) from e
 
 @router.post("/ai/recommendations/{recommendation_id}/explain")
 def explain_recommendation(
@@ -98,6 +120,17 @@ def get_ai_take(
 ):
     get_user_context(db, user)  # ensures default Portfolio exists
     return ai_service.get_single_asset_take(symbol, user_id=user.id)
+
+@router.get("/analytics/ai/usage")
+def get_ai_usage(
+    since: Optional[datetime] = None,
+    until: Optional[datetime] = None,
+    user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+    ai_service: AIService = Depends(get_ai_service),
+):
+    get_user_context(db, user)
+    return ai_service.get_usage_summary(since, until)
 
 @router.post("/analytics/ai/news/batch")
 def analyze_news_batch(

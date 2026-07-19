@@ -17,6 +17,7 @@ import { PfActivityFeed }      from '@/components/aureon/portfolio/PfActivityFee
 import { ManualAssetModal }        from '@/components/aureon/portfolio/ManualAssetModal';
 import { PfConcentrationSection }  from '@/components/aureon/portfolio/PfConcentrationSection';
 import { NotBuiltState } from '@/components/aureon/ds.jsx';
+import OutcomesTab from '@/components/aureon/decisions/tabs/OutcomesTab';
 
 const PfSection = ({ eyebrow, title, action, children }) => (
   <section style={{ marginBottom: 32 }}>
@@ -37,7 +38,7 @@ export default function Portfolio() {
   const navigate = useNavigate();
   const qc       = useQueryClient();
   const fmt      = useFmtMoney();
-  const { holdings, netWorth, investedValue, unrealizedPnl, dayDelta, loading, allocByClass, activity } = useAureonData();
+  const { holdings, netWorth, investedValue, unrealizedPnl, dayDelta, loading, allocByClass, activity, freshness } = useAureonData();
   const [showTrade,  setShowTrade]  = useState(false);
   const [showManual, setShowManual] = useState(false);
 
@@ -46,7 +47,7 @@ export default function Portfolio() {
   return (
     <>
       {/* 1 · Freshness bar */}
-      <PfFreshnessBar onRefresh={handleRefresh} />
+      <PfFreshnessBar freshness={freshness} onRefresh={handleRefresh} />
 
       {/* 2 · Summary hero */}
       <PfSummaryHero
@@ -118,10 +119,7 @@ export default function Portfolio() {
 
       {/* 10 · Recommendation Outcomes */}
       <PfSection eyebrow="Decisions" title="Recommendation Outcomes">
-        <NotBuiltState
-          title="Recommendation Outcomes"
-          body="Outcome tracking isn't built yet — there's no endpoint that measures how applied recommendations performed."
-        />
+        <OutcomesTab />
       </PfSection>
 
       {/* 11 · Import shortcut */}

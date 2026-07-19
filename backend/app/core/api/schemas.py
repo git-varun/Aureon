@@ -60,6 +60,7 @@ class TransactionResponse(BaseModel):
     broker: Optional[str] = None
     broker_reference: Optional[str] = None
     kind: str
+    recommendation_id: Optional[uuid.UUID] = None
     created_at: datetime
 
 class PositionResponse(BaseModel):

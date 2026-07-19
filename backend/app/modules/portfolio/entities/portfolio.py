@@ -45,6 +45,9 @@ class Transaction(UUIDMixin, TimestampMixin, Base):
     broker: Mapped[str | None] = mapped_column(String, nullable=True)
     broker_reference: Mapped[str | None] = mapped_column(String, nullable=True)
     kind: Mapped[str] = mapped_column(String, default="trade", nullable=False)  # trade, broker_snapshot
+    recommendation_id: Mapped[uuid.UUID | None] = mapped_column(
+        ForeignKey("recommendation.recommendations.id", ondelete="SET NULL"), nullable=True
+    )
 
 
 class Position(UUIDMixin, TimestampMixin, Base):

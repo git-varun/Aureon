@@ -70,7 +70,10 @@ def get_recommendation_by_id(
 
 @router.get("/outcomes")
 def get_outcomes(
-    portfolio_id: uuid.UUID = Query(..., description="Target portfolio ID"),
+    # Recommendations are scoped globally by asset_id (no portfolio_id column
+    # on Recommendation) — this param only keys the response cache, it does
+    # not filter the underlying query. Outcomes are the same across portfolios.
+    portfolio_id: uuid.UUID = Query(..., description="Cache key only — recommendations are global, not portfolio-scoped"),
     current_user: User = Depends(get_current_user),
     intel_service: FinancialIntelligenceService = Depends(get_intelligence_service),
 ):

@@ -268,6 +268,18 @@ def generate_portfolio_snapshot_route(
     except NotFoundError as e:
         raise HTTPException(status_code=404, detail=str(e))
 
+@router.get("/portfolios/{portfolio_id}/history")
+def get_portfolio_history_route(
+    portfolio_id: uuid.UUID,
+    days: int = Query(90, ge=1, le=1825),
+    current_user: User = Depends(get_current_user),
+    service: PortfolioService = Depends(get_portfolio_service),
+):
+    try:
+        return service.get_history(portfolio_id, days)
+    except NotFoundError as e:
+        raise HTTPException(status_code=404, detail=str(e))
+
 
 # --- File Importers ---
 
@@ -334,6 +346,7 @@ async def import_nps_statement(
 async def import_epf_statement(
     portfolio_id: uuid.UUID,
     file: UploadFile = File(...),
+    password: Optional[str] = Form(None),
     current_user: User = Depends(get_current_user),
     service: PortfolioService = Depends(get_portfolio_service),
 ):
@@ -342,6 +355,7 @@ async def import_epf_statement(
         return service.import_epf_statement(
             portfolio_id=portfolio_id,
             file_bytes=content,
+            password=password,
         )
     except ValidationError as e:
         raise HTTPException(status_code=400, detail=str(e))

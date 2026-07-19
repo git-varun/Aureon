@@ -1,5 +1,6 @@
 from app.core.services.base import BaseService
 import uuid
+from datetime import timedelta
 from typing import Any
 
 from sqlalchemy import select
@@ -10,6 +11,24 @@ from app.modules.market.entities.market import Asset, LatestQuote
 from app.modules.market.entities.watchlist import Watchlist, WatchlistSymbol
 from app.modules.market.repositories.watchlist import WatchlistsRepository
 from app.modules.market.services.market import infer_currency, infer_exchange_region
+
+
+def _previous_close(history: list) -> float | None:
+    """Nearest price point >=24h before the latest one in `history` (ascending by
+    timestamp), falling back to the oldest point fetched. Mirrors
+    MarketService._compute_day_pct's single-asset logic, applied to the same
+    batched history window already fetched for the sparkline. None (not 0/latest)
+    when no genuine prior point exists, per the no-fake-data policy."""
+    if not history:
+        return None
+    latest = history[-1]
+    cutoff = latest.timestamp - timedelta(hours=24)
+    prior = next((h for h in reversed(history) if h.timestamp <= cutoff), None)
+    if prior is None:
+        prior = history[0] if history[0].id != latest.id else None
+    if prior is None or float(prior.price) == 0:
+        return None
+    return float(prior.price)
 
 
 def _fetch_asset_info(session: Session, symbols: set[str]) -> dict[str, dict]:
@@ -40,7 +59,7 @@ def _fetch_asset_info(session: Session, symbols: set[str]) -> dict[str, dict]:
             "name": asset.name if asset else sym,
             "exchange": exchange,
             "currentPrice": price,
-            "previousClose": price,
+            "previousClose": _previous_close(history),
             "assetType": asset.asset_class if asset else "equity",
             "currency": infer_currency(asset.asset_class if asset else None, sym),
             "spark": spark,

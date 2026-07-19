@@ -31,6 +31,16 @@ export function useAureonData() {
 
     const snapshot = snapshotQuery.data || null;
 
+    // 2b. History Query (90-day net-worth reconstruction, see PortfolioService.get_history)
+    const historyQuery = useQuery({
+        queryKey: ["portfolio", activePortfolioId, "history", 90],
+        queryFn: () => apiService.fetchPortfolioHistory(activePortfolioId, 90),
+        enabled: !!activePortfolioId,
+        staleTime: 60000,
+    });
+
+    const historySnapshots = historyQuery.data?.snapshots || [];
+
     // 3. Recommendations Query
     const recommendationsQuery = useQuery({
         queryKey: ["recommendations"],
@@ -253,6 +263,9 @@ export function useAureonData() {
     return {
         loading,
         error,
+        historySnapshots,
+        historyLoading: historyQuery.isLoading,
+        historyError: historyQuery.error,
         holdings,
         classLabel: CLASS_LABEL,
         classTarget: allocationTargets,
@@ -273,6 +286,7 @@ export function useAureonData() {
             refresh_prices_count: marketQuotedPositions.length,
             fetch_news: fetchNewsLastRunAt,
             daily_briefing: aiBriefing?.created_at ?? null,
+            portfolio_snapshot: snapshot?.updated_at ?? null,
         },
         goalProgress: null,
         apiState: {holdings, netWorth, activity},

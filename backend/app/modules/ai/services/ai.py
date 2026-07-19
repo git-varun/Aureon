@@ -4,8 +4,10 @@ import os
 import re
 import time
 import uuid
+from datetime import datetime
 from typing import Any, Optional
 
+from sqlalchemy import func
 from sqlalchemy.orm import Session
 
 from app.core.constants import DEFAULT_USER_ID
@@ -13,7 +15,7 @@ from app.core.exceptions import NotFoundError, ProviderError, RateLimitError, Va
 from app.core.logging import logger
 from app.core.providers.factory import ProviderFactory
 from app.core.providers.retry import CircuitBreaker
-from app.modules.ai.entities.ai import AIBriefing, AIEvaluation, AIGeneration
+from app.modules.ai.entities.ai import AIBriefing, AIEvaluation, AIFeedback, AIGeneration
 from app.modules.market.entities.evaluation import AssetScore
 from app.modules.market.entities.market import AssetFeatures, AssetSnapshot, LatestQuote
 from app.modules.news.entities.news import News
@@ -210,9 +212,12 @@ class PortfolioContextBuilder:
             .all()
         )
 
+        outcomes_score = health.get('recommendation_outcomes_score')
+        outcomes_str = f"{outcomes_score}" if outcomes_score is not None else "N/A"
+
         lines = [
             "=== PORTFOLIO INTELLIGENCE & ANALYTICS CONTEXT ===",
-            f"Investor Health Score: {health.get('investor_health_score')} (Diversification: {health.get('diversification_score')}, Discipline: {health.get('allocation_discipline_score')}, Outcomes: {health.get('recommendation_outcomes_score')}, Consistency: {health.get('activity_consistency_score')})",
+            f"Investor Health Score: {health.get('investor_health_score')} (Diversification: {health.get('diversification_score')}, Discipline: {health.get('allocation_discipline_score')}, Outcomes: {outcomes_str}, Consistency: {health.get('activity_consistency_score')})",
             f"Portfolio Diversification Score: {div.get('diversification_score')} (HHI: {div.get('hhi')})",
             f"Risk Class: {risk.get('risk_class')} (Crypto %: {risk.get('crypto_percentage')}%, Equity %: {risk.get('equity_percentage')}%)",
             "Concentration Warnings:",
@@ -229,7 +234,9 @@ class PortfolioContextBuilder:
             lines.append("  - No cash opportunities detected.")
 
         lines.append("Goal Progress:")
-        lines.append(f"  - Wealth Goal: Current Net Worth {goals.get('wealth_goals', {}).get('current_net_worth')}, Target {goals.get('wealth_goals', {}).get('target_corpus')}. Projected Years to Target: {goals.get('wealth_goals', {}).get('projected_years_to_target')} years.")
+        wealth_goals = goals.get('wealth_goals', {})
+        if wealth_goals.get('target_corpus') is not None:
+            lines.append(f"  - Wealth Goal: Current Net Worth {wealth_goals.get('current_net_worth')}, Target {wealth_goals.get('target_corpus')}. Projected Years to Target: {wealth_goals.get('projected_years_to_target')} years.")
         lines.append(f"  - Allocation Goal: Status {goals.get('allocation_goals', {}).get('status')}")
 
         lines.append("Recommendation Analytics & Outcomes:")
@@ -246,7 +253,11 @@ class PortfolioContextBuilder:
 
         lines.append("Recent Recommendation Performance:")
         for p in performance[:5]:
-            lines.append(f"  - Rec {p.get('recommendation_id')} ({p.get('symbol')}): 30d Excess Return {p.get('excess_return_30d')*100:.1f}%, 90d {p.get('excess_return_90d')*100:.1f}%")
+            excess_30d = p.get('excess_return_30d')
+            excess_90d = p.get('excess_return_90d')
+            excess_30d_str = f"{excess_30d*100:.1f}%" if excess_30d is not None else "N/A"
+            excess_90d_str = f"{excess_90d*100:.1f}%" if excess_90d is not None else "N/A"
+            lines.append(f"  - Rec {p.get('recommendation_id')} ({p.get('symbol')}): 30d Excess Return {excess_30d_str}, 90d {excess_90d_str}")
 
         lines.append("Recent AI Briefing Vibes:")
         for b in briefings:
@@ -544,13 +555,17 @@ class AIService(BaseService):
         context_payload: Optional[dict[str, Any]] = None,
         retrieval_metadata: Optional[dict[str, Any]] = None,
         json_mode: bool = False
-    ) -> str:
+    ) -> tuple[str, uuid.UUID]:
+        """Returns (response_text, generation_id) — the generation_id lets
+        callers attach user feedback (AIFeedback.generation_id) to the exact
+        row that produced this response."""
         start_time = time.monotonic()
         response_text = ""
         model_used = "mock"
         provider_used = "mock"
         execution_trace = {}
         error_msg = None
+        usage: dict[str, int | None] = {"prompt_tokens": None, "completion_tokens": None, "total_tokens": None}
 
         if os.environ.get("AUREON_TEST_MOCK_AI") == "true":
             logger.info("AUREON_TEST_MOCK_AI is active; returning mock completion")
@@ -592,7 +607,7 @@ class AIService(BaseService):
                         # writes once the loop ends).
                         self.session.rollback()
                         logger.info(f"Attempting {pname} model: {model}")
-                        response_text = provider.fetch(prompt, json_mode=json_mode, model=model)
+                        response_text, usage = provider.fetch(prompt, json_mode=json_mode, model=model)
                         model_used = model
                         provider_used = pname
                         break
@@ -623,6 +638,9 @@ class AIService(BaseService):
             model=model_used,
             prompt_text=prompt,
             response_text=response_text,
+            prompt_tokens=usage.get("prompt_tokens"),
+            completion_tokens=usage.get("completion_tokens"),
+            total_tokens=usage.get("total_tokens"),
             latency_ms=latency,
             error_message=error_msg,
             context_payload=context_payload,
@@ -652,7 +670,7 @@ class AIService(BaseService):
         self.session.add(eval_record)
         self.session.commit()
 
-        return response_text
+        return response_text, gen_log.id
 
     # ── High Level AI Actions ──────────────────────────────────────────────────
 
@@ -671,7 +689,7 @@ class AIService(BaseService):
         payload = {"context_length": len(context)}
         meta = {"symbols": [], "context_type": "global"}
         
-        raw_response = self.execute_completion(
+        raw_response, generation_id = self.execute_completion(
             prompt=prompt,
             feature_name=briefing_type,
             user_id=user_id,
@@ -687,6 +705,11 @@ class AIService(BaseService):
             cleaned = re.sub(r"^```(?:json)?\s*", "", raw_response.strip(), flags=re.IGNORECASE)
             cleaned = re.sub(r"\s*```$", "", cleaned)
             parsed = json.loads(cleaned)
+
+        # Attach generation_id so the frontend can submit feedback against
+        # this exact AIGeneration row; persisted in content so it survives
+        # into get_briefing_history's read path too.
+        parsed["generation_id"] = str(generation_id)
 
         # Save briefing instance
         briefing = AIBriefing(
@@ -710,14 +733,14 @@ class AIService(BaseService):
         
         return parsed
 
-    def ask_aureon(self, context_type: str, context_id: uuid.UUID, question: str, user_id: Optional[uuid.UUID] = None) -> str:
+    def ask_aureon(self, context_type: str, context_id: uuid.UUID, question: str, user_id: Optional[uuid.UUID] = None) -> tuple[str, uuid.UUID]:
         context = PortfolioContextBuilder.build_qa_context(self.session, context_type, context_id)
         prompt = _QA_PROMPT.format(context=context, question=question)
-        
+
         payload = {"context_type": context_type, "context_id": str(context_id), "question": question}
         meta = {"target_id": str(context_id)}
-        
-        res = self.execute_completion(
+
+        res, generation_id = self.execute_completion(
             prompt=prompt,
             feature_name="ask_aureon",
             user_id=user_id,
@@ -735,7 +758,7 @@ class AIService(BaseService):
             details={"context_type": context_type, "question": question}
         )
         self.session.commit()
-        return res
+        return res, generation_id
 
     def explain_recommendation(self, recommendation_id: uuid.UUID, user_id: Optional[uuid.UUID] = None) -> dict[str, Any]:
         rec = self.session.query(Recommendation).filter(Recommendation.id == recommendation_id).first()
@@ -748,7 +771,7 @@ class AIService(BaseService):
         payload = {"recommendation_id": str(recommendation_id)}
         meta = {"target_id": str(recommendation_id)}
         
-        raw_response = self.execute_completion(
+        raw_response, generation_id = self.execute_completion(
             prompt=prompt,
             feature_name="recommendation_explanation",
             user_id=user_id,
@@ -763,6 +786,8 @@ class AIService(BaseService):
             cleaned = re.sub(r"^```(?:json)?\s*", "", raw_response.strip(), flags=re.IGNORECASE)
             cleaned = re.sub(r"\s*```$", "", cleaned)
             parsed = json.loads(cleaned)
+
+        parsed["generation_id"] = str(generation_id)
 
         # Update or create explanation in database
         expl = self.session.query(RecommendationExplanation).filter(RecommendationExplanation.recommendation_id == recommendation_id).first()
@@ -792,6 +817,74 @@ class AIService(BaseService):
         self.session.commit()
         return parsed
 
+    def get_usage_summary(self, since: Optional[datetime] = None, until: Optional[datetime] = None) -> dict[str, Any]:
+        """Aggregate token usage over ai_generations, grouped by provider/model.
+        No dollar cost is computed — per-model pricing isn't tracked anywhere in
+        this codebase, and hardcoding a rate table would be fabricating a number
+        this system never actually observed. Rows written before token capture
+        was added (see PARTIAL_FEATURES_SWEEP.md item 4) have null token counts
+        and are excluded from the token sums but included in generation_count."""
+        query = self.session.query(
+            AIGeneration.provider,
+            AIGeneration.model,
+            func.count(AIGeneration.id).label("generation_count"),
+            func.sum(AIGeneration.prompt_tokens).label("prompt_tokens"),
+            func.sum(AIGeneration.completion_tokens).label("completion_tokens"),
+            func.sum(AIGeneration.total_tokens).label("total_tokens"),
+            func.avg(AIGeneration.latency_ms).label("avg_latency_ms"),
+            func.count(AIGeneration.error_message).label("error_count"),
+        )
+        if since is not None:
+            query = query.filter(AIGeneration.created_at >= since)
+        if until is not None:
+            query = query.filter(AIGeneration.created_at <= until)
+        rows = query.group_by(AIGeneration.provider, AIGeneration.model).all()
+
+        by_model = [
+            {
+                "provider": r.provider,
+                "model": r.model,
+                "generation_count": r.generation_count,
+                "prompt_tokens": int(r.prompt_tokens) if r.prompt_tokens is not None else None,
+                "completion_tokens": int(r.completion_tokens) if r.completion_tokens is not None else None,
+                "total_tokens": int(r.total_tokens) if r.total_tokens is not None else None,
+                "avg_latency_ms": round(float(r.avg_latency_ms), 1) if r.avg_latency_ms is not None else None,
+                "error_count": int(r.error_count or 0),
+            }
+            for r in rows
+        ]
+
+        return {
+            "since": since.isoformat() if since else None,
+            "until": until.isoformat() if until else None,
+            "by_model": by_model,
+            "total_generations": sum(m["generation_count"] for m in by_model),
+            "total_tokens": sum(m["total_tokens"] for m in by_model if m["total_tokens"] is not None) or None,
+        }
+
+    def submit_feedback(
+        self,
+        generation_id: uuid.UUID,
+        rating: int,
+        comment: Optional[str] = None,
+        user_id: Optional[uuid.UUID] = None,
+    ) -> AIFeedback:
+        if rating not in (1, -1):
+            raise ValidationError("rating must be 1 (thumbs up) or -1 (thumbs down)")
+        if not self.session.query(AIGeneration.id).filter(AIGeneration.id == generation_id).first():
+            raise NotFoundError("AI generation not found")
+
+        feedback = AIFeedback(
+            generation_id=generation_id,
+            user_id=user_id,
+            rating=rating,
+            comment=comment,
+        )
+        self.session.add(feedback)
+        self.session.commit()
+        self.session.refresh(feedback)
+        return feedback
+
     def get_briefing_history(self, limit: int = 30) -> list:
         briefs = (
             self.session.query(AIBriefing)
@@ -815,7 +908,7 @@ class AIService(BaseService):
 
         prompt = f"Role: Investment Advisor.\nAnalyze this asset: {symbol}.\nContext:\n{context}\n\nProvide 3 sentences of technical/fundamental analysis. Any metric marked N/A is genuinely unavailable — do not invent or assume a value for it; note it as unavailable if relevant instead. Return JSON only with key: 'take'."
 
-        ans = self.execute_completion(prompt, "single", user_id=user_id, json_mode=True)
+        ans, generation_id = self.execute_completion(prompt, "single", user_id=user_id, json_mode=True)
         try:
             res = json.loads(ans)
         except Exception:
@@ -823,4 +916,5 @@ class AIService(BaseService):
             cleaned = re.sub(r"\s*```$", "", cleaned)
             res = json.loads(cleaned)
 
+        res["generation_id"] = str(generation_id)
         return res

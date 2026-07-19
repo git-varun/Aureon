@@ -595,95 +595,6 @@ class FinancialIntelligenceService(BaseService):
             
         return calibration
 
-    def get_daily_briefing(self, portfolio_id: uuid.UUID) -> Dict[str, Any]:
-        """Initiative 4: Daily Briefing details"""
-        snapshot = self.repo.get_portfolio_snapshot(portfolio_id)
-        net_worth = float(snapshot.market_value + snapshot.cash_balance) if snapshot else 10000.0
-        daily_return = float(snapshot.daily_return) if snapshot and hasattr(snapshot, "daily_return") else 120.0
-
-        # New active recommendations in past 24h
-        new_recs_count = self.repo.count_recommendations("active", datetime.now(timezone.utc) - timedelta(days=1))
-
-        # Watchlist movements
-        movements = []
-        positions = self.repo.get_positions_limited(portfolio_id, 2)
-        for p in positions:
-            movements.append(f"{p.symbol}: +1.2% daily change")
-            
-        return {
-            "portfolio_value": round(net_worth, 2),
-            "daily_change_dollars": round(daily_return, 2),
-            "daily_change_percentage": round((daily_return / net_worth) * 100, 2) if net_worth > 0 else 0.0,
-            "new_recommendations": new_recs_count,
-            "watchlist_movements": movements,
-            "notable_news": ["Markets trade higher on positive global cues.", "Federal Reserve hints at interest rate cuts in upcoming cycle."]
-        }
-
-    def get_weekly_briefing(self, portfolio_id: uuid.UUID) -> Dict[str, Any]:
-        """Initiative 4: Weekly Briefing details"""
-        snapshot = self.repo.get_portfolio_snapshot(portfolio_id)
-        net_worth = float(snapshot.market_value + snapshot.cash_balance) if snapshot else 10000.0
-
-        weekly_return = net_worth * 0.024
-
-        winners = []
-        losers = []
-        positions = self.repo.get_positions(portfolio_id)
-        if len(positions) > 0:
-            winners.append(f"{positions[0].symbol}: +5.2% return this week")
-        if len(positions) > 1:
-            losers.append(f"{positions[1].symbol}: -1.8% return this week")
-
-        applied_count = self.repo.count_recommendations("applied", datetime.now(timezone.utc) - timedelta(days=7))
-        
-        return {
-            "weekly_return_dollars": round(weekly_return, 2),
-            "weekly_return_percentage": 2.4,
-            "winners": winners,
-            "losers": losers,
-            "applied_recommendations_count": applied_count
-        }
-
-    def get_monthly_briefing(self, portfolio_id: uuid.UUID) -> Dict[str, Any]:
-        """Initiative 4: Monthly Briefing details"""
-        snapshot = self.repo.get_portfolio_snapshot(portfolio_id)
-        positions = self.repo.get_positions(portfolio_id)
-
-        net_worth = float(snapshot.market_value + snapshot.cash_balance) if snapshot else 10000.0
-
-        class_target = self._get_allocation_targets()
-        alloc = {}
-        for pos in positions:
-            asset = self.repo.get_asset(pos.asset_id)
-            if asset:
-                price = resolve_position_price(self.db, pos).price or 0.0
-                val = float(pos.quantity) * price
-                cls = asset.asset_class.lower()
-                if cls in ["stocks", "equity"]:
-                    cls_key = "stocks"
-                elif cls in ["bonds", "debt"]:
-                    cls_key = "bonds"
-                elif cls in ["funds", "mutual_funds"]:
-                    cls_key = "funds"
-                else:
-                    cls_key = cls
-                alloc[cls_key] = alloc.get(cls_key, 0.0) + val
-                
-        drift = []
-        for cls, target in class_target.items():
-            current_pct = alloc.get(cls, 0.0) / net_worth if net_worth > 0 else 0.0
-            drift_val = current_pct - target
-            drift.append(f"{cls.upper()}: Current weight {current_pct*100:.1f}% (Target: {target*100:.0f}%, Drift: {drift_val*100:+.1f}%)")
-            
-        div_score = self.get_portfolio_diversification_score(portfolio_id)["diversification_score"]
-        quality_metrics = self.get_recommendation_quality_metrics()
-
-        return {
-            "allocation_drift": drift,
-            "diversification_score": div_score,
-            "recommendation_effectiveness_rate": quality_metrics["acceptance_rate"]
-        }
-
     def get_investor_health_score(self, portfolio_id: uuid.UUID) -> Dict[str, Any]:
         """Initiative 6: Investor Health Score (0-100)"""
         div_data = self.get_portfolio_diversification_score(portfolio_id)
@@ -719,18 +630,27 @@ class FinancialIntelligenceService(BaseService):
         s_discipline = max(0.0, 100.0 - (total_drift * 50.0))
         
         quality_metrics = self.get_recommendation_quality_metrics()
-        s_outcomes = quality_metrics["acceptance_rate"] * 100.0 if quality_metrics["total_recommendations"] > 0 else 75.0
-        
+        has_outcomes_data = quality_metrics["total_recommendations"] > 0
+        s_outcomes = quality_metrics["acceptance_rate"] * 100.0 if has_outcomes_data else None
+
         recent_txns = self.repo.count_recent_transactions(portfolio_id, datetime.now(timezone.utc) - timedelta(days=90))
         s_consistency = min(100.0, recent_txns * 33.3)
-        
-        composite_score = 0.3 * s_div + 0.3 * s_discipline + 0.2 * s_outcomes + 0.2 * s_consistency
-        
+
+        # Composite score is a weighted average over whichever components have
+        # real data, renormalizing the base weights (0.3/0.3/0.2/0.2) over just
+        # the available ones — never a fabricated neutral substitute for a
+        # missing one. See Fix 1a in recommendation.py for the same pattern.
+        weighted_terms = [(0.3, s_div), (0.3, s_discipline), (0.2, s_consistency)]
+        if has_outcomes_data:
+            weighted_terms.append((0.2, s_outcomes))
+        total_weight = sum(w for w, _ in weighted_terms)
+        composite_score = sum(w * v for w, v in weighted_terms) / total_weight
+
         return {
             "investor_health_score": round(composite_score, 1),
             "diversification_score": round(s_div, 1),
             "allocation_discipline_score": round(s_discipline, 1),
-            "recommendation_outcomes_score": round(s_outcomes, 1),
+            "recommendation_outcomes_score": round(s_outcomes, 1) if s_outcomes is not None else None,
             "activity_consistency_score": round(s_consistency, 1),
             "position_count": len(positions),
         }
@@ -739,37 +659,41 @@ class FinancialIntelligenceService(BaseService):
         """Initiative 6: Goal Progress Metrics"""
         snapshot = self.repo.get_portfolio_snapshot(portfolio_id)
         current_net_worth = float(snapshot.market_value + snapshot.cash_balance) if snapshot else 10000.0
-        
-        target_corpus = 50000000.0
-        monthly_saving = 75000.0
-        
+
+        # monthly_saving lives on UserPreference, not User (see
+        # serialize_user_profile in app/api/dependencies.py) — same field
+        # backing GoalProgress.jsx and the Settings UI. Match its established
+        # 25000.0 default-at-creation convention rather than inventing a new
+        # unavailable state for a field that already has a real one.
+        pref = self.repo.get_user_preference(user_id)
+        monthly_saving = float(pref.monthly_saving) if pref and pref.monthly_saving is not None else 25000.0
+
+        # No schema field backs a user-set target corpus (see
+        # INTELLIGENCE_MODULE_AUDIT.md §6 Tier 2) — surface it as
+        # unavailable rather than invent a number, and skip any projection
+        # that depends on it.
+        target_corpus = None
+
         config = self._get_config()
         expected_annual_return = config.get("expected_return_default", 0.11)
-        
+
         risk_summary = self.get_portfolio_risk_summary(portfolio_id)
         if risk_summary["risk_class"] == "HIGH RISK":
             expected_annual_return = config.get("expected_return_high_risk", 0.14)
         elif risk_summary["risk_class"] == "LOW RISK":
             expected_annual_return = config.get("expected_return_low_risk", 0.07)
-            
-        months = 0
-        projected_value = current_net_worth
-        monthly_rate = (1.0 + expected_annual_return) ** (1.0 / 12.0) - 1.0
-        
-        while projected_value < target_corpus and months < 600:
-            projected_value = projected_value * (1.0 + monthly_rate) + monthly_saving
-            months += 1
-            
+
         div_score = self.get_portfolio_diversification_score(portfolio_id)["diversification_score"]
         target_div = config.get("diversification_target_score", 80.0)
-        
+
         return {
             "wealth_goals": {
                 "current_net_worth": round(current_net_worth, 2),
                 "target_corpus": target_corpus,
+                "target_corpus_available": False,
                 "monthly_saving": monthly_saving,
-                "projected_months_to_target": months,
-                "projected_years_to_target": round(months / 12.0, 1),
+                "projected_months_to_target": None,
+                "projected_years_to_target": None,
                 "expected_annual_return": round(expected_annual_return * 100, 1)
             },
             "allocation_goals": {
@@ -823,7 +747,7 @@ class FinancialIntelligenceService(BaseService):
             if qty <= 0:
                 continue
             asset_id = pos["asset_id"]
-            price = 100.0  # default
+            price = None
             if asset_id and asset_id in price_history_by_asset:
                 hist_list = price_history_by_asset[asset_id]
                 closest = None
@@ -836,7 +760,13 @@ class FinancialIntelligenceService(BaseService):
                         closest = p
                 if closest:
                     price = float(closest.price)
-            
+
+            if price is None:
+                # No real price history for this asset as of dt — skip it
+                # rather than fabricate a value into the aggregate, matching
+                # _get_asset_price_at_time's None-safe pattern above.
+                continue
+
             val = qty * price
             total_val += val
             stock_values[sym] = val
@@ -1044,24 +974,15 @@ class FinancialIntelligenceService(BaseService):
         for d in dates:
             state = self._get_portfolio_state_at_date(d, transactions, price_history_by_asset, assets_by_symbol)
             net_worth = state["total_value"]
-            
-            # years to target
-            target_corpus = 50000000.0
-            monthly_saving = 75000.0
-            expected_annual_return = 0.11
-            
-            months = 0
-            proj = net_worth
-            monthly_rate = (1.0 + expected_annual_return) ** (1.0 / 12.0) - 1.0
-            while proj < target_corpus and months < 600:
-                proj = proj * (1.0 + monthly_rate) + monthly_saving
-                months += 1
-                
+
+            # No schema field backs a user-set target corpus (see
+            # INTELLIGENCE_MODULE_AUDIT.md §6 Tier 2), so there's nothing
+            # real to project a time-to-target from.
             trend.append({
                 "date": d.strftime("%Y-%m-%d"),
                 "net_worth": round(net_worth, 2),
-                "years_to_target": round(months / 12.0, 1),
-                "projected_months": months
+                "years_to_target": None,
+                "projected_months": None
             })
         return trend
 

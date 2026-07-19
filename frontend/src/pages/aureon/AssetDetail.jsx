@@ -222,6 +222,8 @@ function FundamentalsSection({ticker}) {
         ['Momentum',     fpct(d?.momentum_score)],
         ['Volatility',   fpct(d?.volatility_score)],
         ['Sentiment',    fn2(d?.sentiment_score)],
+        ['Quality',      fpct(d?.quality_score)],
+        ['Valuation',    fpct(d?.valuation_score)],
     ];
 
     return (

@@ -6,6 +6,7 @@ from sqlalchemy import func
 
 from app.modules.ai.entities.ai import AIBriefing
 from app.core.entities.config import AllocationTarget, ProviderConfig
+from app.core.entities.system import UserPreference
 from app.modules.market.entities.evaluation import AssetScore
 from app.modules.market.entities.market import (
     Asset,
@@ -22,6 +23,9 @@ from app.core.repositories.base import BaseRepository
 
 
 class IntelligenceRepository(BaseRepository):
+    def get_user_preference(self, user_id: uuid.UUID) -> UserPreference | None:
+        return self.session.query(UserPreference).filter(UserPreference.user_id == user_id).first()
+
     def get_provider_config(self, provider_name: str) -> ProviderConfig | None:
         return self.session.query(ProviderConfig).filter(ProviderConfig.provider_name == provider_name).first()
 

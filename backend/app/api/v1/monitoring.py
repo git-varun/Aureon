@@ -1,4 +1,5 @@
 import uuid
+from datetime import datetime
 from typing import Any
 
 from fastapi import APIRouter, Depends, HTTPException
@@ -39,3 +40,21 @@ def check_transaction_integrity(svc: MonitoringService = Depends(get_monitoring_
 @router.get("/positions/quote-integrity")
 def check_position_quote_integrity(svc: MonitoringService = Depends(get_monitoring_service)) -> dict[str, Any]:
     return svc.check_position_quote_integrity()
+
+@router.get("/observability")
+def get_observability(
+    task_name: str | None = None,
+    status: str | None = None,
+    action: str | None = None,
+    since: datetime | None = None,
+    until: datetime | None = None,
+    limit: int = 50,
+    offset: int = 0,
+    svc: MonitoringService = Depends(get_monitoring_service),
+) -> dict[str, Any]:
+    """Recent activity merged from task_runs, audit_logs, and error
+    fingerprints — curl-only ops surface, no frontend."""
+    try:
+        return svc.get_observability(task_name, status, action, since, until, limit, offset)
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=f"invalid status filter: {e}") from e

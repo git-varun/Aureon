@@ -93,26 +93,26 @@ def check_redis_health() -> bool:
         logger.warning(f"redis_health_check_failed: {str(e)}", exc_info=True)
         return False
 
-def get_quote_cache_key(asset_id: str) -> str:
-    return f"market:quote:{asset_id}"
+def get_quote_cache_key(symbol: str) -> str:
+    return f"market:quote:{symbol.upper().strip()}"
 
-def cache_quote(asset_id: str, quote_data: dict[str, Any]) -> None:
+def cache_quote(symbol: str, quote_data: dict[str, Any]) -> None:
     try:
         client = get_redis_client()
-        client.setex(get_quote_cache_key(asset_id), 60, json.dumps(quote_data, default=str))
+        client.setex(get_quote_cache_key(symbol), 60, json.dumps(quote_data, default=str))
     except redis.RedisError as e:
-        logger.warning(f"redis_operation_failed operation=cache_quote key={get_quote_cache_key(asset_id)} error={str(e)}")
+        logger.warning(f"redis_operation_failed operation=cache_quote key={get_quote_cache_key(symbol)} error={str(e)}")
 
-def get_cached_quote(asset_id: str) -> dict[str, Any] | None:
+def get_cached_quote(symbol: str) -> dict[str, Any] | None:
     try:
         client = get_redis_client()
-        data = client.get(get_quote_cache_key(asset_id))
+        data = client.get(get_quote_cache_key(symbol))
         if data:
             result = json.loads(str(data))
             if isinstance(result, dict):
                 return result
     except redis.RedisError as e:
-        logger.warning(f"redis_operation_failed operation=get_cached_quote key={get_quote_cache_key(asset_id)} error={str(e)}")
+        logger.warning(f"redis_operation_failed operation=get_cached_quote key={get_quote_cache_key(symbol)} error={str(e)}")
     return None
 
 def get_fx_rates_key() -> str:
