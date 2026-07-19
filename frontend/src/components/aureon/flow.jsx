@@ -196,11 +196,22 @@ const AskAureonPanel = ({contextType, contextId}) => {
         setLoading(true);
         try {
             const res = await apiService.askAboutContext(contextType, String(contextId), q);
-            setTurns(t => [...t, {q, a: res.response}]);
+            setTurns(t => [...t, {q, a: res.response, generationId: res.generation_id, feedback: null}]);
         } catch {
             setTurns(t => [...t, {q, a: 'Aureon is temporarily offline. Please try again.'}]);
         } finally {
             setLoading(false);
+        }
+    };
+
+    const rate = async (turnIndex, rating) => {
+        const turn = turns[turnIndex];
+        if (!turn?.generationId || turn.feedback) return;
+        setTurns(t => t.map((x, i) => i === turnIndex ? {...x, feedback: rating} : x));
+        try {
+            await apiService.submitAiFeedback(turn.generationId, rating);
+        } catch {
+            setTurns(t => t.map((x, i) => i === turnIndex ? {...x, feedback: null} : x));
         }
     };
 
@@ -235,6 +246,32 @@ const AskAureonPanel = ({contextType, contextId}) => {
                                         color: 'var(--ink-10)', padding: '6px 10px', borderRadius: 6,
                                         background: 'rgba(255,255,255,0.02)', border: '1px solid rgba(255,255,255,0.04)'
                                     }}>{t.a}</div>
+                                    {t.generationId && (
+                                        <div style={{display: 'flex', gap: 6, marginTop: 4, justifyContent: 'flex-end'}}>
+                                            <button
+                                                onClick={() => rate(i, 1)}
+                                                disabled={!!t.feedback}
+                                                title="Helpful"
+                                                style={{
+                                                    width: 22, height: 22, borderRadius: 5, border: '1px solid rgba(255,255,255,0.08)',
+                                                    background: t.feedback === 1 ? 'rgba(122,168,116,0.18)' : 'rgba(255,255,255,0.02)',
+                                                    color: t.feedback === 1 ? 'var(--sage-500)' : 'var(--ink-40)',
+                                                    cursor: t.feedback ? 'default' : 'pointer', fontSize: 11, lineHeight: 1,
+                                                }}
+                                            >👍</button>
+                                            <button
+                                                onClick={() => rate(i, -1)}
+                                                disabled={!!t.feedback}
+                                                title="Not helpful"
+                                                style={{
+                                                    width: 22, height: 22, borderRadius: 5, border: '1px solid rgba(255,255,255,0.08)',
+                                                    background: t.feedback === -1 ? 'rgba(201,82,82,0.18)' : 'rgba(255,255,255,0.02)',
+                                                    color: t.feedback === -1 ? 'var(--crimson-500)' : 'var(--ink-40)',
+                                                    cursor: t.feedback ? 'default' : 'pointer', fontSize: 11, lineHeight: 1,
+                                                }}
+                                            >👎</button>
+                                        </div>
+                                    )}
                                 </div>
                             ))}
                         </div>

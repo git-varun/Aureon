@@ -153,12 +153,14 @@ export const AppProvider = ({children}) => {
             })
         ];
 
-        // Transactions have no recommendation_id — the only link back is
-        // outcome.ledger_transaction_id — so exclude those already represented
-        // above and leave the rest (manual/broker trades) as their real kind.
-        const recLinkedTxnIds = new Set(mappedRecs.map(r => r.outcome?.ledger_transaction_id).filter(Boolean));
+        // Transactions created by applying a recommendation carry a real
+        // recommendation_id FK (see PortfolioService.apply_recommendation) —
+        // those are already represented above via recActivity, so exclude them
+        // here rather than re-deriving 'applied'/'dismissed' from t.kind (which
+        // is always a real ledger kind like 'trade'/'broker_trade', never the
+        // synthetic values recActivity uses).
         const txnActivity = (activityData || [])
-            .filter(t => !recLinkedTxnIds.has(t.id))
+            .filter(t => !t.recommendation_id)
             .map(t => {
                 const d = new Date(t.transaction_date);
                 return {

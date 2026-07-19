@@ -27,7 +27,7 @@ class GroqProvider(AIProvider):
     def health_check(self) -> bool:
         return bool(self._api_key)
 
-    def fetch(self, prompt: str, *, json_mode: bool = False, model: str | None = None, **kwargs: Any) -> str:
+    def fetch(self, prompt: str, *, json_mode: bool = False, model: str | None = None, **kwargs: Any) -> tuple[str, dict[str, int | None]]:
         if not self._api_key:
             raise ConfigurationError("Groq API key is not configured")
         model = model or MODELS[0]
@@ -48,7 +48,12 @@ class GroqProvider(AIProvider):
         resp.raise_for_status()
 
         data = resp.json()
-        return data["choices"][0]["message"]["content"]
+        usage = data.get("usage") or {}
+        return data["choices"][0]["message"]["content"], {
+            "prompt_tokens": usage.get("prompt_tokens"),
+            "completion_tokens": usage.get("completion_tokens"),
+            "total_tokens": usage.get("total_tokens"),
+        }
 
 
 registry.register(GroqProvider)

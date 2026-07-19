@@ -2,6 +2,7 @@ from datetime import datetime
 from typing import Optional
 
 from app.modules.market.entities.market import Asset, AssetSnapshot, LatestQuote, PriceHistory
+from app.modules.market.entities.evaluation import AssetScore
 from app.modules.portfolio.entities.portfolio import Position
 from app.core.repositories.base import BaseRepository
 
@@ -17,6 +18,16 @@ class AssetsRepository(BaseRepository):
         if asset_id is None:
             return None
         return self.session.query(AssetSnapshot).filter(AssetSnapshot.asset_id == asset_id).first()
+
+    def get_latest_score(self, asset_id) -> Optional[AssetScore]:
+        if asset_id is None:
+            return None
+        return (
+            self.session.query(AssetScore)
+            .filter(AssetScore.asset_id == asset_id)
+            .order_by(AssetScore.generated_at.desc())
+            .first()
+        )
 
     def get_price_history_since(self, asset_id, cutoff: datetime) -> list[PriceHistory]:
         return (

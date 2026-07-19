@@ -1,23 +1,23 @@
-import React, { useState } from 'react';
+import React, { useState, useCallback } from 'react';
 import { useCardData } from '@/hooks/useCardData';
+import { apiService } from '@/api/apiService';
+import { usePortfolio } from '@/contexts/PortfolioContext';
 import { Sk, Cerr } from '@/components/aureon/ui';
 import { NotBuiltState } from '@/components/aureon/ds.jsx';
-
-const stub = async () => {
-  await new Promise(r => setTimeout(r, 620 + Math.random() * 200));
-  return null;
-};
 
 const RANGES = [['1W',7],['1M',30],['3M',90],['6M',180],['1Y',252],['All',500]];
 
 export function PfPerformanceChart() {
-  const { status, data, error, refetch } = useCardData(stub);
+  const { activePortfolioId } = usePortfolio();
   const [range, setRange] = useState(252);
+  const { status, data, error, refetch } = useCardData(
+    useCallback(() => apiService.fetchPortfolioHistory(activePortfolioId, range), [activePortfolioId, range])
+  );
 
   const rangeBar = (
     <div style={{ display:'flex', gap:2, padding:3, borderRadius:7, background:'rgba(255,255,255,0.04)', border:'1px solid rgba(255,255,255,0.06)' }}>
       {RANGES.map(([lbl,n]) => (
-        <button key={lbl} onClick={() => setRange(n)} style={{ padding:'5px 11px', fontSize:11.5, borderRadius:5, border:'none', cursor:'pointer', fontFamily:'var(--font-ui)', background:range===n?'rgba(255,255,255,0.09)':'transparent', color:range===n?'var(--ink-00)':'var(--ink-40)' }}>{lbl}</button>
+        <button key={lbl} onClick={() => { setRange(n); refetch(); }} style={{ padding:'5px 11px', fontSize:11.5, borderRadius:5, border:'none', cursor:'pointer', fontFamily:'var(--font-ui)', background:range===n?'rgba(255,255,255,0.09)':'transparent', color:range===n?'var(--ink-00)':'var(--ink-40)' }}>{lbl}</button>
       ))}
     </div>
   );

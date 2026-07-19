@@ -4,6 +4,7 @@ from uuid import UUID
 
 from app.core.binance import WALLET_SUFFIXES
 from app.core.exceptions import NotFoundError
+from app.core.redis import get_cached_quote
 from app.core.services.base import BaseService
 from app.modules.market.services.market import MarketService, classify
 from app.modules.market.repositories.assets import AssetsRepository
@@ -33,11 +34,15 @@ class AssetsService(BaseService):
 
     def get_quote(self, symbol: str) -> dict[str, Any]:
         symbol = symbol.upper().strip()
-        quote = self.repo.get_quote(symbol)
-        if not quote:
-            raise NotFoundError("Asset not found")
 
-        price = float(quote.price)
+        cached = get_cached_quote(symbol)
+        if cached:
+            price = float(cached["price"])
+        else:
+            quote = self.repo.get_quote(symbol)
+            if not quote:
+                raise NotFoundError("Asset not found")
+            price = float(quote.price)
 
         return {
             "symbol": symbol,
@@ -59,6 +64,7 @@ class AssetsService(BaseService):
             raise NotFoundError("Asset not found")
 
         snap = self.repo.get_snapshot(quote.asset_id)
+        score = self.repo.get_latest_score(quote.asset_id)
 
         return {
             "symbol": symbol,
@@ -68,6 +74,8 @@ class AssetsService(BaseService):
             "momentum_score": float(snap.momentum_score) if snap and snap.momentum_score is not None else None,
             "volatility_score": float(snap.volatility_score) if snap and snap.volatility_score is not None else None,
             "sentiment_score": float(snap.sentiment_score) if snap and snap.sentiment_score is not None else None,
+            "quality_score": float(score.quality_score) if score and score.quality_score is not None else None,
+            "valuation_score": float(score.valuation_score) if score and score.valuation_score is not None else None,
         }
 
     def get_signal(self, symbol: str) -> dict[str, Any]:

@@ -17,9 +17,10 @@ export function PfImportCenter() {
   const [npsError, setNpsErr]  = useState('');
   const [npsResult, setNpsRes] = useState(null);
   const [epfFile, setEpfFile]  = useState(null);
-  const [epfState, setEpfSt]   = useState('idle'); // idle | processing | done | error
+  const [epfState, setEpfSt]   = useState('idle'); // idle | processing | done | error | password
   const [epfError, setEpfErr]  = useState('');
   const [epfResult, setEpfRes] = useState(null);
+  const [epfPassword, setEpfPw] = useState('');
   const [showManual, setShowM] = useState(null);
   const casInputRef            = useRef(null);
   const npsInputRef            = useRef(null);
@@ -79,12 +80,18 @@ export function PfImportCenter() {
     setEpfSt('processing');
     setEpfErr('');
     try {
-      const result = await apiService.importEPF(null, epfFile);
+      const result = await apiService.importEPF(null, epfFile, epfPassword || null);
       setEpfRes(result);
       setEpfSt('done');
     } catch (err) {
-      setEpfErr(err?.response?.data?.detail || err.message || 'EPF import failed');
-      setEpfSt('error');
+      const msg = err?.response?.data?.detail || err.message || 'EPF import failed';
+      if (msg === 'PDF_PASSWORD_REQUIRED' || msg === 'PDF_PASSWORD_INCORRECT') {
+        setEpfErr(msg === 'PDF_PASSWORD_INCORRECT' ? 'Incorrect password — try again.' : 'This PDF is password-protected. Enter the password to continue.');
+        setEpfSt('password');
+      } else {
+        setEpfErr(msg);
+        setEpfSt('error');
+      }
     }
   };
 
@@ -219,16 +226,27 @@ export function PfImportCenter() {
                 }
               </div>
               {epfState === 'done' && <div style={{ fontSize:13, color:'var(--sage-500)', fontWeight:500 }}>✓ Imported — {epfResult?.holdings_imported ?? 0} holdings processed</div>}
-              {epfState === 'error' && <div style={{ fontSize:13, color:'rgba(255,80,80,0.9)' }}>{epfError}</div>}
+              {(epfState === 'error' || epfState === 'password') && <div style={{ fontSize:13, color:'rgba(255,80,80,0.9)' }}>{epfError}</div>}
+              {epfState === 'password' && (
+                <input
+                  type="password"
+                  autoFocus
+                  placeholder="EPF PDF password"
+                  value={epfPassword}
+                  onChange={e => setEpfPw(e.target.value)}
+                  onKeyDown={e => { if (e.key === 'Enter' && epfPassword) handleEpfImport(); }}
+                  style={{ padding:'10px 12px', borderRadius:8, border:'1px solid rgba(255,255,255,0.12)', background:'rgba(255,255,255,0.02)', color:'var(--ink-10)', fontSize:13 }}
+                />
+              )}
               <div style={{ display:'flex', gap:8 }}>
                 <button
-                  disabled={!epfFile || epfState === 'processing'}
+                  disabled={!epfFile || epfState === 'processing' || (epfState === 'password' && !epfPassword)}
                   onClick={handleEpfImport}
                   className="du3-cta"
-                  style={{ flex:1, background:'rgba(201,168,106,0.14)', border:'1px solid rgba(201,168,106,0.35)', color:'var(--aurum-100)', opacity:(epfFile && epfState !== 'processing')?1:0.45 }}>
-                  {epfState === 'processing' ? 'Importing…' : 'Import EPF statement'}
+                  style={{ flex:1, background:'rgba(201,168,106,0.14)', border:'1px solid rgba(201,168,106,0.35)', color:'var(--aurum-100)', opacity:(epfFile && epfState !== 'processing' && (epfState !== 'password' || epfPassword))?1:0.45 }}>
+                  {epfState === 'processing' ? 'Importing…' : epfState === 'password' ? 'Unlock & import' : 'Import EPF statement'}
                 </button>
-                <button onClick={() => { setEpfFile(null); setEpfSt('idle'); setEpfErr(''); setEpfRes(null); }} disabled={!epfFile} className="du3-cta ghost" style={{ opacity:epfFile?1:0.4 }}>Clear</button>
+                <button onClick={() => { setEpfFile(null); setEpfSt('idle'); setEpfErr(''); setEpfRes(null); setEpfPw(''); }} disabled={!epfFile} className="du3-cta ghost" style={{ opacity:epfFile?1:0.4 }}>Clear</button>
               </div>
             </div>
           )}

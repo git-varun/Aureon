@@ -93,6 +93,9 @@ const SETTINGS_NAV = [
         {id: 'export',         label: 'Export',         icon: <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>},
         {id: 'restore',        label: 'Restore',        icon: <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>},
     ]},
+    {group: 'Ops', items: [
+        {id: 'monitoring',     label: 'Monitoring',     icon: <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round"><path d="M22 12h-4l-3 9L9 3l-3 9H2"/></svg>},
+    ]},
 ];
 
 // Backward compat: old tab hash → new section id
@@ -678,6 +681,104 @@ function RestoreSection() {
     );
 }
 
+// ── Section: Monitoring ────────────────────────────────────────────────────────
+const StatusDot = ({ok}) => <span style={{width: 5, height: 5, borderRadius: 999, background: ok ? 'var(--sage-500)' : 'var(--crimson-500)', display: 'inline-block', marginRight: 6, flexShrink: 0}}/>;
+
+const StatusRow = ({label, value, ok}) => (
+    <div style={{display: 'grid', gridTemplateColumns: '1fr auto', gap: 16, padding: '10px 0', borderBottom: '1px solid rgba(255,255,255,0.03)', alignItems: 'center'}}>
+        <span style={{fontSize: 13, color: 'var(--ink-10)'}}>{label}</span>
+        <span style={{display: 'inline-flex', alignItems: 'center', fontSize: 11.5, fontFamily: 'var(--font-mono)', color: ok ? 'var(--sage-500)' : 'var(--crimson-500)'}}>
+            <StatusDot ok={ok}/>{value}
+        </span>
+    </div>
+);
+
+function MonitoringSection() {
+    const [data, setData] = useState(null);
+    const [loading, setLoading] = useState(true);
+    const [refreshing, setRefreshing] = useState(false);
+    const [error, setError] = useState(null);
+
+    const load = useCallback(async (isRefresh = false) => {
+        if (isRefresh) setRefreshing(true); else setLoading(true);
+        setError(null);
+        try {
+            const [deps, providers, failedIngestions, txnIntegrity, quoteIntegrity] = await Promise.all([
+                apiService.getMonitoringDependencies(),
+                apiService.getMonitoringProviders(),
+                apiService.getFailedIngestions(20),
+                apiService.getTransactionIntegrity(),
+                apiService.getPositionQuoteIntegrity(),
+            ]);
+            setData({deps, providers, failedIngestions, txnIntegrity, quoteIntegrity});
+        } catch {
+            setError('Failed to load monitoring data');
+            toast.error('Failed to load monitoring data');
+        } finally { setLoading(false); setRefreshing(false); }
+    }, []);
+
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    useEffect(() => { load(); }, [load]);
+
+    const isHealthy = (v) => typeof v === 'string' && (v === 'healthy' || v.startsWith('healthy') || v.includes('eager'));
+
+    return (
+        <section className="layer-1" style={{padding: 0}}>
+            <div style={{padding: 24}}>
+                <SettingSectionHead
+                    icon={<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><path d="M22 12h-4l-3 9L9 3l-3 9H2"/></svg>}
+                    title="Monitoring"
+                    desc={loading ? 'Loading…' : 'Backend dependency, provider, and data-integrity health'}
+                    action={<button onClick={() => load(true)} disabled={refreshing} className="du3-cta ghost" style={{height: 28, padding: '0 10px', fontSize: 12}}>{refreshing ? '…' : 'Refresh'}</button>}
+                />
+                {loading ? (
+                    <div style={{padding: '24px 0', textAlign: 'center', color: 'var(--ink-40)', fontSize: 13}}>Loading…</div>
+                ) : error ? (
+                    <SettingEmpty icon="⚠" title="Could not load" message={error}/>
+                ) : (
+                    <>
+                        <SettingDivider label="Dependencies"/>
+                        {Object.entries(data.deps).map(([name, status]) => (
+                            <StatusRow key={name} label={name} value={status} ok={isHealthy(status)}/>
+                        ))}
+
+                        <SettingDivider label="Providers"/>
+                        {data.providers.length === 0 ? (
+                            <SettingEmpty title="No providers" message="No providers are configured."/>
+                        ) : data.providers.map(p => (
+                            <StatusRow key={p.provider_name} label={p.provider_name} value={p.status} ok={isHealthy(p.status)}/>
+                        ))}
+
+                        <SettingDivider label="Data Integrity"/>
+                        <StatusRow label="Transaction table" value={data.txnIntegrity.status} ok={data.txnIntegrity.status !== 'error'}/>
+                        <StatusRow label="Position/quote references" value={`${data.quoteIntegrity.quote_integrity_check} (${data.quoteIntegrity.orphan_positions_found} orphans)`} ok={data.quoteIntegrity.quote_integrity_check === 'passed'}/>
+
+                        <SettingDivider label={`Recent Failed Ingestions${data.failedIngestions.length ? ` (${data.failedIngestions.length})` : ''}`}/>
+                        {data.failedIngestions.length === 0 ? (
+                            <SettingEmpty icon="✓" title="No failures" message="No recent ingestion failures."/>
+                        ) : (
+                            <div style={{maxHeight: 320, overflowY: 'auto'}}>
+                                {data.failedIngestions.map(f => (
+                                    <div key={f.id} style={{padding: '10px 0', borderBottom: '1px solid rgba(255,255,255,0.03)'}}>
+                                        <div style={{display: 'flex', justifyContent: 'space-between', gap: 12, fontSize: 12}}>
+                                            <span style={{color: 'var(--ink-10)', fontFamily: 'var(--font-mono)'}}>{f.provider}</span>
+                                            <span style={{color: 'var(--ink-40)', flexShrink: 0}}>{fmtTs(f.created_at)}</span>
+                                        </div>
+                                        <div style={{fontSize: 11.5, color: 'var(--crimson-500)', marginTop: 3, lineHeight: 1.4}}>{f.error}</div>
+                                        <div style={{fontSize: 10.5, color: 'var(--ink-40)', marginTop: 2}}>
+                                            attempts: {f.attempts}{f.is_exhausted ? ' · exhausted' : ''}
+                                        </div>
+                                    </div>
+                                ))}
+                            </div>
+                        )}
+                    </>
+                )}
+            </div>
+        </section>
+    );
+}
+
 // ── Sidebar nav item ──────────────────────────────────────────────────────────
 function SettingNavItem({id, label, icon, active, onClick}) {
     const [hovered, setHovered] = useState(false);
@@ -733,6 +834,7 @@ export default function Settings() {
             case 'job-history':    return <JobHistorySection/>;
             case 'export':         return <ExportSection/>;
             case 'restore':        return <RestoreSection/>;
+            case 'monitoring':     return <MonitoringSection/>;
             default:               return <ProfileSection/>;
         }
     };

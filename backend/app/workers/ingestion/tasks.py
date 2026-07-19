@@ -22,6 +22,18 @@ _NO_YAHOO_COVERAGE_ASSET_CLASSES = {"mutual_fund", "nps", "epf"}
 # create_manual_asset) use a free-text asset_class, so they're excluded by
 # symbol prefix below rather than added to the class set above.
 
+# Ordered fallback candidates per primary provider, tried on a ProviderError
+# from the one before it (see get_fallback_chain usage in ingest_quote below).
+# Yahoo covers global equity/crypto-spot symbols; Finnhub/Polygon are US-quote
+# APIs, so they're only meaningful fallbacks for the subset of Yahoo's symbols
+# that also resolve on a US ticker (e.g. AAPL, not RELIANCE.NS) — still a
+# strict improvement over "no fallback at all" for those. binance_price has no
+# listed fallback: crypto-futures symbols (e.g. BTCUSDT-USDM) don't resolve on
+# any other registered provider, so there's nothing sensible to fall through to.
+_QUOTE_FALLBACK_CANDIDATES: dict[str, list[str]] = {
+    "yahoo": ["finnhub", "polygon"],
+}
+
 
 @with_retry()
 def _get_quote_with_retry(adapter, symbol: str):
@@ -68,6 +80,7 @@ def ingest_quote(provider_name: str, symbol: str) -> bool:
     if provider_name not in _MARKET_DATA_PROVIDERS:
         raise ValueError(f"Unknown provider {provider_name}")
 
+    from app.core.exceptions import ProviderError
     from app.core.providers.factory import ProviderFactory
     from app.core.services.config import ConfigService
     from app.modules.market.services.ingestion import QuoteIngestionService
@@ -78,11 +91,30 @@ def ingest_quote(provider_name: str, symbol: str) -> bool:
     try:
         ingestion_svc = QuoteIngestionService(IngestionRepository(db))
         try:
-            adapter = ProviderFactory(ConfigService(ConfigRepository(db))).get(provider_name)
-            quote = _get_quote_with_retry(adapter, symbol)
+            candidate_names = [provider_name] + _QUOTE_FALLBACK_CANDIDATES.get(provider_name, [])
+            chain = ProviderFactory(ConfigService(ConfigRepository(db))).get_fallback_chain(candidate_names)
+            if not chain:
+                raise ProviderError(f"No available provider for '{provider_name}' or its fallbacks")
 
-            asset_id = ingestion_svc.save_quote(provider_name, quote)
-            cache_quote(str(asset_id), quote.model_dump())
+            quote = None
+            used_provider = provider_name
+            last_error: Exception | None = None
+            for adapter in chain:
+                try:
+                    quote = _get_quote_with_retry(adapter, symbol)
+                    used_provider = adapter.provider_name
+                    break
+                except ProviderError as e:
+                    last_error = e
+                    logger.warning(
+                        f"ingest_quote: {adapter.provider_name} failed for {symbol}, "
+                        f"trying next provider in fallback chain: {e}"
+                    )
+            if quote is None:
+                raise last_error or ProviderError(f"All providers failed for {symbol}")
+
+            asset_id = ingestion_svc.save_quote(used_provider, quote)
+            cache_quote(symbol, quote.model_dump())
 
             # Trigger downstream: snapshot → features → signals → scores → health
             from app.workers.snapshots.asset_snapshot import process_asset_snapshot

@@ -27,7 +27,7 @@ class GeminiProvider(AIProvider):
     def health_check(self) -> bool:
         return bool(self._api_key)
 
-    def fetch(self, prompt: str, *, json_mode: bool = False, model: str | None = None, **kwargs: Any) -> str:
+    def fetch(self, prompt: str, *, json_mode: bool = False, model: str | None = None, **kwargs: Any) -> tuple[str, dict[str, int | None]]:
         if not self._api_key:
             raise ConfigurationError("Gemini API key is not configured")
         model = model or MODELS[0]
@@ -49,7 +49,12 @@ class GeminiProvider(AIProvider):
         resp.raise_for_status()
 
         data = resp.json()
-        return data["candidates"][0]["content"]["parts"][0]["text"]
+        usage = data.get("usageMetadata") or {}
+        return data["candidates"][0]["content"]["parts"][0]["text"], {
+            "prompt_tokens": usage.get("promptTokenCount"),
+            "completion_tokens": usage.get("candidatesTokenCount"),
+            "total_tokens": usage.get("totalTokenCount"),
+        }
 
 
 registry.register(GeminiProvider)

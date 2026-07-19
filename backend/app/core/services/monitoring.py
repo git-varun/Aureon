@@ -3,16 +3,25 @@ from datetime import datetime, timezone
 from typing import Any
 
 from app.core.exceptions import NotFoundError
+from app.core.entities.system import TaskRunStatus
+from app.core.observability.health import fingerprinter
 from app.core.redis import check_redis_health, get_cached_asset_health, get_cached_provider_health
 from app.core.services.base import BaseService
 from app.modules.market.repositories.asset_health import AssetHealthRepository
 from app.core.repositories.monitoring import MonitoringRepository
+from app.core.repositories.task_run import TaskRunRepository
 
 
 class MonitoringService(BaseService):
-    def __init__(self, repo: MonitoringRepository, asset_health_repo: AssetHealthRepository):
+    def __init__(
+        self,
+        repo: MonitoringRepository,
+        asset_health_repo: AssetHealthRepository,
+        task_run_repo: TaskRunRepository,
+    ):
         self.repo = repo
         self.asset_health_repo = asset_health_repo
+        self.task_run_repo = task_run_repo
 
     def get_asset_health(self, asset_id: uuid.UUID) -> dict[str, Any]:
         cached = get_cached_asset_health(str(asset_id))
@@ -128,4 +137,74 @@ class MonitoringService(BaseService):
                 if orphans == 0
                 else f"Found {orphans} position records without corresponding market quotes."
             ),
+        }
+
+    def get_observability(
+        self,
+        task_name: str | None = None,
+        status: str | None = None,
+        action: str | None = None,
+        since: datetime | None = None,
+        until: datetime | None = None,
+        limit: int = 50,
+        offset: int = 0,
+    ) -> dict[str, Any]:
+        """Recent activity merged across task_runs, audit_logs, and error
+        fingerprints — one place to look instead of three. Curl-only ops
+        surface, no frontend (see MONITORING_MODULE_AUDIT.md)."""
+        task_status = TaskRunStatus(status) if status is not None else None
+
+        task_runs = self.task_run_repo.list_filtered(
+            task_name=task_name, status=task_status, since=since, until=until,
+            limit=limit, offset=offset,
+        )
+        audit_logs = self.repo.list_audit_logs(
+            action=action, since=since, until=until, limit=limit, offset=offset,
+        )
+        fingerprints = fingerprinter.get_fingerprints()
+
+        events: list[dict[str, Any]] = []
+        for t in task_runs:
+            events.append({
+                "source": "task_run",
+                "timestamp": t.started_at.isoformat(),
+                "summary": f"{t.task_name} [{t.status.value}]" + (f" asset={t.asset_id}" if t.asset_id else ""),
+                "detail": {
+                    "task_name": t.task_name,
+                    "task_id": t.task_id,
+                    "asset_id": t.asset_id,
+                    "status": t.status.value,
+                    "error_message": t.error_message,
+                    "duration_ms": t.duration_ms,
+                    "started_at": t.started_at.isoformat(),
+                    "ended_at": t.ended_at.isoformat() if t.ended_at else None,
+                },
+            })
+        for a in audit_logs:
+            events.append({
+                "source": "audit_log",
+                "timestamp": a.created_at.isoformat(),
+                "summary": f"{a.action} {a.entity_type}" + (f"#{a.entity_id}" if a.entity_id else ""),
+                "detail": {
+                    "actor_id": str(a.actor_id) if a.actor_id else None,
+                    "action": a.action,
+                    "entity_type": a.entity_type,
+                    "entity_id": a.entity_id,
+                    "details": a.details,
+                    "created_at": a.created_at.isoformat(),
+                },
+            })
+        for f in fingerprints:
+            events.append({
+                "source": "error_fingerprint",
+                "timestamp": f["last_seen"],
+                "summary": f"{f['error_type']}: {f['message']} (x{f['count']})",
+                "detail": f,
+            })
+
+        events.sort(key=lambda e: e["timestamp"], reverse=True)
+
+        return {
+            "events": events[:limit],
+            "pagination": {"limit": limit, "offset": offset},
         }

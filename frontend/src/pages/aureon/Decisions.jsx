@@ -14,6 +14,7 @@ import {
     OutcomesTab,
     PerformanceTab,
     AccuracyTab,
+    DismissReasonModal,
 } from '@/components/aureon/decisions';
 import SignalsTab from '@/components/aureon/decisions/tabs/SignalsTab';
 import DecisionLineageDrawer from '@/components/aureon/decisions/DecisionLineageDrawer';
@@ -70,6 +71,7 @@ export default function Decisions() {
     const [lineageExtId, setLineageExtId] = useState(null);
     const [lineageOpen, setLineageOpen] = useState(false);
     const [modalRec, setModalRec] = useState(null);
+    const [dismissTarget, setDismissTarget] = useState(null);
     const [tabStates] = useState({
         recommendations: 'ready',
         signals: 'ready',
@@ -156,7 +158,7 @@ export default function Decisions() {
                     signals={signals.filter(s => s.linkedRec === explainRec.id)}
                     onClose={() => { setExplainOpen(false); setExplainRec(null); }}
                     onApply={() => { apply(explainRec.id); setExplainOpen(false); setExplainRec(null); }}
-                    onDismiss={() => dismiss(explainRec.id)}
+                    onDismiss={() => setDismissTarget(explainRec)}
                 />
             )}
 
@@ -165,6 +167,19 @@ export default function Decisions() {
                     rec={modalRec}
                     onCancel={() => setModalRec(null)}
                     onConfirm={() => { apply(modalRec.id); setModalRec(null); }}
+                />
+            )}
+
+            {dismissTarget && (
+                <DismissReasonModal
+                    rec={dismissTarget}
+                    onCancel={() => setDismissTarget(null)}
+                    onConfirm={(reason) => {
+                        dismiss(dismissTarget.id, reason);
+                        setDismissTarget(null);
+                        setExplainOpen(false);
+                        setExplainRec(null);
+                    }}
                 />
             )}
 

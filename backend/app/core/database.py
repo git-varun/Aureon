@@ -82,7 +82,7 @@ def db_after_execute(conn, cursor, statement, parameters, context, executemany):
     start_time = conn.info.pop(id(cursor), None)
     duration_ms = int((time.perf_counter() - start_time) * 1000) if start_time is not None else None
     operation, table = _parse_sql_metadata(statement)
-    logger.info(f"{operation} {table}", component="DB", status="OK", duration_ms=duration_ms)
+    logger.debug(f"{operation} {table}", component="DB", status="OK", duration_ms=duration_ms)
 
 @event.listens_for(engine, 'handle_error')
 def db_handle_error(exception_context):

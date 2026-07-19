@@ -121,7 +121,10 @@ class AIProvider(ProviderProtocol):
     """AI_CHAT capable providers (Gemini, Groq)."""
 
     @abstractmethod
-    def fetch(self, prompt: str, *, json_mode: bool = False, **kwargs: Any) -> str:
+    def fetch(self, prompt: str, *, json_mode: bool = False, **kwargs: Any) -> tuple[str, dict[str, int | None]]:
+        """Returns (response_text, usage) where usage has keys
+        prompt_tokens/completion_tokens/total_tokens (any may be None if the
+        provider's response didn't include them)."""
         ...
 
 

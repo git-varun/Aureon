@@ -5,6 +5,7 @@ import { band, needsModal } from '@/components/aureon/utils';
 import { useFmtMoney } from '@/hooks/useFmtMoney';
 import RecCard from './RecCard';
 import CalibrationStrip from './CalibrationStrip';
+import DismissReasonModal from './DismissReasonModal';
 import { DecisionBasket } from '@/components/aureon/DecisionBasket';
 import { getRecStatus } from './utils/recommendation';
 import { REC_STATUS } from './constants';
@@ -163,6 +164,7 @@ export default function RecommendationsFeed({ tabState, onRetry, onExplain, onVi
   const [staged, setStaged]                 = useState([]);
   const [snoozed, setSnoozed]               = useState([]);
   const [basketModal, setBasketModal]       = useState(null);
+  const [dismissTarget, setDismissTarget]   = useState(null);
 
   /* ─── Helpers ─── */
   const getStatus = (rec) => getRecStatus(rec, active, applied, dismissed);
@@ -320,7 +322,7 @@ export default function RecommendationsFeed({ tabState, onRetry, onExplain, onVi
               status={getStatus(rec)}
               isStaged={staged.includes(rec.id)}
               onApply={() => apply(rec.id)}
-              onDismiss={() => dismiss(rec.id)}
+              onDismiss={() => setDismissTarget(rec)}
               onUndo={() => undo(rec.id)}
               onExplain={() => onExplain?.(rec)}
               onOpenModal={() => onOpenModal?.(rec)}
@@ -363,7 +365,7 @@ export default function RecommendationsFeed({ tabState, onRetry, onExplain, onVi
               status={getStatus(rec)}
               isStaged={false}
               onApply={() => apply(rec.id)}
-              onDismiss={() => dismiss(rec.id)}
+              onDismiss={() => setDismissTarget(rec)}
               onUndo={() => undo(rec.id)}
               onExplain={() => onExplain?.(rec)}
               onOpenModal={() => onOpenModal?.(rec)}
@@ -385,7 +387,7 @@ export default function RecommendationsFeed({ tabState, onRetry, onExplain, onVi
               status={getStatus(rec)}
               isStaged={false}
               onApply={() => apply(rec.id)}
-              onDismiss={() => dismiss(rec.id)}
+              onDismiss={() => setDismissTarget(rec)}
               onUndo={() => undo(rec.id)}
               onExplain={() => onExplain?.(rec)}
               onOpenModal={() => onOpenModal?.(rec)}
@@ -403,6 +405,15 @@ export default function RecommendationsFeed({ tabState, onRetry, onExplain, onVi
           recs={allRecs.filter(r => basketModal.includes(r.id))}
           onCancel={() => setBasketModal(null)}
           onConfirm={confirmBasket}
+        />
+      )}
+
+      {/* Dismiss-reason modal */}
+      {dismissTarget && (
+        <DismissReasonModal
+          rec={dismissTarget}
+          onCancel={() => setDismissTarget(null)}
+          onConfirm={(reason) => { dismiss(dismissTarget.id, reason); setDismissTarget(null); }}
         />
       )}
 

@@ -49,6 +49,49 @@ function SkeletonCard() {
     );
 }
 
+function BriefingFeedback({ generationId }) {
+    const [rating, setRating] = useState(null);
+
+    if (!generationId) return null;
+
+    const rate = async (value) => {
+        if (rating) return;
+        setRating(value);
+        try {
+            await apiService.submitAiFeedback(generationId, value);
+        } catch {
+            setRating(null);
+        }
+    };
+
+    return (
+        <div style={{ display: 'flex', gap: 6, marginTop: 10, justifyContent: 'flex-end' }}>
+            <button
+                onClick={() => rate(1)}
+                disabled={!!rating}
+                title="Helpful"
+                style={{
+                    width: 22, height: 22, borderRadius: 5, border: '1px solid rgba(255,255,255,0.08)',
+                    background: rating === 1 ? 'rgba(122,168,116,0.18)' : 'rgba(255,255,255,0.02)',
+                    color: rating === 1 ? 'var(--sage-500)' : 'var(--ink-40)',
+                    cursor: rating ? 'default' : 'pointer', fontSize: 11, lineHeight: 1,
+                }}
+            >👍</button>
+            <button
+                onClick={() => rate(-1)}
+                disabled={!!rating}
+                title="Not helpful"
+                style={{
+                    width: 22, height: 22, borderRadius: 5, border: '1px solid rgba(255,255,255,0.08)',
+                    background: rating === -1 ? 'rgba(201,82,82,0.18)' : 'rgba(255,255,255,0.02)',
+                    color: rating === -1 ? 'var(--crimson-500)' : 'var(--ink-40)',
+                    cursor: rating ? 'default' : 'pointer', fontSize: 11, lineHeight: 1,
+                }}
+            >👎</button>
+        </div>
+    );
+}
+
 function BriefingCard({ b, expanded, onToggle }) {
     const trend = b.short_term_trend;
     const toneMap = BRIEFING_TREND[trend] || BRIEFING_TREND.Neutral;
@@ -148,6 +191,9 @@ function BriefingCard({ b, expanded, onToggle }) {
                     ))}
                 </div>
             )}
+            <div style={{ padding: '0 20px 15px' }}>
+                <BriefingFeedback generationId={b.generation_id} />
+            </div>
         </div>
     );
 }

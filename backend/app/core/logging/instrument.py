@@ -13,6 +13,9 @@ def instrument(component: str, name: str) -> Callable:
 
     def decorator(func: Callable) -> Callable:
         label = f"{name}.{func.__name__}()"
+        # Repository calls happen once per query and add no information beyond
+        # the [DB] line right above them — keep them out of INFO, same as [DB].
+        ok_log = logger.debug if component == "Repository" else logger.info
 
         @functools.wraps(func)
         def sync_wrapper(*args: Any, **kwargs: Any) -> Any:
@@ -26,7 +29,7 @@ def instrument(component: str, name: str) -> Callable:
                 logger.error(f"{label} - {exc}", component=component, status="FAIL", duration_ms=duration_ms)
                 raise
             duration_ms = int((time.perf_counter() - start) * 1000)
-            logger.info(label, component=component, status="OK", duration_ms=duration_ms)
+            ok_log(label, component=component, status="OK", duration_ms=duration_ms)
             return result
 
         @functools.wraps(func)
@@ -39,7 +42,7 @@ def instrument(component: str, name: str) -> Callable:
                 logger.error(f"{label} - {exc}", component=component, status="FAIL", duration_ms=duration_ms)
                 raise
             duration_ms = int((time.perf_counter() - start) * 1000)
-            logger.info(label, component=component, status="OK", duration_ms=duration_ms)
+            ok_log(label, component=component, status="OK", duration_ms=duration_ms)
             return result
 
         return async_wrapper if inspect.iscoroutinefunction(func) else sync_wrapper

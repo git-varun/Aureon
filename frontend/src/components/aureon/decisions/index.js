@@ -4,6 +4,7 @@ export { default as ExplainPanel } from './ExplainPanel';
 export { default as CalibrationStrip } from './CalibrationStrip';
 export { default as DecisionLineageInline } from './DecisionLineageInline';
 export { default as RecommendationsFeed } from './RecommendationsFeed';
+export { default as DismissReasonModal } from './DismissReasonModal';
 export { default as AIBriefings } from './AIBriefings';
 
 // Tabs

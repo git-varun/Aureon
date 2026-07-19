@@ -793,7 +793,7 @@ def _epf_row_date(label: str) -> Optional[datetime]:
     return _parse_date(m.group(1).replace("/", "-")) if m else None
 
 
-def parse_epf_statement(content: bytes) -> Tuple[List[Dict[str, Any]], List[Dict[str, Any]], Dict[str, Any]]:
+def parse_epf_statement(content: bytes, password: Optional[str] = None) -> Tuple[List[Dict[str, Any]], List[Dict[str, Any]], Dict[str, Any]]:
     """Parses an EPFO Member Passbook PDF (Page 1: Member Passbook).
 
     Returns (holdings, transactions, summary):
@@ -833,9 +833,19 @@ def parse_epf_statement(content: bytes) -> Tuple[List[Dict[str, Any]], List[Dict
     except ImportError:
         raise ImportError("pdfplumber not installed — cannot parse EPF passbook PDF")
 
+    open_kwargs = {}
+    if password:
+        open_kwargs["password"] = password
+
+    from pdfminer.pdfdocument import PDFPasswordIncorrect
+
     try:
-        pdf = pdfplumber.open(io.BytesIO(content))
+        pdf = pdfplumber.open(io.BytesIO(content), **open_kwargs)
     except Exception as exc:
+        cause = exc.args[0] if exc.args else None
+        if isinstance(exc, PDFPasswordIncorrect) or isinstance(cause, PDFPasswordIncorrect):
+            marker = "PDF_PASSWORD_INCORRECT" if password else "PDF_PASSWORD_REQUIRED"
+            raise ValueError(marker) from exc
         raise ValueError(f"Cannot open PDF: {exc}") from exc
 
     opening: Optional[Dict[str, Any]] = None

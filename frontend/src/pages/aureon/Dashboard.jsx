@@ -26,12 +26,14 @@ export default function Dashboard() {
   const {
     holdings, signals, netWorth, dayDelta,
     portfolioRec, activity, freshness, loading,
+    historySnapshots, historyLoading, historyError,
   } = useAureonData();
   const [modal, setModal] = useState(null);
 
   // Portfolio summary state derived from backend data only — no local snapshot generation
   const portfolioSummaryState = useMemo(() => {
-    if (loading) return { status: 'loading', data: null, error: null, refetch: () => {} };
+    if (loading || historyLoading) return { status: 'loading', data: null, error: null, refetch: () => {} };
+    if (historyError) return { status: 'error', data: null, error: historyError.message || 'Failed to load history', refetch: () => {} };
     if (!netWorth && netWorth !== 0) return { status: 'empty', data: null, error: null, refetch: () => {} };
     return {
       status: 'ready',
@@ -42,10 +44,10 @@ export default function Dashboard() {
         dayDelta:    dayDelta?.dollars ?? 0,
         dayDeltaPct: dayDelta?.pct ?? 0,
         lastUpdated: new Date(),
-        snapshots:   [],
+        snapshots:   historySnapshots,
       },
     };
-  }, [netWorth, dayDelta, loading]);
+  }, [netWorth, dayDelta, loading, historySnapshots, historyLoading, historyError]);
 
   const recs     = useMemo(() => allRecs.filter(r => active.includes(r.id)), [allRecs, active]);
   const dashRecs = recs.filter(r => r.confidence >= 50).slice(0, 3);

@@ -22,6 +22,7 @@ from app.modules.market.repositories.assets import AssetsRepository
 from app.core.repositories.config import ConfigRepository
 from app.modules.market.repositories.market import MarketRepository
 from app.core.repositories.monitoring import MonitoringRepository
+from app.core.repositories.task_run import TaskRunRepository
 from app.modules.news.repositories.news import NewsRepository
 from app.modules.portfolio.repositories.portfolio_snapshot import (
     PortfolioSnapshotRepository,
@@ -111,11 +112,15 @@ def get_monitoring_repo(db: Session = Depends(get_db)) -> MonitoringRepository:
 def get_asset_health_repo(db: Session = Depends(get_db)) -> AssetHealthRepository:
     return AssetHealthRepository(db)
 
+def get_task_run_repo(db: Session = Depends(get_db)) -> TaskRunRepository:
+    return TaskRunRepository(db)
+
 def get_monitoring_service(
     repo: MonitoringRepository = Depends(get_monitoring_repo),
     asset_health_repo: AssetHealthRepository = Depends(get_asset_health_repo),
+    task_run_repo: TaskRunRepository = Depends(get_task_run_repo),
 ) -> MonitoringService:
-    return MonitoringService(repo, asset_health_repo)
+    return MonitoringService(repo, asset_health_repo, task_run_repo)
 
 def get_news_service(repo: NewsRepository = Depends(get_news_repo)) -> NewsService:
     return NewsService(repo)
