@@ -359,7 +359,7 @@ class PortfolioContextBuilder:
         portfolio_id = None
 
         if context_type == "signal":
-            quote = session.query(LatestQuote).filter(LatestQuote.id == context_id).first()
+            quote = session.query(LatestQuote).filter(LatestQuote.asset_id == context_id).first()
             if not quote:
                 # Try fallback by symbol
                 quote = session.query(LatestQuote).filter(LatestQuote.symbol == str(context_id)).first()

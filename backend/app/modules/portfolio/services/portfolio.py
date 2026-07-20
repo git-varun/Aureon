@@ -21,6 +21,7 @@ from app.core.fx import to_inr
 from app.modules.market.entities.market import Asset, LatestQuote, PriceHistory
 from app.modules.market.services.market import ensure_asset_exists, infer_currency
 from app.modules.portfolio.entities.portfolio import (
+    BinanceBackfillProgress,
     Portfolio,
     PortfolioSnapshot,
     Position,
@@ -748,6 +749,11 @@ class PortfolioService(BaseService):
             shown = errors[:5]
             more = f"; and {len(errors) - 5} more" if len(errors) > 5 else ""
             raise ValidationError(f"File parsing errors: {'; '.join(shown)}{more}")
+        if not rows:
+            raise ValidationError(
+                "No transactions found in file — check that the file format/columns match "
+                "a recognised broker export (see PROVIDERS.md)."
+            )
 
         committed = 0
         skipped = 0
@@ -884,6 +890,110 @@ class PortfolioService(BaseService):
             "imported_holdings": len(payloads),
             "summary": summary,
         }
+
+    def _import_groww_holdings_payloads(
+        self,
+        portfolio_id: uuid.UUID,
+        payloads: List[Dict[str, Any]],
+        broker: str,
+    ) -> int:
+        """Shared broker_snapshot upsert for both Groww holdings-snapshot
+        parsers — same pattern as import_cdsl_cas: one row per symbol, updated
+        in place on re-import (idempotent), never duplicated."""
+        symbols_to_recalc = set()
+        for p in payloads:
+            symbol = p["symbol"]
+            asset_id = ensure_asset_exists(
+                self.session, symbol, name=p.get("name"), asset_class=p.get("asset_type") or "equity",
+            )
+
+            stmt = select(Transaction).where(
+                (Transaction.portfolio_id == portfolio_id) &
+                (Transaction.symbol == symbol) &
+                (Transaction.kind == "broker_snapshot") &
+                (Transaction.broker == broker)
+            )
+            existing = self.session.execute(stmt).scalars().first()
+
+            if existing:
+                existing.quantity = p["quantity"]
+                existing.price = p["avg_buy_price"]
+                existing.transaction_date = datetime.now(timezone.utc)
+            else:
+                txn = Transaction(
+                    portfolio_id=portfolio_id,
+                    symbol=symbol,
+                    asset_id=asset_id,
+                    transaction_type="BUY",
+                    quantity=p["quantity"],
+                    price=p["avg_buy_price"],
+                    transaction_date=datetime.now(timezone.utc),
+                    broker=broker,
+                    kind="broker_snapshot",
+                )
+                self.transactions_repo.create(txn)
+
+            if p.get("current_price"):
+                from app.core.providers.models import NormalizedQuote
+                from app.modules.market.repositories.ingestion import IngestionRepository
+                IngestionRepository(self.session).upsert_quote(
+                    NormalizedQuote(
+                        symbol=symbol,
+                        provider=f"{broker}_import",
+                        timestamp=datetime.now(timezone.utc),
+                        price=p["current_price"],
+                    ),
+                    asset_id,
+                )
+
+            symbols_to_recalc.add(symbol)
+
+        for sym in symbols_to_recalc:
+            self.recalculate_position(portfolio_id, sym)
+
+        self.session.commit()
+        self._invalidate_portfolio_caches(portfolio_id)
+        return len(payloads)
+
+    def import_groww_stocks_holdings(
+        self,
+        portfolio_id: uuid.UUID,
+        file_bytes: bytes,
+    ) -> Dict[str, Any]:
+        """Groww "Stocks Holdings Statement" import — a point-in-time equity
+        holdings snapshot (see parse_groww_stocks_holdings docstring for why
+        the symbol is ISIN/name-synthesised rather than a real NSE/BSE
+        ticker)."""
+        self.get_portfolio(portfolio_id)
+
+        from app.modules.portfolio.services.portfolio_importer import parse_groww_stocks_holdings
+        try:
+            payloads, summary = parse_groww_stocks_holdings(file_bytes)
+        except Exception as e:
+            raise ValidationError(str(e))
+
+        imported = self._import_groww_holdings_payloads(portfolio_id, payloads, broker="groww_holdings")
+        return {"status": "success", "imported_holdings": imported, "summary": summary}
+
+    def import_groww_mf_holdings(
+        self,
+        portfolio_id: uuid.UUID,
+        file_bytes: bytes,
+    ) -> Dict[str, Any]:
+        """Groww Mutual Funds holdings summary import — same broker_snapshot
+        pattern, symbol reuses the existing _mf_symbol() slug convention so it
+        matches whatever symbol the MF Order History import would produce for
+        the same fund."""
+        self.get_portfolio(portfolio_id)
+
+        from app.modules.portfolio.services.portfolio_importer import parse_groww_mf_holdings
+        try:
+            payloads, summary = parse_groww_mf_holdings(file_bytes)
+        except Exception as e:
+            raise ValidationError(str(e))
+
+        imported = self._import_groww_holdings_payloads(portfolio_id, payloads, broker="groww_mf_holdings")
+        return {"status": "success", "imported_holdings": imported, "summary": summary}
 
     def import_nps_statement(
         self,
@@ -1544,6 +1654,132 @@ class PortfolioService(BaseService):
         if running_avg > 0:
             pos.avg_buy_price = running_avg
             self.session.flush()
+
+    def backfill_binance_spot(self, portfolio_id: uuid.UUID, provider) -> Dict[str, Any]:
+        """One-time full-history Spot trade backfill. Walks every relevant
+        symbol's trade history via fromId pagination (provider.walk_spot_trades_page
+        -> BinanceClient.get_spot_trades_page), feeding each page into
+        _import_broker_trades unchanged — same dedup as regular sync, no new
+        dedup mechanism needed. Progress is checkpointed per (portfolio_id,
+        symbol) in BinanceBackfillProgress so an interrupted run resumes rather
+        than restarts; a symbol already marked done is a safe, near-instant
+        no-op on a subsequent call. Spot only — Binance's futures trade-history
+        endpoints don't feed any read path today (futures positions are synced
+        from a live snapshot, not a trade ledger — see _sync_futures_positions),
+        so futures history isn't walked here."""
+        self.get_portfolio(portfolio_id)
+
+        existing_refs = self.session.execute(
+            select(Transaction.broker_reference).where(
+                Transaction.portfolio_id == portfolio_id,
+                Transaction.broker == "binance",
+                Transaction.broker_reference.like("spot:%"),
+            )
+        ).scalars().all()
+        known_symbols = {ref.split(":")[1] for ref in existing_refs if ref and ref.count(":") >= 2}
+
+        symbols = provider.get_backfill_symbol_universe(known_symbols)
+
+        symbols_processed = 0
+        symbols_skipped = 0
+        trades_fetched_total = 0
+        trades_imported_total = 0
+        touched_app_symbols: set[str] = set()
+
+        for symbol in symbols:
+            progress = self.session.scalar(
+                select(BinanceBackfillProgress).filter_by(portfolio_id=portfolio_id, symbol=symbol)
+            )
+            if progress is None:
+                progress = BinanceBackfillProgress(portfolio_id=portfolio_id, symbol=symbol)
+                self.session.add(progress)
+                self.session.flush()
+
+            if progress.done:
+                symbols_skipped += 1
+                continue
+
+            symbols_processed += 1
+            from_id = (progress.last_from_id + 1) if progress.last_from_id is not None else 0
+
+            while True:
+                page = provider.walk_spot_trades_page(symbol, from_id=from_id, limit=1000)
+                if not page:
+                    progress.done = True
+                    self.session.commit()
+                    break
+
+                imported = self._import_broker_trades(portfolio_id, "binance", page, "spot")
+                trades_fetched_total += len(page)
+                trades_imported_total += imported
+
+                last_id = max(int(t.get("id") or 0) for t in page)
+                progress.last_from_id = last_id
+                progress.trades_fetched += len(page)
+                progress.trades_imported += imported
+                if len(page) < 1000:
+                    progress.done = True
+                self.session.commit()
+
+                base, _ = split_quote_asset(symbol, STABLECOIN_ASSETS)
+                if base:
+                    touched_app_symbols.add(f"{base}-USD")
+
+                if progress.done:
+                    break
+                from_id = last_id + 1
+
+        for app_symbol in touched_app_symbols:
+            self._apply_trade_cost_basis(portfolio_id, app_symbol)
+        if touched_app_symbols:
+            self.session.commit()
+
+        self._invalidate_portfolio_caches(portfolio_id)
+
+        return {
+            "symbols_total": len(symbols),
+            "symbols_processed": symbols_processed,
+            "symbols_skipped_already_done": symbols_skipped,
+            "trades_fetched": trades_fetched_total,
+            "trades_imported": trades_imported_total,
+            "scope": "spot_only",
+            "note": (
+                "Covers Binance Spot trade history only — Futures trade history "
+                "is not backfilled (Binance API limitation; no read path consumes "
+                "futures trade history today)."
+            ),
+        }
+
+    def get_binance_backfill_status(self, portfolio_id: uuid.UUID) -> Dict[str, Any]:
+        """Live progress readout for backfill_binance_spot, sourced directly from
+        the BinanceBackfillProgress checkpoint table — correct whether the
+        backfill job is mid-run, finished, or was never started."""
+        self.get_portfolio(portfolio_id)
+
+        rows = self.session.execute(
+            select(BinanceBackfillProgress).filter_by(portfolio_id=portfolio_id)
+        ).scalars().all()
+
+        return {
+            "symbols_total": len(rows),
+            "symbols_done": sum(1 for r in rows if r.done),
+            "trades_fetched": sum(r.trades_fetched for r in rows),
+            "trades_imported": sum(r.trades_imported for r in rows),
+            "symbols": [
+                {
+                    "symbol": r.symbol,
+                    "done": r.done,
+                    "trades_fetched": r.trades_fetched,
+                    "trades_imported": r.trades_imported,
+                }
+                for r in rows
+            ],
+            "scope": "spot_only",
+            "note": (
+                "Covers Binance Spot only — Futures trade history is not backfilled "
+                "(Binance API limitation)."
+            ),
+        }
 
     def sync_groww_holdings(
         self,

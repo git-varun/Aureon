@@ -6,6 +6,7 @@ from app.core.database import get_db
 from app.core.entities.system import User
 from app.modules.ai.services.ai import AIService
 from app.core.services.config import ConfigService
+from app.core.services.data_reset import DataResetService
 from app.modules.ai.services.intelligence import FinancialIntelligenceService
 from app.modules.news.services.news import NewsService
 from app.core.services.notification import NotificationService
@@ -72,6 +73,13 @@ def get_intelligence_service(db: Session = Depends(get_db)) -> FinancialIntellig
 
 def get_watchlist_repo(db: Session = Depends(get_db)) -> WatchlistsRepository:
     return WatchlistsRepository(db)
+
+def get_data_reset_service(
+    db: Session = Depends(get_db),
+    portfolio_service: PortfolioService = Depends(get_portfolio_service),
+    watchlists_repo: WatchlistsRepository = Depends(get_watchlist_repo),
+) -> DataResetService:
+    return DataResetService(db, portfolio_service, watchlists_repo)
 
 def get_config_repo(db: Session = Depends(get_db)) -> ConfigRepository:
     return ConfigRepository(db)

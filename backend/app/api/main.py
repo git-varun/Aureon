@@ -8,7 +8,7 @@ from fastapi.exceptions import RequestValidationError
 from fastapi.responses import JSONResponse
 
 from app.api.v1 import monitoring
-from app.core.api import config, notification, users
+from app.core.api import config, notification, reset, users
 from app.core.api.system import health
 from app.modules.ai.api import ai, evaluation, intelligence, recommendation
 from app.modules.market.api import assets, market, watchlist
@@ -243,6 +243,7 @@ app.include_router(recommendation.bare_router, prefix="/api/v1", tags=["recommen
 app.include_router(intelligence.router, prefix="/api/v1/intelligence", tags=["intelligence"])
 app.include_router(watchlist.router, prefix="/api/v1", tags=["watchlist"])
 app.include_router(config.router, prefix="/api/v1", tags=["config"])
+app.include_router(reset.router, prefix="/api/v1", tags=["reset"])
 app.include_router(notification.router, prefix="/api/v1", tags=["notifications"])
 app.include_router(news.router, prefix="/api/v1", tags=["news"])
 app.include_router(ai.router, prefix="/api/v1", tags=["ai"])

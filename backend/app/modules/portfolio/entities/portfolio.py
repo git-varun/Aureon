@@ -2,7 +2,7 @@ import uuid
 from datetime import datetime
 from typing import Any
 
-from sqlalchemy import JSON, ForeignKey, Index, Numeric, String, text
+from sqlalchemy import JSON, BigInteger, ForeignKey, Index, Numeric, String, UniqueConstraint, text
 from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.orm import Mapped, mapped_column
 
@@ -48,6 +48,29 @@ class Transaction(UUIDMixin, TimestampMixin, Base):
     recommendation_id: Mapped[uuid.UUID | None] = mapped_column(
         ForeignKey("recommendation.recommendations.id", ondelete="SET NULL"), nullable=True
     )
+
+
+class BinanceBackfillProgress(UUIDMixin, TimestampMixin, Base):
+    """Resumable checkpoint for the one-time Binance Spot trade-history backfill
+    (PortfolioService.backfill_binance_spot / BinanceClient.get_spot_trades_page's
+    fromId pagination) — one row per (portfolio_id, symbol) walked. `done` is set
+    once a page returns fewer trades than the page limit (no more history for
+    that symbol); `last_from_id` is the next fromId to resume from after an
+    interrupted run, so re-running the backfill continues rather than restarts."""
+    __tablename__ = "binance_backfill_progress"
+    __table_args__ = (
+        UniqueConstraint("portfolio_id", "symbol", name="uq_binance_backfill_progress_portfolio_symbol"),
+        {"schema": "portfolio"},
+    )
+
+    portfolio_id: Mapped[uuid.UUID] = mapped_column(
+        ForeignKey("portfolio.portfolios.id", ondelete="CASCADE"), nullable=False
+    )
+    symbol: Mapped[str] = mapped_column(String, nullable=False)  # raw Binance pair, e.g. "BTCUSDT"
+    last_from_id: Mapped[int | None] = mapped_column(BigInteger, nullable=True)
+    trades_fetched: Mapped[int] = mapped_column(default=0)
+    trades_imported: Mapped[int] = mapped_column(default=0)
+    done: Mapped[bool] = mapped_column(default=False)
 
 
 class Position(UUIDMixin, TimestampMixin, Base):

@@ -303,3 +303,158 @@ Read the full file. Breaking down by section:
    gone unfollowed for 17 commits' worth of material changes to both piloted folders? (Not
    proposing a fix — just surfacing that "write the rule down" alone didn't produce compliance
    here, which is evidence, not speculation.)
+
+======================================================================
+
+## Part D — `transaction_date` naive-timestamp storage risk (found during Binance backfill work)
+
+Found incidentally while building the "since last sync" watermark for Binance backfill, not a
+scoped investigation of this pass — recording it here rather than fixing it.
+
+- **The column**: `Transaction.transaction_date` (`backend/app/modules/portfolio/entities/
+  portfolio.py:41`) is declared `Mapped[datetime]` with no explicit `DateTime(timezone=True)`,
+  which SQLAlchemy maps to Postgres `TIMESTAMP WITHOUT TIME ZONE`. Values round-trip through
+  Postgres as naive timestamps — there's no stored offset, so "what timezone is this value in"
+  is an implicit convention carried by whichever code wrote and reads it, not something the
+  column itself enforces.
+- **The new risk surface**: `_last_broker_trade_at()` (`backend/app/workers/ingestion/
+  tasks.py:244-265`), added for the Binance backfill "since last sync" watermark, does
+  `select(func.max(Transaction.transaction_date))` and hands the naive result straight to
+  `provider.sync(since=since)` (`tasks.py:287-288`). This only computes the correct fetch
+  window today because the dev machine's system TZ (IST) happens to line up with whatever
+  implicit assumption produced the stored values — coincidental, not guaranteed by anything in
+  the schema or the code.
+- **Where it would break**: a deployment with `TZ=UTC` (a common default for Docker base
+  images — a real possibility given this stack is fully Dockerized per `docker-compose.yml`)
+  would silently compute a different "since" bound with no error raised — just a quietly wrong
+  backfill window, most likely re-fetching or skipping trades near the boundary.
+- **Not new, not scoped to this session's work**: this is a pre-existing storage/read
+  convention already used everywhere `transaction_date` is touched in this codebase, consistent
+  with the earlier-known IST/UTC skew documented for `retry_failed_ingestion` (see memory:
+  timezone bug in retry_failed_ingestion). `_last_broker_trade_at` is a new *consumer* of the
+  existing convention, not the source of the problem.
+- **Severity**: not urgent for the current single-user, local, IST-machine deployment — the
+  coincidence holds today. Real correctness risk (a) if this app is ever run with a UTC-
+  configured container/environment, or (b) for any other timestamp-sensitive logic elsewhere in
+  the codebase making the same implicit-timezone assumption that hasn't been audited yet.
+- **Recommended fix direction, for whenever this is picked up**: store `transaction_date` (and
+  likely other similarly-declared timestamp columns across the codebase) as `TIMESTAMP WITH
+  TIME ZONE` / explicit UTC (`DateTime(timezone=True)`), and audit other call sites that read
+  `transaction_date` expecting a specific implicit timezone before assuming the fix is
+  contained to this one column.
+- **No code changes made in this pass** — scoping only, per instruction.
+
+======================================================================
+
+## Part E — Binance Futures trade-history backfill: deferred, not forgotten
+
+`BINANCE_BACKFILL_SCOPE.md` scoped both Spot and Futures (USDⓈ-M and COIN-M)
+historical trade-history backfill. Only Spot was built (the one-time
+`POST /portfolios/{id}/sync/binance/backfill` endpoint + resumable `fromId`
+walk + `portfolio.binance_backfill_progress` checkpoint table). Futures was
+explicitly scoped out of that build, not overlooked — recording the reasoning
+here so it's revisitable later instead of needing to be re-scoped from
+scratch.
+
+- **What was deferred**: Binance Futures (USDⓈ-M `/fapi/v1/userTrades` and
+  COIN-M `/dapi/v1/userTrades`) historical trade-history backfill. No fetch
+  loop, no pagination/chunking, no checkpoint table for either futures wallet.
+- **Why (1) — Binance's own cap makes "backfill" a much smaller thing for
+  futures than for Spot**: Binance hard-caps futures trade history at 6
+  months, enforced Binance-side since 2024-10-30, with no API path to
+  anything older regardless of what's requested. Spot's `fromId` walk has no
+  such cap (full account history is reachable), which is precisely why Spot
+  backfill was worth building as designed. For futures, "backfill" only ever
+  means "close the gap up to 6 months back" — a materially smaller, differently-shaped
+  problem than what got built for Spot, not a drop-in extension of it.
+- **Why (2) — no read path exists to consume the result today**:
+  `_sync_futures_positions` (`backend/app/modules/portfolio/services/
+  portfolio.py`) derives everything a futures position displays — quantity,
+  entry price, leverage, liquidation price, unrealized P&L — directly from
+  Binance's live `positionRisk` snapshot on every sync. It never replays
+  `broker_trade` transactions the way Spot's cost basis does
+  (`_apply_trade_cost_basis`). Building futures backfill today would populate
+  an audit-trail-only ledger with zero visible effect anywhere in the app —
+  real engineering effort (pagination/chunking within the 7-day-per-call /
+  6-month-total window, a second checkpoint table) for a feature nothing
+  reads.
+- **Revisit trigger**: worth reconsidering if/when a realized-P&L or
+  trade-log view for futures positions is ever built. At that point a futures
+  transaction ledger would have a real consumer, and the backfill
+  decision should be re-evaluated then — not before, and not preemptively.
+- **Reference**: `BINANCE_BACKFILL_SCOPE.md` has the full original scoping
+  detail for both wallets — endpoint shapes, pagination/windowing approach,
+  weight costs, the 6-month cutoff's exact enforcement date — so a future
+  session picking this up doesn't need to re-research Binance's API
+  constraints from scratch.
+- **No code changes in this pass** — backlog entry only, per instruction.
+
+======================================================================
+
+## Part F — No ISIN→ticker resolution anywhere in the codebase (Groww + Zerodha, one shared gap)
+
+Found while building Groww's Stocks Holdings Statement import
+(`GROWW_BACKFILL_SCOPE.md` Open Question 1, since built). Recording as one
+shared gap rather than two broker-specific ones — both brokers hit the same
+missing capability, not two unrelated bugs.
+
+- **The gap**: nothing in this codebase resolves an ISIN to the real
+  exchange ticker (`.NS`/`.BO`-suffixed symbol) another import path or the
+  live broker sync would use for the same security. ISIN is parsed in
+  several places but never used as a canonicalization key.
+- **Groww side — real, live risk, not hypothetical**: `parse_groww_stocks_holdings`
+  (`backend/app/modules/portfolio/services/portfolio_importer.py`) has no
+  ticker column to work with at all — Groww's Stocks Holdings Statement
+  export only gives company name + ISIN, unlike Stock Order History (which
+  has a real `Symbol` column). With no ISIN→ticker table to check against,
+  the parser synthesises `{ISIN}_HOLDING` as the symbol (documented in the
+  function's own docstring as a deliberate, flagged limitation, not an
+  oversight). **Concretely**: a stock imported via Holdings Statement and
+  also present via Stock Order History import or live Groww sync (which both
+  resolve to the real `.NS`/`.BO` ticker) creates **two separate Position
+  rows for the same real holding** — quantity and value both double-counted
+  in any portfolio total, with no error, warning, or dedup of any kind today.
+- **Zerodha side — same missing capability, currently harmless by luck, not
+  by design**: the generic CSV/XLSX importer captures ISIN into
+  `extras["_isin"]` (`portfolio_importer.py`, `_rows_from_records`) for
+  Zerodha rows same as Groww's, but Zerodha's working import paths (contract
+  note, Console Tradebook) all carry a real tradeable symbol column already,
+  so ISIN is stored as inert row metadata and never actually needed for
+  symbol resolution — the existing `.NS`/`.BO` forced-canonicalization
+  (`PROVIDERS.md`'s documented Zerodha import behavior) happens to produce
+  the right answer today without touching ISIN at all. This is the same
+  underlying missing capability as Groww's, just not currently exploitable
+  into a visible bug — a `PROVIDERS.md`-documented backlog item (#2, no
+  ISIN→symbol resolution for Zerodha's Tax P&L/Holdings Statement shapes)
+  already flags the adjacent case where Zerodha *would* need this and
+  doesn't have it either.
+- **Two possible directions, not decided here**:
+  1. **Build real ISIN→ticker resolution.** The principled fix, benefits both
+     brokers uniformly (Groww's holdings-statement symbols would resolve to
+     the real ticker instead of a synthetic one; Zerodha's Tax P&L/Holdings
+     Statement gap in `PROVIDERS.md` #2 would also close). Real scope, not a
+     small patch — almost certainly needs a reference ISIN↔symbol mapping
+     data source (no such registry exists anywhere in this codebase today),
+     plus a decision on what to do when a lookup misses (fall back to
+     synthetic symbol? reject the row?).
+  2. **Cheaper interim mitigation, doesn't fix the symbol scheme.** At import
+     time, if an ISIN being imported already exists (stored) under a
+     *different* symbol already held in the same portfolio, surface a
+     warning to the user instead of silently creating a second Position.
+     Doesn't require solving ISIN→ticker resolution — just needs ISIN to
+     start being persisted somewhere it currently isn't (neither `Transaction`
+     nor `Asset` has an `isin` column today), and a same-ISIN-different-symbol
+     check at import time.
+- **Severity**: higher nuisance-risk than a typical "missing feature" backlog
+  item. This isn't silent data loss (nothing is dropped) — it's silent
+  **double-counting**: a plausible-looking but wrong portfolio value, which
+  is arguably worse than an omission because there's no visible signal
+  (empty state, error, warning) that anything is off. A user who imports
+  both a Holdings Statement and later connects live Groww sync (or imports
+  Stock Order History) for the same account would see inflated holdings with
+  no indication why.
+- **File references**: `backend/app/modules/portfolio/services/
+  portfolio_importer.py` (`parse_groww_stocks_holdings` and its `{ISIN}_HOLDING`
+  synthetic symbol scheme, added this session); `PROVIDERS.md` Known Backlog
+  item #2 (Zerodha's ISIN-captured-but-unused finding, pre-existing).
+- **No code changes in this pass** — backlog entry only, per instruction.

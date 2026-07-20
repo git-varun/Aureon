@@ -42,11 +42,45 @@ _COL_MAP = {
     "units allotted": "quantity", "units purchased": "quantity",
     "units redeemed": "quantity",
     "amount (rs)": "_total", "amount(rs.)": "_total", "amount": "_total",
-    "folio no": "_folio", "folio number": "_folio",
+    "folio no": "_folio", "folio no.": "_folio", "folio number": "_folio",
     "order id": "_order_id",
     # Binance trade history
     "date(utc)": "date", "pair": "symbol", "side": "type",
     "executed": "quantity", "fee": "_fee",
+    # Groww holdings-snapshot exports — recognised only so _detect_broker can
+    # flag them as unsupported (see _UNSUPPORTED_GROWW_SHAPES), not parsed as
+    # transactions. Mapped as _ignore purely so the XLSX header-row finder's
+    # >=3-match threshold locates the real header row under the "HOLDING
+    # SUMMARY" preamble section.
+    "average buy price": "_ignore", "buy value": "_ignore",
+    "closing price": "_ignore", "closing value": "_ignore",
+    "unrealised p&l": "_ignore",
+    "amc": "_ignore", "category": "_ignore", "sub-category": "_ignore",
+    "source": "_ignore", "invested value": "_ignore",
+    "current value": "_ignore", "returns": "_ignore", "xirr": "_ignore",
+}
+
+# Detected shapes that are real Groww exports but point-in-time holdings
+# snapshots (no transaction date/type), not transaction logs — this generic
+# per-row transaction parser rejects them with a specific message pointing at
+# the dedicated snapshot-import endpoints (parse_groww_stocks_holdings /
+# parse_groww_mf_holdings, below), rather than either running them through
+# the wrong parser or silently failing.
+_UNSUPPORTED_GROWW_SHAPES = {
+    "groww_holdings_snapshot": (
+        "This looks like a Groww Stocks Holdings Statement — a point-in-time "
+        "holdings snapshot, not a transaction log, so it can't be imported "
+        "via this endpoint. Use POST /portfolios/{id}/import/groww/holdings "
+        "instead, or connect Groww's live sync under Settings if API "
+        "credentials are available."
+    ),
+    "groww_mf_holdings_snapshot": (
+        "This looks like a Groww Mutual Funds holdings summary — a "
+        "point-in-time snapshot, not a transaction log, so it can't be "
+        "imported via this endpoint. Use "
+        "POST /portfolios/{id}/import/groww/mf-holdings instead, or connect "
+        "Groww's live sync under Settings if API credentials are available."
+    ),
 }
 
 _VALID_TYPES = {"buy", "sell", "dividend", "interest", "split", "bonus", "contribution", "withdrawal"}
@@ -65,6 +99,10 @@ def _detect_broker(header: List[str]) -> Optional[str]:
     lowers = {c.strip().lower() for c in header}
     if "pair" in lowers and ("date(utc)" in lowers or "side" in lowers):
         return "binance"
+    if "average buy price" in lowers and "stock name" in lowers:
+        return "groww_holdings_snapshot"
+    if "amc" in lowers and "xirr" in lowers and "scheme name" in lowers:
+        return "groww_mf_holdings_snapshot"
     if ("fund name" in lowers or "scheme name" in lowers) and ("nav" in lowers or "nav (rs)" in lowers or "nav(rs.)" in lowers):
         return "groww_mf"
     if "execution date and time" in lowers:
@@ -139,6 +177,9 @@ def _rows_from_records(records: List[Dict[str, Any]], broker: Optional[str] = No
 
     if not broker and records:
         broker = _detect_broker(list(records[0].keys()))
+
+    if broker in _UNSUPPORTED_GROWW_SHAPES:
+        return [], [_UNSUPPORTED_GROWW_SHAPES[broker]]
 
     if records:
         found_cols = list(records[0].keys())
@@ -247,7 +288,7 @@ def _parse_xlsx(content: bytes, broker: Optional[str] = None) -> Tuple[List[Dict
     except ImportError:
         return [], ["openpyxl not installed — cannot parse XLSX files"]
 
-    wb = openpyxl.load_workbook(io.BytesIO(content), read_only=True, data_only=True)
+    wb = openpyxl.load_workbook(io.BytesIO(content), data_only=True)
     ws = wb.active
     rows_raw = list(ws.iter_rows(values_only=True))
     if not rows_raw:
@@ -588,6 +629,171 @@ def parse_cdsl_cas(content: bytes, password: Optional[str] = None) -> Tuple[List
     }
 
     return payloads, summary
+
+
+# ── Groww Holdings-Snapshot Parsers ───────────────────────────────────────────
+# Both are point-in-time snapshot exports (no transaction date/type), unlike
+# the Stock/MF Order History shapes handled by parse_transaction_file above —
+# same broker_snapshot modelling as CDSL CAS/NPS/EPF, not the per-row ledger
+# path. Detection uses _norm() (strips all non-alnum) rather than the generic
+# importer's exact-string _COL_MAP, so "Folio No." (trailing period) matches
+# "folio no" without a separate mapping entry — the header-detection issue
+# found during scoping doesn't reoccur here by construction.
+
+def _find_header_row(rows_raw: List[Any], required_norms: List[str]) -> Optional[int]:
+    for i, row in enumerate(rows_raw):
+        norms = {_norm(c) for c in row if c is not None}
+        if all(req in norms for req in required_norms):
+            return i
+    return None
+
+def parse_groww_stocks_holdings(content: bytes) -> Tuple[List[Dict[str, Any]], Dict[str, Any]]:
+    """Groww "Stocks Holdings Statement" export: Stock Name, ISIN, Quantity,
+    Average buy price, Buy value, Closing price, Closing value, Unrealised P&L.
+    No ticker/exchange column — unlike Stock Order History, this format only
+    ever gives a company name + ISIN. There is no ISIN->ticker resolution
+    anywhere in this codebase (same confirmed gap as Zerodha's Tax P&L/Holdings
+    Statement exports — see PROVIDERS.md Known Backlog #2), so the symbol is
+    synthesised from ISIN (falling back to a name slug), matching the same
+    ISIN-preferred/name-slug-fallback pattern parse_cdsl_cas uses for MF
+    holdings. This intentionally does NOT resolve to the real NSE/BSE ticker
+    a live sync or Order History import would use for the same stock — same
+    "synthetic symbol, distinct namespace" convention already used by NPS/EPF
+    for sources with no live-market ticker of their own. A stock imported both
+    ways will show up as two separate positions until a real ISIN->ticker
+    mapping exists; flagged, not silently merged."""
+    try:
+        import openpyxl
+    except ImportError:
+        raise ImportError("openpyxl not installed — cannot parse XLSX files")
+
+    wb = openpyxl.load_workbook(io.BytesIO(content), data_only=True)
+    ws = wb.active
+    rows_raw = list(ws.iter_rows(values_only=True))
+
+    header_idx = _find_header_row(rows_raw, ["stockname", "isin", "quantity"])
+    if header_idx is None:
+        raise ValueError(
+            "Could not find the holdings table (expected Stock Name/ISIN/Quantity "
+            "columns) in this file — is this a Groww Stocks Holdings Statement export?"
+        )
+
+    header = rows_raw[header_idx]
+    col: Dict[str, int] = {}
+    for ci, cell in enumerate(header):
+        n = _norm(cell)
+        if n == "stockname":
+            col.setdefault("name", ci)
+        elif n == "isin":
+            col.setdefault("isin", ci)
+        elif n == "quantity":
+            col.setdefault("quantity", ci)
+        elif n == "averagebuyprice":
+            col.setdefault("avg_price", ci)
+        elif n == "closingprice":
+            col.setdefault("current_price", ci)
+    g = col.get
+
+    payloads = []
+    for row in rows_raw[header_idx + 1:]:
+        if row is None or all(c is None or str(c).strip() == "" for c in row):
+            continue
+        name = _cell(row, g("name", 0))
+        if not name:
+            continue
+        isin = _clean_isin(_cell(row, g("isin", 1)))
+        qty = _num(_cell(row, g("quantity", 2)))
+        avg_price = _num(_cell(row, g("avg_price", 3)))
+        current_price = _num(_cell(row, g("current_price", -1))) if "current_price" in col else None
+
+        if qty is None or qty <= 0:
+            continue
+
+        symbol = f"{isin}_HOLDING" if isin else f"{_slug(name).upper()}_HOLDING"
+        payloads.append({
+            "symbol": symbol,
+            "name": name,
+            "quantity": qty,
+            "avg_buy_price": avg_price or 0.0,
+            "current_price": current_price,
+            "asset_type": "equity",
+        })
+
+    return payloads, {"rows_found": len(payloads)}
+
+def parse_groww_mf_holdings(content: bytes) -> Tuple[List[Dict[str, Any]], Dict[str, Any]]:
+    """Groww Mutual Funds holdings summary: Scheme Name, AMC, Category,
+    Sub-category, Folio No., Source, Units, Invested Value, Current Value,
+    Returns, XIRR — preceded by a "HOLDING SUMMARY" totals section that must
+    not be mistaken for the real header (it only shares an XIRR column).
+    No per-unit NAV column here (unlike CDSL's MF folio table) — avg/current
+    NAV are derived from Invested/Current Value ÷ Units. No ISIN column
+    either, so symbol reuses the same _mf_symbol() slug convention the
+    working MF Order History import already uses — a fund appearing in both
+    exports resolves to the same symbol/Asset/Position, unlike the equity
+    holdings case above."""
+    try:
+        import openpyxl
+    except ImportError:
+        raise ImportError("openpyxl not installed — cannot parse XLSX files")
+
+    wb = openpyxl.load_workbook(io.BytesIO(content), data_only=True)
+    ws = wb.active
+    rows_raw = list(ws.iter_rows(values_only=True))
+
+    header_idx = _find_header_row(rows_raw, ["schemename", "units", "foliono"])
+    if header_idx is None:
+        raise ValueError(
+            "Could not find the MF holdings table (expected Scheme Name/Units/"
+            "Folio No. columns) in this file — is this a Groww Mutual Funds "
+            "holdings summary export?"
+        )
+
+    header = rows_raw[header_idx]
+    col: Dict[str, int] = {}
+    for ci, cell in enumerate(header):
+        n = _norm(cell)
+        if n == "schemename":
+            col.setdefault("name", ci)
+        elif n == "foliono":
+            col.setdefault("folio", ci)
+        elif n == "units":
+            col.setdefault("units", ci)
+        elif n == "investedvalue":
+            col.setdefault("invested", ci)
+        elif n == "currentvalue":
+            col.setdefault("current", ci)
+    g = col.get
+
+    payloads = []
+    for row in rows_raw[header_idx + 1:]:
+        if row is None or all(c is None or str(c).strip() == "" for c in row):
+            continue
+        name = _cell(row, g("name", 0))
+        if not name:
+            continue
+        folio = _cell(row, g("folio", 4))
+        units = _num(_cell(row, g("units", 6)))
+        invested = _num(_cell(row, g("invested", 7)))
+        current = _num(_cell(row, g("current", 8)))
+
+        if units is None or units <= 0:
+            continue
+
+        avg_nav = round(invested / units, 4) if invested and units > 0 else 0.0
+        current_nav = round(current / units, 4) if current and units > 0 else None
+
+        payloads.append({
+            "symbol": _mf_symbol(name),
+            "name": name,
+            "quantity": units,
+            "avg_buy_price": avg_nav,
+            "current_price": current_nav,
+            "asset_type": "mutual_fund",
+            "folio_no": folio,
+        })
+
+    return payloads, {"rows_found": len(payloads)}
 
 
 # ── NPS Statement Parser ──────────────────────────────────────────────────────

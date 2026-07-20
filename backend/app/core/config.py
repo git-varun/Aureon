@@ -52,8 +52,12 @@ class Settings(BaseSettings):
     # Auth & security settings
     SECRET_KEY: str = "a7ab7603b94dfe3dd6c0fa505548081fc5cda3bc340ac80e0f37aaf2f05623fa"
 
-    # Public frontend URL — used to build the redirect target after the Zerodha OAuth callback.
-    # Must match the redirect_uri registered in the Kite Developer Console once one exists.
+    # Public frontend URL — where the backend sends the browser AFTER it has already
+    # completed the Zerodha token exchange, i.e. {FRONTEND_BASE_URL}/profile?zerodha=connected|error
+    # (see core/api/config.py's oauth/callback route). This is NOT the redirect_uri to
+    # register in Zerodha's Kite Developer Console — that must be the backend's own
+    # callback endpoint (.../api/v1/config/providers/zerodha/oauth/callback), since Kite
+    # redirects the browser there directly to deliver the request_token.
     FRONTEND_BASE_URL: str = "http://localhost:3000"
 
     # CORS Configuration

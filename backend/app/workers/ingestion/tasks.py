@@ -154,6 +154,12 @@ def ingest_all_quotes() -> None:
 
 
 def _wrap_job_execution(job_name: str, log_id: int | None, fn, *args, **kwargs) -> None:
+    from app.core.redis import is_reset_in_progress
+
+    if is_reset_in_progress():
+        logger.warning(f"Job {job_name} skipped — data reset in progress")
+        return
+
     db = SessionLocal()
     try:
         from app.core.entities.config import JobStatus
@@ -241,6 +247,30 @@ def sync_portfolio_task(log_id: int | None = None, **kwargs) -> None:
     _wrap_job_execution("sync_portfolio", log_id, _run_sync)
 
 
+def _last_broker_trade_at(provider_name: str):
+    """Most recent kind="broker_trade" Transaction.transaction_date already
+    captured for this broker, across all portfolios. Used as the "since last
+    successful sync" watermark for providers (Binance) whose trade-history
+    endpoints default to a narrow recent-only window — the actual trade
+    ledger is a more reliable cursor than JobConfig.last_run_at, which is
+    stamped at this run's *start* (_wrap_job_execution, before this function
+    runs) and would already read as "now", not "last time", if read here.
+    Returns None on a first-ever sync (no rows yet)."""
+    from sqlalchemy import func, select
+    from app.modules.portfolio.entities.portfolio import Transaction
+
+    db = SessionLocal()
+    try:
+        return db.execute(
+            select(func.max(Transaction.transaction_date)).where(
+                Transaction.broker == provider_name,
+                Transaction.kind == "broker_trade",
+            )
+        ).scalar()
+    finally:
+        db.close()
+
+
 def _run_broker_sync(job_name: str, provider_name: str, sync_method_name: str) -> None:
     """Shared body for sync_<broker>_task: resolve the provider, fetch holdings,
     upsert them into every portfolio via PortfolioService.<sync_method_name>, then
@@ -260,7 +290,8 @@ def _run_broker_sync(job_name: str, provider_name: str, sync_method_name: str) -
         logger.warning(f"{job_name}: skipped — {provider_name} provider is not configured/enabled")
         return
 
-    holdings = provider.sync()  # raises <Provider>AuthError("AUTH_REQUIRED: ...") if not connected / expired
+    since = _last_broker_trade_at(provider_name)
+    holdings = provider.sync(since=since)  # raises <Provider>AuthError("AUTH_REQUIRED: ...") if not connected / expired
 
     from app.modules.portfolio.services.portfolio import PortfolioService
     from app.modules.portfolio.repositories.portfolio_snapshot import (
@@ -319,6 +350,48 @@ def sync_binance_task(log_id: int | None = None, **kwargs) -> None:
 @shared_task(name="app.workers.ingestion.tasks.sync_groww_task")
 def sync_groww_task(log_id: int | None = None, **kwargs) -> None:
     _wrap_job_execution("sync_groww", log_id, _run_broker_sync, "sync_groww", "groww", "sync_groww_holdings")
+
+
+def _run_binance_spot_backfill(portfolio_id: str | None) -> None:
+    if not portfolio_id:
+        raise ValueError("backfill_binance_spot: portfolio_id is required")
+
+    import uuid as _uuid
+
+    from app.core.providers.factory import ProviderFactory
+    from app.core.repositories.config import ConfigRepository
+    from app.core.services.config import ConfigService
+    from app.modules.portfolio.repositories.portfolio_snapshot import (
+        PortfolioSnapshotRepository,
+    )
+    from app.modules.portfolio.repositories.portfolios import PortfoliosRepository
+    from app.modules.portfolio.repositories.positions import PositionsRepository
+    from app.modules.portfolio.repositories.transactions import TransactionsRepository
+    from app.modules.portfolio.services.portfolio import PortfolioService
+
+    db = SessionLocal()
+    try:
+        provider = ProviderFactory(ConfigService(ConfigRepository(db))).get("binance")
+    finally:
+        db.close()
+
+    db = SessionLocal()
+    try:
+        svc = PortfolioService(
+            PortfoliosRepository(db),
+            TransactionsRepository(db),
+            PositionsRepository(db),
+            PortfolioSnapshotRepository(db),
+        )
+        summary = svc.backfill_binance_spot(_uuid.UUID(portfolio_id), provider)
+        logger.info(f"backfill_binance_spot: portfolio={portfolio_id} {summary}")
+    finally:
+        db.close()
+
+
+@shared_task(name="app.workers.ingestion.tasks.backfill_binance_spot_task")
+def backfill_binance_spot_task(log_id: int | None = None, portfolio_id: str | None = None, **kwargs) -> None:
+    _wrap_job_execution("backfill_binance_spot", log_id, _run_binance_spot_backfill, portfolio_id)
 
 
 @shared_task(name="app.workers.ingestion.tasks.refresh_prices_task")

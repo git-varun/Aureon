@@ -631,7 +631,7 @@ function ThemeExposurePanel({ sym, themes, themesStatus, themesRetry }) {
     );
 }
 
-function AskAureonPanel({ sym }) {
+function AskAureonPanel({ sym, assetId }) {
     const [msgs, setMsgs]       = useState(() => [
         { id: 'q0', role: 'user', text: `What's the investment case for ${sym}?` },
         { id: 'a0', role: 'ai',   text: `Ask me anything about ${sym} — signals, risks, entry timing, or sector context.` },
@@ -646,11 +646,11 @@ function AskAureonPanel({ sym }) {
 
     const send = () => {
         const q = input.trim();
-        if (!q || thinking) return;
+        if (!q || thinking || !assetId) return;
         setMsgs(m => [...m, { id: 'q' + Date.now(), role: 'user', text: q }]);
         setInput('');
         setThinking(true);
-        apiService.askAboutContext(null, 'asset', sym, q)
+        apiService.askAboutContext('signal', assetId, q)
             .then(res => {
                 const reply = res?.answer || res?.response || res?.content || 'No response from AI.';
                 setMsgs(m => [...m, { id: 'a' + Date.now(), role: 'ai', text: reply }]);
@@ -689,10 +689,11 @@ function AskAureonPanel({ sym }) {
                         value={input}
                         onChange={e => setInput(e.target.value)}
                         onKeyDown={e => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); send(); } }}
-                        placeholder="Ask about this asset…"
+                        disabled={!assetId}
+                        placeholder={assetId ? 'Ask about this asset…' : 'Loading asset data…'}
                         style={{ flex: 1, height: 32, padding: '0 10px', borderRadius: 7, background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.10)', color: 'var(--ink-00)', fontSize: 12, fontFamily: 'var(--font-ui)', outline: 'none' }}
                     />
-                    <button onClick={send} disabled={!input.trim() || thinking} style={{ width: 32, height: 32, borderRadius: 7, display: 'flex', alignItems: 'center', justifyContent: 'center', background: input.trim() ? 'rgba(201,168,106,0.12)' : 'rgba(255,255,255,0.03)', border: `1px solid ${input.trim() ? 'rgba(201,168,106,0.25)' : 'rgba(255,255,255,0.08)'}`, color: input.trim() ? 'var(--aurum-100)' : 'var(--ink-40)', cursor: input.trim() ? 'pointer' : 'default', flexShrink: 0 }}>
+                    <button onClick={send} disabled={!input.trim() || thinking || !assetId} style={{ width: 32, height: 32, borderRadius: 7, display: 'flex', alignItems: 'center', justifyContent: 'center', background: input.trim() && assetId ? 'rgba(201,168,106,0.12)' : 'rgba(255,255,255,0.03)', border: `1px solid ${input.trim() && assetId ? 'rgba(201,168,106,0.25)' : 'rgba(255,255,255,0.08)'}`, color: input.trim() && assetId ? 'var(--aurum-100)' : 'var(--ink-40)', cursor: input.trim() && assetId ? 'pointer' : 'default', flexShrink: 0 }}>
                         <Send sz={11} />
                     </button>
                 </div>
@@ -750,7 +751,7 @@ function Divider() {
     return <div style={{ height: 1, background: 'rgba(255,255,255,0.05)', margin: '2px 0 14px' }} />;
 }
 
-function RightPanel({ sym, aiData, aiStatus, onRunAI, aiHistory, recs, news, newsStatus, newsRetry, themes, themesStatus, themesRetry }) {
+function RightPanel({ sym, quote, aiData, aiStatus, onRunAI, aiHistory, recs, news, newsStatus, newsRetry, themes, themesStatus, themesRetry }) {
     return (
         <div style={{ position: 'sticky', top: 14, maxHeight: 'calc(100vh - 110px)', overflowY: 'auto', scrollbarWidth: 'none' }}>
             <div style={{ paddingLeft: 2, paddingRight: 2 }}>
@@ -762,7 +763,7 @@ function RightPanel({ sym, aiData, aiStatus, onRunAI, aiHistory, recs, news, new
                 <Divider />
                 <ThemeExposurePanel sym={sym} themes={themes} themesStatus={themesStatus} themesRetry={themesRetry} />
                 <Divider />
-                <AskAureonPanel sym={sym} />
+                <AskAureonPanel sym={sym} assetId={quote?.asset_id} />
                 <Divider />
                 <AnalysisHistoryPanel history={aiHistory} />
             </div>
@@ -978,6 +979,7 @@ function AssetView({ sym, picked, fmtPrice, watchlists, setWatchlists, recsActiv
                 <RightPanel
                     sym={sym}
                     picked={picked}
+                    quote={quote}
                     aiData={aiData}
                     aiStatus={aiLoading ? 'loading' : aiStatus}
                     onRunAI={handleRunAI}

@@ -156,6 +156,7 @@ _DEFAULT_JOBS = [
     {"job_name": "sync_zerodha", "enabled": False, "job_tier": "user"},
     {"job_name": "sync_binance", "enabled": False, "job_tier": "user"},
     {"job_name": "sync_groww", "enabled": False, "job_tier": "user"},
+    {"job_name": "backfill_binance_spot", "enabled": True, "job_tier": "user"},
     {"job_name": "refresh_prices", "enabled": True, "job_tier": "user"},
     {"job_name": "fetch_news", "enabled": True, "job_tier": "user"},
     {"job_name": "refresh_fundamentals", "enabled": True, "job_tier": "user"},
@@ -409,6 +410,7 @@ class ConfigService(BaseService):
         "sync_zerodha": "app.workers.ingestion.tasks.sync_zerodha_task",
         "sync_binance": "app.workers.ingestion.tasks.sync_binance_task",
         "sync_groww": "app.workers.ingestion.tasks.sync_groww_task",
+        "backfill_binance_spot": "app.workers.ingestion.tasks.backfill_binance_spot_task",
         "refresh_prices": "app.workers.ingestion.tasks.refresh_prices_task",
         "fetch_news": "app.workers.ingestion.tasks.fetch_news_task",
         "refresh_fundamentals": "app.workers.ingestion.tasks.refresh_fundamentals_task",
@@ -563,18 +565,34 @@ class ConfigService(BaseService):
         "sync_zerodha": "zerodha",
         "sync_binance": "binance",
         "sync_groww": "groww",
+        "backfill_binance_spot": "binance",
     }
 
-    # Dispatch-time concurrency guard TTL for the three broker-sync jobs above —
-    # the only jobs dispatch_job gates and the double-click ("Sync Now") scenario
-    # this guards against. Real full-cycle (queue-to-completion) durations
-    # measured via TaskRun on 2026-07-16 for the one broker with live credentials
-    # (binance): 42.2s and 50.0s. 600s gives >10x margin over both observed runs —
-    # enough headroom for a slow provider day without leaving a crashed-worker
-    # lock stuck for an unreasonable time. See WORKERS_OBSERVABILITY_SCOPE.md §1.
-    _JOB_LOCK_TTL_SECONDS = 600
+    # Dispatch-time concurrency guard TTL, per job — the only jobs dispatch_job
+    # gates and the double-click ("Sync Now") scenario this guards against. Real
+    # full-cycle (queue-to-completion) durations measured via TaskRun on
+    # 2026-07-16 for the one broker with live credentials (binance): 42.2s and
+    # 50.0s. 600s gives >10x margin over both observed runs — enough headroom
+    # for a slow provider day without leaving a crashed-worker lock stuck for an
+    # unreasonable time. See WORKERS_OBSERVABILITY_SCOPE.md §1.
+    # backfill_binance_spot walks full account history (fromId pagination across
+    # every ever-traded symbol) rather than one bounded "since last sync" call,
+    # so it's given a much longer budget — not measured live yet, sized instead
+    # for "won't expire mid-run on a large/high-frequency account."
+    _JOB_LOCK_TTL_SECONDS: dict[str, int] = {
+        "sync_zerodha": 600,
+        "sync_binance": 600,
+        "sync_groww": 600,
+        "backfill_binance_spot": 3600,
+    }
 
-    def dispatch_job(self, job_name: str, log_id: Optional[int] = None, user_id: Optional[uuid.UUID] = None) -> str:
+    def dispatch_job(
+        self,
+        job_name: str,
+        log_id: Optional[int] = None,
+        user_id: Optional[uuid.UUID] = None,
+        extra_kwargs: Optional[dict[str, Any]] = None,
+    ) -> str:
         # Pre-assign a task ID and log start
         task_id = str(uuid.uuid4())
 
@@ -590,7 +608,7 @@ class ConfigService(BaseService):
         if required_provider:
             from app.core.redis import try_acquire_job_lock
 
-            if not try_acquire_job_lock(job_name, task_id, self._JOB_LOCK_TTL_SECONDS):
+            if not try_acquire_job_lock(job_name, task_id, self._JOB_LOCK_TTL_SECONDS.get(job_name, 600)):
                 message = f"Job '{job_name}' is already running — rejected duplicate dispatch"
                 logger.warning(message)
                 if log_id is not None:
@@ -625,7 +643,7 @@ class ConfigService(BaseService):
             if not celery_task_name:
                 raise ValueError(f"Unknown job {job_name}")
 
-            kwargs = {}
+            kwargs = dict(extra_kwargs or {})
             if user_id:
                 kwargs["user_id"] = str(user_id)
             kwargs["log_id"] = log_id
