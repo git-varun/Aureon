@@ -287,11 +287,32 @@ function relativeTime(iso) {
     return `${Math.floor(h / 24)}d ago`;
 }
 
-function SyncStatusRow({syncEntry, onSync, onConnect}) {
+function SyncStatusRow({syncEntry, onSync, onConnect, onGoToImport}) {
     const [syncing, setSyncing] = useState(false);
     const [connecting, setConnecting] = useState(false);
     if (!syncEntry) return null;
     const {status, last_synced_at, positions_count, error, provider} = syncEntry;
+
+    // Kite Connect requires a paid per-app subscription that isn't active for this
+    // deployment, so live sync/OAuth connect never completes. Rather than offer a
+    // "Connect" button known to fail, point at the working CSV/statement import path.
+    // The OAuth/callback code stays intact and dormant — this is a UI-only decision.
+    if (provider === 'zerodha') {
+        return (
+            <div style={{display: 'flex', alignItems: 'center', gap: 10, padding: '6px 18px 10px', fontSize: 11.5}}>
+                <span style={{display: 'inline-flex', alignItems: 'center', gap: 5, color: 'var(--ink-40)'}}>
+                    <span style={{width: 6, height: 6, borderRadius: 999, background: 'var(--ink-40)', flexShrink: 0}}/>
+                    Live sync unavailable — import transactions via Import Data
+                </span>
+                <button
+                    onClick={onGoToImport}
+                    className="du3-cta ghost"
+                    style={{marginLeft: 'auto', height: 24, padding: '0 10px', fontSize: 11}}>
+                    Go to Import →
+                </button>
+            </div>
+        );
+    }
 
     const authRequired = status === 'auth_required';
     const dot = status === 'ok' ? 'var(--sage-500)'
@@ -344,7 +365,7 @@ function SyncStatusRow({syncEntry, onSync, onConnect}) {
     );
 }
 
-export default function ProviderConfig() {
+export default function ProviderConfig({onNavigate}) {
     const [providers, setProviders] = useState([]);
     const [syncStatus, setSyncStatus] = useState([]);
     const [loading, setLoading] = useState(true);
@@ -471,7 +492,7 @@ export default function ProviderConfig() {
                             return (
                                 <div key={p.provider_name}>
                                     <ProviderRow provider={p} onToggle={handleToggle} onSetKey={handleSetKey} onRemoveKey={handleRemoveKey} onSaveConfig={handleSaveConfig}/>
-                                    {syncEntry && <SyncStatusRow syncEntry={syncEntry} onSync={handleBrokerSync} onConnect={handleBrokerConnect}/>}
+                                    {syncEntry && <SyncStatusRow syncEntry={syncEntry} onSync={handleBrokerSync} onConnect={handleBrokerConnect} onGoToImport={() => onNavigate?.('import-data')}/>}
                                 </div>
                             );
                         })}

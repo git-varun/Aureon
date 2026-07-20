@@ -36,16 +36,17 @@ class AssetsService(BaseService):
         symbol = symbol.upper().strip()
 
         cached = get_cached_quote(symbol)
+        quote = self.repo.get_quote(symbol)
         if cached:
             price = float(cached["price"])
         else:
-            quote = self.repo.get_quote(symbol)
             if not quote:
                 raise NotFoundError("Asset not found")
             price = float(quote.price)
 
         return {
             "symbol": symbol,
+            "asset_id": str(quote.asset_id) if quote and quote.asset_id else None,
             "price": price,
             "last_price": price,
             "open": None,

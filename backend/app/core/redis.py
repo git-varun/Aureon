@@ -525,4 +525,60 @@ def release_job_lock(job_name: str, token: str) -> None:
         client.delete(key)
 
 
+RESET_LOCK_KEY = "reset:in_progress"
+
+
+def is_reset_in_progress() -> bool:
+    """Checked by _wrap_job_execution (app/workers/ingestion/tasks.py) at the top
+    of every ingestion job — the guard against DATA_RESET_SCOPE.md §5.1's beat
+    race (a broker-sync/briefing task writing rows mid-reset)."""
+    try:
+        client = get_redis_client()
+        return bool(client.exists(RESET_LOCK_KEY))
+    except redis.RedisError as e:
+        logger.warning(f"redis_operation_failed operation=is_reset_in_progress error={str(e)}")
+        return False
+
+
+def try_acquire_reset_lock(token: str, ttl_seconds: int) -> bool:
+    """Same SET NX EX pattern as try_acquire_job_lock — no error swallowing, a
+    Redis outage must surface rather than silently let a reset proceed unguarded."""
+    client = get_redis_client()
+    return bool(client.set(RESET_LOCK_KEY, token, nx=True, ex=ttl_seconds))
+
+
+def release_reset_lock(token: str) -> None:
+    """Compare-then-delete, same reasoning as release_job_lock."""
+    client = get_redis_client()
+    if client.get(RESET_LOCK_KEY) == token:
+        client.delete(RESET_LOCK_KEY)
+
+
+def get_backup_receipt_key() -> str:
+    return "backup:receipt"
+
+
+def store_backup_receipt(receipt: str, ttl_seconds: int = 600) -> None:
+    """Called by GET /portfolio/backup once the export succeeds. The export today
+    covers every reset scope in one file (transactions, watchlists, AI history,
+    recommendation history, custom themes — see DATA_RESET_SCOPE.md §5), so a
+    single receipt authorizes any/all reset scopes; short TTL so a stale backup
+    can't authorize clearing data that has since changed."""
+    try:
+        client = get_redis_client()
+        client.set(get_backup_receipt_key(), receipt, ex=ttl_seconds)
+    except redis.RedisError as e:
+        logger.warning(f"redis_operation_failed operation=store_backup_receipt error={str(e)}")
+
+
+def consume_backup_receipt(receipt: str) -> bool:
+    """Single-use: GET-compare-then-DELETE so the same receipt can't authorize a
+    second reset after data has moved on. Returns False (and does not delete) on
+    a mismatch/expiry — caller should reject the reset request."""
+    client = get_redis_client()
+    key = get_backup_receipt_key()
+    if client.get(key) == receipt:
+        client.delete(key)
+        return True
+    return False
 

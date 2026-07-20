@@ -826,7 +826,7 @@ export default function Settings() {
             case 'import-data':    return <ImportDataSection/>;
             case 'portfolio-mgmt': return <EmptySection icon={<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><rect x="2" y="7" width="20" height="14" rx="2"/><path d="M16 7V5a2 2 0 0 0-2-2h-4a2 2 0 0 0-2 2v2"/></svg>} title="Portfolio Management" desc="Create and manage named portfolios" note="Portfolio management features are not yet available in this version."/>;
             case 'alloc-targets':  return <EmptySection icon={<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><path d="M21.21 15.89A10 10 0 1 1 8 2.83"/><path d="M22 12A10 10 0 0 0 12 2v10z"/></svg>} title="Allocation Targets" desc="Set target weights by asset class" note="Allocation target configuration is not yet available in this version."/>;
-            case 'provider-list':  return <ProviderConfig/>;
+            case 'provider-list':  return <ProviderConfig onNavigate={handleNav}/>;
             case 'api-keys':       return <ApiKeysSection onNavigate={handleNav}/>;
             case 'conn-status':    return <ConnectionStatusSection/>;
             case 'job-status':     return <JobConfig/>;
