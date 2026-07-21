@@ -453,22 +453,22 @@ def _run_briefing(briefing_type: str):
     try:
         from app.modules.ai.services.ai import AIService
         ai_svc = AIService(db)
-        try:
-            ai_svc.generate_briefing(briefing_type, user_id=DEFAULT_USER_ID)
-        except Exception as e:
-            logger.error(f"Failed to generate {briefing_type} briefing: {e}")
+        ai_svc.generate_briefing(briefing_type, user_id=DEFAULT_USER_ID)
     finally:
         db.close()
 
 @shared_task(name="app.workers.ingestion.tasks.daily_briefing_task")
+@_skip_if_disabled("daily_briefing")
 def daily_briefing_task(log_id: int | None = None, **kwargs) -> None:
     _wrap_job_execution("daily_briefing", log_id, lambda: _run_briefing("global"))
 
 @shared_task(name="app.workers.ingestion.tasks.weekly_briefing_task")
+@_skip_if_disabled("weekly_briefing")
 def weekly_briefing_task(log_id: int | None = None, **kwargs) -> None:
     _wrap_job_execution("weekly_briefing", log_id, lambda: _run_briefing("weekly"))
 
 @shared_task(name="app.workers.ingestion.tasks.monthly_briefing_task")
+@_skip_if_disabled("monthly_briefing")
 def monthly_briefing_task(log_id: int | None = None, **kwargs) -> None:
     _wrap_job_execution("monthly_briefing", log_id, lambda: _run_briefing("monthly"))
 
