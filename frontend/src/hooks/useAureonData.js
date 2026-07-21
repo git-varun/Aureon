@@ -238,6 +238,18 @@ export function useAureonData() {
         return last?.status === 'SUCCESS' ? last.ended_at : null;
     }, [fetchNewsLogQuery.data]);
 
+    // AI-eval freshness tile must reflect the real outcome of the last
+    // daily_briefing run, not just AIBriefing.created_at — a failed run
+    // leaves that timestamp stale/unchanged, which looks identical to
+    // "just hasn't run in a while" unless the run's own status is surfaced.
+    const dailyBriefingLogQuery = useQuery({
+        queryKey: ['config', 'jobs', 'daily_briefing', 'logs'],
+        queryFn: () => apiService.getJobLogs('daily_briefing', 1),
+        staleTime: 60000,
+    });
+
+    const dailyBriefingLastRun = dailyBriefingLogQuery.data?.logs?.[0] || null;
+
     // Prices freshness tile must reflect actual market-quote staleness, not
     // portfolio-snapshot regeneration recency — a manual valuation edit or an
     // unrelated transaction/import both invalidate the snapshot cache and
@@ -286,6 +298,8 @@ export function useAureonData() {
             refresh_prices_count: marketQuotedPositions.length,
             fetch_news: fetchNewsLastRunAt,
             daily_briefing: aiBriefing?.created_at ?? null,
+            daily_briefing_status: dailyBriefingLastRun?.status ?? null,
+            daily_briefing_error: dailyBriefingLastRun?.error_message ?? null,
             portfolio_snapshot: snapshot?.updated_at ?? null,
         },
         goalProgress: null,

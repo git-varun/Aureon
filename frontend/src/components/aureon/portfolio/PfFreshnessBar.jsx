@@ -26,21 +26,30 @@ const deriveItem = (isoStr, thresholds) => {
   return { ts: agoFmt(isoStr), ok: ageMs < thresholds.fresh };
 };
 
+// AI eval needs a third state beyond fresh/stale: the last run can have
+// genuinely FAILED (all AI models exhausted), which is a different, more
+// severe signal than "just hasn't run in a while" and must render distinctly
+// (error, not dusk-yellow) — see BUGS_AND_REDESIGN_AUDIT.md Part A #4.
+const deriveAiEvalItem = (isoStr, status, thresholds) => {
+  if (status === 'FAILED') return { ts: isoStr ? agoFmt(isoStr) : '—', ok: false, failed: true };
+  return { ...deriveItem(isoStr, thresholds), failed: false };
+};
+
 export function PfFreshnessBar({ freshness, onRefresh }) {
   const pts = [
     { label: 'Prices',   ...deriveItem(freshness?.refresh_prices, THRESHOLDS.prices) },
     { label: 'Snapshot', ...deriveItem(freshness?.portfolio_snapshot, THRESHOLDS.snapshot) },
-    { label: 'AI eval',  ...deriveItem(freshness?.daily_briefing, THRESHOLDS.ai) },
+    { label: 'AI eval',  ...deriveAiEvalItem(freshness?.daily_briefing, freshness?.daily_briefing_status, THRESHOLDS.ai), title: freshness?.daily_briefing_status === 'FAILED' ? freshness?.daily_briefing_error : undefined },
   ];
   return (
     <div style={{ display:'flex', alignItems:'center', gap:0, padding:'7px 14px', borderRadius:8, background:'rgba(255,255,255,0.02)', border:'1px solid rgba(255,255,255,0.05)', marginBottom:22 }}>
       {pts.map((p, i) => (
         <React.Fragment key={p.label}>
           {i > 0 && <span style={{ width:1, height:14, background:'rgba(255,255,255,0.07)', margin:'0 14px' }}/>}
-          <span style={{ display:'flex', alignItems:'center', gap:5, fontSize:11.5 }}>
-            <span style={{ width:5, height:5, borderRadius:999, flexShrink:0, background:p.ok ? 'var(--sage-500)' : 'var(--dusk-500)' }}/>
+          <span style={{ display:'flex', alignItems:'center', gap:5, fontSize:11.5 }} title={p.title}>
+            <span style={{ width:5, height:5, borderRadius:999, flexShrink:0, background:p.failed ? 'var(--error-500, #e5484d)' : p.ok ? 'var(--sage-500)' : 'var(--dusk-500)' }}/>
             <span style={{ color:'var(--ink-30)', fontWeight:500 }}>{p.label}</span>
-            <span style={{ fontFamily:'var(--font-mono)', fontSize:10.5, color:'var(--ink-50)' }}>{p.ts}</span>
+            <span style={{ fontFamily:'var(--font-mono)', fontSize:10.5, color:'var(--ink-50)' }}>{p.failed ? 'failed' : p.ts}</span>
           </span>
         </React.Fragment>
       ))}
