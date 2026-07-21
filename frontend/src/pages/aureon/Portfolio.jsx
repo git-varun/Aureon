@@ -4,6 +4,8 @@ import { useNavigate } from 'react-router-dom';
 import { useQueryClient } from '@tanstack/react-query';
 import { useAureonData } from '@/hooks/useAureonData';
 import { useFmtMoney } from '@/hooks/useFmtMoney';
+import { usePortfolio } from '@/contexts/PortfolioContext';
+import { apiService } from '@/api/apiService';
 import { LogTradeModal } from '@/components/aureon/portfolio';
 import { PortfolioHealthCard } from '@/components/aureon/dashboard/PortfolioHealthCard';
 import { DiversificationCard } from '@/components/aureon/dashboard/DiversificationCard';
@@ -38,11 +40,17 @@ export default function Portfolio() {
   const navigate = useNavigate();
   const qc       = useQueryClient();
   const fmt      = useFmtMoney();
+  const { activePortfolioId } = usePortfolio();
   const { holdings, netWorth, investedValue, unrealizedPnl, dayDelta, loading, allocByClass, activity, freshness } = useAureonData();
   const [showTrade,  setShowTrade]  = useState(false);
   const [showManual, setShowManual] = useState(false);
 
   const handleRefresh = () => qc.invalidateQueries();
+
+  const handleSnapshot = async () => {
+    await apiService.generatePortfolioSnapshot(activePortfolioId);
+    qc.invalidateQueries();
+  };
 
   return (
     <>
@@ -57,7 +65,7 @@ export default function Portfolio() {
         dayDelta={dayDelta}
         loading={loading}
         fmt={fmt}
-        onSnapshot={handleRefresh}
+        onSnapshot={handleSnapshot}
         onLogTrade={() => setShowTrade(true)}
       />
 
@@ -87,11 +95,7 @@ export default function Portfolio() {
       </PfSection>
 
       {/* 6 · Activity feed */}
-      <PfSection
-        eyebrow="Ledger"
-        title="Portfolio Activity"
-        action={<button onClick={() => navigate('/transactions')} className="du3-cta ghost" style={{ fontSize:12, padding:'0 12px', height:28 }}>Full ledger →</button>}
-      >
+      <PfSection eyebrow="Ledger" title="Portfolio Activity">
         <PfActivityFeed txns={activity} onViewAll={() => navigate('/transactions')} />
       </PfSection>
 
