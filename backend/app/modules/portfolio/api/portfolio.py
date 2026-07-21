@@ -582,7 +582,11 @@ async def import_epf_statement(
         raise HTTPException(status_code=404, detail=str(e))
 
 
-# --- Manual Assets, Sync, Backup/Restore (single-user facade via get_user_context) ---
+# --- Manual Assets, Sync, Backup/Restore ---
+# Manual assets are portfolio-scoped by an explicit path param (like every other
+# portfolio-scoped route above), not get_user_context()'s .first() — that used to
+# silently target whichever Portfolio row happened to be first regardless of which
+# one the frontend's PortfolioContext/Sidebar switcher had active.
 
 # Asset classes that represent a tradeable unit with a per-unit price (a ticker/ISIN
 # you hold N of). Everything else (real estate, EPF/PPF/NPS, insurance, etc.) is
@@ -615,14 +619,17 @@ class CreateManualAssetRequest(BaseModel):
             )
         return self
 
-@router.post("/manual-assets")
+@router.post("/portfolios/{portfolio_id}/manual-assets")
 def create_manual_asset(
+    portfolio_id: uuid.UUID,
     body: CreateManualAssetRequest,
     user: User = Depends(get_current_user),
-    db: Session = Depends(get_db),
     service: PortfolioService = Depends(get_portfolio_service),
 ):
-    portfolio_id = get_user_context(db, user)
+    try:
+        service.get_portfolio(portfolio_id)
+    except NotFoundError as e:
+        raise HTTPException(status_code=404, detail=str(e))
     is_tradeable = body.asset_class in _TRADEABLE_ASSET_CLASSES
     transaction_date = None
     if body.valuation_date:
@@ -647,16 +654,16 @@ class UpdateManualValuationRequest(BaseModel):
     new_value: float
     notes: Optional[str] = None
 
-@router.put("/manual-assets/{symbol}/valuation")
+@router.put("/portfolios/{portfolio_id}/manual-assets/{symbol}/valuation")
 def update_manual_valuation(
+    portfolio_id: uuid.UUID,
     symbol: str,
     body: UpdateManualValuationRequest,
     user: User = Depends(get_current_user),
-    db: Session = Depends(get_db),
     service: PortfolioService = Depends(get_portfolio_service),
 ):
-    portfolio_id = get_user_context(db, user)
     try:
+        service.get_portfolio(portfolio_id)
         new_price = service.update_manual_valuation(
             portfolio_id=portfolio_id,
             symbol=symbol,

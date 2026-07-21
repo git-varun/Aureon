@@ -258,10 +258,17 @@ export const apiService = {
         }));
     },
 
-    // Manual assets
-    createManualAsset: (payload) => handleRequest(API.post('/portfolio/manual-assets', payload)),
-    updateManualValuation: (symbol, newValue, notes) =>
-        handleRequest(API.put(`/portfolio/manual-assets/${encodeURIComponent(symbol)}/valuation`, {new_value: newValue, notes})),
+    // Manual assets — portfolio-scoped; portfolioId falls back to the active
+    // portfolio (see getPortfolioId above), same convention as every other
+    // portfolio-scoped call in this file.
+    createManualAsset: (payload, portfolioId) => {
+        const pid = portfolioId || getPortfolioId();
+        return handleRequest(API.post(`/portfolio/portfolios/${pid}/manual-assets`, payload));
+    },
+    updateManualValuation: (symbol, newValue, notes, portfolioId) => {
+        const pid = portfolioId || getPortfolioId();
+        return handleRequest(API.put(`/portfolio/portfolios/${pid}/manual-assets/${encodeURIComponent(symbol)}/valuation`, {new_value: newValue, notes}));
+    },
 
     // Monitoring (ops-facing health checks)
     getMonitoringDependencies: () => handleRequest(API.get('/monitoring/dependencies')),
