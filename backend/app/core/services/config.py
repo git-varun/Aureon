@@ -435,8 +435,10 @@ class ConfigService(BaseService):
         minutes = sorted(cb.minute)
         hours = sorted(cb.hour)
         days = sorted(cb.day_of_week)
+        days_of_month = sorted(cb.day_of_month)
         full_hours = len(hours) == 24
         full_days = len(days) == 7
+        full_days_of_month = len(days_of_month) == 31
         at_minute0 = minutes == [0]
 
         if full_hours and at_minute0:
@@ -448,7 +450,10 @@ class ConfigService(BaseService):
         else:
             time_part = ",".join(f"{h:02d}:{m:02d}" for h in hours for m in minutes)
 
-        if full_days:
+        if not full_days_of_month:
+            day_part = f"monthly (day {days_of_month[0]})" if len(days_of_month) == 1 else \
+                "monthly (days " + ",".join(str(d) for d in days_of_month) + ")"
+        elif full_days:
             day_part = "" if time_part == "hourly" or time_part.startswith("every ") else "daily"
         elif len(days) == 1:
             day_part = f"weekly {cls._WEEKDAY_NAMES[days[0]]}"
