@@ -254,7 +254,10 @@ export const apiService = {
     getAssetFundamentals: (symbol, refresh = false) => handleRequest(API.get(`/assets/${symbol}/fundamentals`, {params: {refresh}})),
     getAssetSignal: (symbol) => handleRequest(API.get(`/signals/${symbol}`)),
     fetchChartData: (symbol, days = 365) => handleRequest(API.get(`/assets/${symbol}/chart`, {params: {days}})),
-    fetchAureonAsset: (ticker) => handleRequest(API.get(`/aureon/assets/${ticker}`)),
+    fetchAureonAsset: (ticker, portfolioId) => {
+        const pid = portfolioId || getPortfolioId();
+        return handleRequest(API.get(`/aureon/assets/${ticker}`, {params: pid ? {portfolio_id: pid} : {}}));
+    },
     triggerBackfill: (symbol) => handleRequest(API.post(`/market/symbols/${encodeURIComponent(symbol)}/backfill`)),
     refreshMarket: () => handleRequest(API.post('/market/refresh')),
     refreshPrices: () => handleRequest(API.post('/market/refresh')),
