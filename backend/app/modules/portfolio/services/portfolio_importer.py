@@ -279,6 +279,7 @@ def _rows_from_records(records: List[Dict[str, Any]], broker: Optional[str] = No
 def _parse_csv(content: bytes, broker: Optional[str] = None) -> Tuple[List[Dict[str, Any]], List[str]]:
     import csv
     text = content.decode("utf-8-sig", errors="replace")
+    text = text.replace("\r\n", "\n").replace("\r", "\n")
     reader = csv.DictReader(io.StringIO(text))
     return _rows_from_records(list(reader), broker=broker)
 
@@ -842,6 +843,7 @@ def parse_nps_statement(content: bytes) -> Tuple[List[Dict[str, Any]], List[Dict
     import csv
 
     text = content.decode("utf-8-sig", errors="replace")
+    text = text.replace("\r\n", "\n").replace("\r", "\n")
     rows = list(csv.reader(io.StringIO(text)))
     if not rows:
         raise ValueError("Empty NPS statement file")
