@@ -2,7 +2,7 @@ import uuid
 from datetime import datetime
 from typing import Any
 
-from sqlalchemy import JSON, BigInteger, ForeignKey, Index, Numeric, String, UniqueConstraint, text
+from sqlalchemy import JSON, BigInteger, Boolean, ForeignKey, Index, Numeric, String, UniqueConstraint, text
 from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.orm import Mapped, mapped_column
 
@@ -14,6 +14,11 @@ class Portfolio(UUIDMixin, TimestampMixin, Base):
     __table_args__ = {"schema": "portfolio"}
 
     name: Mapped[str] = mapped_column(String, nullable=False)
+    # Soft-delete: archived portfolios are hidden from normal listing/switching
+    # but keep all positions/transactions/snapshots intact (unlike the real
+    # cascade hard-delete on DELETE /portfolios/{id}, which stays available as
+    # a separate, explicitly gated action).
+    is_archived: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False, server_default=text("false"))
 
 
 class Transaction(UUIDMixin, TimestampMixin, Base):

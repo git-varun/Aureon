@@ -8,6 +8,7 @@ import JobConfig from '@/components/aureon/profile/JobConfig';
 import {PfImportCenter} from '@/components/aureon/portfolio/PfImportCenter';
 import {apiService} from '@/api/apiService';
 import {useApp} from '@/components/aureon/store';
+import {usePortfolio} from '@/contexts/PortfolioContext';
 
 // ── Shared design primitives ──────────────────────────────────────────────────
 const settingInputStyle = {
@@ -127,18 +128,6 @@ function ProfileSection() {
     }, [profile, form]);
 
     return <UserProfile form={form} setForm={setForm} isDirty={dirty} setIsDirty={setDirty}/>;
-}
-
-// ── Section: Empty (Organization, Portfolio) ──────────────────────────────────
-function EmptySection({icon, title, desc, note}) {
-    return (
-        <section className="layer-1" style={{padding: 0}}>
-            <div style={{padding: 24}}>
-                <SettingSectionHead icon={icon} title={title} desc={desc}/>
-                <SettingEmpty icon="🔒" title="Not available" message={note || 'This feature is not yet available in your current installation.'}/>
-            </div>
-        </section>
-    );
 }
 
 // ── Section: API Keys (summary, links to Provider List) ───────────────────────
@@ -802,6 +791,286 @@ function SettingNavItem({id, label, icon, active, onClick}) {
     );
 }
 
+// ── Section: Portfolio Management ─────────────────────────────────────────────
+// Typed-phrase + checkbox confirm for permanent delete — same friction pattern
+// as DangerZoneSection's DZConfirm, scoped to a single portfolio's name instead
+// of a reset-scope list.
+const HardDeleteConfirm = ({portfolio, onCancel, onConfirm, executing}) => {
+    const [phrase, setPhrase] = useState('');
+    const [ack, setAck] = useState(false);
+    const valid = phrase === portfolio.name && ack;
+
+    return (
+        <div style={{padding: '14px 16px', marginTop: 8, borderRadius: 8, background: 'rgba(209,107,107,0.05)', border: '1px solid rgba(209,107,107,0.22)'}}>
+            <div style={{fontSize: 12.5, color: 'var(--ink-20)', marginBottom: 10, lineHeight: 1.55}}>
+                This permanently deletes <strong>{portfolio.name}</strong> and every position, transaction, and
+                snapshot under it. This cannot be undone. Type <span style={{fontFamily: 'var(--font-mono)', color: 'var(--crimson-400)', fontWeight: 600}}>{portfolio.name}</span> to confirm.
+            </div>
+            <input value={phrase} onChange={e => setPhrase(e.target.value)} placeholder={portfolio.name}
+                style={{...settingInputStyle, marginBottom: 10, borderColor: 'rgba(209,107,107,0.30)', fontFamily: 'var(--font-mono)'}}/>
+            <label style={{display: 'flex', alignItems: 'flex-start', gap: 8, marginBottom: 12, cursor: 'pointer'}}>
+                <input type="checkbox" checked={ack} onChange={e => setAck(e.target.checked)} style={{marginTop: 2, accentColor: 'var(--crimson-500)'}}/>
+                <span style={{fontSize: 12, color: 'var(--ink-20)', lineHeight: 1.5}}>I understand this is irreversible and cannot be recovered.</span>
+            </label>
+            <div style={{display: 'flex', gap: 8}}>
+                <button onClick={onConfirm} disabled={!valid || executing} className="du3-cta"
+                    style={{height: 30, padding: '0 14px', fontSize: 12, background: valid ? 'rgba(209,107,107,0.16)' : 'rgba(255,255,255,0.04)', border: '1px solid ' + (valid ? 'rgba(209,107,107,0.45)' : 'rgba(255,255,255,0.08)'), color: valid ? 'var(--crimson-500)' : 'var(--ink-40)', fontWeight: 600}}>
+                    {executing ? 'Deleting…' : 'Delete permanently'}
+                </button>
+                <button onClick={onCancel} disabled={executing} className="du3-cta ghost" style={{height: 30, padding: '0 14px', fontSize: 12}}>Cancel</button>
+            </div>
+        </div>
+    );
+};
+
+function PortfolioManagementSection() {
+    const {refreshPortfolios} = usePortfolio();
+    const [portfolios, setPortfolios] = useState(null);
+    const [newName, setNewName] = useState('');
+    const [creating, setCreating] = useState(false);
+    const [renamingId, setRenamingId] = useState(null);
+    const [renameValue, setRenameValue] = useState('');
+    const [busyId, setBusyId] = useState(null);
+    const [confirmDeleteId, setConfirmDeleteId] = useState(null);
+
+    const load = () => apiService.listPortfolios(true).then(setPortfolios).catch(() => setPortfolios([]));
+    useEffect(() => { load(); }, []);
+
+    const afterMutate = () => { load(); refreshPortfolios(); };
+
+    const handleCreate = async () => {
+        if (!newName.trim() || creating) return;
+        setCreating(true);
+        try {
+            await apiService.createPortfolio(newName.trim());
+            setNewName('');
+            afterMutate();
+            toast.success('Portfolio created');
+        } catch (e) {
+            toast.error(e?.message || 'Failed to create portfolio');
+        } finally {
+            setCreating(false);
+        }
+    };
+
+    const startRename = (p) => { setRenamingId(p.id); setRenameValue(p.name); };
+    const saveRename = async (id) => {
+        if (!renameValue.trim()) return;
+        setBusyId(id);
+        try {
+            await apiService.updatePortfolio(id, renameValue.trim());
+            setRenamingId(null);
+            afterMutate();
+            toast.success('Portfolio renamed');
+        } catch (e) {
+            toast.error(e?.message || 'Failed to rename portfolio');
+        } finally {
+            setBusyId(null);
+        }
+    };
+
+    const handleArchive = async (id) => {
+        setBusyId(id);
+        try {
+            await apiService.archivePortfolio(id);
+            afterMutate();
+            toast.success('Portfolio archived');
+        } catch (e) {
+            toast.error(e?.message || 'Failed to archive portfolio');
+        } finally {
+            setBusyId(null);
+        }
+    };
+
+    const handleUnarchive = async (id) => {
+        setBusyId(id);
+        try {
+            await apiService.unarchivePortfolio(id);
+            afterMutate();
+            toast.success('Portfolio unarchived');
+        } catch (e) {
+            toast.error(e?.message || 'Failed to unarchive portfolio');
+        } finally {
+            setBusyId(null);
+        }
+    };
+
+    const handleHardDelete = async (id) => {
+        setBusyId(id);
+        try {
+            await apiService.deletePortfolioPermanently(id);
+            setConfirmDeleteId(null);
+            afterMutate();
+            toast.success('Portfolio permanently deleted');
+        } catch (e) {
+            toast.error(e?.message || 'Failed to delete portfolio');
+        } finally {
+            setBusyId(null);
+        }
+    };
+
+    const active = (portfolios || []).filter(p => !p.is_archived);
+    const archived = (portfolios || []).filter(p => p.is_archived);
+
+    const PortfolioRow = ({p, archivedRow}) => (
+        <div style={{padding: '11px 0', borderBottom: '1px solid rgba(255,255,255,0.04)'}}>
+            <div style={{display: 'flex', alignItems: 'center', gap: 12}}>
+                <div style={{flex: 1, minWidth: 0}}>
+                    {renamingId === p.id ? (
+                        <div style={{display: 'flex', gap: 6}}>
+                            <input value={renameValue} onChange={e => setRenameValue(e.target.value)}
+                                style={{...settingInputStyle, padding: '5px 9px', fontSize: 12.5}}/>
+                            <button onClick={() => saveRename(p.id)} disabled={busyId === p.id} className="du3-cta ghost" style={{height: 28, padding: '0 10px', fontSize: 11.5}}>Save</button>
+                            <button onClick={() => setRenamingId(null)} className="du3-cta ghost" style={{height: 28, padding: '0 10px', fontSize: 11.5}}>Cancel</button>
+                        </div>
+                    ) : (
+                        <>
+                            <div style={{fontSize: 13, color: 'var(--ink-10)', fontWeight: 500}}>{p.name}</div>
+                            <div style={{fontSize: 11, color: 'var(--ink-40)', marginTop: 1}}>Created {new Date(p.created_at).toLocaleDateString()}</div>
+                        </>
+                    )}
+                </div>
+                {renamingId !== p.id && !archivedRow && (
+                    <>
+                        <button onClick={() => startRename(p)} className="du3-cta ghost" style={{height: 26, padding: '0 10px', fontSize: 11.5}}>Rename</button>
+                        <button onClick={() => handleArchive(p.id)} disabled={busyId === p.id} className="du3-cta ghost" style={{height: 26, padding: '0 10px', fontSize: 11.5}}>Archive</button>
+                    </>
+                )}
+                {archivedRow && confirmDeleteId !== p.id && (
+                    <>
+                        <button onClick={() => handleUnarchive(p.id)} disabled={busyId === p.id} className="du3-cta ghost" style={{height: 26, padding: '0 10px', fontSize: 11.5}}>Unarchive</button>
+                        <button onClick={() => setConfirmDeleteId(p.id)} className="du3-cta ghost" style={{height: 26, padding: '0 10px', fontSize: 11.5, color: 'var(--crimson-500)'}}>Delete permanently…</button>
+                    </>
+                )}
+            </div>
+            {archivedRow && confirmDeleteId === p.id && (
+                <HardDeleteConfirm portfolio={p} executing={busyId === p.id}
+                    onCancel={() => setConfirmDeleteId(null)}
+                    onConfirm={() => handleHardDelete(p.id)}/>
+            )}
+        </div>
+    );
+
+    return (
+        <section className="layer-1" style={{padding: 0}}>
+            <div style={{padding: 24}}>
+                <SettingSectionHead
+                    icon={<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><rect x="2" y="7" width="20" height="14" rx="2"/><path d="M16 7V5a2 2 0 0 0-2-2h-4a2 2 0 0 0-2 2v2"/></svg>}
+                    title="Portfolio Management"
+                    desc="Create, rename, and archive named portfolios"
+                />
+
+                <div style={{display: 'flex', gap: 8, marginBottom: 20}}>
+                    <input value={newName} onChange={e => setNewName(e.target.value)} placeholder="New portfolio name"
+                        onKeyDown={e => { if (e.key === 'Enter') handleCreate(); }}
+                        style={{...settingInputStyle, flex: 1}}/>
+                    <button onClick={handleCreate} disabled={!newName.trim() || creating} className="du3-cta primary" style={{height: 34, padding: '0 16px', fontSize: 12.5, flexShrink: 0}}>
+                        {creating ? 'Creating…' : '+ Create'}
+                    </button>
+                </div>
+
+                {portfolios === null ? (
+                    <div style={{padding: '24px 0', textAlign: 'center', color: 'var(--ink-40)', fontSize: 13}}>Loading…</div>
+                ) : (
+                    <>
+                        <div style={{fontSize: 10.5, letterSpacing: '0.12em', textTransform: 'uppercase', color: 'var(--ink-40)', fontWeight: 600, marginBottom: 8}}>Active ({active.length})</div>
+                        {active.length === 0 ? (
+                            <SettingEmpty title="No active portfolios" message="Create one above to get started."/>
+                        ) : active.map(p => <PortfolioRow key={p.id} p={p} archivedRow={false}/>)}
+
+                        {archived.length > 0 && (
+                            <>
+                                <div style={{fontSize: 10.5, letterSpacing: '0.12em', textTransform: 'uppercase', color: 'var(--ink-40)', fontWeight: 600, marginTop: 22, marginBottom: 8}}>Archived ({archived.length})</div>
+                                {archived.map(p => <PortfolioRow key={p.id} p={p} archivedRow={true}/>)}
+                            </>
+                        )}
+                    </>
+                )}
+            </div>
+        </section>
+    );
+}
+
+// ── Section: Allocation Targets ───────────────────────────────────────────────
+const ASSET_CLASS_LABEL = {
+    stocks: 'Stocks', crypto: 'Crypto', funds: 'Funds', bonds: 'Bonds',
+    real_estate: 'Real estate', retirement: 'Retirement', insurance: 'Insurance',
+};
+
+function AllocationTargetsSection() {
+    const [targets, setTargets] = useState(null);
+    const [edits, setEdits] = useState({});
+    const [savingClass, setSavingClass] = useState(null);
+
+    const load = () => apiService.getAllocationTargets().then(t => { setTargets(t); setEdits({}); }).catch(() => setTargets({}));
+    useEffect(() => { load(); }, []);
+
+    const rows = targets ? Object.keys(targets).sort() : [];
+    const sumPct = rows.reduce((s, k) => s + (parseFloat(edits[k] ?? (targets[k] * 100)) || 0), 0);
+
+    const handleSave = async (assetClass) => {
+        const pctStr = edits[assetClass];
+        if (pctStr === undefined) return;
+        const pct = parseFloat(pctStr);
+        if (isNaN(pct) || pct < 0 || pct > 100) {
+            toast.error('Enter a value between 0 and 100');
+            return;
+        }
+        setSavingClass(assetClass);
+        try {
+            await apiService.upsertAllocationTarget(assetClass, {target_pct: pct / 100});
+            await load();
+            toast.success(`${ASSET_CLASS_LABEL[assetClass] || assetClass} target updated`);
+        } catch (e) {
+            toast.error(e?.message || 'Failed to update target');
+        } finally {
+            setSavingClass(null);
+        }
+    };
+
+    return (
+        <section className="layer-1" style={{padding: 0}}>
+            <div style={{padding: 24}}>
+                <SettingSectionHead
+                    icon={<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><path d="M21.21 15.89A10 10 0 1 1 8 2.83"/><path d="M22 12A10 10 0 0 0 12 2v10z"/></svg>}
+                    title="Allocation Targets"
+                    desc="Target weight by asset class — drives the drift indicators on Portfolio and Dashboard"
+                />
+                {targets === null ? (
+                    <div style={{padding: '24px 0', textAlign: 'center', color: 'var(--ink-40)', fontSize: 13}}>Loading…</div>
+                ) : rows.length === 0 ? (
+                    <SettingEmpty title="No allocation targets configured"/>
+                ) : (
+                    <>
+                        {rows.map(k => {
+                            const current = (edits[k] ?? String(Math.round(targets[k] * 10000) / 100));
+                            const dirty = parseFloat(current) !== Math.round(targets[k] * 10000) / 100;
+                            return (
+                                <div key={k} style={{display: 'flex', alignItems: 'center', gap: 12, padding: '10px 0', borderBottom: '1px solid rgba(255,255,255,0.04)'}}>
+                                    <span style={{flex: 1, fontSize: 13, color: 'var(--ink-10)'}}>{ASSET_CLASS_LABEL[k] || k}</span>
+                                    <input
+                                        value={current}
+                                        onChange={e => setEdits(prev => ({...prev, [k]: e.target.value}))}
+                                        onKeyDown={e => { if (e.key === 'Enter') handleSave(k); }}
+                                        style={{...settingInputStyle, width: 84, textAlign: 'right', fontFamily: 'var(--font-mono)'}}/>
+                                    <span style={{fontSize: 12.5, color: 'var(--ink-40)'}}>%</span>
+                                    <button onClick={() => handleSave(k)} disabled={!dirty || savingClass === k} className="du3-cta ghost"
+                                        style={{height: 28, padding: '0 12px', fontSize: 11.5, flexShrink: 0, opacity: dirty ? 1 : 0.4}}>
+                                        {savingClass === k ? 'Saving…' : 'Save'}
+                                    </button>
+                                </div>
+                            );
+                        })}
+                        <div style={{marginTop: 14, fontSize: 11.5, color: Math.abs(sumPct - 100) < 0.05 ? 'var(--ink-40)' : 'var(--dusk-500)'}}>
+                            Targets sum to {sumPct.toFixed(1)}%{Math.abs(sumPct - 100) >= 0.05 ? ' — targets don\'t need to total 100%, but usually should' : ''}.
+                        </div>
+                    </>
+                )}
+            </div>
+        </section>
+    );
+}
+
 // ── Main Settings component ───────────────────────────────────────────────────
 export default function Settings() {
     const navigate = useNavigate();
@@ -824,8 +1093,8 @@ export default function Settings() {
         switch (section) {
             case 'profile':        return <ProfileSection/>;
             case 'import-data':    return <ImportDataSection/>;
-            case 'portfolio-mgmt': return <EmptySection icon={<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><rect x="2" y="7" width="20" height="14" rx="2"/><path d="M16 7V5a2 2 0 0 0-2-2h-4a2 2 0 0 0-2 2v2"/></svg>} title="Portfolio Management" desc="Create and manage named portfolios" note="Portfolio management features are not yet available in this version."/>;
-            case 'alloc-targets':  return <EmptySection icon={<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><path d="M21.21 15.89A10 10 0 1 1 8 2.83"/><path d="M22 12A10 10 0 0 0 12 2v10z"/></svg>} title="Allocation Targets" desc="Set target weights by asset class" note="Allocation target configuration is not yet available in this version."/>;
+            case 'portfolio-mgmt': return <PortfolioManagementSection/>;
+            case 'alloc-targets':  return <AllocationTargetsSection/>;
             case 'provider-list':  return <ProviderConfig onNavigate={handleNav}/>;
             case 'api-keys':       return <ApiKeysSection onNavigate={handleNav}/>;
             case 'conn-status':    return <ConnectionStatusSection/>;

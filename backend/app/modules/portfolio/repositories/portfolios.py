@@ -20,8 +20,11 @@ class PortfoliosRepository(BaseRepository):
         stmt = select(Portfolio).where(Portfolio.id == portfolio_id)
         return self.session.execute(stmt).scalar_one_or_none()
 
-    def list_all(self) -> list[Portfolio]:
-        return list(self.session.execute(select(Portfolio)).scalars().all())
+    def list_all(self, include_archived: bool = False) -> list[Portfolio]:
+        stmt = select(Portfolio)
+        if not include_archived:
+            stmt = stmt.where(Portfolio.is_archived.is_(False))
+        return list(self.session.execute(stmt).scalars().all())
 
     def update(self, portfolio: Portfolio) -> Portfolio:
         self.session.flush()

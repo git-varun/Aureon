@@ -142,9 +142,13 @@ class DataResetService:
             release_reset_lock(token)
 
     # --- portfolio ---------------------------------------------------------
+    # include_archived=True everywhere in this file: a data reset destroys
+    # everything regardless of archive status — list_portfolios()'s default
+    # (archived excluded) is for normal UI listing/switching, not for a reset
+    # that's supposed to be exhaustive.
 
     def _count_portfolio(self) -> dict[str, Any]:
-        portfolios = self.portfolio_service.list_portfolios()
+        portfolios = self.portfolio_service.list_portfolios(include_archived=True)
         transactions = 0
         positions = 0
         futures_positions = 0
@@ -172,9 +176,11 @@ class DataResetService:
 
     def _reset_portfolio(self) -> dict[str, Any]:
         counts = self._count_portfolio()
-        portfolios = self.portfolio_service.list_portfolios()
+        portfolios = self.portfolio_service.list_portfolios(include_archived=True)
         for p in portfolios:
-            self.portfolio_service.delete_portfolio(p.id)
+            # require_archived=False: reset destroys active and archived
+            # portfolios alike — see the include_archived note above.
+            self.portfolio_service.delete_portfolio(p.id, require_archived=False)
             invalidate_intelligence_recommendations(str(p.id))
             invalidate_intelligence_outcomes(str(p.id))
             invalidate_intelligence_dashboard(str(p.id))
@@ -240,7 +246,7 @@ class DataResetService:
         self.db.execute(delete(AIBriefing))
         self.db.flush()
 
-        for p in self.portfolio_service.list_portfolios():
+        for p in self.portfolio_service.list_portfolios(include_archived=True):
             invalidate_intelligence_dashboard(str(p.id))
 
         return {
@@ -288,7 +294,7 @@ class DataResetService:
         self.db.flush()
 
         invalidate_org_recommendations(RECOMMENDATIONS_CACHE_KEY)
-        for p in self.portfolio_service.list_portfolios():
+        for p in self.portfolio_service.list_portfolios(include_archived=True):
             invalidate_intelligence_recommendations(str(p.id))
             invalidate_intelligence_outcomes(str(p.id))
             invalidate_intelligence_dashboard(str(p.id))
