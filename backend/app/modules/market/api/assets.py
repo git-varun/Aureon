@@ -1,11 +1,11 @@
+import uuid
+from typing import Optional
+
 from fastapi import APIRouter, Depends, HTTPException, Query
 
-from app.api.dependencies import get_assets_service, get_current_user, get_user_context
-from app.core.database import get_db
+from app.api.dependencies import get_assets_service
 from app.core.exceptions import NotFoundError
-from app.core.entities.system import User
 from app.modules.market.services.assets import AssetsService
-from sqlalchemy.orm import Session
 
 router = APIRouter()
 
@@ -59,11 +59,15 @@ def get_asset_chart(
 @router.get("/aureon/assets/{ticker}")
 def get_aureon_asset(
     ticker: str,
-    user: User = Depends(get_current_user),
-    db: Session = Depends(get_db),
+    portfolio_id: Optional[uuid.UUID] = Query(None),
     svc: AssetsService = Depends(get_assets_service),
 ):
-    portfolio_id = get_user_context(db, user)
+    # portfolio_id is explicit, not get_user_context()'s .first() — same fix
+    # as manual-asset endpoints (commit 831466f): held qty/cost must reflect
+    # whichever portfolio is actually active, not an arbitrary first row.
+    # Left optional (unlike the manual-asset writes) since this is a read —
+    # with no portfolio_id, the asset's market data still resolves, just
+    # without a held-position qty/cost, rather than guessing a portfolio.
     try:
         return svc.get_aureon_asset(ticker, portfolio_id)
     except NotFoundError as e:
