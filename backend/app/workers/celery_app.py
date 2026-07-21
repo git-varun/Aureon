@@ -68,6 +68,18 @@ celery_app.conf.beat_schedule = {
         "task": "app.workers.ingestion.tasks.refresh_mutual_fund_navs_task",
         "schedule": crontab(hour=23, minute=0),
     },
+    "daily-briefing": {
+        "task": "app.workers.ingestion.tasks.daily_briefing_task",
+        "schedule": crontab(hour=8, minute=0),
+    },
+    "weekly-briefing": {
+        "task": "app.workers.ingestion.tasks.weekly_briefing_task",
+        "schedule": crontab(hour=8, minute=30, day_of_week="mon"),
+    },
+    "monthly-briefing": {
+        "task": "app.workers.ingestion.tasks.monthly_briefing_task",
+        "schedule": crontab(hour=9, minute=0, day_of_month=1),
+    },
 }
 
 
