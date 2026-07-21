@@ -27,7 +27,7 @@ from app.core.api.schemas import (
     TransactionResponse,
     TransactionUpdate,
 )
-from app.core.exceptions import NotFoundError, ValidationError
+from app.core.exceptions import ConflictError, NotFoundError, ValidationError
 from app.core.redis import (
     cache_portfolio_snapshot,
     get_cached_portfolio_snapshot,
@@ -244,10 +244,11 @@ def create_portfolio(
 
 @router.get("/portfolios", response_model=List[PortfolioResponse])
 def list_portfolios(
+    include_archived: bool = Query(False),
     current_user: User = Depends(get_current_user),
     service: PortfolioService = Depends(get_portfolio_service),
 ):
-    return service.list_portfolios()
+    return service.list_portfolios(include_archived=include_archived)
 
 @router.get("/portfolios/{portfolio_id}", response_model=PortfolioResponse)
 def get_portfolio(
@@ -272,17 +273,44 @@ def update_portfolio(
     except NotFoundError as e:
         raise HTTPException(status_code=404, detail=str(e))
 
+@router.post("/portfolios/{portfolio_id}/archive", response_model=PortfolioResponse)
+def archive_portfolio(
+    portfolio_id: uuid.UUID,
+    current_user: User = Depends(get_current_user),
+    service: PortfolioService = Depends(get_portfolio_service),
+):
+    try:
+        return service.archive_portfolio(portfolio_id, actor_id=current_user.id)
+    except NotFoundError as e:
+        raise HTTPException(status_code=404, detail=str(e))
+
+@router.post("/portfolios/{portfolio_id}/unarchive", response_model=PortfolioResponse)
+def unarchive_portfolio(
+    portfolio_id: uuid.UUID,
+    current_user: User = Depends(get_current_user),
+    service: PortfolioService = Depends(get_portfolio_service),
+):
+    try:
+        return service.unarchive_portfolio(portfolio_id, actor_id=current_user.id)
+    except NotFoundError as e:
+        raise HTTPException(status_code=404, detail=str(e))
+
 @router.delete("/portfolios/{portfolio_id}")
 def delete_portfolio(
     portfolio_id: uuid.UUID,
     current_user: User = Depends(get_current_user),
     service: PortfolioService = Depends(get_portfolio_service),
 ):
+    # Hard, cascade delete — require_archived defaults to True, so a portfolio
+    # still active/visible in the normal switcher can't be hard-deleted in one
+    # call; it must be archived first (see PortfolioService.delete_portfolio).
     try:
         deleted = service.delete_portfolio(portfolio_id, actor_id=current_user.id)
         return {"success": deleted}
     except NotFoundError as e:
         raise HTTPException(status_code=404, detail=str(e))
+    except ConflictError as e:
+        raise HTTPException(status_code=409, detail=str(e))
 
 
 # --- Transaction CRUD ---

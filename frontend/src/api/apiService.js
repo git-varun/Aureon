@@ -29,11 +29,25 @@ export const apiService = {
     deleteAccount: () => handleRequest(API.delete('/users/me')),
 
     // ── Portfolios & Transactions (V1) ────────────────────────────────────────
-    listPortfolios: () =>
-        handleRequest(API.get('/portfolio/portfolios')),
+    listPortfolios: (includeArchived = false) =>
+        handleRequest(API.get('/portfolio/portfolios', {params: includeArchived ? {include_archived: true} : {}})),
 
     createPortfolio: (name) =>
         handleRequest(API.post('/portfolio/portfolios', {name})),
+
+    updatePortfolio: (portfolioId, name) =>
+        handleRequest(API.put(`/portfolio/portfolios/${portfolioId}`, {name})),
+
+    archivePortfolio: (portfolioId) =>
+        handleRequest(API.post(`/portfolio/portfolios/${portfolioId}/archive`)),
+
+    unarchivePortfolio: (portfolioId) =>
+        handleRequest(API.post(`/portfolio/portfolios/${portfolioId}/unarchive`)),
+
+    // Hard, cascade delete — backend requires the portfolio to already be
+    // archived (409 otherwise); not reachable from the primary delete action.
+    deletePortfolioPermanently: (portfolioId) =>
+        handleRequest(API.delete(`/portfolio/portfolios/${portfolioId}`)),
 
     getPortfolioSnapshot: (portfolioId) => {
         const pid = portfolioId || getPortfolioId();

@@ -17,6 +17,7 @@ class PortfolioResponse(BaseModel):
 
     id: uuid.UUID
     name: str
+    is_archived: bool
     created_at: datetime
     updated_at: datetime
 

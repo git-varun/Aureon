@@ -10,7 +10,7 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from app.core.binance import STABLECOIN_ASSETS, WALLET_SUFFIXES, split_quote_asset
-from app.core.exceptions import NotFoundError, ValidationError
+from app.core.exceptions import ConflictError, NotFoundError, ValidationError
 from app.core.logging import logger
 from app.core.redis import (
     invalidate_intelligence_health,
@@ -278,8 +278,8 @@ class PortfolioService(BaseService):
             raise NotFoundError("Portfolio not found")
         return portfolio
 
-    def list_portfolios(self) -> List[Portfolio]:
-        return self.portfolios_repo.list_all()
+    def list_portfolios(self, include_archived: bool = False) -> List[Portfolio]:
+        return self.portfolios_repo.list_all(include_archived=include_archived)
 
     def update_portfolio(self, portfolio_id: uuid.UUID, name: str, actor_id: Optional[uuid.UUID] = None) -> Portfolio:
         portfolio = self.get_portfolio(portfolio_id)
@@ -300,8 +300,63 @@ class PortfolioService(BaseService):
         self.session.refresh(portfolio)
         return portfolio
 
-    def delete_portfolio(self, portfolio_id: uuid.UUID, actor_id: Optional[uuid.UUID] = None) -> bool:
+    def archive_portfolio(self, portfolio_id: uuid.UUID, actor_id: Optional[uuid.UUID] = None) -> Portfolio:
+        """Soft-delete: hides the portfolio from normal listing/switching
+        (list_portfolios' default) without touching any of its positions/
+        transactions/snapshots. Reversible via unarchive_portfolio."""
         portfolio = self.get_portfolio(portfolio_id)
+        portfolio.is_archived = True
+        self.portfolios_repo.update(portfolio)
+        from app.core.services.audit import log_audit_action
+        log_audit_action(
+            self.session,
+            action="portfolio_archive",
+            entity_type="portfolio",
+            entity_id=str(portfolio_id),
+            actor_id=actor_id,
+            details={"name": portfolio.name}
+        )
+        self.session.commit()
+        self.session.refresh(portfolio)
+        self._invalidate_portfolio_caches(portfolio_id)
+        return portfolio
+
+    def unarchive_portfolio(self, portfolio_id: uuid.UUID, actor_id: Optional[uuid.UUID] = None) -> Portfolio:
+        portfolio = self.get_portfolio(portfolio_id)
+        portfolio.is_archived = False
+        self.portfolios_repo.update(portfolio)
+        from app.core.services.audit import log_audit_action
+        log_audit_action(
+            self.session,
+            action="portfolio_unarchive",
+            entity_type="portfolio",
+            entity_id=str(portfolio_id),
+            actor_id=actor_id,
+            details={"name": portfolio.name}
+        )
+        self.session.commit()
+        self.session.refresh(portfolio)
+        self._invalidate_portfolio_caches(portfolio_id)
+        return portfolio
+
+    def delete_portfolio(
+        self,
+        portfolio_id: uuid.UUID,
+        actor_id: Optional[uuid.UUID] = None,
+        require_archived: bool = True,
+    ) -> bool:
+        """Hard, cascade delete — permanently removes the portfolio and every
+        position/transaction/snapshot under it (DB-level ON DELETE CASCADE).
+        require_archived=True (the default, used by the real API route) forces
+        archive_portfolio() first, so this can't be reached as a single-click
+        action from wherever a portfolio is still active/visible. Danger Zone's
+        full data reset (data_reset.py) is the only caller that passes
+        require_archived=False — that flow is already gated by its own typed-
+        confirmation step and is explicitly meant to wipe archived portfolios
+        too, not just active ones."""
+        portfolio = self.get_portfolio(portfolio_id)
+        if require_archived and not portfolio.is_archived:
+            raise ConflictError("Portfolio must be archived before it can be permanently deleted")
         portfolio_name = portfolio.name
         deleted = self.portfolios_repo.delete(portfolio.id)
         from app.core.services.audit import log_audit_action
