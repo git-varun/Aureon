@@ -1,5 +1,5 @@
 from app.core.repositories.base import BaseRepository
-from sqlalchemy import or_, select
+from sqlalchemy import func, or_, select
 from sqlalchemy.orm import Session
 
 from app.core.entities.config import (
@@ -69,9 +69,15 @@ class ConfigRepository(BaseRepository):
         self.session.flush()
         return log
 
-    def list_job_logs(self, job_name: str | None = None, limit: int = 50) -> list[JobLog]:
+    def list_job_logs(self, job_name: str | None = None, limit: int = 50, offset: int = 0) -> list[JobLog]:
         stmt = select(JobLog)
         if job_name:
             stmt = stmt.where(JobLog.job_name == job_name)
-        stmt = stmt.order_by(JobLog.started_at.desc()).limit(limit)
+        stmt = stmt.order_by(JobLog.started_at.desc()).limit(limit).offset(offset)
         return list(self.session.execute(stmt).scalars().all())
+
+    def count_job_logs(self, job_name: str | None = None) -> int:
+        stmt = select(func.count()).select_from(JobLog)
+        if job_name:
+            stmt = stmt.where(JobLog.job_name == job_name)
+        return self.session.execute(stmt).scalar_one()

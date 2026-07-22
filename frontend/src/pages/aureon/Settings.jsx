@@ -350,39 +350,51 @@ function ManualRunSection() {
 }
 
 // ── Section: Job History ──────────────────────────────────────────────────────
+const JOB_HISTORY_PAGE_SIZE = 50;
+
 function JobHistorySection() {
     const [entries, setEntries] = useState([]);
+    const [total, setTotal] = useState(0);
     const [loading, setLoading] = useState(true);
+    const [loadingMore, setLoadingMore] = useState(false);
     const [filter, setFilter] = useState('all');
 
+    const loadPage = useCallback(async (offset) => {
+        const res = await apiService.getAllJobLogs(JOB_HISTORY_PAGE_SIZE, offset);
+        return {logs: res.logs || [], total: res.total || 0};
+    }, []);
+
     useEffect(() => {
-        const load = async () => {
+        (async () => {
             try {
-                const res = await apiService.getJobs();
-                const jobs = res.jobs || [];
-                const logResults = await Promise.allSettled(
-                    jobs.map(j => apiService.getJobLogs(j.job_name).then(r => ({job: j.job_name, logs: r.logs || []})))
-                );
-                const all = [];
-                logResults.forEach(r => {
-                    if (r.status === 'fulfilled') {
-                        r.value.logs.forEach(log => all.push({...log, job_name: r.value.job}));
-                    }
-                });
-                all.sort((a, b) => new Date(b.started_at) - new Date(a.started_at));
-                setEntries(all);
+                const {logs, total: t} = await loadPage(0);
+                setEntries(logs);
+                setTotal(t);
             } catch {
                 toast.error('Failed to load job history');
             } finally {
                 setLoading(false);
             }
-        };
-        load();
-    }, []);
+        })();
+    }, [loadPage]);
+
+    const loadMore = async () => {
+        setLoadingMore(true);
+        try {
+            const {logs, total: t} = await loadPage(entries.length);
+            setEntries(prev => [...prev, ...logs]);
+            setTotal(t);
+        } catch {
+            toast.error('Failed to load more job history');
+        } finally {
+            setLoadingMore(false);
+        }
+    };
 
     const statuses = ['success', 'failed', 'pending', 'running'];
     const filtered = filter === 'all' ? entries : entries.filter(e => (e.status || '').toLowerCase() === filter);
     const errorCount = entries.filter(e => (e.status || '').toLowerCase() === 'failed').length;
+    const hasMore = entries.length < total;
 
     const statusTone = s => {
         const sl = (s || '').toLowerCase();
@@ -403,7 +415,7 @@ function JobHistorySection() {
                         <div style={{display: 'flex', gap: 3}}>
                             {['all', ...statuses].map(f => (
                                 <button key={f} onClick={() => setFilter(f)} style={{height: 26, padding: '0 8px', borderRadius: 5, fontSize: 11, fontFamily: 'var(--font-ui)', border: 'none', cursor: 'pointer', background: filter === f ? 'rgba(255,255,255,0.08)' : 'transparent', color: filter === f ? 'var(--ink-10)' : 'var(--ink-40)', textTransform: 'capitalize'}}>
-                                    {f === 'all' ? `All ${entries.length}` : f}
+                                    {f === 'all' ? `All ${total}` : f}
                                 </button>
                             ))}
                         </div>
@@ -429,6 +441,16 @@ function JobHistorySection() {
                                 <span style={{fontSize: 11.5, color: 'var(--ink-40)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap'}}>{h.error_message || '—'}</span>
                             </div>
                         ))}
+                        <div style={{display: 'flex', alignItems: 'center', justifyContent: 'space-between', paddingTop: 12}}>
+                            <span style={{fontSize: 11, color: 'var(--ink-40)'}}>
+                                Showing {entries.length} of {total}{filter !== 'all' ? ` (${filtered.length} match "${filter}")` : ''}
+                            </span>
+                            {hasMore && (
+                                <button onClick={loadMore} disabled={loadingMore} className="du3-cta ghost" style={{height: 28, padding: '0 12px', fontSize: 11.5}}>
+                                    {loadingMore ? 'Loading…' : 'Load more'}
+                                </button>
+                            )}
+                        </div>
                     </>
                 )}
             </div>

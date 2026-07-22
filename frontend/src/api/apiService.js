@@ -307,6 +307,7 @@ export const apiService = {
     updateJob: (jobName, payload) => handleRequest(API.put(`/config/jobs/${jobName}`, payload)),
     runJob: (jobName) => handleRequest(API.post(`/config/jobs/${jobName}/run`)),
     getJobLogs: (jobName, limit = 20) => handleRequest(API.get(`/config/jobs/${jobName}/logs?limit=${limit}`)),
+    getAllJobLogs: (limit = 50, offset = 0) => handleRequest(API.get(`/config/jobs/logs?limit=${limit}&offset=${offset}`)),
     getAllocationTargets: () => handleRequest(API.get('/config/allocation_targets')),
     getAllocationTargetsDetail: () => handleRequest(API.get('/config/allocation_targets?detail=true')),
     upsertAllocationTarget: (assetClass, payload) => handleRequest(API.put(`/config/allocation_targets/${encodeURIComponent(assetClass)}`, payload)),
