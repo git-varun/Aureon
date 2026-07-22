@@ -127,8 +127,9 @@ def get_monitoring_service(
     repo: MonitoringRepository = Depends(get_monitoring_repo),
     asset_health_repo: AssetHealthRepository = Depends(get_asset_health_repo),
     task_run_repo: TaskRunRepository = Depends(get_task_run_repo),
+    config_svc: ConfigService = Depends(get_config_service),
 ) -> MonitoringService:
-    return MonitoringService(repo, asset_health_repo, task_run_repo)
+    return MonitoringService(repo, asset_health_repo, task_run_repo, config_svc)
 
 def get_news_service(repo: NewsRepository = Depends(get_news_repo)) -> NewsService:
     return NewsService(repo)
