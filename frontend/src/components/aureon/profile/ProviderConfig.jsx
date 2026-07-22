@@ -7,6 +7,19 @@ const PROVIDER_TYPE_LABELS = {
     price: 'Price Feed', news: 'News', valuation: 'Valuation', config: 'Config',
 };
 
+// Display grouping — coarser than provider_type (which the backend uses for
+// its own bookkeeping), matching how a user actually thinks about these:
+// where the money data comes from, vs. where prices/news come from, vs. AI,
+// vs. everything else with no real per-item attention needed.
+const CATEGORY_LABELS = {broker: 'Broker', market_data: 'Market Data', ai: 'AI', other: 'Other'};
+const CATEGORY_ORDER = ['broker', 'market_data', 'ai', 'other'];
+const categoryFor = (providerType) => {
+    if (providerType === 'broker') return 'broker';
+    if (providerType === 'ai') return 'ai';
+    if (providerType === 'price' || providerType === 'news') return 'market_data';
+    return 'other';
+};
+
 const PROVIDER_BRAND = {
     zerodha:   {color: '#387ED1', letter: 'Z'},
     groww:     {color: '#00D09C', letter: 'G'},
@@ -117,12 +130,13 @@ function EpfRateEditor({provider, onSaveConfig}) {
     );
 }
 
-function ProviderRow({provider, onToggle, onSetKey, onRemoveKey, onSaveConfig}) {
+function ProviderRow({provider, onToggle, onSetKey, onRemoveKey, onSaveConfig, health, onCheckHealth}) {
     const [expanded, setExpanded] = useState(false);
     const [toggling, setToggling] = useState(false);
     const [keyDrafts, setKeyDrafts] = useState({});
     const [saving, setSaving] = useState({});
     const [showValues, setShowValues] = useState({});
+    const [checking, setChecking] = useState(false);
 
     const rawKeys = provider.key_names;
     const keyNames = Array.isArray(rawKeys)
@@ -145,6 +159,12 @@ function ProviderRow({provider, onToggle, onSetKey, onRemoveKey, onSaveConfig}) 
         setToggling(true);
         try { await onToggle(provider.provider_name, !provider.enabled); }
         finally { setToggling(false); }
+    };
+
+    const handleCheckHealth = async () => {
+        setChecking(true);
+        try { await onCheckHealth(provider.provider_name); }
+        finally { setChecking(false); }
     };
 
     const handleSetKey = async (keyName) => {
@@ -180,7 +200,7 @@ function ProviderRow({provider, onToggle, onSetKey, onRemoveKey, onSaveConfig}) 
 
     return (
         <div style={{borderBottom: '1px solid rgba(255,255,255,0.04)'}}>
-            <div style={{display: 'grid', gridTemplateColumns: 'auto 1fr auto auto auto', gap: 14, padding: '14px 18px', alignItems: 'center'}}>
+            <div style={{display: 'grid', gridTemplateColumns: 'auto 1fr auto auto auto auto', gap: 14, padding: '14px 18px', alignItems: 'center'}}>
                 <div style={{
                     width: 36, height: 36, borderRadius: 8,
                     display: 'flex', alignItems: 'center', justifyContent: 'center',
@@ -207,6 +227,18 @@ function ProviderRow({provider, onToggle, onSetKey, onRemoveKey, onSaveConfig}) 
                 <span style={{display: 'inline-flex', alignItems: 'center', gap: 6, fontSize: 11.5, color: statusColor}}>
                     <span style={{width: 6, height: 6, borderRadius: 999, background: statusColor}}/> {statusLabel}
                 </span>
+                <div style={{display: 'flex', alignItems: 'center', gap: 8, minWidth: 96}}>
+                    {health === undefined ? null : health.healthy === null ? (
+                        <span style={{fontSize: 10.5, color: 'var(--ink-40)'}}>Presence-only</span>
+                    ) : (
+                        <span style={{fontSize: 10.5, color: health.healthy ? 'var(--sage-500)' : 'var(--crimson-500)'}}>
+                            {health.healthy ? '✓ Key verified' : '✗ Key invalid'}
+                        </span>
+                    )}
+                    <button onClick={handleCheckHealth} disabled={checking} className="du3-cta ghost" style={{height: 24, padding: '0 8px', fontSize: 10.5}}>
+                        {checking ? '…' : 'Check'}
+                    </button>
+                </div>
                 <button
                     onClick={handleToggle} disabled={toggling}
                     className="du3-cta ghost"
@@ -365,10 +397,33 @@ function SyncStatusRow({syncEntry, onSync, onConnect, onGoToImport}) {
     );
 }
 
+// A provider "needs attention" — no API key/config to set at all — when it has
+// no credential fields and isn't the one provider (epf_interest_rates) with a
+// real config editor. These are filtered out of the main grouped view since a
+// user can't act on them either way, but stay reachable in the collapsed
+// "no configuration needed" section below.
+const isConfigurable = (p) => parseKeyNames(p.key_names).length > 0 || p.provider_name === 'epf_interest_rates';
+
+// Actionable-first ordering within a group: broken key > missing keys >
+// configured-but-disabled > healthy/connected > everything else.
+const actionableRank = (p, health) => {
+    const keyNames = parseKeyNames(p.key_names);
+    const keysStatus = p.keys_status || {};
+    const allKeysSet = keyNames.length === 0 || keyNames.every(k => keysStatus[k]);
+    const anyKeySet = keyNames.some(k => keysStatus[k]);
+    if (health && health.healthy === false) return 0; // verified broken
+    if (p.enabled && keyNames.length > 0 && !allKeysSet) return 1; // missing keys
+    if (!p.enabled && allKeysSet && anyKeySet) return 2; // configured but disabled — probably shouldn't be
+    if (p.enabled && allKeysSet) return 3; // healthy
+    return 4;
+};
+
 export default function ProviderConfig({onNavigate}) {
     const [providers, setProviders] = useState([]);
     const [syncStatus, setSyncStatus] = useState([]);
     const [loading, setLoading] = useState(true);
+    const [health, setHealth] = useState({}); // {provider_name: {healthy, checked_at} | null}
+    const [showInert, setShowInert] = useState(false);
 
     const load = useCallback(async () => {
         setLoading(true);
@@ -454,12 +509,30 @@ export default function ProviderConfig({onNavigate}) {
         setProviders(res.providers);
     };
 
-    const grouped = providers.reduce((acc, p) => {
-        const k = p.provider_type;
+    const handleCheckHealth = async (providerName) => {
+        try {
+            const res = await apiService.checkProviderHealth(providerName);
+            setHealth(prev => ({...prev, [providerName]: {healthy: res.healthy, checked_at: res.checked_at}}));
+            if (res.healthy === null) {
+                toast(`${providerName} has no live health check — presence-only.`, {icon: 'ℹ️'});
+            } else {
+                toast[res.healthy ? 'success' : 'error'](`${providerName}: ${res.healthy ? 'key verified working' : 'key check failed'}.`);
+            }
+        } catch (e) {
+            toast.error(e?.message || 'Health check failed.');
+        }
+    };
+
+    const configurableProviders = providers.filter(isConfigurable);
+    const inertProviders = providers.filter(p => !isConfigurable(p));
+
+    const grouped = configurableProviders.reduce((acc, p) => {
+        const k = categoryFor(p.provider_type);
         if (!acc[k]) acc[k] = [];
         acc[k].push(p);
         return acc;
     }, {});
+    Object.values(grouped).forEach(list => list.sort((a, b) => actionableRank(a, health[a.provider_name]) - actionableRank(b, health[b.provider_name])));
 
     const connected = providers.filter(p => p.enabled).length;
 
@@ -480,24 +553,43 @@ export default function ProviderConfig({onNavigate}) {
             {loading ? (
                 <div style={{padding: 40, textAlign: 'center', color: 'var(--ink-40)', fontSize: 13}}>Loading providers…</div>
             ) : (
-                Object.entries(grouped).map(([type, list]) => (
-                    <div key={type}>
-                        <div style={{padding: '10px 18px 4px', fontSize: 10, fontWeight: 600, letterSpacing: '0.14em', textTransform: 'uppercase', color: 'var(--aurum-500)'}}>
-                            {PROVIDER_TYPE_LABELS[type] ?? type}
+                <>
+                    {CATEGORY_ORDER.filter(cat => grouped[cat]?.length).map(cat => (
+                        <div key={cat}>
+                            <div style={{padding: '10px 18px 4px', fontSize: 10, fontWeight: 600, letterSpacing: '0.14em', textTransform: 'uppercase', color: 'var(--aurum-500)'}}>
+                                {CATEGORY_LABELS[cat]}
+                            </div>
+                            {grouped[cat].map(p => {
+                                const syncEntry = p.provider_type === 'broker'
+                                    ? syncStatus.find(s => s.provider === p.provider_name.toLowerCase())
+                                    : null;
+                                return (
+                                    <div key={p.provider_name}>
+                                        <ProviderRow provider={p} onToggle={handleToggle} onSetKey={handleSetKey} onRemoveKey={handleRemoveKey}
+                                            onSaveConfig={handleSaveConfig} health={health[p.provider_name]} onCheckHealth={handleCheckHealth}/>
+                                        {syncEntry && <SyncStatusRow syncEntry={syncEntry} onSync={handleBrokerSync} onConnect={handleBrokerConnect} onGoToImport={() => onNavigate?.('import-data')}/>}
+                                    </div>
+                                );
+                            })}
                         </div>
-                        {list.map(p => {
-                            const syncEntry = type === 'broker'
-                                ? syncStatus.find(s => s.provider === p.provider_name.toLowerCase())
-                                : null;
-                            return (
-                                <div key={p.provider_name}>
-                                    <ProviderRow provider={p} onToggle={handleToggle} onSetKey={handleSetKey} onRemoveKey={handleRemoveKey} onSaveConfig={handleSaveConfig}/>
-                                    {syncEntry && <SyncStatusRow syncEntry={syncEntry} onSync={handleBrokerSync} onConnect={handleBrokerConnect} onGoToImport={() => onNavigate?.('import-data')}/>}
-                                </div>
-                            );
-                        })}
-                    </div>
-                ))
+                    ))}
+
+                    {inertProviders.length > 0 && (
+                        <div>
+                            <button
+                                onClick={() => setShowInert(v => !v)}
+                                className="du3-cta ghost"
+                                style={{width: '100%', justifyContent: 'flex-start', padding: '10px 18px', fontSize: 11.5, color: 'var(--ink-40)', borderRadius: 0}}
+                            >
+                                {showInert ? '▲' : '▼'} {inertProviders.length} provider{inertProviders.length === 1 ? '' : 's'} with no configuration needed
+                            </button>
+                            {showInert && inertProviders.map(p => (
+                                <ProviderRow key={p.provider_name} provider={p} onToggle={handleToggle} onSetKey={handleSetKey} onRemoveKey={handleRemoveKey}
+                                    onSaveConfig={handleSaveConfig} health={health[p.provider_name]} onCheckHealth={handleCheckHealth}/>
+                            ))}
+                        </div>
+                    )}
+                </>
             )}
         </section>
     );

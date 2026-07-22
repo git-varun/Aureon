@@ -160,6 +160,19 @@ def remove_provider_key(
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e))
 
+@router.post("/providers/{provider_name}/health-check")
+def check_provider_health(
+    provider_name: str,
+    user: User = Depends(get_current_user),
+    svc: ConfigService = Depends(get_config_service)
+):
+    healthy = svc.check_provider_health(provider_name)
+    return {
+        "provider_name": provider_name,
+        "healthy": healthy,
+        "checked_at": datetime.utcnow().isoformat() + "Z",
+    }
+
 # --- Zerodha OAuth ---
 
 @router.get("/providers/zerodha/oauth/login-url")

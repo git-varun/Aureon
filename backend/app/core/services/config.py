@@ -363,6 +363,34 @@ class ConfigService(BaseService):
         providers = self.repo.get_providers_by_type(provider_type)
         return [_provider_to_dict(p) for p in providers]
 
+    def check_provider_health(self, provider_name: str) -> Optional[bool]:
+        """Live-validates a provider's stored credentials via its health_check().
+        Returns None (not True/False) when the provider has no registered adapter
+        (e.g. PLANNED providers, valuation providers) — the caller should render
+        that as presence-only status, not force a fake pass/fail."""
+        from app.core.providers.registry import registry
+        provider = registry.get(provider_name)
+        if provider is None:
+            return None
+
+        cfg = self.repo.get_provider(provider_name)
+        if cfg is None:
+            return None
+
+        key_names = _safe_json_load(cfg.key_names, [])
+        credentials = {k: self.get_decrypted_key(provider_name, k) for k in key_names}
+        credentials = {k: v for k, v in credentials.items() if v}
+        if key_names and not credentials:
+            return False
+
+        if credentials:
+            provider.authenticate(**credentials)
+        try:
+            return bool(provider.health_check())
+        except Exception as e:
+            logger.warning(f"health_check() raised for provider '{provider_name}': {e}")
+            return False
+
     # ── Jobs ───────────────────────────────────────────────────────────────
 
     def get_all_jobs(self) -> list[dict[str, Any]]:
