@@ -831,8 +831,33 @@ def _nps_scheme_letter(scheme_name: str) -> Optional[str]:
 _NPS_BUY_DESCRIPTIONS = {"by voluntary contributions", "tier-2 contribution"}
 _NPS_SKIP_DESCRIPTIONS = {"opening balance", "closing balance"}
 
-def parse_nps_statement(content: bytes) -> Tuple[List[Dict[str, Any]], List[Dict[str, Any]], Dict[str, Any]]:
-    """Parses an NPS (National Pension System) transaction statement CSV.
+def _nps_rows_from_text(text: str) -> List[List[str]]:
+    import csv
+    text = text.replace("\r\n", "\n").replace("\r", "\n")
+    return list(csv.reader(io.StringIO(text)))
+
+
+def _nps_rows_from_xlsx(content: bytes) -> List[List[str]]:
+    import openpyxl
+    wb = openpyxl.load_workbook(io.BytesIO(content), data_only=True)
+    ws = wb.active
+    return [[str(c) if c is not None else "" for c in row] for row in ws.iter_rows(values_only=True)]
+
+
+def _nps_rows_from_pdf(content: bytes) -> List[List[str]]:
+    import pdfplumber
+    with pdfplumber.open(io.BytesIO(content)) as pdf:
+        text = "\n".join(page.extract_text() or "" for page in pdf.pages)
+    return _nps_rows_from_text(text)
+
+
+def parse_nps_statement(content: bytes, ext: str = "csv") -> Tuple[List[Dict[str, Any]], List[Dict[str, Any]], Dict[str, Any]]:
+    """Parses an NPS (National Pension System) transaction statement — CSV, XLSX, or PDF.
+
+    The statement is the same comma-structured tabular report regardless of
+    export format (a PDF export is a printed rendition of the same
+    comma-separated rows), so every format is normalised to the same
+    List[List[str]] row grid before the shared section-parsing logic below.
 
     Returns (holdings, transactions, summary):
     - holdings: current scheme-wise snapshot from "Investment Details - Scheme
@@ -840,15 +865,29 @@ def parse_nps_statement(content: bytes) -> Tuple[List[Dict[str, Any]], List[Dict
     - transactions: real BUY/SELL rows from "Transaction Details" per-scheme
       sections (Opening balance / Closing Balance rows excluded).
     """
-    import csv
+    ext = (ext or "csv").lower().lstrip(".")
+    if ext in ("xlsx", "xls"):
+        try:
+            rows = _nps_rows_from_xlsx(content)
+        except ImportError:
+            raise ImportError("openpyxl not installed — cannot parse XLSX NPS statement")
+    elif ext == "pdf":
+        try:
+            rows = _nps_rows_from_pdf(content)
+        except ImportError:
+            raise ImportError("pdfplumber not installed — cannot parse PDF NPS statement")
+    else:
+        rows = _nps_rows_from_text(content.decode("utf-8-sig", errors="replace"))
 
-    text = content.decode("utf-8-sig", errors="replace")
-    text = text.replace("\r\n", "\n").replace("\r", "\n")
-    rows = list(csv.reader(io.StringIO(text)))
     if not rows:
         raise ValueError("Empty NPS statement file")
 
-    tier = _detect_nps_tier(rows[0][0] if rows[0] else "")
+    tier = None
+    for row in rows[:20]:
+        if row:
+            tier = _detect_nps_tier(row[0])
+            if tier:
+                break
     if tier is None:
         raise ValueError("Could not detect Tier I/II from statement header")
 

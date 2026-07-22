@@ -263,10 +263,65 @@ export const apiService = {
     refreshPrices: () => handleRequest(API.post('/market/refresh')),
     syncBrokers: (broker = 'zerodha') => handleRequest(API.post('/portfolio/sync', {broker})),
     getSyncStatus: () => handleRequest(API.get('/portfolio/sync/status')),
+
+    // One-time, resumable full-history Binance Spot trade backfill — separate
+    // from the regular sync cadence (see POST /portfolios/{id}/sync/binance/backfill).
+    triggerBinanceBackfill: (portfolioId) => {
+        const pid = portfolioId || getPortfolioId();
+        return handleRequest(API.post(`/portfolio/portfolios/${pid}/sync/binance/backfill`));
+    },
+    getBinanceBackfillStatus: (portfolioId) => {
+        const pid = portfolioId || getPortfolioId();
+        return handleRequest(API.get(`/portfolio/portfolios/${pid}/sync/binance/backfill/status`));
+    },
     hardRefresh: () => handleRequest(API.post('/market/refresh')),
     seedRecommendations: () => handleRequest(API.post('/aureon/recommendations/seed')),
     analyzeNewsBatch: () => handleRequest(API.post('/analytics/ai/news/batch')),
     exportBackupJSON: () => handleRequest(API.get('/portfolio/backup')),
+
+    // ── Data reset (Danger Zone) ──────────────────────────────────────────────
+    previewReset: (scopes) =>
+        handleRequest(API.get('/reset/preview', {params: {scopes: scopes.join(',')}})),
+
+    // Downloads the backup file to disk and captures the single-use
+    // X-Backup-Receipt header the reset endpoint requires — the receipt is
+    // never surfaced to the caller of this function's caller beyond this
+    // return value, so callers must not display the raw token.
+    exportBackupForReset: async () => {
+        let res;
+        try {
+            res = await API.get('/portfolio/backup', {responseType: 'blob'});
+        } catch (err) {
+            if (err.response?.data instanceof Blob) {
+                const text = await err.response.data.text();
+                let detail = err.message;
+                try { detail = JSON.parse(text).detail || detail; } catch { /* not JSON */ }
+                const wrapped = new Error(detail);
+                wrapped.response = err.response;
+                throw wrapped;
+            }
+            throw err;
+        }
+        const receipt = res.headers['x-backup-receipt'];
+        if (!receipt) {
+            throw new Error('Backup was exported but no receipt was returned — reset cannot proceed.');
+        }
+        const disposition = res.headers['content-disposition'] || '';
+        const match = disposition.match(/filename="?([^";]+)"?/);
+        const filename = match ? match[1] : `aureon_backup_${new Date().toISOString().slice(0, 10)}.json`;
+
+        const url = window.URL.createObjectURL(res.data);
+        const a = document.createElement('a');
+        a.href = url; a.download = filename;
+        document.body.appendChild(a); a.click(); a.remove();
+        window.URL.revokeObjectURL(url);
+
+        return {receipt, filename, issuedAt: Date.now(), expiresAt: Date.now() + 10 * 60 * 1000};
+    },
+
+    executeReset: (scopes, backupReceipt) =>
+        handleRequest(API.post('/reset', {scopes, backup_receipt: backupReceipt})),
+
     restoreBackupJSON: (file, confirm = false) => {
         const form = new FormData();
         form.append('file', file);

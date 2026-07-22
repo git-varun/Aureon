@@ -4,7 +4,7 @@ import {toast} from 'react-hot-toast';
 import {PageHeader} from '../../components/aureon/ds';
 import UserProfile from '@/components/aureon/profile/UserProfile';
 import ProviderConfig from '@/components/aureon/profile/ProviderConfig';
-import JobConfig from '@/components/aureon/profile/JobConfig';
+import JobConfig, {JOB_LABELS, JobErrorDetail} from '@/components/aureon/profile/JobConfig';
 import {PfImportCenter} from '@/components/aureon/portfolio/PfImportCenter';
 import {apiService} from '@/api/apiService';
 import {useApp} from '@/components/aureon/store';
@@ -84,12 +84,9 @@ const SETTINGS_NAV = [
     ]},
     {group: 'Providers', items: [
         {id: 'provider-list',  label: 'Provider List',  icon: <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round"><rect x="2" y="2" width="20" height="8" rx="2"/><rect x="2" y="14" width="20" height="8" rx="2"/><line x1="6" y1="6" x2="6.01" y2="6"/><line x1="6" y1="18" x2="6.01" y2="18"/></svg>},
-        {id: 'api-keys',       label: 'API Keys',       icon: <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round"><path d="M21 2l-2 2m-7.61 7.61a5.5 5.5 0 1 1-7.778 7.778 5.5 5.5 0 0 1 7.777-7.777zm0 0L15.5 7.5m0 0l3 3L22 7l-3-3m-3.5 3.5L19 4"/></svg>},
-        {id: 'conn-status',    label: 'Connections',    icon: <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg>},
     ]},
     {group: 'Jobs', items: [
-        {id: 'job-status',     label: 'Job Status',     icon: <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>},
-        {id: 'manual-run',     label: 'Manual Run',     icon: <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round"><polygon points="5 3 19 12 5 21 5 3"/></svg>},
+        {id: 'job-status',     label: 'Job Status',      icon: <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>},
         {id: 'job-history',    label: 'History',        icon: <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round"><polyline points="12 8 12 12 14 14"/><path d="M3.05 11a9 9 0 1 1 .5 4m-.5 5v-5h5"/></svg>},
     ]},
     {group: 'Backup', items: [
@@ -98,6 +95,9 @@ const SETTINGS_NAV = [
     ]},
     {group: 'Ops', items: [
         {id: 'monitoring',     label: 'Monitoring',     icon: <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round"><path d="M22 12h-4l-3 9L9 3l-3 9H2"/></svg>},
+    ]},
+    {group: 'Danger Zone', items: [
+        {id: 'danger-zone',    label: 'Data Reset',     icon: <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round"><path d="M10.3 3.9 1.8 18a2 2 0 0 0 1.7 3h17a2 2 0 0 0 1.7-3L13.7 3.9a2 2 0 0 0-3.4 0Z"/><line x1="12" y1="9" x2="12" y2="13"/><circle cx="12" cy="17" r=".5" fill="currentColor"/></svg>},
     ]},
 ];
 
@@ -132,222 +132,12 @@ function ProfileSection() {
     return <UserProfile form={form} setForm={setForm} isDirty={dirty} setIsDirty={setDirty}/>;
 }
 
-// ── Section: API Keys (summary, links to Provider List) ───────────────────────
-function ApiKeysSection({onNavigate}) {
-    const [providers, setProviders] = useState([]);
-    const [loading, setLoading] = useState(true);
-
-    useEffect(() => {
-        apiService.getProviders()
-            .then(res => setProviders(res.providers || []))
-            .catch(() => {})
-            .finally(() => setLoading(false));
-    }, []);
-
-    const withKeys = providers.filter(p => {
-        const rawKeys = p.key_names;
-        const names = Array.isArray(rawKeys) ? rawKeys
-            : (typeof rawKeys === 'string' && rawKeys) ? rawKeys.split(',').map(s => s.trim()).filter(Boolean)
-            : [];
-        return names.length > 0;
-    });
-
-    const parseKeyNames = (rawKeys) => Array.isArray(rawKeys) ? rawKeys
-        : (typeof rawKeys === 'string' && rawKeys) ? rawKeys.split(',').map(s => s.trim()).filter(Boolean)
-        : [];
-
-    return (
-        <section className="layer-1" style={{padding: 0}}>
-            <div style={{padding: 24}}>
-                <SettingSectionHead
-                    icon={<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><path d="M21 2l-2 2m-7.61 7.61a5.5 5.5 0 1 1-7.778 7.778 5.5 5.5 0 0 1 7.777-7.777zm0 0L15.5 7.5m0 0l3 3L22 7l-3-3m-3.5 3.5L19 4"/></svg>}
-                    title="API Keys"
-                    desc="Key status across all configured providers"
-                    action={<button onClick={() => onNavigate('provider-list')} className="du3-cta ghost" style={{height: 28, padding: '0 10px', fontSize: 12}}>Manage keys →</button>}
-                />
-                {loading ? (
-                    <div style={{padding: '24px 0', textAlign: 'center', color: 'var(--ink-40)', fontSize: 13}}>Loading…</div>
-                ) : withKeys.length === 0 ? (
-                    <SettingEmpty icon="🔑" title="No keys configured" message="Add API keys in Provider List to connect your brokers and services."/>
-                ) : (
-                    <div>
-                        {withKeys.map(p => {
-                            const keyNames = parseKeyNames(p.key_names);
-                            const keysStatus = p.keys_status || {};
-                            const setCount = keyNames.filter(k => keysStatus[k]).length;
-                            const allSet = setCount === keyNames.length;
-                            const statusColor = allSet ? 'var(--sage-500)' : setCount > 0 ? 'var(--dusk-500)' : 'var(--crimson-500)';
-                            return (
-                                <div key={p.provider_name} style={{display: 'flex', alignItems: 'center', gap: 12, padding: '11px 0', borderBottom: '1px solid rgba(255,255,255,0.04)'}}>
-                                    <div style={{flex: 1}}>
-                                        <div style={{fontSize: 13, color: 'var(--ink-10)', fontWeight: 500}}>{p.provider_name}</div>
-                                        <div style={{fontSize: 11.5, color: 'var(--ink-40)', marginTop: 1, fontFamily: 'var(--font-mono)'}}>
-                                            {keyNames.map(k => (
-                                                <span key={k} style={{marginRight: 10}}>
-                                                    <span style={{color: keysStatus[k] ? 'var(--sage-500)' : 'var(--crimson-500)'}}>{keysStatus[k] ? '●' : '○'}</span> {k}
-                                                </span>
-                                            ))}
-                                        </div>
-                                    </div>
-                                    <span style={{fontSize: 11, color: statusColor, fontWeight: 600}}>{allSet ? 'All set' : `${setCount}/${keyNames.length} set`}</span>
-                                    <button onClick={() => onNavigate('provider-list')} className="du3-cta ghost" style={{height: 26, padding: '0 10px', fontSize: 11.5}}>Configure</button>
-                                </div>
-                            );
-                        })}
-                    </div>
-                )}
-            </div>
-        </section>
-    );
-}
-
-// ── Section: Connection Status ────────────────────────────────────────────────
-function ConnectionStatusSection() {
-    const [providers, setProviders] = useState([]);
-    const [loading, setLoading] = useState(true);
-    const [refreshing, setRefreshing] = useState(false);
-
-    const load = useCallback(async (isRefresh = false) => {
-        if (isRefresh) setRefreshing(true); else setLoading(true);
-        try {
-            const res = await apiService.getProviders();
-            setProviders(res.providers || []);
-        } catch { toast.error('Failed to load providers'); }
-        finally { setLoading(false); setRefreshing(false); }
-    }, []);
-
-    // eslint-disable-next-line react-hooks/set-state-in-effect
-    useEffect(() => { load(); }, [load]);
-
-    const enabled = providers.filter(p => p.enabled);
-    const parseKeyNames = (rawKeys) => Array.isArray(rawKeys) ? rawKeys
-        : (typeof rawKeys === 'string' && rawKeys) ? rawKeys.split(',').map(s => s.trim()).filter(Boolean)
-        : [];
-
-    return (
-        <section className="layer-1" style={{padding: 0}}>
-            <div style={{padding: 24}}>
-                <SettingSectionHead
-                    icon={<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg>}
-                    title="Connection Status"
-                    desc={loading ? 'Loading…' : `${enabled.length} provider${enabled.length !== 1 ? 's' : ''} active`}
-                    action={<button onClick={() => load(true)} disabled={refreshing} className="du3-cta ghost" style={{height: 28, padding: '0 10px', fontSize: 12}}>{refreshing ? '…' : 'Refresh'}</button>}
-                />
-                {loading ? (
-                    <div style={{padding: '24px 0', textAlign: 'center', color: 'var(--ink-40)', fontSize: 13}}>Loading…</div>
-                ) : enabled.length === 0 ? (
-                    <SettingEmpty icon="📡" title="No active providers" message="Enable providers in Provider List to see connection status here."/>
-                ) : (
-                    <>
-                        <div style={{display: 'grid', gridTemplateColumns: '1fr auto auto', gap: 16, padding: '0 0 8px', fontSize: 10, letterSpacing: '0.12em', textTransform: 'uppercase', color: 'var(--ink-40)', fontWeight: 600, borderBottom: '1px solid rgba(255,255,255,0.05)', marginBottom: 4}}>
-                            <span>Provider</span><span>Keys</span><span>Status</span>
-                        </div>
-                        {enabled.map(p => {
-                            const keyNames = parseKeyNames(p.key_names);
-                            const keysStatus = p.keys_status || {};
-                            const setCount = keyNames.filter(k => keysStatus[k]).length;
-                            const allKeysSet = keyNames.length === 0 || setCount === keyNames.length;
-                            const statusColor = allKeysSet ? 'var(--sage-500)' : 'var(--dusk-500)';
-                            const statusLabel = allKeysSet ? 'Connected' : 'Keys missing';
-                            return (
-                                <div key={p.provider_name} style={{display: 'grid', gridTemplateColumns: '1fr auto auto', gap: 16, padding: '10px 0', borderBottom: '1px solid rgba(255,255,255,0.03)', alignItems: 'center'}}>
-                                    <div>
-                                        <div style={{fontSize: 13, color: 'var(--ink-10)', fontWeight: 500}}>{p.provider_name}</div>
-                                        <div style={{fontSize: 11, color: 'var(--ink-40)', marginTop: 1, textTransform: 'capitalize'}}>{p.provider_type}</div>
-                                    </div>
-                                    <span style={{fontFamily: 'var(--font-mono)', fontSize: 11.5, color: 'var(--ink-30)'}}>
-                                        {keyNames.length === 0 ? 'n/a' : `${setCount}/${keyNames.length}`}
-                                    </span>
-                                    <span style={{display: 'inline-flex', alignItems: 'center', gap: 5, fontSize: 11.5, color: statusColor}}>
-                                        <span style={{width: 5, height: 5, borderRadius: 999, background: statusColor}}/>{statusLabel}
-                                    </span>
-                                </div>
-                            );
-                        })}
-                    </>
-                )}
-            </div>
-        </section>
-    );
-}
-
 // ── Job helpers ───────────────────────────────────────────────────────────────
-const JOB_LABEL_MAP = {
-    sync_portfolio: 'Portfolio Sync', refresh_prices: 'Price Refresh', fetch_news: 'News Scraper',
-    daily_briefing: 'AI Briefing', seed_price_history: 'Price History Seed',
-};
-
 const fmtTs = (iso) => {
     if (!iso) return '—';
     try { return new Date(iso).toLocaleString('en-IN', {dateStyle: 'medium', timeStyle: 'short'}); }
     catch { return iso; }
 };
-
-// ── Section: Manual Run ───────────────────────────────────────────────────────
-function ManualRunSection() {
-    const [jobs, setJobs] = useState([]);
-    const [loading, setLoading] = useState(true);
-    const [running, setRunning] = useState({});
-    const [results, setResults] = useState({});
-
-    useEffect(() => {
-        apiService.getJobs()
-            .then(res => setJobs(res.jobs || []))
-            .catch(() => {})
-            .finally(() => setLoading(false));
-    }, []);
-
-    const run = async (jobName) => {
-        setRunning(r => ({...r, [jobName]: true}));
-        try {
-            await apiService.runJob(jobName);
-            toast.success(`${JOB_LABEL_MAP[jobName] || jobName} triggered.`);
-            const ts = new Date().toLocaleTimeString('en-IN', {hour: '2-digit', minute: '2-digit'});
-            setResults(r => ({...r, [jobName]: {ts}}));
-        } catch (e) {
-            toast.error(e?.response?.data?.detail || `Failed to trigger ${jobName}.`);
-        } finally {
-            setTimeout(() => setRunning(r => ({...r, [jobName]: false})), 2000);
-        }
-    };
-
-    return (
-        <section className="layer-1" style={{padding: 0}}>
-            <div style={{padding: 24}}>
-                <SettingSectionHead
-                    icon={<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><polygon points="5 3 19 12 5 21 5 3"/></svg>}
-                    title="Manual Run"
-                    desc="Trigger jobs on demand regardless of schedule"
-                />
-                {loading ? (
-                    <div style={{padding: '24px 0', textAlign: 'center', color: 'var(--ink-40)', fontSize: 13}}>Loading jobs…</div>
-                ) : jobs.length === 0 ? (
-                    <SettingEmpty icon="⚙️" title="No jobs configured" message="Background jobs will appear here once configured."/>
-                ) : (
-                    <div style={{display: 'flex', flexDirection: 'column', gap: 8}}>
-                        {jobs.map(job => {
-                            const label = JOB_LABEL_MAP[job.job_name] || job.job_name;
-                            const isRunning = running[job.job_name];
-                            const result = results[job.job_name];
-                            return (
-                                <div key={job.job_name} className="layer-1" style={{padding: '13px 16px', display: 'flex', alignItems: 'center', gap: 14}}>
-                                    <div style={{flex: 1, minWidth: 0}}>
-                                        <div style={{fontSize: 13, fontWeight: 600, color: job.enabled ? 'var(--ink-00)' : 'var(--ink-40)', fontFamily: 'var(--font-heading)'}}>{label}</div>
-                                        <div style={{fontSize: 11.5, color: 'var(--ink-40)', marginTop: 2, fontFamily: 'var(--font-mono)'}}>{job.schedule_display}</div>
-                                        {result && <div style={{fontSize: 11.5, color: 'var(--sage-500)', marginTop: 4}}>✓ Triggered at {result.ts}</div>}
-                                    </div>
-                                    <button onClick={() => run(job.job_name)} disabled={isRunning || !job.enabled} className="du3-cta primary" style={{height: 30, padding: '0 12px', fontSize: 12, opacity: !job.enabled ? 0.4 : 1, display: 'inline-flex', alignItems: 'center', gap: 6}}>
-                                        {isRunning ? 'Running…' : 'Run now'}
-                                    </button>
-                                </div>
-                            );
-                        })}
-                    </div>
-                )}
-            </div>
-        </section>
-    );
-}
 
 // ── Section: Job History ──────────────────────────────────────────────────────
 const JOB_HISTORY_PAGE_SIZE = 50;
@@ -431,14 +221,14 @@ function JobHistorySection() {
                             <span>Job</span><span>Time</span><span>Duration</span><span>Status</span><span>Detail</span>
                         </div>
                         {filtered.map((h, i) => (
-                            <div key={i} style={{display: 'grid', gridTemplateColumns: '1.6fr 1.2fr 0.8fr 0.7fr 1.4fr', gap: 12, padding: '8px 0', borderBottom: '1px solid rgba(255,255,255,0.03)', alignItems: 'center'}}>
-                                <span style={{fontSize: 12.5, color: 'var(--ink-10)', fontWeight: 500}}>{JOB_LABEL_MAP[h.job_name] || h.job_name}</span>
+                            <div key={i} style={{display: 'grid', gridTemplateColumns: '1.6fr 1.2fr 0.8fr 0.7fr 1.4fr', gap: 12, padding: '8px 0', borderBottom: '1px solid rgba(255,255,255,0.03)', alignItems: 'start'}}>
+                                <span style={{fontSize: 12.5, color: 'var(--ink-10)', fontWeight: 500}}>{JOB_LABELS[h.job_name]?.label || h.job_name}</span>
                                 <span style={{fontFamily: 'var(--font-mono)', fontSize: 11.5, color: 'var(--ink-30)'}}>{fmtTs(h.started_at)}</span>
                                 <span style={{fontFamily: 'var(--font-mono)', fontSize: 11.5, color: 'var(--ink-30)'}}>{h.duration_ms ? `${h.duration_ms}ms` : '—'}</span>
                                 <span style={{display: 'inline-flex', alignItems: 'center', gap: 4, fontSize: 11.5, color: statusTone(h.status)}}>
                                     <span style={{width: 4, height: 4, borderRadius: 999, background: statusTone(h.status), flexShrink: 0}}/>{h.status || '—'}
                                 </span>
-                                <span style={{fontSize: 11.5, color: 'var(--ink-40)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap'}}>{h.error_message || '—'}</span>
+                                {h.error_message ? <JobErrorDetail message={h.error_message}/> : <span style={{fontSize: 11.5, color: 'var(--ink-40)'}}>—</span>}
                             </div>
                         ))}
                         <div style={{display: 'flex', alignItems: 'center', justifyContent: 'space-between', paddingTop: 12}}>
@@ -787,6 +577,312 @@ function MonitoringSection() {
                         )}
                     </>
                 )}
+            </div>
+        </section>
+    );
+}
+
+// ── Section: Danger Zone (data reset) ─────────────────────────────────────────
+const RESET_SCOPES = [
+    {id: 'portfolio',              label: 'Portfolio',             desc: 'Positions, manual assets, and the transaction ledger'},
+    {id: 'watchlists',             label: 'Watchlists',            desc: 'All watchlists and the symbols tracked in them'},
+    {id: 'ai_history',             label: 'AI history',            desc: 'AI analysis runs, signals, and chat history'},
+    {id: 'recommendation_history', label: 'Recommendation history', desc: 'Applied, dismissed, and expired recommendations'},
+    {id: 'custom_themes',          label: 'Custom themes',         desc: 'User-created market themes and their asset lists'},
+];
+const SCOPE_LABEL = Object.fromEntries(RESET_SCOPES.map(s => [s.id, s.label]));
+const ALL_SCOPE_IDS = RESET_SCOPES.map(s => s.id);
+
+const fieldLabel = (k) => k.replace(/_cleared$/, '').replace(/_/g, ' ').replace(/^./, c => c.toUpperCase());
+
+const isInProgressMessage = (msg) => typeof msg === 'string' && msg.toLowerCase().includes('in progress');
+
+const DZCountRow = ({label, value}) => (
+    <div style={{display: 'flex', justifyContent: 'space-between', padding: '6px 0', borderBottom: '1px solid rgba(255,255,255,0.04)'}}>
+        <span style={{fontSize: 12, color: 'var(--ink-30)'}}>{label}</span>
+        <span style={{fontFamily: 'var(--font-mono)', fontSize: 12.5, fontWeight: 600, color: 'var(--ink-00)'}}>{value}</span>
+    </div>
+);
+
+const DZWarning = ({children}) => (
+    <div style={{display: 'flex', gap: 9, padding: '10px 12px', borderRadius: 8, background: 'rgba(212,162,87,0.08)', border: '1px solid rgba(212,162,87,0.28)', marginTop: 10}}>
+        <span style={{color: 'var(--dusk-500)', flexShrink: 0, lineHeight: 1}}>⚠</span>
+        <span style={{fontSize: 12, color: 'var(--dusk-500)', lineHeight: 1.5}}>{children}</span>
+    </div>
+);
+
+const DZScopePicker = ({mode, scopes, setScopes, onCancel}) => (
+    <div className="layer-1" style={{padding: '18px 20px', marginTop: 14, animation: 'cardEnter 180ms var(--ease-decel)'}}>
+        <div style={{display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 14}}>
+            <div style={{fontFamily: 'var(--font-heading)', fontSize: 14, fontWeight: 600, color: 'var(--ink-00)'}}>
+                {mode === 'full' ? 'Full data wipe — all scopes' : 'Select scopes to clear'}
+            </div>
+            <button onClick={onCancel} className="du3-cta ghost" style={{height: 26, padding: '0 10px', fontSize: 11.5}}>Cancel</button>
+        </div>
+        <div style={{display: 'flex', flexDirection: 'column', gap: 8}}>
+            {RESET_SCOPES.map(s => {
+                const checked = scopes.includes(s.id);
+                const disabled = mode === 'full';
+                return (
+                    <label key={s.id} style={{display: 'flex', alignItems: 'flex-start', gap: 10, padding: '10px 12px', borderRadius: 8, background: checked ? 'rgba(209,107,107,0.05)' : 'rgba(255,255,255,0.02)', border: '1px solid ' + (checked ? 'rgba(209,107,107,0.20)' : 'rgba(255,255,255,0.06)'), cursor: disabled ? 'default' : 'pointer'}}>
+                        <input type="checkbox" checked={checked} disabled={disabled}
+                            onChange={() => setScopes(sc => sc.includes(s.id) ? sc.filter(x => x !== s.id) : [...sc, s.id])}
+                            style={{marginTop: 2, accentColor: 'var(--crimson-500)'}}/>
+                        <div>
+                            <div style={{fontSize: 13, color: 'var(--ink-10)', fontWeight: 500}}>{s.label}</div>
+                            <div style={{fontSize: 11.5, color: 'var(--ink-40)', marginTop: 1}}>{s.desc}</div>
+                        </div>
+                    </label>
+                );
+            })}
+        </div>
+    </div>
+);
+
+const DZPreview = ({scopes, onReady}) => {
+    const [status, setStatus] = useState('idle'); // idle | loading | ok | error
+    const [data, setData] = useState(null);
+    const [err, setErr] = useState(null);
+
+    const run = () => {
+        setStatus('loading'); setErr(null);
+        apiService.previewReset(scopes)
+            .then(res => { setData(res.counts); setStatus('ok'); onReady(res.counts); })
+            .catch(e => { setErr(e.message); setStatus('error'); });
+    };
+
+    return (
+        <div className="layer-1" style={{padding: '18px 20px', marginTop: 12}}>
+            <div style={{display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12}}>
+                <div style={{fontFamily: 'var(--font-heading)', fontSize: 14, fontWeight: 600, color: 'var(--ink-00)'}}>Step 1 · Preview impact</div>
+                {status !== 'loading' && (
+                    <button onClick={run} className="du3-cta" style={{height: 28, padding: '0 12px', fontSize: 12}}>
+                        {status === 'ok' ? 'Refresh preview' : 'Preview impact'}
+                    </button>
+                )}
+            </div>
+            {status === 'idle' && <div style={{fontSize: 12.5, color: 'var(--ink-40)'}}>Fetch real row counts for the selected scopes before continuing. No placeholder numbers are shown.</div>}
+            {status === 'loading' && <div style={{display: 'flex', alignItems: 'center', gap: 8, color: 'var(--ink-40)', fontSize: 12.5}}><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" style={{animation: 'spin 0.9s linear infinite'}}><circle cx="12" cy="12" r="9" strokeDasharray="40 80"/></svg>Fetching counts…</div>}
+            {status === 'error' && (
+                <div style={{padding: '10px 14px', borderRadius: 8, background: 'rgba(209,107,107,0.08)', border: '1px solid rgba(209,107,107,0.22)', fontSize: 12.5, color: 'var(--crimson-400)'}}>
+                    ⚠ {isInProgressMessage(err) ? 'A reset is currently in progress — counts would be inaccurate. Try again shortly.' : err}
+                </div>
+            )}
+            {status === 'ok' && data && (
+                <div style={{display: 'flex', flexDirection: 'column', gap: 14}}>
+                    {scopes.map(sc => (
+                        <div key={sc}>
+                            <div style={{fontSize: 11, letterSpacing: '0.10em', textTransform: 'uppercase', color: 'var(--ink-40)', fontWeight: 600, marginBottom: 4}}>{SCOPE_LABEL[sc]}</div>
+                            {Object.entries(data[sc] || {}).filter(([k]) => k !== 'warning').map(([k, v]) => (
+                                <DZCountRow key={k} label={fieldLabel(k)} value={v}/>
+                            ))}
+                            {sc === 'portfolio' && data[sc]?.warning && <DZWarning>{data[sc].warning}</DZWarning>}
+                        </div>
+                    ))}
+                </div>
+            )}
+        </div>
+    );
+};
+
+const DZBackup = ({onReceipt}) => {
+    const [status, setStatus] = useState('idle'); // idle | loading | done | error
+    const [info, setInfo] = useState(null);
+    const [err, setErr] = useState(null);
+    const [now, setNow] = useState(0);
+
+    useEffect(() => {
+        if (status !== 'done') return;
+        // eslint-disable-next-line react-hooks/set-state-in-effect
+        setNow(Date.now());
+        const t = setInterval(() => setNow(Date.now()), 1000);
+        return () => clearInterval(t);
+    }, [status]);
+
+    const run = () => {
+        setStatus('loading'); setErr(null);
+        apiService.exportBackupForReset()
+            .then(res => { setInfo(res); setStatus('done'); onReceipt(res); })
+            .catch(e => { setErr(e.message); setStatus('error'); });
+    };
+
+    const secsLeft = info && now ? Math.max(0, Math.round((info.expiresAt - now) / 1000)) : 600;
+    const expired = info && secsLeft <= 0;
+
+    return (
+        <div className="layer-1" style={{padding: '18px 20px', marginTop: 12}}>
+            <div style={{display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 10}}>
+                <div style={{fontFamily: 'var(--font-heading)', fontSize: 14, fontWeight: 600, color: 'var(--ink-00)'}}>Step 2 · Export backup (required)</div>
+                {status !== 'done' && status !== 'loading' && <button onClick={run} className="du3-cta primary" style={{height: 28, padding: '0 12px', fontSize: 12}}>Export backup</button>}
+            </div>
+            <div style={{fontSize: 12.5, color: 'var(--ink-40)', marginBottom: status === 'idle' ? 0 : 10}}>Reset cannot proceed without a fresh backup receipt — there is no bypass.</div>
+            {status === 'loading' && <div style={{display: 'flex', alignItems: 'center', gap: 8, color: 'var(--ink-40)', fontSize: 12.5}}><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" style={{animation: 'spin 0.9s linear infinite'}}><circle cx="12" cy="12" r="9" strokeDasharray="40 80"/></svg>Preparing backup…</div>}
+            {status === 'error' && <div style={{padding: '10px 14px', borderRadius: 8, background: 'rgba(209,107,107,0.08)', border: '1px solid rgba(209,107,107,0.22)', fontSize: 12.5, color: 'var(--crimson-400)'}}>⚠ {err} <button onClick={run} className="du3-cta ghost" style={{height: 24, padding: '0 8px', fontSize: 11, marginLeft: 6}}>Retry</button></div>}
+            {status === 'done' && info && (
+                <div style={{display: 'flex', alignItems: 'center', gap: 10, padding: '9px 13px', borderRadius: 7, background: expired ? 'rgba(209,107,107,0.07)' : 'rgba(111,174,136,0.07)', border: '1px solid ' + (expired ? 'rgba(209,107,107,0.25)' : 'rgba(111,174,136,0.25)')}}>
+                    <span style={{color: expired ? 'var(--crimson-500)' : 'var(--sage-500)'}}>{expired ? '⚠' : '✓'}</span>
+                    <div style={{flex: 1, fontSize: 12.5, color: expired ? 'var(--crimson-400)' : 'var(--ink-10)'}}>
+                        {expired ? 'Backup receipt expired — export again to continue.' : <>Backup downloaded — <span style={{fontFamily: 'var(--font-mono)'}}>{info.filename}</span></>}
+                    </div>
+                    {!expired && <span style={{fontFamily: 'var(--font-mono)', fontSize: 11, color: 'var(--ink-40)'}}>receipt expires in {Math.floor(secsLeft / 60)}:{String(secsLeft % 60).padStart(2, '0')}</span>}
+                </div>
+            )}
+        </div>
+    );
+};
+
+const DZConfirm = ({mode, scopes, onExecute, executing}) => {
+    const [phrase, setPhrase] = useState('');
+    const [ack, setAck] = useState(false);
+    const required = mode === 'full' ? 'DELETE ALL DATA' : 'DELETE ' + scopes.map(s => SCOPE_LABEL[s].toUpperCase()).join(', ');
+    const valid = phrase === required && ack;
+
+    return (
+        <div className="layer-1" style={{padding: '18px 20px', marginTop: 12, borderColor: 'rgba(209,107,107,0.22)'}}>
+            <div style={{fontFamily: 'var(--font-heading)', fontSize: 14, fontWeight: 600, color: 'var(--ink-00)', marginBottom: 10}}>Step 3 · Confirm</div>
+            <div style={{fontSize: 12.5, color: 'var(--ink-40)', marginBottom: 12, lineHeight: 1.55}}>
+                Type <span style={{fontFamily: 'var(--font-mono)', color: 'var(--crimson-400)', fontWeight: 600}}>{required}</span> to confirm.
+            </div>
+            <input value={phrase} onChange={e => setPhrase(e.target.value)} placeholder={required}
+                style={{...settingInputStyle, marginBottom: 12, borderColor: 'rgba(209,107,107,0.30)', fontFamily: 'var(--font-mono)'}}/>
+            <label style={{display: 'flex', alignItems: 'flex-start', gap: 9, marginBottom: 16, cursor: 'pointer'}}>
+                <input type="checkbox" checked={ack} onChange={e => setAck(e.target.checked)} style={{marginTop: 2, accentColor: 'var(--crimson-500)'}}/>
+                <span style={{fontSize: 12.5, color: 'var(--ink-20)', lineHeight: 1.5}}>I understand this is irreversible and the selected data cannot be recovered without the exported backup.</span>
+            </label>
+            <button onClick={onExecute} disabled={!valid || executing} className="du3-cta"
+                style={{height: 36, padding: '0 18px', background: valid ? 'rgba(209,107,107,0.16)' : 'rgba(255,255,255,0.04)', border: '1px solid ' + (valid ? 'rgba(209,107,107,0.45)' : 'rgba(255,255,255,0.08)'), color: valid ? 'var(--crimson-500)' : 'var(--ink-40)', fontWeight: 600, display: 'inline-flex', alignItems: 'center', gap: 8}}>
+                {executing && <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" style={{animation: 'spin 0.9s linear infinite'}}><circle cx="12" cy="12" r="9" strokeDasharray="40 80"/></svg>}
+                {executing ? 'Resetting…' : (mode === 'full' ? 'Execute full wipe' : 'Execute selective clear')}
+            </button>
+        </div>
+    );
+};
+
+// Real POST /reset returns {status:"success", cleared:{scope:{..._cleared, warning?}}}
+// on 200 only — a failure is a thrown error with no partial per-scope payload
+// (the backend isn't atomic across scopes, but it also doesn't report which
+// scope got applied before failing, so that limitation is disclosed via
+// `nonAtomicNotice`, not fabricated as per-scope ok/fail).
+const DZResult = ({result, error, nonAtomicNotice, onDone}) => (
+    <div className="layer-1" style={{padding: '18px 20px', marginTop: 12}}>
+        <div style={{fontFamily: 'var(--font-heading)', fontSize: 14, fontWeight: 600, color: 'var(--ink-00)', marginBottom: 12}}>Result</div>
+        {error && (
+            <div style={{padding: '12px 14px', borderRadius: 8, background: 'rgba(209,107,107,0.08)', border: '1px solid rgba(209,107,107,0.22)', fontSize: 12.5, color: 'var(--crimson-400)', marginBottom: 14}}>
+                <div>⚠ {error}</div>
+                {nonAtomicNotice && <div style={{marginTop: 6, color: 'var(--dusk-500)'}}>{nonAtomicNotice}</div>}
+            </div>
+        )}
+        {result && (
+            <>
+                <div style={{display: 'flex', alignItems: 'center', gap: 9, padding: '9px 13px', borderRadius: 7, marginBottom: 14, background: 'rgba(111,174,136,0.07)', border: '1px solid rgba(111,174,136,0.25)'}}>
+                    <span style={{color: 'var(--sage-500)'}}>✓</span>
+                    <span style={{fontSize: 12.5, color: 'var(--ink-10)'}}>All selected scopes cleared successfully.</span>
+                </div>
+                <div style={{display: 'flex', flexDirection: 'column', gap: 10}}>
+                    {Object.entries(result.cleared).map(([scope, c]) => (
+                        <div key={scope} style={{padding: '12px 14px', borderRadius: 8, background: 'rgba(255,255,255,0.02)', border: '1px solid rgba(255,255,255,0.06)'}}>
+                            <div style={{display: 'flex', alignItems: 'center', gap: 8, marginBottom: 6}}>
+                                <span style={{color: 'var(--sage-500)', fontSize: 12}}>✓</span>
+                                <span style={{fontSize: 13, fontWeight: 600, color: 'var(--ink-00)'}}>{SCOPE_LABEL[scope]}</span>
+                            </div>
+                            {Object.entries(c).filter(([k]) => k !== 'warning').map(([k, v]) => (
+                                <DZCountRow key={k} label={fieldLabel(k)} value={v}/>
+                            ))}
+                            {scope === 'portfolio' && c.warning && <DZWarning>{c.warning}</DZWarning>}
+                        </div>
+                    ))}
+                </div>
+            </>
+        )}
+        <button onClick={onDone} className="du3-cta ghost" style={{height: 32, padding: '0 14px', fontSize: 12.5, marginTop: 16}}>Done</button>
+    </div>
+);
+
+function DangerZoneSection() {
+    const [mode, setMode] = useState(null); // null | 'full' | 'selective'
+    const [scopes, setScopes] = useState([]);
+    const [previewCounts, setPreviewCounts] = useState(null);
+    const [receiptState, setReceiptState] = useState(null); // {receipt, filename, expiresAt}
+    const [executing, setExecuting] = useState(false);
+    const [result, setResult] = useState(null);
+    const [execError, setExecError] = useState(null);
+    const [nonAtomicNotice, setNonAtomicNotice] = useState(null);
+
+    const startFull = () => { reset(); setMode('full'); setScopes(ALL_SCOPE_IDS); };
+    const startSelective = () => { reset(); setMode('selective'); setScopes([]); };
+    const reset = () => {
+        setMode(null); setScopes([]); setPreviewCounts(null); setReceiptState(null);
+        setResult(null); setExecError(null); setNonAtomicNotice(null);
+    };
+
+    const execute = () => {
+        setExecuting(true); setExecError(null); setNonAtomicNotice(null);
+        apiService.executeReset(scopes, receiptState?.receipt)
+            .then(res => setResult(res))
+            .catch(e => {
+                // A single-use receipt is consumed as soon as it's validated,
+                // before the actual delete runs — so any failure past that
+                // point means the receipt is dead either way. Force a fresh
+                // export before letting the user retry.
+                setReceiptState(null);
+                const msg = e.message || '';
+                // Scope validation and receipt checks both happen before any
+                // delete runs, so those failures can't have partially cleared
+                // anything — only surface the non-atomicity notice for errors
+                // that could follow the point of no return (lock conflicts,
+                // an actual failure mid-scope).
+                const isPreDeleteError = /receipt|unknown reset scope/i.test(msg);
+                if (isInProgressMessage(msg)) {
+                    setExecError('A reset is already in progress — try again once it completes.');
+                } else {
+                    setExecError(msg);
+                    if (!isPreDeleteError) {
+                        setNonAtomicNotice('Scopes are cleared one at a time and this reset is not atomic — some may have already been cleared before this error. Re-run Preview to check current counts, then export a new backup to retry.');
+                    }
+                }
+            })
+            .finally(() => setExecuting(false));
+    };
+
+    return (
+        <section className="layer-1" style={{padding: 0}}>
+            <div style={{padding: 24}}>
+                <SettingSectionHead
+                    icon={<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><path d="M10.3 3.9 1.8 18a2 2 0 0 0 1.7 3h17a2 2 0 0 0 1.7-3L13.7 3.9a2 2 0 0 0-3.4 0Z"/><line x1="12" y1="9" x2="12" y2="13"/><circle cx="12" cy="17" r=".5" fill="currentColor"/></svg>}
+                    title="Danger Zone"
+                    desc="Irreversible data resets — every path requires a fresh backup and typed confirmation"
+                />
+
+                <div style={{display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 14}}>
+                    <div style={{padding: '16px 18px', borderRadius: 10, background: 'rgba(209,107,107,0.04)', border: '1px solid rgba(209,107,107,0.18)'}}>
+                        <div style={{fontFamily: 'var(--font-heading)', fontSize: 14, fontWeight: 600, color: 'var(--ink-00)', marginBottom: 5}}>Full data wipe</div>
+                        <div style={{fontSize: 12, color: 'var(--ink-40)', lineHeight: 1.55, marginBottom: 12}}>Clears all five scopes — portfolio, watchlists, AI history, recommendation history, and custom themes.</div>
+                        <button onClick={startFull} className="du3-cta" style={{height: 32, padding: '0 14px', fontSize: 12.5, background: 'rgba(209,107,107,0.12)', border: '1px solid rgba(209,107,107,0.32)', color: 'var(--crimson-500)'}}>Start full wipe</button>
+                    </div>
+                    <div style={{padding: '16px 18px', borderRadius: 10, background: 'rgba(255,255,255,0.02)', border: '1px solid rgba(255,255,255,0.07)'}}>
+                        <div style={{fontFamily: 'var(--font-heading)', fontSize: 14, fontWeight: 600, color: 'var(--ink-00)', marginBottom: 5}}>Selective clear</div>
+                        <div style={{fontSize: 12, color: 'var(--ink-40)', lineHeight: 1.55, marginBottom: 12}}>Choose exactly which scopes to clear, leaving everything else untouched.</div>
+                        <button onClick={startSelective} className="du3-cta ghost" style={{height: 32, padding: '0 14px', fontSize: 12.5}}>Start selective clear</button>
+                    </div>
+                </div>
+
+                {mode && !result && (
+                    <>
+                        {mode === 'selective' && <DZScopePicker mode={mode} scopes={scopes} setScopes={setScopes} onCancel={reset}/>}
+                        {mode === 'full' && (
+                            <div className="layer-1" style={{padding: '14px 18px', marginTop: 14, display: 'flex', alignItems: 'center', justifyContent: 'space-between'}}>
+                                <div style={{fontSize: 12.5, color: 'var(--ink-20)'}}>All scopes selected: {RESET_SCOPES.map(s => s.label).join(', ')}</div>
+                                <button onClick={reset} className="du3-cta ghost" style={{height: 26, padding: '0 10px', fontSize: 11.5}}>Cancel</button>
+                            </div>
+                        )}
+
+                        {scopes.length > 0 && <DZPreview key={`preview-${scopes.join(',')}`} scopes={scopes} onReady={setPreviewCounts}/>}
+                        {previewCounts && <DZBackup key={`backup-${scopes.join(',')}`} onReceipt={setReceiptState}/>}
+                        {previewCounts && receiptState && <DZConfirm mode={mode} scopes={scopes} onExecute={execute} executing={executing}/>}
+                    </>
+                )}
+
+                {(result || execError) && <DZResult result={result} error={execError} nonAtomicNotice={nonAtomicNotice} onDone={reset}/>}
             </div>
         </section>
     );
@@ -1225,14 +1321,12 @@ export default function Settings() {
             case 'portfolio-mgmt': return <PortfolioManagementSection/>;
             case 'alloc-targets':  return <AllocationTargetsSection/>;
             case 'provider-list':  return <ProviderConfig onNavigate={handleNav}/>;
-            case 'api-keys':       return <ApiKeysSection onNavigate={handleNav}/>;
-            case 'conn-status':    return <ConnectionStatusSection/>;
             case 'job-status':     return <JobConfig/>;
-            case 'manual-run':     return <ManualRunSection/>;
             case 'job-history':    return <JobHistorySection/>;
             case 'export':         return <ExportSection/>;
             case 'restore':        return <RestoreSection/>;
             case 'monitoring':     return <MonitoringSection/>;
+            case 'danger-zone':    return <DangerZoneSection/>;
             default:               return <ProfileSection/>;
         }
     };

@@ -1,4 +1,4 @@
-import React, {useEffect, useState, useCallback} from 'react';
+import React, {useEffect, useState, useCallback, useRef} from 'react';
 import {toast} from 'react-hot-toast';
 import {apiService} from '@/api/apiService';
 
@@ -43,6 +43,35 @@ const inputStyle = {
     color: 'var(--ink-10)', fontSize: 13, fontFamily: 'var(--font-mono)', outline: 'none',
     boxSizing: 'border-box',
 };
+
+const parseKeyNames = (rawKeys) => Array.isArray(rawKeys) ? rawKeys
+    : (typeof rawKeys === 'string' && rawKeys) ? rawKeys.split(',').map(s => s.trim()).filter(Boolean)
+    : [];
+
+// Condensed per-provider summary chip — folds in what the old standalone
+// ApiKeysSection (key-name dots) and ConnectionStatusSection (connected/
+// keys-missing status) showed, without their separate panels/headers.
+function ProviderSummaryChip({provider}) {
+    const keyNames = parseKeyNames(provider.key_names);
+    const keysStatus = provider.keys_status || {};
+    const setCount = keyNames.filter(k => keysStatus[k]).length;
+    const allSet = setCount === keyNames.length;
+    const statusColor = !provider.enabled ? 'var(--ink-40)'
+        : allSet ? 'var(--sage-500)' : setCount > 0 ? 'var(--dusk-500)' : 'var(--crimson-500)';
+
+    return (
+        <div style={{display: 'flex', alignItems: 'center', gap: 7, padding: '5px 10px', borderRadius: 999, background: 'rgba(255,255,255,0.025)', border: '1px solid rgba(255,255,255,0.06)'}}>
+            <span style={{width: 6, height: 6, borderRadius: 999, background: statusColor, flexShrink: 0}}/>
+            <span style={{fontSize: 11.5, color: 'var(--ink-10)', fontWeight: 500}}>{provider.provider_name}</span>
+            <span style={{fontFamily: 'var(--font-mono)', fontSize: 10.5}}>
+                {keyNames.map(k => (
+                    <span key={k} style={{color: keysStatus[k] ? 'var(--sage-500)' : 'var(--crimson-500)', marginLeft: 2}}>{keysStatus[k] ? '●' : '○'}</span>
+                ))}
+            </span>
+            <span style={{fontSize: 10.5, color: statusColor, fontWeight: 600}}>{setCount}/{keyNames.length}</span>
+        </div>
+    );
+}
 
 /* EPF interest rates (EPF_ESTIMATE_SCOPE.md §4) are maintained manually — EPFO
    publishes no rate API — via this provider's `config.rates` blob
@@ -397,6 +426,92 @@ function SyncStatusRow({syncEntry, onSync, onConnect, onGoToImport}) {
     );
 }
 
+// One-time, resumable full-history Spot trade backfill for Binance (see
+// PortfolioService.backfill_binance_spot / POST .../sync/binance/backfill).
+// Separate from the regular "Sync now" cadence above — this walks the entire
+// account history via fromId pagination rather than a bounded since-last-sync
+// call, so it gets its own trigger + progress readout instead of living on
+// the generic job-run path (which has no portfolio_id to give it).
+export function BinanceBackfillRow() {
+    const [status, setStatus] = useState('idle'); // idle | loading | running | done | error
+    const [progress, setProgress] = useState(null);
+    const [err, setErr] = useState(null);
+    const pollRef = useRef(null);
+
+    const fetchStatus = useCallback(async () => {
+        try {
+            const res = await apiService.getBinanceBackfillStatus();
+            setProgress(res);
+            if (res.symbols_total > 0 && res.symbols_done < res.symbols_total) {
+                setStatus('running');
+            } else if (res.symbols_total > 0) {
+                setStatus(s => (s === 'loading' ? s : 'done'));
+            }
+            return res;
+        } catch {
+            return null;
+        }
+    }, []);
+
+    useEffect(() => { fetchStatus(); }, [fetchStatus]);
+
+    useEffect(() => {
+        if (status !== 'running') return undefined;
+        pollRef.current = setInterval(fetchStatus, 5000);
+        return () => clearInterval(pollRef.current);
+    }, [status, fetchStatus]);
+
+    const handleTrigger = async () => {
+        setStatus('loading'); setErr(null);
+        try {
+            await apiService.triggerBinanceBackfill();
+            toast.success('Binance Spot backfill queued.');
+            await fetchStatus();
+            setStatus(s => (s === 'loading' ? 'running' : s));
+        } catch (e) {
+            // A duplicate dispatch while one is already in flight isn't a real
+            // failure — fall back to polling the existing run's progress.
+            if (/already running/i.test(e.message || '')) {
+                toast('Backfill is already running — showing live progress.');
+                setStatus('running');
+                fetchStatus();
+                return;
+            }
+            setErr(e.message);
+            setStatus('error');
+            toast.error(e.message || 'Failed to trigger backfill.');
+        }
+    };
+
+    const busy = status === 'loading' || status === 'running';
+    const dot = status === 'error' ? 'var(--crimson-500)'
+        : status === 'running' ? 'var(--aurum-100)'
+        : status === 'done' ? 'var(--sage-500)'
+        : 'var(--ink-40)';
+
+    const text = status === 'error' ? (err || 'Backfill failed')
+        : status === 'running' && progress
+            ? `Backfilling… ${progress.symbols_done}/${progress.symbols_total} symbols · ${progress.trades_imported} trades imported`
+            : status === 'done' && progress
+                ? `Full history backfilled · ${progress.symbols_total} symbols · ${progress.trades_imported} trades imported`
+                : 'Spot only — walks full account trade history, resumable if interrupted';
+
+    return (
+        <div style={{display: 'flex', alignItems: 'center', gap: 10, padding: '6px 18px 10px', fontSize: 11.5}}>
+            <span style={{display: 'inline-flex', alignItems: 'center', gap: 5, color: status === 'idle' ? 'var(--ink-40)' : dot}}>
+                <span style={{width: 6, height: 6, borderRadius: 999, background: dot, flexShrink: 0}}/>
+                {text}
+            </span>
+            <button
+                onClick={handleTrigger} disabled={busy}
+                className="du3-cta ghost"
+                style={{marginLeft: 'auto', height: 24, padding: '0 10px', fontSize: 11}}>
+                {status === 'loading' ? 'Queuing…' : status === 'running' ? 'Running…' : status === 'done' ? 'Re-run backfill' : 'Backfill full trade history'}
+            </button>
+        </div>
+    );
+}
+
 // A provider "needs attention" — no API key/config to set at all — when it has
 // no credential fields and isn't the one provider (epf_interest_rates) with a
 // real config editor. These are filtered out of the main grouped view since a
@@ -535,19 +650,27 @@ export default function ProviderConfig({onNavigate}) {
     Object.values(grouped).forEach(list => list.sort((a, b) => actionableRank(a, health[a.provider_name]) - actionableRank(b, health[b.provider_name])));
 
     const connected = providers.filter(p => p.enabled).length;
+    const withKeys = providers.filter(p => parseKeyNames(p.key_names).length > 0);
 
     return (
         <section className="layer-1" style={{padding: 0, overflow: 'hidden'}}>
-            <div style={{padding: '14px 18px', borderBottom: '1px solid rgba(255,255,255,0.06)', display: 'flex', alignItems: 'center', justifyContent: 'space-between'}}>
-                <div>
-                    <div style={{fontFamily: 'var(--font-heading)', fontSize: 14, fontWeight: 600, color: 'var(--ink-00)'}}>
-                        Connected providers
+            <div style={{padding: '14px 18px', borderBottom: '1px solid rgba(255,255,255,0.06)'}}>
+                <div style={{display: 'flex', alignItems: 'center', justifyContent: 'space-between'}}>
+                    <div>
+                        <div style={{fontFamily: 'var(--font-heading)', fontSize: 14, fontWeight: 600, color: 'var(--ink-00)'}}>
+                            Connected providers
+                        </div>
+                        <div style={{fontSize: 11.5, color: 'var(--ink-30)', marginTop: 2}}>
+                            API keys are encrypted at rest. {connected} of {providers.length} active.
+                        </div>
                     </div>
-                    <div style={{fontSize: 11.5, color: 'var(--ink-30)', marginTop: 2}}>
-                        API keys are encrypted at rest. {connected} of {providers.length} active.
-                    </div>
+                    <button onClick={load} className="du3-cta ghost">Refresh</button>
                 </div>
-                <button onClick={load} className="du3-cta ghost">Refresh</button>
+                {!loading && withKeys.length > 0 && (
+                    <div style={{display: 'flex', flexWrap: 'wrap', gap: 7, marginTop: 13}}>
+                        {withKeys.map(p => <ProviderSummaryChip key={p.provider_name} provider={p}/>)}
+                    </div>
+                )}
             </div>
 
             {loading ? (
@@ -568,6 +691,7 @@ export default function ProviderConfig({onNavigate}) {
                                         <ProviderRow provider={p} onToggle={handleToggle} onSetKey={handleSetKey} onRemoveKey={handleRemoveKey}
                                             onSaveConfig={handleSaveConfig} health={health[p.provider_name]} onCheckHealth={handleCheckHealth}/>
                                         {syncEntry && <SyncStatusRow syncEntry={syncEntry} onSync={handleBrokerSync} onConnect={handleBrokerConnect} onGoToImport={() => onNavigate?.('import-data')}/>}
+                                        {p.provider_name.toLowerCase() === 'binance' && <BinanceBackfillRow/>}
                                     </div>
                                 );
                             })}

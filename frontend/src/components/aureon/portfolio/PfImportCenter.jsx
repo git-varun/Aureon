@@ -182,17 +182,17 @@ export function PfImportCenter() {
           {tab === 'nps' && (
             <div style={{ display:'flex', flexDirection:'column', gap:14 }}>
               <p style={{ margin:0, fontSize:13, color:'var(--ink-30)', lineHeight:1.6, maxWidth:540 }}>
-                Upload your NPS (National Pension System) statement PDF. Aureon extracts scheme-wise holdings and contribution history automatically.
+                Upload your NPS (National Pension System) statement (CSV, Excel, or PDF). Aureon extracts scheme-wise holdings and contribution history automatically.
               </p>
               <div
                 onDragOver={e => e.preventDefault()}
                 onDrop={e => { e.preventDefault(); const f = e.dataTransfer.files[0]; if (f) { setNpsFile(f); setNpsSt('idle'); } }}
                 onClick={() => npsInputRef.current?.click()}
                 style={{ border:'2px dashed rgba(255,255,255,0.12)', borderRadius:10, padding:'28px 20px', textAlign:'center', cursor:'pointer', background:'rgba(255,255,255,0.01)', transition:'all 160ms' }}>
-                <input ref={npsInputRef} type="file" accept=".pdf" style={{ display:'none' }} onChange={e => { const f = e.target.files[0]; if (f) { setNpsFile(f); setNpsSt('idle'); e.target.value = ''; } }}/>
+                <input ref={npsInputRef} type="file" accept=".csv,.xlsx,.xls,.pdf" style={{ display:'none' }} onChange={e => { const f = e.target.files[0]; if (f) { setNpsFile(f); setNpsSt('idle'); e.target.value = ''; } }}/>
                 {npsFile
                   ? <><div style={{ fontSize:13, color:'var(--ink-20)', fontWeight:500, marginBottom:4 }}>{npsFile.name}</div><div style={{ fontSize:11.5, color:'var(--ink-50)' }}>{(npsFile.size / 1024).toFixed(1)} KB — click to replace</div></>
-                  : <><div style={{ fontSize:13, color:'var(--ink-20)', marginBottom:4 }}>Drag &amp; drop PDF or click to browse</div><div style={{ fontSize:11.5, color:'var(--ink-50)' }}>NPS statement (.pdf)</div></>
+                  : <><div style={{ fontSize:13, color:'var(--ink-20)', marginBottom:4 }}>Drag &amp; drop or click to browse</div><div style={{ fontSize:11.5, color:'var(--ink-50)' }}>NPS statement (.csv, .xlsx, .xls, .pdf)</div></>
                 }
               </div>
               {npsState === 'done' && <div style={{ fontSize:13, color:'var(--sage-500)', fontWeight:500 }}>✓ Imported — {npsResult?.holdings_imported ?? 0} holdings processed</div>}

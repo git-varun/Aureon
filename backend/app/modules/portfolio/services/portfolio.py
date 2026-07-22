@@ -1054,13 +1054,15 @@ class PortfolioService(BaseService):
         self,
         portfolio_id: uuid.UUID,
         file_bytes: bytes,
+        filename: str = "import.csv",
     ) -> Dict[str, Any]:
         # Validate portfolio exists
         self.get_portfolio(portfolio_id)
 
+        ext = filename.split(".")[-1].lower() if "." in filename else "csv"
         from app.modules.portfolio.services.portfolio_importer import parse_nps_statement
         try:
-            holdings, rows, summary = parse_nps_statement(file_bytes)
+            holdings, rows, summary = parse_nps_statement(file_bytes, ext=ext)
         except Exception as e:
             raise ValidationError(str(e))
 

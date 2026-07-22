@@ -583,6 +583,7 @@ async def import_nps_statement(
         return service.import_nps_statement(
             portfolio_id=portfolio_id,
             file_bytes=content,
+            filename=file.filename or "import.csv",
         )
     except ValidationError as e:
         raise HTTPException(status_code=400, detail=str(e))
