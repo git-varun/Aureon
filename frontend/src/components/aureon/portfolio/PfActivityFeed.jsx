@@ -9,7 +9,7 @@ const TXN_STYLE = {
 };
 
 export function PfActivityFeed({ txns, onViewAll }) {
-  const rows = (txns || []).slice(0, 8);
+  const rows = txns || [];
   if (!rows.length) return (
     <div style={{ padding:'40px 24px', textAlign:'center', border:'1px dashed rgba(255,255,255,0.10)', borderRadius:12, background:'rgba(255,255,255,0.012)' }}>
       <div style={{ fontFamily:'var(--font-heading)', fontSize:15, fontWeight:600, color:'var(--ink-20)', marginBottom:6 }}>No activity</div>
@@ -22,6 +22,7 @@ export function PfActivityFeed({ txns, onViewAll }) {
         <span style={{ fontFamily:'var(--font-heading)', fontSize:14, fontWeight:600, color:'var(--ink-10)' }}>Recent transactions</span>
         {onViewAll && <button onClick={onViewAll} className="du3-cta ghost" style={{ fontSize:11.5, padding:'0 8px', height:26 }}>Full ledger →</button>}
       </div>
+      <div style={{ maxHeight:400, overflowY:'auto' }}>
       {rows.map((t, idx) => {
         const txnType = (t.transaction_type || t.type || 'BUY').toUpperCase();
         const s = TXN_STYLE[txnType] || TXN_STYLE.BUY;
@@ -48,6 +49,7 @@ export function PfActivityFeed({ txns, onViewAll }) {
           </div>
         );
       })}
+      </div>
     </div>
   );
 }

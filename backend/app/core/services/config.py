@@ -10,7 +10,7 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from app.core.config import settings
-from app.core.exceptions import ConfigurationError, ConflictError, InfrastructureError, NotFoundError
+from app.core.exceptions import ConfigurationError, ConflictError, InfrastructureError, NotFoundError, ValidationError
 from app.core.logging import logger
 from app.core.entities.config import (
     AllocationTarget,
@@ -604,6 +604,13 @@ class ConfigService(BaseService):
         "backfill_binance_spot": "binance",
     }
 
+    # Jobs whose task needs a portfolio_id that only a portfolio-scoped caller
+    # (e.g. POST /portfolios/{id}/sync/binance/backfill) can supply — the
+    # generic "run this job" path (POST /config/jobs/{job_name}/run) has no
+    # portfolio to pass, so reject it here instead of dispatching a task that's
+    # guaranteed to fail on the worker.
+    _REQUIRES_PORTFOLIO_ID: frozenset[str] = frozenset({"backfill_binance_spot"})
+
     # Dispatch-time concurrency guard TTL, per job — the only jobs dispatch_job
     # gates and the double-click ("Sync Now") scenario this guards against. Real
     # full-cycle (queue-to-completion) durations measured via TaskRun on
@@ -639,6 +646,13 @@ class ConfigService(BaseService):
             if log_id is not None:
                 self.log_job_end(log_id, JobStatus.FAILED, error=message)
             raise ConflictError(message)
+
+        if job_name in self._REQUIRES_PORTFOLIO_ID and not (extra_kwargs or {}).get("portfolio_id"):
+            message = f"Job '{job_name}' requires a portfolio_id — trigger it from its portfolio-scoped endpoint instead"
+            logger.warning(message)
+            if log_id is not None:
+                self.log_job_end(log_id, JobStatus.FAILED, error=message)
+            raise ValidationError(message)
 
         required_provider = self._PROVIDER_REQUIRED_JOBS.get(job_name)
         if required_provider:

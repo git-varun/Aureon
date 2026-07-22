@@ -121,7 +121,7 @@ const TxnSelect = ({ label, value, onChange, options }) => {
   );
 };
 
-function FilterBar({ q, setQ, fDate, setFDate, fClass, setFClass, fType, setFType, classes, dirty, onClear }) {
+function FilterBar({ q, setQ, fDate, setFDate, fClass, setFClass, fType, setFType, fSource, setFSource, fBroker, setFBroker, classes, sources, brokers, dirty, onClear }) {
   return (
     <div style={{ display:'flex', gap:8, flexWrap:'wrap', alignItems:'center', marginBottom:14 }}>
       <div style={{ position:'relative', flex:'1 1 180px', minWidth:180 }}>
@@ -139,8 +139,10 @@ function FilterBar({ q, setQ, fDate, setFDate, fClass, setFClass, fType, setFTyp
         <span style={{ color:'var(--ink-50)', fontSize:11, flexShrink:0 }}>–</span>
         <input type="date" value={fDate.to} onChange={e => setFDate(d => ({...d, to:e.target.value}))} style={{ background:'transparent', border:'none', color:fDate.to?'var(--ink-10)':'var(--ink-40)', fontSize:12, outline:'none', colorScheme:'dark', width:105, cursor:'pointer', fontFamily:'var(--font-mono)' }}/>
       </div>
-      <TxnSelect label="Class" value={fClass} onChange={setFClass} options={['All', ...classes]}/>
-      <TxnSelect label="Type"  value={fType}  onChange={setFType}  options={['All', ...ALL_TYPES]}/>
+      <TxnSelect label="Class"  value={fClass}  onChange={setFClass}  options={['All', ...classes]}/>
+      <TxnSelect label="Type"   value={fType}   onChange={setFType}   options={['All', ...ALL_TYPES]}/>
+      <TxnSelect label="Source" value={fSource} onChange={setFSource} options={['All', ...sources]}/>
+      {brokers.length > 0 && <TxnSelect label="Broker" value={fBroker} onChange={setFBroker} options={['All', ...brokers]}/>}
       {dirty && <button onClick={onClear} className="du3-cta ghost" style={{ height:36, padding:'0 12px', fontSize:12, color:'var(--aurum-300)', flexShrink:0 }}>Clear</button>}
     </div>
   );
@@ -634,12 +636,14 @@ function TransactionsLedger({ txns, isLoading, isError, refetch, onAdd, onMutate
   const [fDate, setFDate]   = useState({ from:'', to:'' });
   const [fClass, setFClass] = useState('All');
   const [fType, setFType]   = useState('All');
+  const [fSource, setFSource] = useState('All');
+  const [fBroker, setFBroker] = useState('All');
   const [drawer, setDrawer] = useState(null);  // null | 'create' | txnObj
   const [confirm, setConfirm] = useState(null);
   const [deleting, setDeleting] = useState(false);
   const [visibleCount, setVisibleCount] = useState(25);
   const [prevFilterSig, setPrevFilterSig] = useState('');
-  const filterSig = `${q}|${fDate.from}|${fDate.to}|${fClass}|${fType}`;
+  const filterSig = `${q}|${fDate.from}|${fDate.to}|${fClass}|${fType}|${fSource}|${fBroker}`;
   if (prevFilterSig !== filterSig) {
     setPrevFilterSig(filterSig);
     setVisibleCount(25);
@@ -650,21 +654,33 @@ function TransactionsLedger({ txns, isLoading, isError, refetch, onAdd, onMutate
     return [...s].sort();
   }, [txns]);
 
-  const dirty = !!(q || fDate.from || fDate.to || fClass !== 'All' || fType !== 'All');
-  const clearFilters = useCallback(() => { setQ(''); setFDate({from:'',to:''}); setFClass('All'); setFType('All'); }, []);
+  const sources = useMemo(() => {
+    const s = new Set(txns.map(deriveSource));
+    return [...s].sort();
+  }, [txns]);
+
+  const brokers = useMemo(() => {
+    const s = new Set(txns.map(t => t.broker).filter(Boolean));
+    return [...s].sort();
+  }, [txns]);
+
+  const dirty = !!(q || fDate.from || fDate.to || fClass !== 'All' || fType !== 'All' || fSource !== 'All' || fBroker !== 'All');
+  const clearFilters = useCallback(() => { setQ(''); setFDate({from:'',to:''}); setFClass('All'); setFType('All'); setFSource('All'); setFBroker('All'); }, []);
 
   const filtered = useMemo(() => {
     const ql = q.trim().toLowerCase();
     return txns.filter(t => {
       if (fClass !== 'All' && normKind(t.kind) !== fClass) return false;
       if (fType !== 'All' && displayType(t.transaction_type) !== fType) return false;
+      if (fSource !== 'All' && deriveSource(t) !== fSource) return false;
+      if (fBroker !== 'All' && t.broker !== fBroker) return false;
       const date = txnDate(t);
       if (fDate.from && date < fDate.from) return false;
       if (fDate.to   && date > fDate.to)   return false;
       if (ql && !(t.symbol||'').toLowerCase().includes(ql)) return false;
       return true;
     });
-  }, [txns, q, fDate, fClass, fType]);
+  }, [txns, q, fDate, fClass, fType, fSource, fBroker]);
 
   const handleDelete = async () => {
     if (!confirm || deleting) return;
@@ -689,7 +705,7 @@ function TransactionsLedger({ txns, isLoading, isError, refetch, onAdd, onMutate
   return (
     <>
       <StatBar filtered={filtered} total={txns.length} loaded={!isLoading && !isError}/>
-      <FilterBar q={q} setQ={setQ} fDate={fDate} setFDate={setFDate} fClass={fClass} setFClass={setFClass} fType={fType} setFType={setFType} classes={classes} dirty={dirty} onClear={clearFilters}/>
+      <FilterBar q={q} setQ={setQ} fDate={fDate} setFDate={setFDate} fClass={fClass} setFClass={setFClass} fType={fType} setFType={setFType} fSource={fSource} setFSource={setFSource} fBroker={fBroker} setFBroker={setFBroker} classes={classes} sources={sources} brokers={brokers} dirty={dirty} onClear={clearFilters}/>
 
       <div className="layer-1" style={{ padding:0, overflow:'hidden' }}>
         <LedgerHead/>
@@ -782,13 +798,13 @@ export default function Transactions() {
           <h1 style={{ fontFamily:'var(--font-heading)', fontSize:24, fontWeight:700, color:'var(--ink-00)', margin:0, letterSpacing:'-0.02em' }}>Transactions</h1>
         </div>
         <div style={{ display:'flex', gap:8, alignItems:'center' }}>
-          <button onClick={() => navigate('/settings#import-data')} style={{ height:36, padding:'0 14px', borderRadius:7, fontSize:12.5, background:'rgba(255,255,255,0.03)', border:'1px solid rgba(255,255,255,0.08)', color:'var(--ink-20)', cursor:'pointer', fontFamily:'var(--font-ui)', display:'inline-flex', alignItems:'center', gap:6 }}>
-            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>
-            Import CSV
-          </button>
           <button onClick={() => setShowDrawer(true)} className="du3-cta" style={{ height:36, padding:'0 16px', display:'inline-flex', alignItems:'center', gap:7, background:'rgba(201,168,106,0.14)', border:'1px solid rgba(201,168,106,0.35)', color:'var(--aurum-100)', cursor:'pointer' }}>
             <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round"><path d="M12 5v14M5 12h14"/></svg>
             New transaction
+          </button>
+          <button onClick={() => navigate('/settings#import-data')} style={{ height:36, padding:'0 14px', borderRadius:7, fontSize:12.5, background:'rgba(255,255,255,0.03)', border:'1px solid rgba(255,255,255,0.08)', color:'var(--ink-20)', cursor:'pointer', fontFamily:'var(--font-ui)', display:'inline-flex', alignItems:'center', gap:6 }}>
+            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>
+            Import CSV
           </button>
         </div>
       </div>
