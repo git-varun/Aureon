@@ -4,12 +4,24 @@ from typing import Any
 
 from app.core.exceptions import NotFoundError
 from app.core.entities.system import TaskRunStatus
+from app.core.logging import logger
 from app.core.observability.health import fingerprinter
 from app.core.redis import check_redis_health, get_cached_asset_health, get_cached_provider_health
 from app.core.services.base import BaseService
+from app.core.services.config import ConfigService
 from app.modules.market.repositories.asset_health import AssetHealthRepository
 from app.core.repositories.monitoring import MonitoringRepository
 from app.core.repositories.task_run import TaskRunRepository
+
+# Broker/AI providers with a real, working health-check path
+# (ConfigService.check_provider_health(), already live in ProviderConfig.jsx)
+# that never writes to system.providers — that table is populated only by
+# the quote-ingestion fallback chain (mark_provider_healthy/degraded), which
+# these providers never go through. Bridged into get_provider_health() below
+# rather than into system.providers itself, so status reflects a live check
+# made at request time instead of whenever Settings was last opened. See
+# MONITORING_MODULE_AUDIT.md / the Job History & Monitoring verification pass.
+_BRIDGED_PROVIDERS = ["binance", "groww", "zerodha", "gemini", "groq"]
 
 
 class MonitoringService(BaseService):
@@ -18,10 +30,27 @@ class MonitoringService(BaseService):
         repo: MonitoringRepository,
         asset_health_repo: AssetHealthRepository,
         task_run_repo: TaskRunRepository,
+        config_svc: ConfigService,
     ):
         self.repo = repo
         self.asset_health_repo = asset_health_repo
         self.task_run_repo = task_run_repo
+        self.config_svc = config_svc
+
+    def _bridged_provider_health(self) -> list[dict[str, Any]]:
+        results = []
+        for name in _BRIDGED_PROVIDERS:
+            try:
+                healthy = self.config_svc.check_provider_health(name)
+            except Exception as e:
+                logger.warning(f"check_provider_health() raised for bridged provider '{name}': {e}")
+                healthy = False
+            if healthy is None:
+                status = "not_configured"
+            else:
+                status = "healthy" if healthy else "unhealthy"
+            results.append({"provider_name": name, "status": status})
+        return results
 
     def get_asset_health(self, asset_id: uuid.UUID) -> dict[str, Any]:
         cached = get_cached_asset_health(str(asset_id))
@@ -44,7 +73,8 @@ class MonitoringService(BaseService):
         cached = get_cached_provider_health()
         if cached is not None:
             return cached
-        return [{"provider_name": p.name, "status": p.health_status} for p in self.repo.list_providers()]
+        quote_providers = [{"provider_name": p.name, "status": p.health_status} for p in self.repo.list_providers()]
+        return quote_providers + self._bridged_provider_health()
 
     def get_failed_ingestions(self, limit: int = 50, offset: int = 0) -> list[dict[str, Any]]:
         failures = self.repo.list_failed_ingestions(limit, offset)
@@ -91,7 +121,7 @@ class MonitoringService(BaseService):
 
     def get_aggregate_health(self) -> dict[str, Any]:
         deps = self.get_dependencies_status()
-        providers_summary = {p.name: p.health_status for p in self.repo.list_providers()}
+        providers_summary = {p["provider_name"]: p["status"] for p in self.get_provider_health()}
         is_healthy = all(status == "healthy" or "eager" in status for status in deps.values())
 
         return {
