@@ -9,6 +9,8 @@ import {PfImportCenter} from '@/components/aureon/portfolio/PfImportCenter';
 import {apiService} from '@/api/apiService';
 import {useApp} from '@/components/aureon/store';
 import {usePortfolio} from '@/contexts/PortfolioContext';
+import {useAureonData} from '@/hooks/useAureonData';
+import {AllocationDriftCard} from '@/components/aureon/dashboard/AllocationDriftCard';
 
 // ── Shared design primitives ──────────────────────────────────────────────────
 const settingInputStyle = {
@@ -997,28 +999,108 @@ const ASSET_CLASS_LABEL = {
     real_estate: 'Real estate', retirement: 'Retirement', insurance: 'Insurance',
 };
 
+// Optional starting points — pre-fill the form, nothing is saved until the
+// user hits Save on each row. All three sum to 100% across the 7 known classes.
+const ALLOCATION_PRESETS = {
+    conservative: {label: 'Conservative', pct: {stocks: 30, crypto: 2, funds: 20, bonds: 25, real_estate: 12, retirement: 9, insurance: 2}},
+    balanced:     {label: 'Balanced',     pct: {stocks: 46, crypto: 7, funds: 16, bonds: 10, real_estate: 10, retirement: 9, insurance: 2}},
+    aggressive:   {label: 'Aggressive',   pct: {stocks: 60, crypto: 15, funds: 10, bonds: 3, real_estate: 5, retirement: 5, insurance: 2}},
+};
+
+const bandInputStyle = {...settingInputStyle, width: 62, textAlign: 'right', fontFamily: 'var(--font-mono)', padding: '5px 8px', fontSize: 12};
+
 function AllocationTargetsSection() {
-    const [targets, setTargets] = useState(null);
-    const [edits, setEdits] = useState({});
+    const [targets, setTargets] = useState(null); // {asset_class: {target_pct, band_low_pct, band_high_pct}} (fractions)
+    const [edits, setEdits] = useState({});        // {asset_class: {target, bandLow, bandHigh}} (percent strings)
     const [savingClass, setSavingClass] = useState(null);
 
-    const load = () => apiService.getAllocationTargets().then(t => { setTargets(t); setEdits({}); }).catch(() => setTargets({}));
+    const {allocByClass, classLabel} = useAureonData();
+
+    const load = () => apiService.getAllocationTargetsDetail()
+        .then(({targets: rows}) => {
+            const byClass = {};
+            (rows || []).forEach(r => { byClass[r.asset_class] = r; });
+            setTargets(byClass);
+            setEdits({});
+        })
+        .catch(() => setTargets({}));
     useEffect(() => { load(); }, []);
 
     const rows = targets ? Object.keys(targets).sort() : [];
-    const sumPct = rows.reduce((s, k) => s + (parseFloat(edits[k] ?? (targets[k] * 100)) || 0), 0);
+
+    const fieldFor = (k) => {
+        const saved = targets[k] || {};
+        const e = edits[k] || {};
+        return {
+            target: e.target ?? String(Math.round((saved.target_pct || 0) * 10000) / 100),
+            bandLow: e.bandLow ?? (saved.band_low_pct != null ? String(Math.round(saved.band_low_pct * 10000) / 100) : ''),
+            bandHigh: e.bandHigh ?? (saved.band_high_pct != null ? String(Math.round(saved.band_high_pct * 10000) / 100) : ''),
+        };
+    };
+
+    const setField = (k, field, value) => setEdits(prev => ({...prev, [k]: {...fieldFor(k), [field]: value}}));
+
+    const isDirty = (k) => {
+        const f = fieldFor(k);
+        const saved = targets[k] || {};
+        const savedTarget = String(Math.round((saved.target_pct || 0) * 10000) / 100);
+        const savedLow = saved.band_low_pct != null ? String(Math.round(saved.band_low_pct * 10000) / 100) : '';
+        const savedHigh = saved.band_high_pct != null ? String(Math.round(saved.band_high_pct * 10000) / 100) : '';
+        return f.target !== savedTarget || f.bandLow !== savedLow || f.bandHigh !== savedHigh;
+    };
+
+    const sumPct = rows.reduce((s, k) => s + (parseFloat(fieldFor(k).target) || 0), 0);
+
+    // Live preview target map (fractions) reflecting in-progress, unsaved edits —
+    // fed into AllocationDriftCard so drift updates before Save is clicked.
+    const targetsOverride = useMemo(() => {
+        const out = {};
+        rows.forEach(k => { out[k] = (parseFloat(fieldFor(k).target) || 0) / 100; });
+        return out;
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [targets, edits]);
+
+    const applyPreset = (presetKey) => {
+        const preset = ALLOCATION_PRESETS[presetKey];
+        if (!preset) return;
+        setEdits(prev => {
+            const next = {...prev};
+            Object.keys(preset.pct).forEach(k => {
+                next[k] = {...fieldFor(k), target: String(preset.pct[k])};
+            });
+            return next;
+        });
+        toast(`${preset.label} preset applied — review and Save each row`, {icon: '📋'});
+    };
 
     const handleSave = async (assetClass) => {
-        const pctStr = edits[assetClass];
-        if (pctStr === undefined) return;
-        const pct = parseFloat(pctStr);
+        const f = fieldFor(assetClass);
+        const pct = parseFloat(f.target);
         if (isNaN(pct) || pct < 0 || pct > 100) {
-            toast.error('Enter a value between 0 and 100');
+            toast.error('Enter a target between 0 and 100');
+            return;
+        }
+        const low = f.bandLow === '' ? null : parseFloat(f.bandLow);
+        const high = f.bandHigh === '' ? null : parseFloat(f.bandHigh);
+        if (low != null && (isNaN(low) || low < 0 || low > 100)) {
+            toast.error('Band low must be between 0 and 100');
+            return;
+        }
+        if (high != null && (isNaN(high) || high < 0 || high > 100)) {
+            toast.error('Band high must be between 0 and 100');
+            return;
+        }
+        if (low != null && high != null && low > high) {
+            toast.error('Band low cannot exceed band high');
             return;
         }
         setSavingClass(assetClass);
         try {
-            await apiService.upsertAllocationTarget(assetClass, {target_pct: pct / 100});
+            await apiService.upsertAllocationTarget(assetClass, {
+                target_pct: pct / 100,
+                band_low_pct: low != null ? low / 100 : null,
+                band_high_pct: high != null ? high / 100 : null,
+            });
             await load();
             toast.success(`${ASSET_CLASS_LABEL[assetClass] || assetClass} target updated`);
         } catch (e) {
@@ -1034,26 +1116,46 @@ function AllocationTargetsSection() {
                 <SettingSectionHead
                     icon={<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><path d="M21.21 15.89A10 10 0 1 1 8 2.83"/><path d="M22 12A10 10 0 0 0 12 2v10z"/></svg>}
                     title="Allocation Targets"
-                    desc="Target weight by asset class — drives the drift indicators on Portfolio and Dashboard"
+                    desc="Target weight (and tolerance band) by asset class — drives the drift indicators on Portfolio and Dashboard"
                 />
+
+                <div style={{display: 'flex', alignItems: 'center', gap: 8, marginBottom: 20}}>
+                    <span style={{fontSize: 11, color: 'var(--ink-40)', marginRight: 2}}>Presets:</span>
+                    {Object.entries(ALLOCATION_PRESETS).map(([key, p]) => (
+                        <button key={key} onClick={() => applyPreset(key)} className="du3-cta ghost" style={{height: 26, padding: '0 10px', fontSize: 11.5}}>
+                            {p.label}
+                        </button>
+                    ))}
+                </div>
+
                 {targets === null ? (
                     <div style={{padding: '24px 0', textAlign: 'center', color: 'var(--ink-40)', fontSize: 13}}>Loading…</div>
                 ) : rows.length === 0 ? (
                     <SettingEmpty title="No allocation targets configured"/>
                 ) : (
                     <>
+                        <div style={{display: 'grid', gridTemplateColumns: '108px 60px 1fr 62px 12px 62px 60px', gap: 10, padding: '0 0 6px', fontSize: 10, letterSpacing: '0.1em', textTransform: 'uppercase', color: 'var(--ink-40)', fontWeight: 600}}>
+                            <span>Class</span><span>Current</span><span/><span style={{textAlign: 'right'}}>Band low</span><span/><span style={{textAlign: 'right'}}>Band high</span><span/>
+                        </div>
                         {rows.map(k => {
-                            const current = (edits[k] ?? String(Math.round(targets[k] * 10000) / 100));
-                            const dirty = parseFloat(current) !== Math.round(targets[k] * 10000) / 100;
+                            const f = fieldFor(k);
+                            const dirty = isDirty(k);
+                            const currentPct = (allocByClass[k] || 0) * 100;
                             return (
-                                <div key={k} style={{display: 'flex', alignItems: 'center', gap: 12, padding: '10px 0', borderBottom: '1px solid rgba(255,255,255,0.04)'}}>
-                                    <span style={{flex: 1, fontSize: 13, color: 'var(--ink-10)'}}>{ASSET_CLASS_LABEL[k] || k}</span>
-                                    <input
-                                        value={current}
-                                        onChange={e => setEdits(prev => ({...prev, [k]: e.target.value}))}
-                                        onKeyDown={e => { if (e.key === 'Enter') handleSave(k); }}
-                                        style={{...settingInputStyle, width: 84, textAlign: 'right', fontFamily: 'var(--font-mono)'}}/>
-                                    <span style={{fontSize: 12.5, color: 'var(--ink-40)'}}>%</span>
+                                <div key={k} style={{display: 'grid', gridTemplateColumns: '108px 60px 1fr 62px 12px 62px 60px', gap: 10, alignItems: 'center', padding: '10px 0', borderBottom: '1px solid rgba(255,255,255,0.04)'}}>
+                                    <span style={{fontSize: 13, color: 'var(--ink-10)'}}>{classLabel?.[k] || ASSET_CLASS_LABEL[k] || k}</span>
+                                    <span style={{fontFamily: 'var(--font-mono)', fontSize: 11.5, color: 'var(--ink-30)'}}>{currentPct.toFixed(1)}%</span>
+                                    <div style={{display: 'flex', alignItems: 'center', gap: 6, justifySelf: 'end'}}>
+                                        <input
+                                            value={f.target}
+                                            onChange={e => setField(k, 'target', e.target.value)}
+                                            onKeyDown={e => { if (e.key === 'Enter') handleSave(k); }}
+                                            style={{...settingInputStyle, width: 74, textAlign: 'right', fontFamily: 'var(--font-mono)'}}/>
+                                        <span style={{fontSize: 12.5, color: 'var(--ink-40)'}}>%</span>
+                                    </div>
+                                    <input placeholder="—" value={f.bandLow} onChange={e => setField(k, 'bandLow', e.target.value)} style={bandInputStyle}/>
+                                    <span style={{fontSize: 11, color: 'var(--ink-40)', textAlign: 'center'}}>–</span>
+                                    <input placeholder="—" value={f.bandHigh} onChange={e => setField(k, 'bandHigh', e.target.value)} style={bandInputStyle}/>
                                     <button onClick={() => handleSave(k)} disabled={!dirty || savingClass === k} className="du3-cta ghost"
                                         style={{height: 28, padding: '0 12px', fontSize: 11.5, flexShrink: 0, opacity: dirty ? 1 : 0.4}}>
                                         {savingClass === k ? 'Saving…' : 'Save'}
@@ -1062,7 +1164,12 @@ function AllocationTargetsSection() {
                             );
                         })}
                         <div style={{marginTop: 14, fontSize: 11.5, color: Math.abs(sumPct - 100) < 0.05 ? 'var(--ink-40)' : 'var(--dusk-500)'}}>
-                            Targets sum to {sumPct.toFixed(1)}%{Math.abs(sumPct - 100) >= 0.05 ? ' — targets don\'t need to total 100%, but usually should' : ''}.
+                            Targets sum to {sumPct.toFixed(1)}%{Math.abs(sumPct - 100) >= 0.05 ? ' — targets don\'t need to total 100%, but usually should' : ''}. Band low/high are optional per-class tolerance (e.g. target 46%, acceptable 40–52%) — leave blank to use the default ±1/±3pp drift coloring.
+                        </div>
+
+                        <div style={{marginTop: 24, paddingTop: 20, borderTop: '1px solid rgba(255,255,255,0.05)'}}>
+                            <div style={{fontSize: 10.5, letterSpacing: '0.12em', textTransform: 'uppercase', color: 'var(--ink-40)', fontWeight: 600, marginBottom: 12}}>Live drift preview</div>
+                            <AllocationDriftCard targetsOverride={targetsOverride}/>
                         </div>
                     </>
                 )}

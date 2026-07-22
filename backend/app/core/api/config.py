@@ -258,10 +258,13 @@ def get_job_logs(
 
 @router.get("/allocation_targets")
 def list_allocation_targets(
+    detail: bool = False,
     user: User = Depends(get_current_user),
     svc: ConfigService = Depends(get_config_service)
 ):
     targets = svc.list_allocation_targets()
+    if detail:
+        return {"targets": targets}
     return {t["asset_class"]: t["target_pct"] for t in targets}
 
 @router.put("/allocation_targets/{asset_class}")
