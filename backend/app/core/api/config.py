@@ -65,6 +65,10 @@ class JobLogsResponse(BaseModel):
     job_name: str
     logs: List[JobLogResponse]
 
+class AllJobLogsResponse(BaseModel):
+    logs: List[JobLogResponse]
+    total: int
+
 class JobConfigResponse(BaseModel):
     id: int
     job_name: str
@@ -228,6 +232,25 @@ def get_jobs(
 ):
     return {"jobs": svc.get_all_jobs()}
 
+@router.get("/jobs/logs", response_model=AllJobLogsResponse)
+def get_all_job_logs(
+    limit: int = 50,
+    offset: int = 0,
+    user: User = Depends(get_current_user),
+    svc: ConfigService = Depends(get_config_service)
+):
+    """Paginated run history across every job, newest first — backs the
+    Settings > Job History page. Unlike /jobs/{job_name}/logs, this queries
+    all jobs at the DB level (order/limit/offset), so the page can show a
+    real 'Showing X of Y' count instead of merging N separately-capped
+    per-job fetches client-side.
+
+    Declared before /jobs/{job_name} routes below: FastAPI/Starlette
+    matches path patterns in registration order, so a static "/jobs/logs"
+    path must come before the dynamic "/jobs/{job_name}" pattern or the
+    latter shadows it (matches job_name="logs" first, wrong-method 405)."""
+    return {"logs": svc.get_job_logs(None, limit=limit, offset=offset), "total": svc.count_job_logs(None)}
+
 @router.put("/jobs/{job_name}", response_model=JobsListResponse)
 def update_job(
     job_name: str,
@@ -262,10 +285,11 @@ def run_job(
 def get_job_logs(
     job_name: str,
     limit: int = 50,
+    offset: int = 0,
     user: User = Depends(get_current_user),
     svc: ConfigService = Depends(get_config_service)
 ):
-    return {"job_name": job_name, "logs": svc.get_job_logs(job_name, limit=limit)}
+    return {"job_name": job_name, "logs": svc.get_job_logs(job_name, limit=limit, offset=offset)}
 
 # --- Allocation Targets ---
 

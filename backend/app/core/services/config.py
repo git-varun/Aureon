@@ -572,8 +572,8 @@ class ConfigService(BaseService):
             return True
         return False
 
-    def get_job_logs(self, job_name: Optional[str] = None, limit: int = 50) -> list[dict[str, Any]]:
-        logs = self.repo.list_job_logs(job_name, limit)
+    def get_job_logs(self, job_name: Optional[str] = None, limit: int = 50, offset: int = 0) -> list[dict[str, Any]]:
+        logs = self.repo.list_job_logs(job_name, limit, offset)
         return [
             {
                 "id": log_run.id,
@@ -587,6 +587,9 @@ class ConfigService(BaseService):
             }
             for log_run in logs
         ]
+
+    def count_job_logs(self, job_name: Optional[str] = None) -> int:
+        return self.repo.count_job_logs(job_name)
 
     # ── Job Dispatching ───────────────────────────────────────────────────
 
