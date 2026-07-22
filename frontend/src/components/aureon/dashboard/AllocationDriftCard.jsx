@@ -6,9 +6,13 @@ import { Sk, RBtn, Cerr, Cmt, CS, Eyebrow } from '../ui';
 
 const dc = pp => Math.abs(pp) < 1 ? 'var(--ink-30)' : Math.abs(pp) < 3 ? 'var(--dusk-500)' : 'var(--crimson-500)';
 
-export function AllocationDriftCard({ onNavigatePortfolio }) {
+// targetsOverride: optional {asset_class: fraction} used in place of the saved
+// allocation-targets query — lets a caller (e.g. the Settings editor) preview
+// drift against in-progress, unsaved edits instead of only the persisted value.
+export function AllocationDriftCard({ onNavigatePortfolio, targetsOverride }) {
   const queryClient = useQueryClient();
-  const { loading, error, allocByClass, classTarget, classLabel } = useAureonData();
+  const { loading, error, allocByClass, classTarget: savedClassTarget, classLabel } = useAureonData();
+  const classTarget = targetsOverride || savedClassTarget;
 
   const driftRows = useMemo(() => {
     const keys = [...new Set([...Object.keys(allocByClass), ...Object.keys(classTarget)])];
@@ -20,9 +24,9 @@ export function AllocationDriftCard({ onNavigatePortfolio }) {
         target: classTarget[key] || 0,
         drift: ((allocByClass[key] || 0) - (classTarget[key] || 0)) * 100,
       }))
-      .filter(r => r.actual > 0)
+      .filter(r => r.actual > 0 || (targetsOverride && r.target > 0))
       .sort((a, b) => Math.abs(b.drift) - Math.abs(a.drift));
-  }, [allocByClass, classTarget, classLabel]);
+  }, [allocByClass, classTarget, classLabel, targetsOverride]);
 
   const data = driftRows.length > 0 ? driftRows : null;
   const status = loading ? 'loading' : error ? 'error' : !data ? 'empty' : 'ready';
@@ -33,7 +37,7 @@ export function AllocationDriftCard({ onNavigatePortfolio }) {
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 14 }}>
         <Eyebrow>Allocation drift</Eyebrow>
         <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
-          {status === 'ready' && data && (
+          {status === 'ready' && data && onNavigatePortfolio && (
             <button onClick={onNavigatePortfolio} className="du3-cta ghost" style={{ height: 22, fontSize: 11, padding: '0 8px' }}>
               Rebalance →
             </button>

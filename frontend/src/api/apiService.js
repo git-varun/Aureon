@@ -307,7 +307,7 @@ export const apiService = {
     runJob: (jobName) => handleRequest(API.post(`/config/jobs/${jobName}/run`)),
     getJobLogs: (jobName, limit = 20) => handleRequest(API.get(`/config/jobs/${jobName}/logs?limit=${limit}`)),
     getAllocationTargets: () => handleRequest(API.get('/config/allocation_targets')),
-    // UI pending — portfolio administration
+    getAllocationTargetsDetail: () => handleRequest(API.get('/config/allocation_targets?detail=true')),
     upsertAllocationTarget: (assetClass, payload) => handleRequest(API.put(`/config/allocation_targets/${encodeURIComponent(assetClass)}`, payload)),
 
     fetchBriefingHistory: (limit = 30) =>
