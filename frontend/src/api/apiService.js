@@ -299,6 +299,7 @@ export const apiService = {
     updateProvider: (providerName, payload) => handleRequest(API.put(`/config/providers/${encodeURIComponent(providerName)}`, payload)),
     setProviderKey: (providerName, keyName, value) => handleRequest(API.put(`/config/providers/${encodeURIComponent(providerName)}/keys`, {key_name: keyName, value})),
     removeProviderKey: (providerName, keyName) => handleRequest(API.delete(`/config/providers/${encodeURIComponent(providerName)}/keys/${encodeURIComponent(keyName)}`)),
+    checkProviderHealth: (providerName) => handleRequest(API.post(`/config/providers/${encodeURIComponent(providerName)}/health-check`)),
     getZerodhaLoginUrl: () => handleRequest(API.get('/config/providers/zerodha/oauth/login-url')),
 
     // Jobs configuration

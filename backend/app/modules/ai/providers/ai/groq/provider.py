@@ -25,7 +25,16 @@ class GroqProvider(AIProvider):
             self._api_key = api_key
 
     def health_check(self) -> bool:
-        return bool(self._api_key)
+        if not self._api_key:
+            return False
+        try:
+            res = http_client.get(
+                "Groq", "https://api.groq.com/openai/v1/models",
+                headers={"Authorization": f"Bearer {self._api_key}"}, timeout=5
+            )
+            return res.status_code == 200
+        except Exception:
+            return False
 
     def fetch(self, prompt: str, *, json_mode: bool = False, model: str | None = None, **kwargs: Any) -> tuple[str, dict[str, int | None]]:
         if not self._api_key:
