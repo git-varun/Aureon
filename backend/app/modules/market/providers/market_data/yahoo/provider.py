@@ -220,6 +220,29 @@ class YahooAdapter(MarketDataProvider):
         except Exception as e:
             raise ProviderError(f"Yahoo get_fundamentals failed for {symbol}: {e}") from e
 
+    def get_price_history(self, symbol: str, period: str = "3mo", interval: str = "1d") -> list[dict[str, Any]]:
+        try:
+            ticker = yf.Ticker(symbol)
+            hist = ticker.history(period=period, interval=interval)
+        except Exception as e:
+            raise ProviderError(f"Yahoo get_price_history failed for {symbol}: {e}") from e
+
+        if hist.empty:
+            return []
+
+        rows = []
+        for ts, row in hist.iterrows():
+            close_price = row.get("Close")
+            if close_price is None:
+                continue
+            volume = row.get("Volume")
+            rows.append({
+                "timestamp": ts.to_pydatetime(),
+                "close": float(close_price),
+                "volume": float(volume) if volume else None,
+            })
+        return rows
+
     def health_check(self) -> bool:
         try:
             # Simple metadata lookup check

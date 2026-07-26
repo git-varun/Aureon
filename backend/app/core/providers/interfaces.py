@@ -85,6 +85,13 @@ class MarketDataProvider(ProviderProtocol):
         Only Yahoo implements this today; other providers may leave it unsupported."""
         raise NotImplementedError(f"{self.provider_name} does not support fundamentals")
 
+    def get_price_history(self, symbol: str, period: str = "3mo", interval: str = "1d") -> list[dict[str, Any]]:
+        """Optional — raw OHLCV rows for a bulk historical backfill (see
+        MarketSeedService.seed_price_history), distinct from
+        get_technical_indicators' already-computed RSI/MACD/volatility.
+        Only Yahoo implements this today; other providers may leave it unsupported."""
+        raise NotImplementedError(f"{self.provider_name} does not support price history")
+
 
 class NewsProvider(ProviderProtocol):
     """Dedicated news-only providers (NewsAPI, Moneycontrol, RSS — none implemented yet)."""

@@ -4,6 +4,9 @@ from datetime import datetime, timedelta, timezone
 from app.core.logging import logger
 from app.modules.news.entities.news import NewsAsset
 from app.core.services.base import BaseService
+from app.core.services.config import ConfigService
+from app.core.repositories.config import ConfigRepository
+from app.core.providers.factory import ProviderFactory
 from app.modules.market.repositories.asset_features import AssetFeaturesRepository
 from app.modules.market.repositories.asset_scores import AssetScoresRepository
 from app.modules.market.repositories.ingestion import IngestionRepository
@@ -78,6 +81,8 @@ class MarketSeedService(BaseService):
         self.ingestion_repo = ingestion_repo
         self.market_repo = market_repo
         self.news_repo = news_repo
+        cfg_svc = ConfigService(ConfigRepository(ingestion_repo.session))
+        self.provider_factory = ProviderFactory(cfg_svc)
 
     def seed_market_universe(self) -> int:
         created = 0
@@ -107,42 +112,43 @@ class MarketSeedService(BaseService):
         logger.info(f"_link_existing_news: created {linked} news_asset rows")
 
     def seed_price_history(self) -> int:
-        import yfinance as yf
-
         assets = self.market_repo.list_all_assets()
         if not assets:
             logger.warning("seed_price_history: no assets found, run seed_market_universe_task first")
             return 0
+
+        # Routed through ProviderFactory (not a direct yfinance call) so a
+        # disabled/misconfigured Yahoo provider fails this job loudly, the
+        # same way it gates refresh_prices/refresh_fundamentals, rather than
+        # silently seeding nothing.
+        adapter = self.provider_factory.get("yahoo")
 
         total_rows = 0
         for asset in assets:
             if _has_no_yahoo_coverage(asset):
                 continue
             try:
-                ticker = yf.Ticker(asset.symbol)
-                hist = ticker.history(period="3mo", interval="1d")
-                if hist.empty:
+                hist_rows = adapter.get_price_history(asset.symbol, period="3mo", interval="1d")
+                if not hist_rows:
                     logger.warning(f"seed_price_history: no history for {asset.symbol}")
                     continue
 
-                rows = []
-                for ts, row in hist.iterrows():
-                    close_price = float(row["Close"])
-                    volume = float(row["Volume"]) if row.get("Volume") else None
-                    rows.append({
-                        "id": uuid.uuid5(uuid.NAMESPACE_DNS, f"{asset.symbol}-{ts.date()}"),
+                rows = [
+                    {
+                        "id": uuid.uuid5(uuid.NAMESPACE_DNS, f"{asset.symbol}-{r['timestamp'].date()}"),
                         "asset_id": asset.id,
                         "symbol": asset.symbol,
-                        "price": close_price,
-                        "volume": volume,
-                        "timestamp": ts.to_pydatetime(),
-                    })
+                        "price": r["close"],
+                        "volume": r["volume"],
+                        "timestamp": r["timestamp"],
+                    }
+                    for r in hist_rows
+                ]
 
-                if rows:
-                    self.market_repo.bulk_insert_price_history(rows)
-                    self.market_repo.session.commit()
-                    total_rows += len(rows)
-                    logger.info(f"seed_price_history: {asset.symbol} — {len(rows)} rows inserted")
+                self.market_repo.bulk_insert_price_history(rows)
+                self.market_repo.session.commit()
+                total_rows += len(rows)
+                logger.info(f"seed_price_history: {asset.symbol} — {len(rows)} rows inserted")
             except Exception as e:
                 self.market_repo.session.rollback()
                 logger.warning(f"seed_price_history: failed for {asset.symbol}: {e}")
