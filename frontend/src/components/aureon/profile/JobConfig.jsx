@@ -38,12 +38,25 @@ const NOT_MANUALLY_RUNNABLE = new Set(['backfill_binance_spot']);
 // stays manual-only and lives as its own standalone row in the flat list
 // (disabled toggle, "manual only" label) rather than being folded into a
 // group whose "Run all" it can't meaningfully participate in.
+//
+// Market Data groups refresh_prices/refresh_fundamentals/seed_price_history
+// on real, traced provider dependency (all Yahoo-primary — see the job ->
+// provider dependency audit), not on job name similarity. sync_portfolio
+// and fetch_news also touch this provider family but stay standalone —
+// a deliberate conceptual-grouping-over-dependency-graph call, not an
+// oversight.
 const JOB_GROUPS = [
     {
         id: 'portfolio_sync',
         label: 'Portfolio Sync',
         desc: 'Sync broker holdings — Groww, Binance',
         jobs: ['sync_groww', 'sync_binance'],
+    },
+    {
+        id: 'market_data',
+        label: 'Market Data',
+        desc: 'Fetch prices, fundamentals, and price history — all Yahoo-primary',
+        jobs: ['refresh_prices', 'refresh_fundamentals', 'seed_price_history'],
     },
     {
         id: 'briefings',
@@ -61,10 +74,11 @@ const JOB_GROUPS = [
 //     (it's portfolio-scoped and manual-only), but its enable/disable kill
 //     switch is real (see dispatch_job in config.py) so it's kept reachable
 //     via a compact inline toggle rather than dropped entirely.
-//   - refresh_mutual_fund_navs: folded as an expandable child under
-//     Price Refresh, since it runs on a genuinely different cadence (daily
-//     23:00 vs. hourly) and keeps its own Run button/toggle.
-const NESTED_JOB_NAMES = new Set(['backfill_binance_spot', 'refresh_mutual_fund_navs']);
+// refresh_mutual_fund_navs used to be nested here too (under Price Refresh),
+// but its only real provider dependency is "mfapi" (AMFI bulk NAV file) —
+// zero overlap with Price Refresh's Yahoo family — so it's a standalone flat
+// row now; there's no other job it genuinely shares a provider with.
+const NESTED_JOB_NAMES = new Set(['backfill_binance_spot']);
 
 const RUN_STATE = {
     idle: {color: 'var(--ink-40)', label: 'Queued'},
@@ -164,7 +178,7 @@ export function JobErrorDetail({message}) {
     );
 }
 
-function JobRow({job, onUpdate, onRun}) {
+function JobRow({job, onUpdate, onRun, note}) {
     const {label, desc} = JOB_LABELS[job.job_name] ?? {label: job.job_name, desc: ''};
     const [enabled, setEnabled] = useState(Boolean(job.enabled));
     const [saving, setSaving] = useState(false);
@@ -218,6 +232,7 @@ function JobRow({job, onUpdate, onRun}) {
                         <span style={{fontFamily: 'var(--font-heading)', fontSize: 14, fontWeight: 600, color: enabled ? 'var(--ink-00)' : 'var(--ink-30)'}}>{label}</span>
                     </div>
                     <div style={{fontSize: 11.5, color: 'var(--ink-30)', marginTop: 3}}>{desc}</div>
+                    {note && <div style={{fontSize: 11, color: 'var(--aurum-100)', marginTop: 3}}>{note}</div>}
                 </div>
                 <span style={{fontFamily: 'var(--font-mono)', fontSize: 11, color: 'var(--ink-30)'}}>{job.schedule_display}</span>
                 <span style={{fontFamily: 'var(--font-mono)', fontSize: 11.5, color: enabled ? 'var(--ink-10)' : 'var(--ink-40)'}}>
@@ -435,40 +450,6 @@ function JobGroupCard({group, jobs, onUpdate, onRun, onSettled}) {
     );
 }
 
-// Price Refresh's simpler nest — an expandable child row for Mutual Fund
-// NAVs, which runs on a genuinely different cadence (daily 23:00 vs.
-// hourly) and keeps its own schedule/status/Run/toggle rather than being
-// merged into one combined trigger.
-function PriceRefreshWithNav({priceJob, mfJob, onUpdate, onRun}) {
-    const [expanded, setExpanded] = useState(false);
-    return (
-        <>
-            <JobRow job={priceJob} onUpdate={onUpdate} onRun={onRun}/>
-            {mfJob && (
-                <div style={{borderBottom: '1px solid rgba(255,255,255,0.04)'}}>
-                    <button
-                        onClick={() => setExpanded(v => !v)}
-                        style={{
-                            display: 'flex', alignItems: 'center', gap: 8, width: '100%',
-                            padding: '8px 18px 8px 36px', background: 'transparent', border: 'none', cursor: 'pointer',
-                            fontSize: 11.5, color: 'var(--ink-40)', textAlign: 'left',
-                        }}
-                    >
-                        <span style={{fontSize: 10}}>{expanded ? '▾' : '▸'}</span>
-                        <span style={{width: 6, height: 6, borderRadius: 999, background: !mfJob.enabled ? 'var(--ink-40)' : (STATUS[mfJob.last_status] ?? STATUS.never_run).color, flexShrink: 0}}/>
-                        <span>Mutual Fund NAVs · {mfJob.schedule_display}{!mfJob.enabled ? ' · disabled' : ''}</span>
-                    </button>
-                    {expanded && (
-                        <div style={{marginLeft: 18}}>
-                            <JobRow job={mfJob} onUpdate={onUpdate} onRun={onRun}/>
-                        </div>
-                    )}
-                </div>
-            )}
-        </>
-    );
-}
-
 export default function JobConfig() {
     const [jobs, setJobs] = useState([]);
     const [loading, setLoading] = useState(true);
@@ -514,17 +495,24 @@ export default function JobConfig() {
     };
 
     // Every job appears in exactly one place: grouped (Portfolio Sync,
-    // Briefings) or nested (Binance Backfill under Binance Sync, Mutual Fund
-    // NAVs under Price Refresh) jobs are pulled out of the flat list here.
-    // The footer count below stays sourced from the raw, unfiltered `jobs`
-    // array so nested/folded jobs are still counted even though they're not
+    // Market Data, Briefings) or nested (Binance Backfill under Binance
+    // Sync) jobs are pulled out of the flat list here. The footer count
+    // below stays sourced from the raw, unfiltered `jobs` array so
+    // nested/folded jobs are still counted even though they're not
     // top-level rows.
     const groupedJobNames = new Set(JOB_GROUPS.flatMap(g => g.jobs));
     const hiddenFromFlat = new Set([...groupedJobNames, ...NESTED_JOB_NAMES]);
-    const mfNavJob = jobs.find(j => j.job_name === 'refresh_mutual_fund_navs');
 
+    // job_tier='system' happens to be exactly the two jobs this session's
+    // dependency audit confirmed have no real provider dependency
+    // (validate_data_quality: pure internal DB checks; seed_market_universe:
+    // static asset-list seeding) — reusing that existing tier split rather
+    // than adding a second, near-duplicate grouping axis. If a future job
+    // changes this membership, that's a real signal the tier and the
+    // independence claim have diverged and need reconciling, not just a
+    // silent relabel.
     const userJobs = jobs.filter(j => j.job_tier !== 'system' && !hiddenFromFlat.has(j.job_name));
-    const systemJobs = jobs.filter(j => j.job_tier === 'system' && !hiddenFromFlat.has(j.job_name));
+    const independentJobs = jobs.filter(j => j.job_tier === 'system' && !hiddenFromFlat.has(j.job_name));
     const enabledCount = jobs.filter(j => j.enabled).length;
 
     const colHead = (
@@ -586,26 +574,29 @@ export default function JobConfig() {
                 </div>
                 {colHead}
                 {userJobs.map(job => (
-                    job.job_name === 'refresh_prices'
-                        ? <PriceRefreshWithNav key={job.job_name} priceJob={job} mfJob={mfNavJob} onUpdate={handleUpdate} onRun={handleRun}/>
-                        : <JobRow key={job.job_name} job={job} onUpdate={handleUpdate} onRun={handleRun}/>
+                    <JobRow key={job.job_name} job={job} onUpdate={handleUpdate} onRun={handleRun}/>
                 ))}
 
-                <div style={{
-                    padding: '14px 18px 6px',
-                    fontSize: 10.5,
-                    letterSpacing: '0.12em',
-                    textTransform: 'uppercase',
-                    color: 'var(--ink-30)',
-                    fontWeight: 700,
-                    borderTop: '1px solid rgba(255,255,255,0.06)',
-                    marginTop: 4
-                }}>
-                    System Jobs
+                <div style={{padding: '14px 18px 0', borderTop: '1px solid rgba(255,255,255,0.06)', marginTop: 4}}>
+                    <div style={{
+                        fontSize: 10.5,
+                        letterSpacing: '0.12em',
+                        textTransform: 'uppercase',
+                        color: 'var(--ink-30)',
+                        fontWeight: 700,
+                    }}>
+                        Independent Jobs
+                    </div>
+                    <div style={{fontSize: 11, color: 'var(--ink-40)', marginTop: 2, marginBottom: 6}}>
+                        No real provider dependency — internal DB checks and static seeding
+                    </div>
                 </div>
                 {colHead}
-                {systemJobs.map(job => (
-                    <JobRow key={job.job_name} job={job} onUpdate={handleUpdate} onRun={handleRun}/>
+                {independentJobs.map(job => (
+                    <JobRow
+                        key={job.job_name} job={job} onUpdate={handleUpdate} onRun={handleRun}
+                        note={job.job_name === 'seed_market_universe' ? 'Also triggers a background price refresh afterward — not gated by this job\'s own success or failure.' : undefined}
+                    />
                 ))}
             </>)}
             {!loading && (
