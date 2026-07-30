@@ -165,7 +165,6 @@ _DEFAULT_JOBS = [
     {"job_name": "weekly_briefing", "enabled": True, "job_tier": "user"},
     {"job_name": "monthly_briefing", "enabled": True, "job_tier": "user"},
     {"job_name": "seed_price_history", "enabled": True, "job_tier": "user"},
-    {"job_name": "seed_market_universe", "enabled": True, "job_tier": "system"},
     {"job_name": "validate_data_quality", "enabled": True, "job_tier": "system"},
 ]
 
@@ -447,7 +446,6 @@ class ConfigService(BaseService):
         "weekly_briefing": "app.workers.ingestion.tasks.weekly_briefing_task",
         "monthly_briefing": "app.workers.ingestion.tasks.monthly_briefing_task",
         "seed_price_history": "app.workers.ingestion.tasks.seed_price_history_task",
-        "seed_market_universe": "app.workers.ingestion.tasks.seed_market_universe_task",
         "validate_data_quality": "app.workers.ingestion.tasks.validate_data_quality_task",
         "admin_reprocess_all": "app.workers.ingestion.tasks.admin_reprocess_all_assets",
         "admin_repair": "app.workers.ingestion.tasks.admin_repair_jobs",
@@ -590,6 +588,19 @@ class ConfigService(BaseService):
 
     def count_job_logs(self, job_name: Optional[str] = None) -> int:
         return self.repo.count_job_logs(job_name)
+
+    def get_last_successful_run(self, job_name: str) -> Optional[dict[str, Any]]:
+        """Most recent SUCCESS JobLog for job_name, independent of whether a
+        later run failed — used where "days since it last actually worked"
+        matters more than "status of the most recent attempt" (e.g. a
+        provider gap view)."""
+        log_run = self.repo.get_last_successful_log(job_name)
+        if not log_run:
+            return None
+        return {
+            "started_at": log_run.started_at.isoformat() if log_run.started_at else None,
+            "ended_at": log_run.ended_at.isoformat() if log_run.ended_at else None,
+        }
 
     # ── Job Dispatching ───────────────────────────────────────────────────
 

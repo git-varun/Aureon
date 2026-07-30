@@ -20,16 +20,18 @@ class PositionsRepository(BaseRepository):
         stmt = select(Position).where(Position.id == pos_id)
         return self.session.execute(stmt).scalar_one_or_none()
 
-    def get_by_portfolio_symbol(self, portfolio_id: uuid.UUID, symbol: str) -> Position | None:
+    def get_by_portfolio_symbol(self, portfolio_id: uuid.UUID, symbol: str, wallet: str = "spot") -> Position | None:
         stmt = select(Position).where(
             (Position.portfolio_id == portfolio_id) &
-            (Position.symbol == symbol)
+            (Position.symbol == symbol) &
+            (Position.wallet == wallet)
         )
         return self.session.execute(stmt).scalar_one_or_none()
 
     def get_by_portfolio(self, portfolio_id: uuid.UUID) -> list[Position]:
         stmt = select(Position).where(Position.portfolio_id == portfolio_id)
         return list(self.session.execute(stmt).scalars().all())
+
 
     def update(self, pos: Position) -> Position:
         self.session.flush()

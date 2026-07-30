@@ -44,10 +44,6 @@ celery_app.conf.task_default_queue = "q_ingestion"
 celery_app.conf.timezone = "UTC"
 
 celery_app.conf.beat_schedule = {
-    "seed-market-universe": {
-        "task": "app.workers.ingestion.tasks.seed_market_universe_task",
-        "schedule": crontab(hour=7, minute=0),
-    },
     "seed-price-history": {
         "task": "app.workers.ingestion.tasks.seed_price_history_task",
         "schedule": crontab(hour=2, minute=0, day_of_week="sun"),

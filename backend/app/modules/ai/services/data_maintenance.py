@@ -2,7 +2,6 @@ import uuid
 from datetime import datetime, timedelta, timezone
 
 from app.core.logging import logger
-from app.modules.news.entities.news import NewsAsset
 from app.core.services.base import BaseService
 from app.core.services.config import ConfigService
 from app.core.repositories.config import ConfigRepository
@@ -12,7 +11,6 @@ from app.modules.market.repositories.asset_scores import AssetScoresRepository
 from app.modules.market.repositories.ingestion import IngestionRepository
 from app.modules.market.repositories.market import MarketRepository
 from app.core.repositories.monitoring import MonitoringRepository
-from app.modules.news.repositories.news import NewsRepository
 from app.modules.ai.repositories.recommendation import RecommendationRepository
 
 # Mirrors app.workers.ingestion.tasks._NO_YAHOO_COVERAGE_ASSET_CLASSES — these
@@ -29,92 +27,17 @@ def _has_no_yahoo_coverage(asset) -> bool:
     return asset.asset_class in _NO_YAHOO_COVERAGE_ASSET_CLASSES or asset.symbol.startswith("MANUAL-")
 
 
-# (symbol, name, asset_class) — canonical seed universe.
-CANONICAL_ASSETS: list[tuple[str, str, str]] = [
-    ("AAPL", "Apple Inc.", "equity"),
-    ("MSFT", "Microsoft Corp.", "equity"),
-    ("NVDA", "NVIDIA Corp.", "equity"),
-    ("TSLA", "Tesla Inc.", "equity"),
-    ("GOOGL", "Alphabet Inc.", "equity"),
-    ("AMZN", "Amazon.com Inc.", "equity"),
-    ("META", "Meta Platforms Inc.", "equity"),
-    ("RELIANCE.NS", "Reliance Industries", "equity"),
-    ("TCS.NS", "Tata Consultancy Services", "equity"),
-    ("HDFCBANK.NS", "HDFC Bank", "equity"),
-    ("INFY.NS", "Infosys Ltd.", "equity"),
-    ("ICICIBANK.NS", "ICICI Bank", "equity"),
-    ("BTC-USD", "Bitcoin", "crypto"),
-    ("ETH-USD", "Ethereum", "crypto"),
-    # Indices — power the real /market/indices endpoint (app/domain/services/market.py's INDEX_META)
-    ("^NSEI", "NIFTY 50", "index"),
-    ("^BSESN", "SENSEX", "index"),
-    ("^NSEBANK", "BANK NIFTY", "index"),
-    ("^CNXIT", "NIFTY IT", "index"),
-    ("^GSPC", "S&P 500", "index"),
-    ("^IXIC", "NASDAQ", "index"),
-    ("^FTSE", "FTSE 100", "index"),
-    ("^N225", "NIKKEI 225", "index"),
-    # Additional equities — power real /market/sectors, /market/movers, and theme NAV
-    # (app/domain/services/market.py's SYMBOL_SECTOR_MAP and SYSTEM_THEMES constituents)
-    ("SBIN.NS", "State Bank of India", "equity"),
-    ("LT.NS", "Larsen & Toubro", "equity"),
-    ("BHEL.NS", "Bharat Heavy Electricals", "equity"),
-    ("SIEMENS.NS", "Siemens Ltd", "equity"),
-    ("ABB.NS", "ABB India", "equity"),
-    ("WIPRO.NS", "Wipro Ltd", "equity"),
-    ("HCLTECH.NS", "HCL Technologies", "equity"),
-    ("ADANIGREEN.NS", "Adani Green Energy", "equity"),
-    ("TATAPOWER.NS", "Tata Power", "equity"),
-    ("SUZLON.NS", "Suzlon Energy", "equity"),
-    ("HINDUNILVR.NS", "Hindustan Unilever", "equity"),
-    ("ITC.NS", "ITC Ltd", "equity"),
-    ("DABUR.NS", "Dabur India", "equity"),
-    ("MARICO.NS", "Marico Ltd", "equity"),
-    ("BHARTIARTL.NS", "Bharti Airtel", "equity"),
-    ("ASIANPAINT.NS", "Asian Paints", "equity"),
-    ("SGOV", "iShares 0-3 Month Treasury Bond ETF", "equity"),
-]
-
-
 class MarketSeedService(BaseService):
-    def __init__(self, ingestion_repo: IngestionRepository, market_repo: MarketRepository, news_repo: NewsRepository):
+    def __init__(self, ingestion_repo: IngestionRepository, market_repo: MarketRepository):
         self.ingestion_repo = ingestion_repo
         self.market_repo = market_repo
-        self.news_repo = news_repo
         cfg_svc = ConfigService(ConfigRepository(ingestion_repo.session))
         self.provider_factory = ProviderFactory(cfg_svc)
-
-    def seed_market_universe(self) -> int:
-        created = 0
-        for symbol, name, asset_class in CANONICAL_ASSETS:
-            if self.ingestion_repo.create_asset_if_missing(symbol, name, asset_class):
-                created += 1
-        self.ingestion_repo.session.commit()
-        logger.info(f"seed_market_universe: upserted {len(CANONICAL_ASSETS)} canonical assets ({created} new)")
-
-        self._link_existing_news()
-        self.ingestion_repo.session.commit()
-        return created
-
-    def _link_existing_news(self) -> None:
-        assets = self.market_repo.list_all_assets()
-        asset_by_symbol = {a.symbol: a for a in assets}
-        linked = 0
-        for article in self.news_repo.list_all():
-            syms = [s.strip() for s in (article.symbols or "").split(",") if s.strip()]
-            for sym in syms:
-                asset = asset_by_symbol.get(sym)
-                if not asset:
-                    continue
-                if not self.news_repo.get_news_asset(article.id, asset.id):
-                    self.news_repo.save_news_asset(NewsAsset(news_id=article.id, asset_id=asset.id))
-                    linked += 1
-        logger.info(f"_link_existing_news: created {linked} news_asset rows")
 
     def seed_price_history(self) -> int:
         assets = self.market_repo.list_all_assets()
         if not assets:
-            logger.warning("seed_price_history: no assets found, run seed_market_universe_task first")
+            logger.warning("seed_price_history: no assets found — nothing held or watchlisted yet")
             return 0
 
         # Routed through ProviderFactory (not a direct yfinance call) so a

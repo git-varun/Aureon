@@ -27,7 +27,7 @@ const transform = (raw) => {
 
 export function PortfolioHealthCard() {
   const { activePortfolioId } = usePortfolio();
-  const { data: raw, isLoading, isError, error, refetch } = useQuery({
+  const { data: raw, isPending, isError, error, refetch } = useQuery({
     queryKey: ['intelligence', 'portfolio-health', activePortfolioId],
     queryFn: () => apiService.getPortfolioHealth(activePortfolioId),
     enabled: !!activePortfolioId,
@@ -35,7 +35,7 @@ export function PortfolioHealthCard() {
   });
 
   const data = React.useMemo(() => transform(raw ?? null), [raw]);
-  const status = isLoading ? 'loading' : isError ? 'error' : !data ? 'empty' : 'ready';
+  const status = isPending ? 'loading' : isError ? 'error' : !data ? 'empty' : 'ready';
 
   return (
     <div style={{ ...CS }}>

@@ -116,9 +116,13 @@ def ingest_quote(provider_name: str, symbol: str) -> bool:
             asset_id = ingestion_svc.save_quote(used_provider, quote)
             cache_quote(symbol, quote.model_dump())
 
-            # Trigger downstream: snapshot → features → signals → scores → health
-            from app.workers.snapshots.asset_snapshot import process_asset_snapshot
-            process_asset_snapshot.delay(str(asset_id))
+            # Trigger downstream: snapshot → features → signals → scores → health.
+            # Gated to symbols actually held — a watchlisted-but-not-held symbol
+            # still gets its quote (for price display/alerts) but never enters
+            # feature/signal/recommendation scoring.
+            if IngestionRepository(db).is_symbol_held(symbol):
+                from app.workers.snapshots.asset_snapshot import process_asset_snapshot
+                process_asset_snapshot.delay(str(asset_id))
 
             from app.workers.monitoring.watchlist_alerts import evaluate_watchlist_alerts
             evaluate_watchlist_alerts.delay(symbol)
@@ -144,7 +148,7 @@ def ingest_all_quotes() -> None:
         db.close()
 
     if not assets:
-        logger.warning("ingest_all_quotes: market.assets is empty — run seed_market_universe_task first")
+        logger.info("ingest_all_quotes: nothing held or watchlisted yet, skipping")
         return
     for symbol, asset_class in assets:
         if asset_class in _NO_YAHOO_COVERAGE_ASSET_CLASSES or symbol.startswith("MANUAL-"):
@@ -223,6 +227,7 @@ def sync_portfolio_task(log_id: int | None = None, **kwargs) -> None:
         from app.modules.portfolio.repositories.portfolio_snapshot import (
             PortfolioSnapshotRepository,
         )
+        from app.modules.portfolio.repositories.import_runs import ImportRunsRepository
         from app.modules.portfolio.repositories.portfolios import PortfoliosRepository
         from app.modules.portfolio.repositories.positions import PositionsRepository
         from app.modules.portfolio.repositories.transactions import TransactionsRepository
@@ -235,6 +240,7 @@ def sync_portfolio_task(log_id: int | None = None, **kwargs) -> None:
                     TransactionsRepository(db),
                     PositionsRepository(db),
                     PortfolioSnapshotRepository(db),
+                    ImportRunsRepository(db),
                 )
                 svc.generate_portfolio_snapshot(portfolio_id)
                 logger.info(f"sync_portfolio: snapshot updated for portfolio {portfolio_id}")
@@ -255,14 +261,23 @@ def _last_broker_trade_at(provider_name: str):
     ledger is a more reliable cursor than JobConfig.last_run_at, which is
     stamped at this run's *start* (_wrap_job_execution, before this function
     runs) and would already read as "now", not "last time", if read here.
-    Returns None on a first-ever sync (no rows yet)."""
+    Returns None on a first-ever sync (no rows yet).
+
+    transaction_date is TIMESTAMP WITHOUT TIME ZONE — psycopg drops tzinfo to
+    the session's TimeZone GUC on write, so the raw naive max() must be
+    reversed through that same GUC before use (see
+    TransactionsRepository.get_last_real_transaction_dates_by_broker), or the
+    tz-aware .timestamp() call downstream in provider.sync() would otherwise
+    reinterpret an already-skewed naive value using the *host's* local
+    timezone — compounding the error instead of fixing it."""
     from sqlalchemy import func, select
     from app.modules.portfolio.entities.portfolio import Transaction
 
     db = SessionLocal()
     try:
+        max_date = func.max(Transaction.transaction_date)
         return db.execute(
-            select(func.max(Transaction.transaction_date)).where(
+            select(func.timezone(func.current_setting("TimeZone"), max_date)).where(
                 Transaction.broker == provider_name,
                 Transaction.kind == "broker_trade",
             )
@@ -297,6 +312,7 @@ def _run_broker_sync(job_name: str, provider_name: str, sync_method_name: str) -
     from app.modules.portfolio.repositories.portfolio_snapshot import (
         PortfolioSnapshotRepository,
     )
+    from app.modules.portfolio.repositories.import_runs import ImportRunsRepository
     from app.modules.portfolio.repositories.portfolios import PortfoliosRepository
     from app.modules.portfolio.repositories.positions import PositionsRepository
     from app.modules.portfolio.repositories.transactions import TransactionsRepository
@@ -309,6 +325,7 @@ def _run_broker_sync(job_name: str, provider_name: str, sync_method_name: str) -
                 TransactionsRepository(db),
                 PositionsRepository(db),
                 PortfolioSnapshotRepository(db),
+                ImportRunsRepository(db),
             )
             getattr(svc, sync_method_name)(portfolio_id, holdings)
             logger.info(f"{job_name}: holdings synced for portfolio {portfolio_id}")
@@ -328,6 +345,7 @@ def _run_broker_sync(job_name: str, provider_name: str, sync_method_name: str) -
                 TransactionsRepository(db),
                 PositionsRepository(db),
                 PortfolioSnapshotRepository(db),
+                ImportRunsRepository(db),
             )
             svc.generate_portfolio_snapshot(portfolio_id)
         except Exception as e:
@@ -364,6 +382,7 @@ def _run_binance_spot_backfill(portfolio_id: str | None) -> None:
     from app.modules.portfolio.repositories.portfolio_snapshot import (
         PortfolioSnapshotRepository,
     )
+    from app.modules.portfolio.repositories.import_runs import ImportRunsRepository
     from app.modules.portfolio.repositories.portfolios import PortfoliosRepository
     from app.modules.portfolio.repositories.positions import PositionsRepository
     from app.modules.portfolio.repositories.transactions import TransactionsRepository
@@ -382,6 +401,7 @@ def _run_binance_spot_backfill(portfolio_id: str | None) -> None:
             TransactionsRepository(db),
             PositionsRepository(db),
             PortfolioSnapshotRepository(db),
+            ImportRunsRepository(db),
         )
         summary = svc.backfill_binance_spot(_uuid.UUID(portfolio_id), provider)
         logger.info(f"backfill_binance_spot: portfolio={portfolio_id} {summary}")
@@ -415,7 +435,8 @@ def fetch_news_task(log_id: int | None = None, **kwargs) -> None:
             ingestion_repo = IngestionRepository(db)
             symbols = ingestion_repo.list_quoted_symbols(limit=10)
             if not symbols:
-                symbols = ["AAPL", "TSLA", "RELIANCE.NS"]
+                logger.info("fetch_news_task: no quoted symbols yet, skipping")
+                return
 
             news_svc = NewsService(NewsRepository(db))
             failed_symbols = []
@@ -481,32 +502,13 @@ def seed_price_history_task(log_id: int | None = None, **kwargs) -> None:
         from app.modules.ai.services.data_maintenance import MarketSeedService
         from app.modules.market.repositories.ingestion import IngestionRepository
         from app.modules.market.repositories.market import MarketRepository
-        from app.modules.news.repositories.news import NewsRepository
 
         db = SessionLocal()
         try:
-            MarketSeedService(IngestionRepository(db), MarketRepository(db), NewsRepository(db)).seed_price_history()
+            MarketSeedService(IngestionRepository(db), MarketRepository(db)).seed_price_history()
         finally:
             db.close()
     _wrap_job_execution("seed_price_history", log_id, _run)
-
-
-@shared_task(name="app.workers.ingestion.tasks.seed_market_universe_task")
-@_skip_if_disabled("seed_market_universe")
-def seed_market_universe_task(log_id: int | None = None, **kwargs) -> None:
-    def _run():
-        from app.modules.ai.services.data_maintenance import MarketSeedService
-        from app.modules.market.repositories.ingestion import IngestionRepository
-        from app.modules.market.repositories.market import MarketRepository
-        from app.modules.news.repositories.news import NewsRepository
-
-        db = SessionLocal()
-        try:
-            MarketSeedService(IngestionRepository(db), MarketRepository(db), NewsRepository(db)).seed_market_universe()
-        finally:
-            db.close()
-        ingest_all_quotes.delay()
-    _wrap_job_execution("seed_market_universe", log_id, _run)
 
 
 @shared_task(name="app.workers.ingestion.tasks.admin_reprocess_all_assets")

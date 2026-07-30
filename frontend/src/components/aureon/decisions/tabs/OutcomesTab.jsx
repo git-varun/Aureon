@@ -83,9 +83,11 @@ function PerformanceTable({ performance }) {
                     ))}
                 </div>
             </div>
-            {performance.map((p, idx) => (
-                <PerformanceRow key={p.recommendation_id} p={p} isLast={idx === performance.length - 1} />
-            ))}
+            <div style={{ maxHeight: 480, overflowY: 'auto' }}>
+                {performance.map((p, idx) => (
+                    <PerformanceRow key={p.recommendation_id} p={p} isLast={idx === performance.length - 1} />
+                ))}
+            </div>
         </div>
     );
 }

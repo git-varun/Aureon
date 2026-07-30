@@ -20,7 +20,7 @@ const transform = (raw) => {
 
 export function DiversificationCard() {
   const { activePortfolioId } = usePortfolio();
-  const { data: raw, isLoading, isError, error, refetch } = useQuery({
+  const { data: raw, isPending, isError, error, refetch } = useQuery({
     queryKey: ['intelligence', 'diversification', activePortfolioId],
     queryFn: () => apiService.getPortfolioDiversification(activePortfolioId),
     enabled: !!activePortfolioId,
@@ -28,7 +28,7 @@ export function DiversificationCard() {
   });
 
   const data = React.useMemo(() => transform(raw ?? null), [raw]);
-  const status = isLoading ? 'loading' : isError ? 'error' : !data ? 'empty' : 'ready';
+  const status = isPending ? 'loading' : isError ? 'error' : !data ? 'empty' : 'ready';
 
   return (
     <div style={{ ...CS }}>

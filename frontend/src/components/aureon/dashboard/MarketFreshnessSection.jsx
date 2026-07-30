@@ -1,6 +1,6 @@
 // frontend/src/components/aureon/dashboard/MarketFreshnessSection.jsx
 import React from 'react';
-import { SectionHead } from '../ui';
+import { SectionHead, RBtn } from '../ui';
 
 const FRESH = {
   live:    { color: 'var(--sage-500)',  rgb: '111,174,136', label: 'Live'    },
@@ -83,7 +83,7 @@ const deriveItem = (isoStr, thresholds, n = '—') => {
 };
 
 /** Derives freshness data from the `freshness` prop passed in from useAureonData */
-export function MarketFreshnessSection({ freshness }) {
+export function MarketFreshnessSection({ freshness, onRefresh }) {
   if (!freshness) return null;
 
   const data = {
@@ -94,7 +94,7 @@ export function MarketFreshnessSection({ freshness }) {
 
   return (
     <div style={{ marginBottom: 16 }}>
-      <SectionHead eyebrow="Data freshness" title="Market freshness" />
+      <SectionHead eyebrow="Data freshness" title="Market freshness" action={onRefresh && <RBtn onRefresh={onRefresh} />} />
       <div style={{ display: 'flex', gap: 12 }}>
         <FItem icon={ICONS.prices} title="Prices" item={data.prices} />
         <FItem icon={ICONS.news} title="News" item={data.news} />

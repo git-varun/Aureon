@@ -205,7 +205,7 @@ def get_dashboard(
 @router.get("/portfolio-health/trend")
 def get_health_trend(
     portfolio_id: uuid.UUID = Query(..., description="Portfolio ID"),
-    days: int = Query(30, description="Number of historical days"),
+    days: int = Query(30, ge=1, le=1825, description="Number of historical days"),
     current_user: User = Depends(get_current_user),
     intel_service: FinancialIntelligenceService = Depends(get_intelligence_service),
 ):
@@ -215,7 +215,7 @@ def get_health_trend(
 @router.get("/diversification/trend")
 def get_diversification_trend(
     portfolio_id: uuid.UUID = Query(..., description="Portfolio ID"),
-    days: int = Query(30, description="Number of historical days"),
+    days: int = Query(30, ge=1, le=1825, description="Number of historical days"),
     current_user: User = Depends(get_current_user),
     intel_service: FinancialIntelligenceService = Depends(get_intelligence_service),
 ):

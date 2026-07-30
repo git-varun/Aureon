@@ -6,6 +6,7 @@ from app.core.entities.config import (
     AllocationTarget,
     JobConfig,
     JobLog,
+    JobStatus,
     ProviderConfig,
 )
 
@@ -62,6 +63,14 @@ class ConfigRepository(BaseRepository):
                 JobLog.task_id.like(f"%{task_id}%")
             )
         ).order_by(JobLog.started_at.desc())
+        return self.session.execute(stmt).scalars().first()
+
+    def get_last_successful_log(self, job_name: str) -> JobLog | None:
+        stmt = (
+            select(JobLog)
+            .where(JobLog.job_name == job_name, JobLog.status == JobStatus.SUCCESS)
+            .order_by(JobLog.started_at.desc())
+        )
         return self.session.execute(stmt).scalars().first()
 
     def save_job_log(self, log: JobLog) -> JobLog:

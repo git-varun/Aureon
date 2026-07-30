@@ -7,7 +7,7 @@ import { Sk, RBtn, Cerr, Cmt, CS, Eyebrow } from '../ui';
 
 export function ConcentrationCard() {
   const { activePortfolioId } = usePortfolio();
-  const { data: raw, isLoading, isError, error, refetch } = useQuery({
+  const { data: raw, isPending, isError, error, refetch } = useQuery({
     queryKey: ['intelligence', 'concentration', activePortfolioId],
     queryFn: () => apiService.getPortfolioConcentration(activePortfolioId),
     enabled: !!activePortfolioId,
@@ -15,7 +15,7 @@ export function ConcentrationCard() {
   });
 
   const data = React.useMemo(() => concentrationFromRaw(raw ?? null), [raw]);
-  const status = isLoading ? 'loading' : isError ? 'error' : !data ? 'empty' : 'ready';
+  const status = isPending ? 'loading' : isError ? 'error' : !data ? 'empty' : 'ready';
 
   const riskCol = !data ? 'var(--ink-30)'
     : data.score <= 30 ? 'var(--crimson-500)'

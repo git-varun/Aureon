@@ -26,7 +26,7 @@ const RefreshIcon = ({ onClick }) => (
 
 export function CashDeploymentCard() {
   const { activePortfolioId } = usePortfolio();
-  const { data: raw, isLoading, isError, error, refetch } = useQuery({
+  const { data: raw, isPending, isError, error, refetch } = useQuery({
     queryKey: ['intelligence', 'cash-opportunities', activePortfolioId],
     queryFn: () => apiService.getCashOpportunities(activePortfolioId),
     enabled: !!activePortfolioId,
@@ -34,7 +34,7 @@ export function CashDeploymentCard() {
   });
 
   const data = React.useMemo(() => transform(raw ?? null), [raw]);
-  const status = isLoading ? 'loading' : isError ? 'error' : !data ? 'empty' : 'ready';
+  const status = isPending ? 'loading' : isError ? 'error' : !data ? 'empty' : 'ready';
   const fmt = useFmtMoney();
 
   return (

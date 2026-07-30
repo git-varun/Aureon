@@ -1,6 +1,7 @@
 // frontend/src/pages/aureon/Dashboard.jsx
-import React, { useMemo, useState } from 'react';
+import React, { useCallback, useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { useQueryClient } from '@tanstack/react-query';
 import { useApp } from '@/components/aureon/store';
 import { SectionHead } from '@/components/aureon/ui';
 import { PortfolioDecisionUnit, ActionConfirmationModal, EmptyDecisions } from '@/components/aureon/flow';
@@ -24,21 +25,23 @@ export default function Dashboard() {
   const navigate = useNavigate();
   const { allRecs, active, apply, undo } = useApp();
   const {
-    holdings, signals, netWorth, dayDelta,
-    portfolioRec, activity, freshness, loading,
+    holdings, netWorth, dayDelta,
+    portfolioRec, freshness, loading,
     historySnapshots, historyLoading, historyError,
   } = useAureonData();
   const [modal, setModal] = useState(null);
+  const qc = useQueryClient();
+  const handleRefresh = useCallback(() => qc.invalidateQueries(), [qc]);
 
   // Portfolio summary state derived from backend data only — no local snapshot generation
   const portfolioSummaryState = useMemo(() => {
-    if (loading || historyLoading) return { status: 'loading', data: null, error: null, refetch: () => {} };
-    if (historyError) return { status: 'error', data: null, error: historyError.message || 'Failed to load history', refetch: () => {} };
-    if (!netWorth && netWorth !== 0) return { status: 'empty', data: null, error: null, refetch: () => {} };
+    if (loading || historyLoading) return { status: 'loading', data: null, error: null, refetch: handleRefresh };
+    if (historyError) return { status: 'error', data: null, error: historyError.message || 'Failed to load history', refetch: handleRefresh };
+    if (!netWorth && netWorth !== 0) return { status: 'empty', data: null, error: null, refetch: handleRefresh };
     return {
       status: 'ready',
       error: null,
-      refetch: () => {},
+      refetch: handleRefresh,
       data: {
         value:       netWorth,
         dayDelta:    dayDelta?.dollars ?? 0,
@@ -47,7 +50,7 @@ export default function Dashboard() {
         snapshots:   historySnapshots,
       },
     };
-  }, [netWorth, dayDelta, loading, historySnapshots, historyLoading, historyError]);
+  }, [netWorth, dayDelta, loading, historySnapshots, historyLoading, historyError, handleRefresh]);
 
   const recs     = useMemo(() => allRecs.filter(r => active.includes(r.id)), [allRecs, active]);
   const dashRecs = recs.filter(r => r.confidence >= 50).slice(0, 3);
@@ -55,11 +58,6 @@ export default function Dashboard() {
   const openModal   = (rec, onConfirm) => setModal({ rec, onConfirm });
   const closeModal  = () => setModal(null);
   const confirmModal = () => { modal?.onConfirm?.(); setModal(null); };
-
-  const todayISO = useMemo(() => new Date().toISOString().slice(0, 10), []);
-  const appliedToday = useMemo(() =>
-    activity.filter(a => a.kind !== 'dismissed' && a.ts >= todayISO).length,
-  [activity, todayISO]);
 
   return (
     <>
@@ -86,7 +84,7 @@ export default function Dashboard() {
       />
 
       {/* 4 · Market freshness */}
-      <MarketFreshnessSection freshness={freshness} />
+      <MarketFreshnessSection freshness={freshness} onRefresh={handleRefresh} />
 
       {/* 5 · Lifecycle strip */}
       <LifecycleStrip />

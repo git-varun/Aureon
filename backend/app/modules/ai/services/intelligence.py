@@ -1,8 +1,9 @@
 from app.core.services.base import BaseService
+import bisect
 import json
 import uuid
 from datetime import datetime, timedelta, timezone
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List, Optional, Tuple
 
 from sqlalchemy.orm import Session
 
@@ -251,7 +252,7 @@ class FinancialIntelligenceService(BaseService):
             val = qty * price
             total_val += val
 
-            stock_values[pos.symbol] = val
+            stock_values[pos.symbol] = stock_values.get(pos.symbol, 0.0) + val
 
             asset = self.repo.get_asset(pos.asset_id)
             if asset:
@@ -308,15 +309,11 @@ class FinancialIntelligenceService(BaseService):
         config = self._get_config()
         asset_count_thresh = config.get("diversification_asset_count_threshold", 10.0)
         sector_count_thresh = config.get("diversification_sector_count_threshold", 5.0)
-        
-        # 1. Asset Count component
-        asset_count = len(positions)
-        s_count = min(100.0, asset_count * (100.0 / asset_count_thresh) if asset_count_thresh > 0 else 10.0)
-        
+
         # 2. Sector Spread component
         sectors = set()
         total_val = 0.0
-        weights = []
+        symbol_values: Dict[str, float] = {}
         class_values: Dict[str, float] = {}
 
         for pos in positions:
@@ -329,10 +326,18 @@ class FinancialIntelligenceService(BaseService):
             price = resolve_position_price(self.db, pos).price or 0.0
             val = float(pos.quantity) * price
             total_val += val
-            weights.append(val)
+            # Keyed by symbol, not appended per-Position, so a symbol split
+            # across wallets (e.g. Binance spot + earn) counts as one asset
+            # in asset_count/weights rather than being double-counted.
+            symbol_values[pos.symbol] = symbol_values.get(pos.symbol, 0.0) + val
 
             if asset:
                 class_values[asset.asset_class] = class_values.get(asset.asset_class, 0.0) + val
+
+        # 1. Asset Count component
+        asset_count = len(symbol_values)
+        s_count = min(100.0, asset_count * (100.0 / asset_count_thresh) if asset_count_thresh > 0 else 10.0)
+        weights = list(symbol_values.values())
 
         s_sector = min(100.0, len(sectors) * (100.0 / sector_count_thresh) if sector_count_thresh > 0 else 20.0)
 
@@ -709,7 +714,30 @@ class FinancialIntelligenceService(BaseService):
 
     # ── Trend Calculation Methods (Task 8) ───────────────────────────────────
 
-    def _get_portfolio_state_at_date(self, dt: datetime, transactions: List[Transaction], price_history_by_asset: Dict[uuid.UUID, List[PriceHistory]], assets_by_symbol: Dict[str, Asset]) -> Dict[str, Any]:
+    def _index_price_history_by_asset(self, price_history: List[PriceHistory]) -> Dict[uuid.UUID, List[Tuple[datetime, float]]]:
+        # Normalize tzinfo and sort once per asset (ascending by timestamp) so
+        # _get_portfolio_state_at_date can binary-search for the closest price
+        # instead of linearly scanning every point on every trend day — the
+        # linear scan was O(days * assets * price_points) and dominated trend
+        # endpoint latency (seconds for 90 days, timeouts for "All").
+        by_asset: Dict[uuid.UUID, List[Tuple[datetime, float]]] = {}
+        for p in price_history:
+            ts = p.timestamp.replace(tzinfo=timezone.utc) if p.timestamp.tzinfo is None else p.timestamp
+            by_asset.setdefault(p.asset_id, []).append((ts, float(p.price)))
+        for asset_id, points in by_asset.items():
+            points.sort(key=lambda pt: pt[0])
+        return by_asset
+
+    def _closest_price(self, points: List[Tuple[datetime, float]], dt: datetime) -> Optional[float]:
+        if not points:
+            return None
+        timestamps = [pt[0] for pt in points]
+        idx = bisect.bisect_left(timestamps, dt)
+        candidates = [i for i in (idx - 1, idx) if 0 <= i < len(points)]
+        best = min(candidates, key=lambda i: abs((points[i][0] - dt).total_seconds()))
+        return points[best][1]
+
+    def _get_portfolio_state_at_date(self, dt: datetime, transactions: List[Transaction], price_history_by_asset: Dict[uuid.UUID, List[Tuple[datetime, float]]], assets_by_symbol: Dict[str, Asset]) -> Dict[str, Any]:
         positions = {}
         for tx in transactions:
             tx_date = tx.transaction_date.replace(tzinfo=timezone.utc) if tx.transaction_date.tzinfo is None else tx.transaction_date
@@ -749,17 +777,7 @@ class FinancialIntelligenceService(BaseService):
             asset_id = pos["asset_id"]
             price = None
             if asset_id and asset_id in price_history_by_asset:
-                hist_list = price_history_by_asset[asset_id]
-                closest = None
-                min_diff = None
-                for p in hist_list:
-                    p_time = p.timestamp.replace(tzinfo=timezone.utc) if p.timestamp.tzinfo is None else p.timestamp
-                    diff = abs((p_time - dt).total_seconds())
-                    if min_diff is None or diff < min_diff:
-                        min_diff = diff
-                        closest = p
-                if closest:
-                    price = float(closest.price)
+                price = self._closest_price(price_history_by_asset[asset_id], dt)
 
             if price is None:
                 # No real price history for this asset as of dt — skip it
@@ -788,11 +806,38 @@ class FinancialIntelligenceService(BaseService):
             "weights": weights
         }
 
-    def get_portfolio_health_trend(self, portfolio_id: uuid.UUID, days: int = 30) -> List[Dict[str, Any]]:
+    def _clamp_trend_dates(self, days: int, transactions: List[Transaction]) -> List[datetime]:
+        """Builds the day-by-day date list for a trend series, clamped to the
+        portfolio's actual start so no point predates its first real
+        transaction — same max(requested_start, earliest_txn_date) discipline
+        as PortfolioService.get_history (portfolio.py:764-767), rather than
+        flat-lining a "0" score for dates before the portfolio existed.
+        Returns [] when there are no transactions at all, matching
+        get_history's "no txns -> empty series" behavior.
+        """
+        if not transactions:
+            return []
         now = datetime.now(timezone.utc)
-        dates = [now - timedelta(days=i) for i in range(days - 1, -1, -1)]
-        
+        earliest_txn_date = min(
+            t.transaction_date.replace(tzinfo=timezone.utc) if t.transaction_date.tzinfo is None else t.transaction_date
+            for t in transactions
+        )
+        requested_start = now - timedelta(days=days - 1)
+        start = max(requested_start, earliest_txn_date)
+        total_days = max(1, (now - start).days + 1)
+        return [now - timedelta(days=i) for i in range(total_days - 1, -1, -1)]
+
+    def get_portfolio_health_trend(self, portfolio_id: uuid.UUID, days: int = 30) -> List[Dict[str, Any]]:
+        # Known gap, deliberately deferred: get_transactions_by_portfolio
+        # doesn't filter kind="broker_snapshot" the way get_history does
+        # (portfolio.py:702-708) — a broker-synced holding with no real
+        # trade ledger will show a false "sudden appearance" in this trend
+        # at its sync date instead of being excluded. Display-skew, not
+        # fabrication; not fixed in this pass.
         transactions = self.repo.get_transactions_by_portfolio(portfolio_id)
+        dates = self._clamp_trend_dates(days, transactions)
+        if not dates:
+            return []
 
         symbols = list(set(t.symbol for t in transactions))
         assets = self.repo.get_assets_by_symbols(symbols)
@@ -800,10 +845,13 @@ class FinancialIntelligenceService(BaseService):
         asset_ids = [a.id for a in assets]
 
         price_history = self.repo.get_price_history_by_assets(asset_ids)
-        price_history_by_asset = {}
-        for p in price_history:
-            price_history_by_asset.setdefault(p.asset_id, []).append(p)
+        price_history_by_asset = self._index_price_history_by_asset(price_history)
             
+        # Hoisted out of the per-day loop below: allocation targets don't vary
+        # by date, and this was issuing a DB query on every iteration (N+1),
+        # part of what made this endpoint slow for large day ranges.
+        class_target = self._get_allocation_targets()
+
         trend = []
         for d in dates:
             state = self._get_portfolio_state_at_date(d, transactions, price_history_by_asset, assets_by_symbol)
@@ -814,46 +862,47 @@ class FinancialIntelligenceService(BaseService):
             hhi = sum((w / state["total_value"]) ** 2 for w in state["weights"]) if state["total_value"] > 0 else 0.0
             s_balance = 100.0 * (1.0 - hhi) if state["total_value"] > 0 else 0.0
             s_div = 0.3 * s_count + 0.3 * s_sector + 0.4 * s_balance
-            
-            # s_discipline
-            class_target = self._get_allocation_targets()
+
+            # s_discipline — reuse state["stock_values"], which already
+            # excludes assets with no real price history as of d, rather
+            # than re-deriving from state["positions"] with a fabricated
+            # 100.0 price fallback (same anti-pattern already fixed in
+            # _get_asset_price_at_time / _get_portfolio_state_at_date).
             alloc = {}
-            for sym, pos in state["positions"].items():
-                qty = pos["quantity"]
-                if qty <= 0:
-                    continue
+            for sym, val in state["stock_values"].items():
                 asset = assets_by_symbol.get(sym)
-                if asset:
-                    cls = asset.asset_class.lower()
-                    if cls in ["stocks", "equity"]:
-                        cls_key = "stocks"
-                    elif cls in ["bonds", "debt"]:
-                        cls_key = "bonds"
-                    elif cls in ["funds", "mutual_funds"]:
-                        cls_key = "funds"
-                    else:
-                        cls_key = cls
-                    
-                    price = 100.0
-                    if asset.id in price_history_by_asset:
-                        hist_list = price_history_by_asset[asset.id]
-                        closest = min(hist_list, key=lambda p: abs((p.timestamp.replace(tzinfo=timezone.utc) if p.timestamp.tzinfo is None else p.timestamp) - d))
-                        price = float(closest.price)
-                    alloc[cls_key] = alloc.get(cls_key, 0.0) + (qty * price)
-            
+                if not asset:
+                    continue
+                cls = asset.asset_class.lower()
+                if cls in ["stocks", "equity"]:
+                    cls_key = "stocks"
+                elif cls in ["bonds", "debt"]:
+                    cls_key = "bonds"
+                elif cls in ["funds", "mutual_funds"]:
+                    cls_key = "funds"
+                else:
+                    cls_key = cls
+                alloc[cls_key] = alloc.get(cls_key, 0.0) + val
+
             total_drift = 0.0
             for cls, target in class_target.items():
                 curr_pct = alloc.get(cls, 0.0) / state["total_value"] if state["total_value"] > 0 else 0.0
                 total_drift += abs(curr_pct - target)
             s_discipline = max(0.0, 100.0 - (total_drift * 50.0))
-            
+
             # consistency
             recent_txns = len([t for t in transactions if (d - timedelta(days=90)) <= (t.transaction_date.replace(tzinfo=timezone.utc) if t.transaction_date.tzinfo is None else t.transaction_date) <= d])
             s_consistency = min(100.0, recent_txns * 33.3)
-            
-            s_outcomes = 75.0  # default
-            
-            health_score = 0.3 * s_div + 0.3 * s_discipline + 0.2 * s_outcomes + 0.2 * s_consistency
+
+            # Recommendation status (applied/dismissed) isn't a dated field —
+            # only the current status is stored, not what it was on day d —
+            # so there's no real point-in-time "outcomes" signal to compute
+            # here. Exclude it and renormalize, matching the no-fabricated-
+            # neutral-default precedent in get_investor_health_score, rather
+            # than reinstating the removed 75.0 constant.
+            weighted_terms = [(0.3, s_div), (0.3, s_discipline), (0.2, s_consistency)]
+            total_weight = sum(w for w, _ in weighted_terms)
+            health_score = sum(w * v for w, v in weighted_terms) / total_weight
             trend.append({
                 "date": d.strftime("%Y-%m-%d"),
                 "investor_health_score": round(health_score, 1),
@@ -864,10 +913,12 @@ class FinancialIntelligenceService(BaseService):
         return trend
 
     def get_diversification_trend(self, portfolio_id: uuid.UUID, days: int = 30) -> List[Dict[str, Any]]:
-        now = datetime.now(timezone.utc)
-        dates = [now - timedelta(days=i) for i in range(days - 1, -1, -1)]
-        
+        # Known gap, deliberately deferred: same broker_snapshot filtering
+        # gap noted in get_portfolio_health_trend above.
         transactions = self.repo.get_transactions_by_portfolio(portfolio_id)
+        dates = self._clamp_trend_dates(days, transactions)
+        if not dates:
+            return []
 
         symbols = list(set(t.symbol for t in transactions))
         assets = self.repo.get_assets_by_symbols(symbols)
@@ -875,9 +926,7 @@ class FinancialIntelligenceService(BaseService):
         asset_ids = [a.id for a in assets]
 
         price_history = self.repo.get_price_history_by_assets(asset_ids)
-        price_history_by_asset = {}
-        for p in price_history:
-            price_history_by_asset.setdefault(p.asset_id, []).append(p)
+        price_history_by_asset = self._index_price_history_by_asset(price_history)
             
         trend = []
         for d in dates:
@@ -966,9 +1015,7 @@ class FinancialIntelligenceService(BaseService):
         asset_ids = [a.id for a in assets]
 
         price_history = self.repo.get_price_history_by_assets(asset_ids)
-        price_history_by_asset = {}
-        for p in price_history:
-            price_history_by_asset.setdefault(p.asset_id, []).append(p)
+        price_history_by_asset = self._index_price_history_by_asset(price_history)
             
         trend = []
         for d in dates:

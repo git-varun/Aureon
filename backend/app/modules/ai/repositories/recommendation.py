@@ -7,7 +7,7 @@ from sqlalchemy.orm import Session
 
 from app.modules.market.entities.evaluation import AssetScore
 from app.modules.market.entities.market import AssetFeatures, AssetSnapshot, LatestQuote
-from app.modules.portfolio.entities.portfolio import Portfolio, Transaction
+from app.modules.portfolio.entities.portfolio import Portfolio, Position, Transaction
 from app.modules.ai.entities.recommendation import (
     Recommendation,
     RecommendationExplanation,
@@ -19,12 +19,19 @@ class RecommendationRepository(BaseRepository):
     def __init__(self, session: Session):
         self.session = session
 
+    def _held_asset_ids(self):
+        """Subquery of distinct non-null asset_ids held across every portfolio —
+        the whole user's holdings, not one specific portfolio (this app is
+        single-user/no-multi-tenancy per CLAUDE.md, so Recommendation stays
+        asset-scoped rather than gaining a portfolio_id column)."""
+        return select(Position.asset_id).where(Position.asset_id.is_not(None)).distinct()
+
     def get(self, recommendation_id: uuid.UUID) -> Recommendation | None:
         stmt = select(Recommendation).where(Recommendation.id == recommendation_id)
         return self.session.execute(stmt).scalar_one_or_none()
 
     def get_all(self, status: str | None = None) -> list[Recommendation]:
-        stmt = select(Recommendation)
+        stmt = select(Recommendation).where(Recommendation.asset_id.in_(self._held_asset_ids()))
         if status:
             stmt = stmt.where(Recommendation.status == status)
         return list(self.session.execute(stmt).scalars().all())
@@ -45,6 +52,13 @@ class RecommendationRepository(BaseRepository):
 
     def list_all_snapshots(self) -> list[AssetSnapshot]:
         return self.session.query(AssetSnapshot).all()
+
+    def list_held_snapshots(self) -> list[AssetSnapshot]:
+        """AssetSnapshot rows for assets actually held in a portfolio position —
+        used by generate_recommendations so scoring never runs for assets the
+        user has no position in."""
+        stmt = select(AssetSnapshot).where(AssetSnapshot.asset_id.in_(self._held_asset_ids()))
+        return list(self.session.execute(stmt).scalars().all())
 
     def get_snapshot(self, asset_id: uuid.UUID) -> AssetSnapshot | None:
         return self.session.query(AssetSnapshot).filter(AssetSnapshot.asset_id == asset_id).first()

@@ -18,6 +18,7 @@ from app.api.dependencies import (
 )
 from app.core.database import get_db
 from app.core.api.schemas import (
+    ImportRunResponse,
     PortfolioCreate,
     PortfolioResponse,
     PortfolioUpdate,
@@ -353,6 +354,24 @@ def list_transactions(
     except NotFoundError as e:
         raise HTTPException(status_code=404, detail=str(e))
 
+@router.get("/portfolios/{portfolio_id}/transactions/broker-coverage")
+def get_broker_transaction_coverage(
+    portfolio_id: uuid.UUID,
+    current_user: User = Depends(get_current_user),
+    service: PortfolioService = Depends(get_portfolio_service),
+):
+    try:
+        coverage = service.get_broker_transaction_coverage(portfolio_id)
+    except NotFoundError as e:
+        raise HTTPException(status_code=404, detail=str(e))
+    return {
+        broker: last_date.isoformat() if last_date else None
+        for broker, last_date in coverage.items()
+    }
+
+# Registered before /transactions/{txn_id} — a path param route would otherwise
+# greedily match "broker-coverage" as txn_id and fail UUID parsing (FastAPI/
+# Starlette matches routes in registration order).
 @router.get("/portfolios/{portfolio_id}/transactions/{txn_id}", response_model=TransactionResponse)
 def get_transaction(
     portfolio_id: uuid.UUID,
@@ -528,7 +547,8 @@ async def import_cdsl_cas_pdf(
         return service.import_cdsl_cas(
             portfolio_id=portfolio_id,
             file_bytes=content,
-            password=password
+            password=password,
+            filename=file.filename or "cas.pdf",
         )
     except ValidationError as e:
         raise HTTPException(status_code=400, detail=str(e))
@@ -547,6 +567,7 @@ async def import_groww_stocks_holdings(
         return service.import_groww_stocks_holdings(
             portfolio_id=portfolio_id,
             file_bytes=content,
+            filename=file.filename or "groww_holdings.xlsx",
         )
     except ValidationError as e:
         raise HTTPException(status_code=400, detail=str(e))
@@ -565,6 +586,7 @@ async def import_groww_mf_holdings(
         return service.import_groww_mf_holdings(
             portfolio_id=portfolio_id,
             file_bytes=content,
+            filename=file.filename or "groww_mf_holdings.xlsx",
         )
     except ValidationError as e:
         raise HTTPException(status_code=400, detail=str(e))
@@ -604,9 +626,33 @@ async def import_epf_statement(
             portfolio_id=portfolio_id,
             file_bytes=content,
             password=password,
+            filename=file.filename or "epf.pdf",
         )
     except ValidationError as e:
         raise HTTPException(status_code=400, detail=str(e))
+    except NotFoundError as e:
+        raise HTTPException(status_code=404, detail=str(e))
+
+@router.get("/portfolios/{portfolio_id}/import/history", response_model=List[ImportRunResponse])
+def get_import_history(
+    portfolio_id: uuid.UUID,
+    current_user: User = Depends(get_current_user),
+    service: PortfolioService = Depends(get_portfolio_service),
+):
+    try:
+        return service.list_import_runs(portfolio_id)
+    except NotFoundError as e:
+        raise HTTPException(status_code=404, detail=str(e))
+
+@router.get("/portfolios/{portfolio_id}/import/history/{run_id}/transactions", response_model=List[TransactionResponse])
+def get_import_run_transactions(
+    portfolio_id: uuid.UUID,
+    run_id: uuid.UUID,
+    current_user: User = Depends(get_current_user),
+    service: PortfolioService = Depends(get_portfolio_service),
+):
+    try:
+        return service.list_import_run_transactions(portfolio_id, run_id)
     except NotFoundError as e:
         raise HTTPException(status_code=404, detail=str(e))
 
@@ -736,6 +782,7 @@ def get_sync_status(
         has_token = all(provider["keys_status"].get(k, False) for k in required_keys)
         logs = config_svc.get_job_logs(job_name, limit=1)
         last_log = logs[0] if logs else None
+        last_success = config_svc.get_last_successful_run(job_name)
 
         if not has_token:
             status, error = "auth_required", None
@@ -753,7 +800,10 @@ def get_sync_status(
         results.append({
             "provider": name,
             "status": status,
-            "last_synced_at": last_log["ended_at"] if (last_log and status == "ok") else None,
+            # last time this job actually succeeded, regardless of whether a
+            # later attempt failed — a FAILED-most-recent run must not mask a
+            # real recent success (see get_last_successful_run docstring).
+            "last_synced_at": last_success["ended_at"] if last_success else None,
             "positions_count": positions_count,
             "error": error,
         })

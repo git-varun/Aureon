@@ -86,6 +86,21 @@ class PositionResponse(BaseModel):
     epf_estimate_basis: Optional[dict[str, Any]] = None
     currency: Optional[str] = None
 
+class ImportRunResponse(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    id: uuid.UUID
+    portfolio_id: uuid.UUID
+    source: str
+    filename: str
+    status: str
+    rows_committed: int
+    rows_skipped: int
+    error_summary: Optional[str] = None
+    started_at: datetime
+    duration_ms: int
+    created_at: datetime
+
 class SnapshotResponse(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 

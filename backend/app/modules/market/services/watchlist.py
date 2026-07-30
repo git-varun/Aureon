@@ -9,6 +9,7 @@ from sqlalchemy.orm import Session
 from app.core.exceptions import ConflictError, NotFoundError
 from app.modules.market.entities.market import Asset, LatestQuote
 from app.modules.market.entities.watchlist import Watchlist, WatchlistSymbol
+from app.modules.market.repositories.ingestion import IngestionRepository
 from app.modules.market.repositories.watchlist import WatchlistsRepository
 from app.modules.market.services.market import infer_currency, infer_exchange_region
 
@@ -140,6 +141,15 @@ class WatchlistService(BaseService):
 
         ws = WatchlistSymbol(watchlist_id=watchlist_id, symbol=sym_upper)
         self.repo.save_symbol(ws)
+
+        # Without a real Asset row, this symbol would never enter quote ingestion
+        # (list_symbols_for_quote_ingestion scopes to held-or-watchlisted Asset
+        # rows) and would sit with no price forever. create_asset_if_missing is
+        # an Asset-only insert — unlike ensure_asset_exists, it doesn't also
+        # create an AssetSnapshot row, which market/reference.md §44-47 notes
+        # was a deliberate removal (an orphaned snapshot with no features/scores
+        # ever computed for it, since evaluation only runs for held assets).
+        IngestionRepository(self.repo.session).create_asset_if_missing(sym_upper, sym_upper, "equity")
         self.repo.session.commit()
         self.repo.session.refresh(wl)
 

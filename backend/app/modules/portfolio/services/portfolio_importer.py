@@ -224,7 +224,8 @@ def _rows_from_records(records: List[Dict[str, Any]], broker: Optional[str] = No
         if broker == "binance" and "symbol" in normalised:
             normalised["symbol"] = _normalise_binance_symbol(normalised["symbol"])
 
-        if extras.get("_segment", "").strip().upper() == "MF" and normalised.get("symbol"):
+        is_mf_segment = extras.get("_segment", "").strip().upper() == "MF"
+        if is_mf_segment and normalised.get("symbol"):
             if not extras.get("_name"):
                 extras["_name"] = normalised["symbol"]
             normalised["symbol"] = _mf_symbol(normalised["symbol"])
@@ -271,7 +272,7 @@ def _rows_from_records(records: List[Dict[str, Any]], broker: Optional[str] = No
                 "isin":             extras.get("_isin") or None,
                 "exchange":         extras.get("_exchange") or None,
                 "name":             extras.get("_name") or None,
-                "asset_type":       "mutual_fund" if broker == "groww_mf" else None,
+                "asset_type":       "mutual_fund" if (broker == "groww_mf" or is_mf_segment) else None,
             })
 
     return rows, errors

@@ -78,22 +78,6 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
         logger.error(f"Failed to seed defaults: {e}")
         raise RuntimeError(f"Startup check failed: Database seeding failed. Error: {e}")
 
-    # Bootstrap market universe if empty
-    try:
-        from app.core.database import SessionLocal
-        from app.modules.market.entities.market import Asset
-        with SessionLocal() as db:
-            asset_count = db.query(Asset).count()
-        if asset_count == 0:
-            logger.info("market.assets is empty — triggering seed_market_universe_task via Celery")
-            from app.workers.ingestion.tasks import seed_market_universe_task, seed_price_history_task
-            seed_market_universe_task.delay()
-            seed_price_history_task.delay()
-        else:
-            logger.info(f"market.assets has {asset_count} assets — skipping bootstrap seed")
-    except Exception as e:
-        logger.warning(f"Market bootstrap check failed (non-fatal): {e}")
-
     logger.info("Aureon API startup completed. Application ready.")
     yield
     

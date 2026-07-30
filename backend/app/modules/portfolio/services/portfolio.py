@@ -3,10 +3,11 @@ from app.core.services.base import BaseService
 
 import uuid
 from collections import defaultdict
+from contextlib import contextmanager
 from datetime import datetime, timedelta, timezone
 from typing import Any, Dict, List, NamedTuple, Optional
 
-from sqlalchemy import select
+from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
 from app.core.binance import STABLECOIN_ASSETS, WALLET_SUFFIXES, split_quote_asset
@@ -22,11 +23,13 @@ from app.modules.market.entities.market import Asset, LatestQuote, PriceHistory
 from app.modules.market.services.market import ensure_asset_exists, infer_currency
 from app.modules.portfolio.entities.portfolio import (
     BinanceBackfillProgress,
+    ImportRun,
     Portfolio,
     PortfolioSnapshot,
     Position,
     Transaction,
 )
+from app.modules.portfolio.repositories.import_runs import ImportRunsRepository
 from app.modules.portfolio.repositories.portfolio_snapshot import (
     PortfolioSnapshotRepository,
 )
@@ -45,6 +48,18 @@ _QUOTE_FRESH_SECONDS = 15 * 60
 _NAV_ASSET_CLASSES = {"mutual_fund", "nps"}
 _NAV_LIVE_SECONDS = 24 * 60 * 60
 _NAV_FRESH_SECONDS = 48 * 60 * 60
+
+
+def _naive_to_utc(session: Session, dt: datetime) -> datetime:
+    """Transaction.transaction_date / LatestQuote.updated_at are TIMESTAMP WITHOUT
+    TIME ZONE columns. psycopg converts a tz-aware write value to the session's
+    TimeZone GUC before dropping tzinfo, so a naive read is off by that GUC's
+    offset from UTC unless reversed the same way (see
+    TransactionsRepository.get_last_real_transaction_dates_by_broker, which
+    reverses it in SQL). No-op if already tz-aware or if the GUC is UTC."""
+    if dt.tzinfo is not None:
+        return dt
+    return session.execute(select(func.timezone(func.current_setting("TimeZone"), dt))).scalar()
 
 
 def _quote_age_status(updated_at: datetime, asset_class: Optional[str] = None) -> str:
@@ -123,9 +138,11 @@ def _estimate_epf_price(session: Session, pos: Position) -> PositionPrice:
         except (ValueError, TypeError, AttributeError):
             rates = {}
 
-    statement_date = snapshot.transaction_date
-    if statement_date.tzinfo is None:
-        statement_date = statement_date.replace(tzinfo=timezone.utc)
+    # Filter against the raw naive column value (same-column comparison, so the
+    # GUC skew cancels out and ordering is unaffected) — only the Python-side
+    # month bucketing/interest math below needs the true-UTC correction.
+    raw_statement_date = snapshot.transaction_date
+    statement_date = _naive_to_utc(session, raw_statement_date)
     now = datetime.now(timezone.utc)
 
     contributions = session.scalars(
@@ -134,15 +151,13 @@ def _estimate_epf_price(session: Session, pos: Position) -> PositionPrice:
             Transaction.symbol == pos.symbol,
             Transaction.broker == "epf",
             Transaction.kind == "broker_trade",
-            Transaction.transaction_date > statement_date,
+            Transaction.transaction_date > raw_statement_date,
         )
     ).all()
 
     contributions_by_month: Dict[tuple, float] = {}
     for c in contributions:
-        c_date = c.transaction_date
-        if c_date.tzinfo is None:
-            c_date = c_date.replace(tzinfo=timezone.utc)
+        c_date = _naive_to_utc(session, c.transaction_date)
         if c_date > now:
             continue
         key = (c_date.year, c_date.month)
@@ -227,11 +242,9 @@ def resolve_position_price(session: Session, pos: Position) -> PositionPrice:
             return PositionPrice(float(quote.price), "manual", None, None, None, currency)
         if quote.price == 0:
             return PositionPrice(None, "unavailable", None, None, None, currency)
-        updated_at = quote.updated_at
-        if updated_at.tzinfo is None:
-            updated_at = updated_at.replace(tzinfo=timezone.utc)
+        updated_at = _naive_to_utc(session, quote.updated_at)
         asset_class = asset.asset_class if asset else None
-        return PositionPrice(float(quote.price), "market", _quote_age_status(quote.updated_at, asset_class), updated_at, None, currency)
+        return PositionPrice(float(quote.price), "market", _quote_age_status(updated_at, asset_class), updated_at, None, currency)
     return PositionPrice(float(pos.avg_buy_price), "cost_basis", None, None, None, currency)
 
 
@@ -242,11 +255,13 @@ class PortfolioService(BaseService):
         transactions_repo: TransactionsRepository,
         positions_repo: PositionsRepository,
         snapshot_repo: PortfolioSnapshotRepository,
+        import_runs_repo: ImportRunsRepository,
     ):
         self.portfolios_repo = portfolios_repo
         self.transactions_repo = transactions_repo
         self.positions_repo = positions_repo
         self.snapshot_repo = snapshot_repo
+        self.import_runs_repo = import_runs_repo
         self.session = portfolios_repo.session
 
     def _invalidate_portfolio_caches(self, portfolio_id: uuid.UUID) -> None:
@@ -254,6 +269,77 @@ class PortfolioService(BaseService):
         invalidate_portfolio_snapshot(pid)
         invalidate_intelligence_portfolio(pid)
         invalidate_intelligence_health(pid)
+
+    @contextmanager
+    def _track_import_run(self, portfolio_id: uuid.UUID, source: str, filename: str):
+        """Wraps an import_* method body. Creates the ImportRun row up front and
+        flushes it so `run.id` is available immediately — importers stamp it onto
+        every Transaction they create via `import_run_id=run.id`, which is what
+        powers the "what was in this import" drill-down. The same `run` object is
+        reused on both the success and failure paths (never a second insert): the
+        caller sets `run.rows_committed`/`run.rows_skipped`/`run.errors` (a plain
+        list, not a mapped column) before the block exits normally, and status is
+        derived from those. On exception, the session is rolled back first (some
+        importers write mid-loop before their own commit) — this discards the
+        flushed-but-uncommitted `run` row too, so it's re-added — then this same
+        `run` object is finalized as FAILED and committed on its own before
+        re-raising."""
+        started_at = datetime.now(timezone.utc)
+        run = ImportRun(
+            portfolio_id=portfolio_id,
+            source=source,
+            filename=filename,
+            status="RUNNING",
+            rows_committed=0,
+            rows_skipped=0,
+            started_at=started_at,
+            duration_ms=0,
+        )
+        run.errors = []
+        self.import_runs_repo.create(run)
+        try:
+            yield run
+        except Exception as exc:
+            self.session.rollback()
+            run.status = "FAILED"
+            run.rows_committed = 0
+            run.rows_skipped = 0
+            run.error_summary = str(exc)[:2000]
+            run.duration_ms = int((datetime.now(timezone.utc) - started_at).total_seconds() * 1000)
+            self.session.add(run)
+            self.session.commit()
+            raise
+        else:
+            errors = getattr(run, "errors", None) or []
+            run.status = "PARTIAL" if run.rows_committed > 0 and errors else "SUCCESS"
+            run.error_summary = "; ".join(errors[:5])[:2000] if errors else None
+            run.duration_ms = int((datetime.now(timezone.utc) - started_at).total_seconds() * 1000)
+            self.session.commit()
+
+    def list_import_runs(self, portfolio_id: uuid.UUID) -> List[ImportRun]:
+        self.get_portfolio(portfolio_id)
+        return self.import_runs_repo.list_by_portfolio(portfolio_id)
+
+    def list_import_run_transactions(self, portfolio_id: uuid.UUID, run_id: uuid.UUID) -> List[Transaction]:
+        self.get_portfolio(portfolio_id)
+        stmt = select(Transaction).where(
+            (Transaction.portfolio_id == portfolio_id) &
+            (Transaction.import_run_id == run_id)
+        ).order_by(Transaction.transaction_date.desc())
+        return list(self.session.execute(stmt).scalars().all())
+
+    def get_broker_transaction_coverage(self, portfolio_id: uuid.UUID) -> dict[str, Optional[datetime]]:
+        """Most recent real (kind="trade"/"broker_trade") transaction date per
+        broker for this portfolio — the actual gap in recorded transaction
+        history, as opposed to "when did the sync job last run" (which for
+        Zerodha/Groww's snapshot-only sync never reflects real trade dates,
+        see TransactionsRepository.get_last_real_transaction_dates_by_broker)."""
+        self.get_portfolio(portfolio_id)
+        coverage = self.transactions_repo.get_last_real_transaction_dates_by_broker(portfolio_id)
+        return {
+            broker: (d if d.tzinfo is not None else d.replace(tzinfo=timezone.utc))
+            for broker, d in coverage.items()
+        }
 
     def create_portfolio(self, name: str, actor_id: Optional[uuid.UUID] = None) -> Portfolio:
         portfolio = Portfolio(name=name)
@@ -493,7 +579,7 @@ class PortfolioService(BaseService):
             self._invalidate_portfolio_caches(portfolio_id)
         return deleted
 
-    def recalculate_position(self, portfolio_id: uuid.UUID, symbol: str) -> None:
+    def recalculate_position(self, portfolio_id: uuid.UUID, symbol: str, wallet: str = "spot") -> None:
         symbol = symbol.upper().strip()
         
         # Query manual/imported transactions (kind == "trade"). Explicitly excludes
@@ -522,6 +608,7 @@ class PortfolioService(BaseService):
                     Transaction.portfolio_id == portfolio_id,
                     Transaction.symbol == symbol,
                     Transaction.kind == "broker_snapshot",
+                    Transaction.wallet == wallet,
                 )
                 .order_by(Transaction.transaction_date.desc())
                 .first()
@@ -564,7 +651,7 @@ class PortfolioService(BaseService):
 
         pos = (
             self.session.query(Position)
-            .filter(Position.portfolio_id == portfolio_id, Position.symbol == symbol)
+            .filter(Position.portfolio_id == portfolio_id, Position.symbol == symbol, Position.wallet == wallet)
             .first()
         )
 
@@ -593,6 +680,7 @@ class PortfolioService(BaseService):
                 asset_id=asset_id,
                 quantity=net_qty,
                 avg_buy_price=running_avg,
+                wallet=wallet,
             )
             self.session.add(pos)
         self.session.flush()
@@ -642,7 +730,7 @@ class PortfolioService(BaseService):
 
             market_value += val
             total_invested += cost
-            position_values[pos.symbol] = val
+            position_values[pos.symbol] = position_values.get(pos.symbol, 0.0) + val
 
         allocation = {}
         for symbol, val in position_values.items():
@@ -799,79 +887,83 @@ class PortfolioService(BaseService):
 
         ext = filename.split(".")[-1].lower() if "." in filename else "csv"
         from app.modules.portfolio.services.portfolio_importer import parse_transaction_file
-        rows, errors = parse_transaction_file(file_bytes, ext, broker)
-        if not rows and errors:
-            shown = errors[:5]
-            more = f"; and {len(errors) - 5} more" if len(errors) > 5 else ""
-            raise ValidationError(f"File parsing errors: {'; '.join(shown)}{more}")
-        if not rows:
-            raise ValidationError(
-                "No transactions found in file — check that the file format/columns match "
-                "a recognised broker export (see PROVIDERS.md)."
-            )
 
-        committed = 0
-        skipped = 0
-        symbols_to_recalc = set()
+        with self._track_import_run(portfolio_id, broker or "csv", filename) as run:
+            rows, errors = parse_transaction_file(file_bytes, ext, broker)
+            if not rows and errors:
+                shown = errors[:5]
+                more = f"; and {len(errors) - 5} more" if len(errors) > 5 else ""
+                raise ValidationError(f"File parsing errors: {'; '.join(shown)}{more}")
+            if not rows:
+                raise ValidationError(
+                    "No transactions found in file — check that the file format/columns match "
+                    "a recognised broker export (see PROVIDERS.md)."
+                )
 
-        # Bulk-load existing (broker, broker_reference) pairs up front so dedup
-        # is one query instead of one SELECT per row (same pattern as the live
-        # broker sync's _import_broker_trades).
-        refs_by_broker: Dict[str, set] = {}
-        for row in rows:
-            broker_ref = row.get("broker_reference")
-            if broker_ref:
-                refs_by_broker.setdefault(row.get("broker") or "import", set()).add(broker_ref)
+            committed = 0
+            skipped = 0
+            symbols_to_recalc = set()
 
-        existing_refs: set = set()
-        for broker_name, refs in refs_by_broker.items():
-            stmt = select(Transaction.broker, Transaction.broker_reference).where(
-                (Transaction.portfolio_id == portfolio_id) &
-                (Transaction.broker == broker_name) &
-                (Transaction.broker_reference.in_(refs))
-            )
-            existing_refs.update(tuple(r) for r in self.session.execute(stmt).all())
+            # Bulk-load existing (broker, broker_reference) pairs up front so dedup
+            # is one query instead of one SELECT per row (same pattern as the live
+            # broker sync's _import_broker_trades).
+            refs_by_broker: Dict[str, set] = {}
+            for row in rows:
+                broker_ref = row.get("broker_reference")
+                if broker_ref:
+                    refs_by_broker.setdefault(row.get("broker") or "import", set()).add(broker_ref)
 
-        seen_this_call: set = set()
-        for row in rows:
-            broker_ref = row.get("broker_reference")
-            broker_name = row.get("broker") or "import"
-            if broker_ref:
-                key = (broker_name, broker_ref)
-                if key in existing_refs or key in seen_this_call:
-                    skipped += 1
-                    continue
-                seen_this_call.add(key)
+            existing_refs: set = set()
+            for broker_name, refs in refs_by_broker.items():
+                stmt = select(Transaction.broker, Transaction.broker_reference).where(
+                    (Transaction.portfolio_id == portfolio_id) &
+                    (Transaction.broker == broker_name) &
+                    (Transaction.broker_reference.in_(refs))
+                )
+                existing_refs.update(tuple(r) for r in self.session.execute(stmt).all())
 
-            symbol = row["symbol"]
-            asset_id = ensure_asset_exists(
-                self.session,
-                symbol,
-                name=row.get("name"),
-                asset_class=row.get("asset_type") or "equity",
-            )
+            seen_this_call: set = set()
+            for row in rows:
+                broker_ref = row.get("broker_reference")
+                broker_name = row.get("broker") or "import"
+                if broker_ref:
+                    key = (broker_name, broker_ref)
+                    if key in existing_refs or key in seen_this_call:
+                        skipped += 1
+                        continue
+                    seen_this_call.add(key)
 
-            txn = Transaction(
-                portfolio_id=portfolio_id,
-                symbol=symbol,
-                asset_id=asset_id,
-                transaction_type=row["type"],
-                quantity=row["quantity"],
-                price=row["price"],
-                transaction_date=row["date"],
-                broker=broker_name,
-                broker_reference=broker_ref,
-                kind="trade",
-            )
-            self.transactions_repo.create(txn)
-            committed += 1
-            symbols_to_recalc.add(symbol)
+                symbol = row["symbol"]
+                asset_id = ensure_asset_exists(
+                    self.session,
+                    symbol,
+                    name=row.get("name"),
+                    asset_class=row.get("asset_type") or "equity",
+                )
 
-        for sym in symbols_to_recalc:
-            self.recalculate_position(portfolio_id, sym)
+                txn = Transaction(
+                    portfolio_id=portfolio_id,
+                    symbol=symbol,
+                    asset_id=asset_id,
+                    transaction_type=row["type"],
+                    quantity=row["quantity"],
+                    price=row["price"],
+                    transaction_date=row["date"],
+                    broker=broker_name,
+                    broker_reference=broker_ref,
+                    kind="trade",
+                    import_run_id=run.id,
+                )
+                self.transactions_repo.create(txn)
+                committed += 1
+                symbols_to_recalc.add(symbol)
 
-        self.session.commit()
-        self._invalidate_portfolio_caches(portfolio_id)
+            for sym in symbols_to_recalc:
+                self.recalculate_position(portfolio_id, sym)
+
+            self.session.commit()
+            self._invalidate_portfolio_caches(portfolio_id)
+            run.rows_committed, run.rows_skipped, run.errors = committed, skipped, errors
         return {"committed": committed, "skipped": skipped, "errors": errors}
 
     def import_cdsl_cas(
@@ -879,67 +971,73 @@ class PortfolioService(BaseService):
         portfolio_id: uuid.UUID,
         file_bytes: bytes,
         password: Optional[str] = None,
+        filename: str = "cas.pdf",
     ) -> Dict[str, Any]:
         # Validate portfolio exists
         self.get_portfolio(portfolio_id)
 
         from app.modules.portfolio.services.portfolio_importer import parse_cdsl_cas
-        try:
-            payloads, summary = parse_cdsl_cas(file_bytes, password)
-        except Exception as e:
-            raise ValidationError(str(e))
 
-        symbols_to_recalc = set()
-        for p in payloads:
-            symbol = p["symbol"]
-            asset_id = ensure_asset_exists(self.session, symbol, name=p.get("name"), asset_class=p.get("asset_type") or "equity")
+        with self._track_import_run(portfolio_id, "cdsl_cas", filename) as run:
+            try:
+                payloads, summary = parse_cdsl_cas(file_bytes, password)
+            except Exception as e:
+                raise ValidationError(str(e))
 
-            stmt = select(Transaction).where(
-                (Transaction.portfolio_id == portfolio_id) &
-                (Transaction.symbol == symbol) &
-                (Transaction.kind == "broker_snapshot") &
-                (Transaction.broker == "cas_cdsl")
-            )
-            existing = self.session.execute(stmt).scalars().first()
+            symbols_to_recalc = set()
+            for p in payloads:
+                symbol = p["symbol"]
+                asset_id = ensure_asset_exists(self.session, symbol, name=p.get("name"), asset_class=p.get("asset_type") or "equity")
 
-            if existing:
-                existing.quantity = p["quantity"]
-                existing.price = p["avg_buy_price"]
-                existing.transaction_date = datetime.now(timezone.utc)
-            else:
-                txn = Transaction(
-                    portfolio_id=portfolio_id,
-                    symbol=symbol,
-                    asset_id=asset_id,
-                    transaction_type="BUY",
-                    quantity=p["quantity"],
-                    price=p["avg_buy_price"],
-                    transaction_date=datetime.now(timezone.utc),
-                    broker="cas_cdsl",
-                    kind="broker_snapshot",
+                stmt = select(Transaction).where(
+                    (Transaction.portfolio_id == portfolio_id) &
+                    (Transaction.symbol == symbol) &
+                    (Transaction.kind == "broker_snapshot") &
+                    (Transaction.broker == "cas_cdsl")
                 )
-                self.transactions_repo.create(txn)
+                existing = self.session.execute(stmt).scalars().first()
 
-            if p.get("current_price"):
-                from app.core.providers.models import NormalizedQuote
-                from app.modules.market.repositories.ingestion import IngestionRepository
-                IngestionRepository(self.session).upsert_quote(
-                    NormalizedQuote(
+                if existing:
+                    existing.quantity = p["quantity"]
+                    existing.price = p["avg_buy_price"]
+                    existing.transaction_date = datetime.now(timezone.utc)
+                    existing.import_run_id = run.id
+                else:
+                    txn = Transaction(
+                        portfolio_id=portfolio_id,
                         symbol=symbol,
-                        provider="cas_cdsl_import",
-                        timestamp=datetime.now(timezone.utc),
-                        price=p["current_price"],
-                    ),
-                    asset_id,
-                )
+                        asset_id=asset_id,
+                        transaction_type="BUY",
+                        quantity=p["quantity"],
+                        price=p["avg_buy_price"],
+                        transaction_date=datetime.now(timezone.utc),
+                        broker="cas_cdsl",
+                        kind="broker_snapshot",
+                        import_run_id=run.id,
+                    )
+                    self.transactions_repo.create(txn)
 
-            symbols_to_recalc.add(symbol)
+                if p.get("current_price"):
+                    from app.core.providers.models import NormalizedQuote
+                    from app.modules.market.repositories.ingestion import IngestionRepository
+                    IngestionRepository(self.session).upsert_quote(
+                        NormalizedQuote(
+                            symbol=symbol,
+                            provider="cas_cdsl_import",
+                            timestamp=datetime.now(timezone.utc),
+                            price=p["current_price"],
+                        ),
+                        asset_id,
+                    )
 
-        for sym in symbols_to_recalc:
-            self.recalculate_position(portfolio_id, sym)
+                symbols_to_recalc.add(symbol)
 
-        self.session.commit()
-        self._invalidate_portfolio_caches(portfolio_id)
+            for sym in symbols_to_recalc:
+                self.recalculate_position(portfolio_id, sym)
+
+            self.session.commit()
+            self._invalidate_portfolio_caches(portfolio_id)
+            run.rows_committed = len(payloads)
         return {
             "status": "success",
             "imported_holdings": len(payloads),
@@ -951,6 +1049,7 @@ class PortfolioService(BaseService):
         portfolio_id: uuid.UUID,
         payloads: List[Dict[str, Any]],
         broker: str,
+        run_id: uuid.UUID,
     ) -> int:
         """Shared broker_snapshot upsert for both Groww holdings-snapshot
         parsers — same pattern as import_cdsl_cas: one row per symbol, updated
@@ -974,6 +1073,7 @@ class PortfolioService(BaseService):
                 existing.quantity = p["quantity"]
                 existing.price = p["avg_buy_price"]
                 existing.transaction_date = datetime.now(timezone.utc)
+                existing.import_run_id = run_id
             else:
                 txn = Transaction(
                     portfolio_id=portfolio_id,
@@ -985,6 +1085,7 @@ class PortfolioService(BaseService):
                     transaction_date=datetime.now(timezone.utc),
                     broker=broker,
                     kind="broker_snapshot",
+                    import_run_id=run_id,
                 )
                 self.transactions_repo.create(txn)
 
@@ -1014,6 +1115,7 @@ class PortfolioService(BaseService):
         self,
         portfolio_id: uuid.UUID,
         file_bytes: bytes,
+        filename: str = "groww_holdings.xlsx",
     ) -> Dict[str, Any]:
         """Groww "Stocks Holdings Statement" import — a point-in-time equity
         holdings snapshot (see parse_groww_stocks_holdings docstring for why
@@ -1022,18 +1124,22 @@ class PortfolioService(BaseService):
         self.get_portfolio(portfolio_id)
 
         from app.modules.portfolio.services.portfolio_importer import parse_groww_stocks_holdings
-        try:
-            payloads, summary = parse_groww_stocks_holdings(file_bytes)
-        except Exception as e:
-            raise ValidationError(str(e))
 
-        imported = self._import_groww_holdings_payloads(portfolio_id, payloads, broker="groww_holdings")
+        with self._track_import_run(portfolio_id, "groww_holdings", filename) as run:
+            try:
+                payloads, summary = parse_groww_stocks_holdings(file_bytes)
+            except Exception as e:
+                raise ValidationError(str(e))
+
+            imported = self._import_groww_holdings_payloads(portfolio_id, payloads, broker="groww_holdings", run_id=run.id)
+            run.rows_committed = imported
         return {"status": "success", "imported_holdings": imported, "summary": summary}
 
     def import_groww_mf_holdings(
         self,
         portfolio_id: uuid.UUID,
         file_bytes: bytes,
+        filename: str = "groww_mf_holdings.xlsx",
     ) -> Dict[str, Any]:
         """Groww Mutual Funds holdings summary import — same broker_snapshot
         pattern, symbol reuses the existing _mf_symbol() slug convention so it
@@ -1042,12 +1148,15 @@ class PortfolioService(BaseService):
         self.get_portfolio(portfolio_id)
 
         from app.modules.portfolio.services.portfolio_importer import parse_groww_mf_holdings
-        try:
-            payloads, summary = parse_groww_mf_holdings(file_bytes)
-        except Exception as e:
-            raise ValidationError(str(e))
 
-        imported = self._import_groww_holdings_payloads(portfolio_id, payloads, broker="groww_mf_holdings")
+        with self._track_import_run(portfolio_id, "groww_mf_holdings", filename) as run:
+            try:
+                payloads, summary = parse_groww_mf_holdings(file_bytes)
+            except Exception as e:
+                raise ValidationError(str(e))
+
+            imported = self._import_groww_holdings_payloads(portfolio_id, payloads, broker="groww_mf_holdings", run_id=run.id)
+            run.rows_committed = imported
         return {"status": "success", "imported_holdings": imported, "summary": summary}
 
     def import_nps_statement(
@@ -1061,107 +1170,114 @@ class PortfolioService(BaseService):
 
         ext = filename.split(".")[-1].lower() if "." in filename else "csv"
         from app.modules.portfolio.services.portfolio_importer import parse_nps_statement
-        try:
-            holdings, rows, summary = parse_nps_statement(file_bytes, ext=ext)
-        except Exception as e:
-            raise ValidationError(str(e))
 
-        symbols_to_recalc = set()
+        with self._track_import_run(portfolio_id, "nps", filename) as run:
+            try:
+                holdings, rows, summary = parse_nps_statement(file_bytes, ext=ext)
+            except Exception as e:
+                raise ValidationError(str(e))
 
-        # Holdings snapshot per scheme — same upsert-one-broker_snapshot-per-symbol
-        # pattern as import_cdsl_cas.
-        for h in holdings:
-            symbol = h["symbol"]
-            asset_id = ensure_asset_exists(self.session, symbol, name=h["name"], asset_class="nps", tier=h["tier"])
+            symbols_to_recalc = set()
 
-            stmt = select(Transaction).where(
-                (Transaction.portfolio_id == portfolio_id) &
-                (Transaction.symbol == symbol) &
-                (Transaction.kind == "broker_snapshot") &
-                (Transaction.broker == "nps")
-            )
-            existing = self.session.execute(stmt).scalars().first()
+            # Holdings snapshot per scheme — same upsert-one-broker_snapshot-per-symbol
+            # pattern as import_cdsl_cas.
+            for h in holdings:
+                symbol = h["symbol"]
+                asset_id = ensure_asset_exists(self.session, symbol, name=h["name"], asset_class="nps", tier=h["tier"])
 
-            if existing:
-                existing.quantity = h["quantity"]
-                existing.price = h["current_nav"]
-                existing.transaction_date = h["as_of_date"] or datetime.now(timezone.utc)
-            else:
+                stmt = select(Transaction).where(
+                    (Transaction.portfolio_id == portfolio_id) &
+                    (Transaction.symbol == symbol) &
+                    (Transaction.kind == "broker_snapshot") &
+                    (Transaction.broker == "nps")
+                )
+                existing = self.session.execute(stmt).scalars().first()
+
+                if existing:
+                    existing.quantity = h["quantity"]
+                    existing.price = h["current_nav"]
+                    existing.transaction_date = h["as_of_date"] or datetime.now(timezone.utc)
+                    existing.import_run_id = run.id
+                else:
+                    txn = Transaction(
+                        portfolio_id=portfolio_id,
+                        symbol=symbol,
+                        asset_id=asset_id,
+                        transaction_type="BUY",
+                        quantity=h["quantity"],
+                        price=h["current_nav"],
+                        transaction_date=h["as_of_date"] or datetime.now(timezone.utc),
+                        broker="nps",
+                        kind="broker_snapshot",
+                        import_run_id=run.id,
+                    )
+                    self.transactions_repo.create(txn)
+
+                if h.get("current_nav"):
+                    from app.core.providers.models import NormalizedQuote
+                    from app.modules.market.repositories.ingestion import IngestionRepository
+                    IngestionRepository(self.session).upsert_quote(
+                        NormalizedQuote(
+                            symbol=symbol,
+                            provider="nps_statement_import",
+                            timestamp=datetime.now(timezone.utc),
+                            price=h["current_nav"],
+                        ),
+                        asset_id,
+                    )
+
+                symbols_to_recalc.add(symbol)
+
+            # Per-row transactions — same (broker, broker_reference) dedup pattern as
+            # import_transaction_file.
+            refs = {row["broker_reference"] for row in rows}
+            existing_refs: set = set()
+            if refs:
+                stmt = select(Transaction.broker_reference).where(
+                    (Transaction.portfolio_id == portfolio_id) &
+                    (Transaction.broker == "nps") &
+                    (Transaction.broker_reference.in_(refs))
+                )
+                existing_refs = set(self.session.execute(stmt).scalars().all())
+
+            committed = 0
+            skipped = 0
+            seen_this_call: set = set()
+            for row in rows:
+                broker_ref = row["broker_reference"]
+                if broker_ref in existing_refs or broker_ref in seen_this_call:
+                    skipped += 1
+                    continue
+                seen_this_call.add(broker_ref)
+
+                symbol = row["symbol"]
+                asset_id = ensure_asset_exists(self.session, symbol)
+
                 txn = Transaction(
                     portfolio_id=portfolio_id,
                     symbol=symbol,
                     asset_id=asset_id,
-                    transaction_type="BUY",
-                    quantity=h["quantity"],
-                    price=h["current_nav"],
-                    transaction_date=h["as_of_date"] or datetime.now(timezone.utc),
+                    transaction_type=row["type"],
+                    quantity=row["quantity"],
+                    price=row["price"],
+                    transaction_date=row["date"],
                     broker="nps",
-                    kind="broker_snapshot",
+                    broker_reference=broker_ref,
+                    kind="trade",
+                    notes=row["description"],
+                    import_run_id=run.id,
                 )
                 self.transactions_repo.create(txn)
+                committed += 1
+                symbols_to_recalc.add(symbol)
 
-            if h.get("current_nav"):
-                from app.core.providers.models import NormalizedQuote
-                from app.modules.market.repositories.ingestion import IngestionRepository
-                IngestionRepository(self.session).upsert_quote(
-                    NormalizedQuote(
-                        symbol=symbol,
-                        provider="nps_statement_import",
-                        timestamp=datetime.now(timezone.utc),
-                        price=h["current_nav"],
-                    ),
-                    asset_id,
-                )
+            for sym in symbols_to_recalc:
+                self.recalculate_position(portfolio_id, sym)
 
-            symbols_to_recalc.add(symbol)
-
-        # Per-row transactions — same (broker, broker_reference) dedup pattern as
-        # import_transaction_file.
-        refs = {row["broker_reference"] for row in rows}
-        existing_refs: set = set()
-        if refs:
-            stmt = select(Transaction.broker_reference).where(
-                (Transaction.portfolio_id == portfolio_id) &
-                (Transaction.broker == "nps") &
-                (Transaction.broker_reference.in_(refs))
-            )
-            existing_refs = set(self.session.execute(stmt).scalars().all())
-
-        committed = 0
-        skipped = 0
-        seen_this_call: set = set()
-        for row in rows:
-            broker_ref = row["broker_reference"]
-            if broker_ref in existing_refs or broker_ref in seen_this_call:
-                skipped += 1
-                continue
-            seen_this_call.add(broker_ref)
-
-            symbol = row["symbol"]
-            asset_id = ensure_asset_exists(self.session, symbol)
-
-            txn = Transaction(
-                portfolio_id=portfolio_id,
-                symbol=symbol,
-                asset_id=asset_id,
-                transaction_type=row["type"],
-                quantity=row["quantity"],
-                price=row["price"],
-                transaction_date=row["date"],
-                broker="nps",
-                broker_reference=broker_ref,
-                kind="trade",
-                notes=row["description"],
-            )
-            self.transactions_repo.create(txn)
-            committed += 1
-            symbols_to_recalc.add(symbol)
-
-        for sym in symbols_to_recalc:
-            self.recalculate_position(portfolio_id, sym)
-
-        self.session.commit()
-        self._invalidate_portfolio_caches(portfolio_id)
+            self.session.commit()
+            self._invalidate_portfolio_caches(portfolio_id)
+            run.rows_committed = len(holdings) + committed
+            run.rows_skipped = skipped
         return {
             "holdings_imported": len(holdings),
             "transactions_committed": committed,
@@ -1175,105 +1291,113 @@ class PortfolioService(BaseService):
         portfolio_id: uuid.UUID,
         file_bytes: bytes,
         password: Optional[str] = None,
+        filename: str = "epf.pdf",
     ) -> Dict[str, Any]:
         # Validate portfolio exists
         self.get_portfolio(portfolio_id)
 
         from app.modules.portfolio.services.portfolio_importer import parse_epf_statement
-        try:
-            holdings, rows, summary = parse_epf_statement(file_bytes, password)
-        except (ValueError, ImportError) as e:
-            raise ValidationError(str(e))
 
-        symbols_to_recalc = set()
+        with self._track_import_run(portfolio_id, "epf", filename) as run:
+            try:
+                holdings, rows, summary = parse_epf_statement(file_bytes, password)
+            except (ValueError, ImportError) as e:
+                raise ValidationError(str(e))
 
-        # Holdings snapshot (one per UAN) — same upsert-one-broker_snapshot-per-symbol
-        # pattern as import_nps_statement/import_cdsl_cas. quantity is always 1.0:
-        # EPF is a lump-sum INR balance, not a per-unit NAV holding like NPS schemes.
-        for h in holdings:
-            symbol = h["symbol"]
-            asset_id = ensure_asset_exists(self.session, symbol, name=h["name"], asset_class="epf")
+            symbols_to_recalc = set()
 
-            stmt = select(Transaction).where(
-                (Transaction.portfolio_id == portfolio_id) &
-                (Transaction.symbol == symbol) &
-                (Transaction.kind == "broker_snapshot") &
-                (Transaction.broker == "epf")
-            )
-            existing = self.session.execute(stmt).scalars().first()
+            # Holdings snapshot (one per UAN) — same upsert-one-broker_snapshot-per-symbol
+            # pattern as import_nps_statement/import_cdsl_cas. quantity is always 1.0:
+            # EPF is a lump-sum INR balance, not a per-unit NAV holding like NPS schemes.
+            for h in holdings:
+                symbol = h["symbol"]
+                asset_id = ensure_asset_exists(self.session, symbol, name=h["name"], asset_class="epf")
 
-            if existing:
-                existing.quantity = h["quantity"]
-                existing.price = h["current_value"]
-                existing.transaction_date = h["as_of_date"] or datetime.now(timezone.utc)
-            else:
+                stmt = select(Transaction).where(
+                    (Transaction.portfolio_id == portfolio_id) &
+                    (Transaction.symbol == symbol) &
+                    (Transaction.kind == "broker_snapshot") &
+                    (Transaction.broker == "epf")
+                )
+                existing = self.session.execute(stmt).scalars().first()
+
+                if existing:
+                    existing.quantity = h["quantity"]
+                    existing.price = h["current_value"]
+                    existing.transaction_date = h["as_of_date"] or datetime.now(timezone.utc)
+                    existing.import_run_id = run.id
+                else:
+                    txn = Transaction(
+                        portfolio_id=portfolio_id,
+                        symbol=symbol,
+                        asset_id=asset_id,
+                        transaction_type="BUY",
+                        quantity=h["quantity"],
+                        price=h["current_value"],
+                        transaction_date=h["as_of_date"] or datetime.now(timezone.utc),
+                        broker="epf",
+                        kind="broker_snapshot",
+                        import_run_id=run.id,
+                    )
+                    self.transactions_repo.create(txn)
+
+                symbols_to_recalc.add(symbol)
+
+            # Per-row contribution history — recorded as kind="broker_trade" (not
+            # "trade"): EPF contributions aren't per-unit purchases the way NPS's
+            # recalculate_position BUY replay assumes, so they must never drive
+            # Position.quantity. They're an audit trail only; the holdings snapshot
+            # above (kind="broker_snapshot") is what recalculate_position uses to
+            # set Position.quantity/avg_buy_price via its fallback path. Same
+            # (broker, broker_reference) dedup pattern as import_transaction_file.
+            refs = {row["broker_reference"] for row in rows}
+            existing_refs: set = set()
+            if refs:
+                stmt = select(Transaction.broker_reference).where(
+                    (Transaction.portfolio_id == portfolio_id) &
+                    (Transaction.broker == "epf") &
+                    (Transaction.broker_reference.in_(refs))
+                )
+                existing_refs = set(self.session.execute(stmt).scalars().all())
+
+            committed = 0
+            skipped = 0
+            seen_this_call: set = set()
+            for row in rows:
+                broker_ref = row["broker_reference"]
+                if broker_ref in existing_refs or broker_ref in seen_this_call:
+                    skipped += 1
+                    continue
+                seen_this_call.add(broker_ref)
+
+                symbol = row["symbol"]
+                asset_id = ensure_asset_exists(self.session, symbol)
+
                 txn = Transaction(
                     portfolio_id=portfolio_id,
                     symbol=symbol,
                     asset_id=asset_id,
-                    transaction_type="BUY",
-                    quantity=h["quantity"],
-                    price=h["current_value"],
-                    transaction_date=h["as_of_date"] or datetime.now(timezone.utc),
+                    transaction_type=row["type"],
+                    quantity=1.0,
+                    price=row["amount"],
+                    transaction_date=row["date"],
                     broker="epf",
-                    kind="broker_snapshot",
+                    broker_reference=broker_ref,
+                    kind="broker_trade",
+                    notes=row["description"],
+                    import_run_id=run.id,
                 )
                 self.transactions_repo.create(txn)
+                committed += 1
+                symbols_to_recalc.add(symbol)
 
-            symbols_to_recalc.add(symbol)
+            for sym in symbols_to_recalc:
+                self.recalculate_position(portfolio_id, sym)
 
-        # Per-row contribution history — recorded as kind="broker_trade" (not
-        # "trade"): EPF contributions aren't per-unit purchases the way NPS's
-        # recalculate_position BUY replay assumes, so they must never drive
-        # Position.quantity. They're an audit trail only; the holdings snapshot
-        # above (kind="broker_snapshot") is what recalculate_position uses to
-        # set Position.quantity/avg_buy_price via its fallback path. Same
-        # (broker, broker_reference) dedup pattern as import_transaction_file.
-        refs = {row["broker_reference"] for row in rows}
-        existing_refs: set = set()
-        if refs:
-            stmt = select(Transaction.broker_reference).where(
-                (Transaction.portfolio_id == portfolio_id) &
-                (Transaction.broker == "epf") &
-                (Transaction.broker_reference.in_(refs))
-            )
-            existing_refs = set(self.session.execute(stmt).scalars().all())
-
-        committed = 0
-        skipped = 0
-        seen_this_call: set = set()
-        for row in rows:
-            broker_ref = row["broker_reference"]
-            if broker_ref in existing_refs or broker_ref in seen_this_call:
-                skipped += 1
-                continue
-            seen_this_call.add(broker_ref)
-
-            symbol = row["symbol"]
-            asset_id = ensure_asset_exists(self.session, symbol)
-
-            txn = Transaction(
-                portfolio_id=portfolio_id,
-                symbol=symbol,
-                asset_id=asset_id,
-                transaction_type=row["type"],
-                quantity=1.0,
-                price=row["amount"],
-                transaction_date=row["date"],
-                broker="epf",
-                broker_reference=broker_ref,
-                kind="broker_trade",
-                notes=row["description"],
-            )
-            self.transactions_repo.create(txn)
-            committed += 1
-            symbols_to_recalc.add(symbol)
-
-        for sym in symbols_to_recalc:
-            self.recalculate_position(portfolio_id, sym)
-
-        self.session.commit()
-        self._invalidate_portfolio_caches(portfolio_id)
+            self.session.commit()
+            self._invalidate_portfolio_caches(portfolio_id)
+            run.rows_committed = len(holdings) + committed
+            run.rows_skipped = skipped
         return {
             "holdings_imported": len(holdings),
             "transactions_committed": committed,
@@ -1287,6 +1411,7 @@ class PortfolioService(BaseService):
         portfolio_id: uuid.UUID,
         broker: str,
         rows: List[Dict[str, Any]],
+        wallet: str = "spot",
     ) -> Dict[str, Any]:
         """Idempotent upsert of normalized broker holdings into Position/Transaction,
         following the same one-snapshot-per-symbol pattern as import_cdsl_cas. Only
@@ -1324,7 +1449,8 @@ class PortfolioService(BaseService):
                 (Transaction.portfolio_id == portfolio_id) &
                 (Transaction.symbol == symbol) &
                 (Transaction.kind == "broker_snapshot") &
-                (Transaction.broker == broker)
+                (Transaction.broker == broker) &
+                (Transaction.wallet == wallet)
             )
             existing = self.session.execute(stmt).scalars().first()
             if existing:
@@ -1342,6 +1468,7 @@ class PortfolioService(BaseService):
                     transaction_date=datetime.now(timezone.utc),
                     broker=broker,
                     kind="broker_snapshot",
+                    wallet=wallet,
                 )
                 self.transactions_repo.create(txn)
 
@@ -1354,6 +1481,7 @@ class PortfolioService(BaseService):
                 Transaction.portfolio_id == portfolio_id,
                 Transaction.broker == broker,
                 Transaction.kind == "broker_snapshot",
+                Transaction.wallet == wallet,
                 Transaction.symbol.notin_(seen_symbols),
             )
             .all()
@@ -1364,7 +1492,7 @@ class PortfolioService(BaseService):
             self.session.delete(t)
 
         for sym in seen_symbols | removed_symbols:
-            self.recalculate_position(portfolio_id, sym)
+            self.recalculate_position(portfolio_id, sym, wallet=wallet)
 
         self.session.commit()
         return {
@@ -1408,16 +1536,19 @@ class PortfolioService(BaseService):
         """holdings: {"spot": [...], "earn": [...], "futures_usdm": [...],
         "futures_coinm": [...], "trades": {"spot": [...], "futures_usdm": [...],
         "futures_coinm": [...]}} — see BinanceBrokerProvider.sync(). Spot and Earn
-        balances are the same underlying coin (Earn is just locked in a savings
-        product), so they're merged into one Position per asset. Futures positions
-        are leveraged derivatives with no cost-basis ledger, so they're upserted
-        directly from Binance's own position snapshot rather than replayed through
-        recalculate_position. Binance's account/position endpoints report current
-        balances only, not historical cost basis for Spot/Earn — accurate P&L there
-        depends on the trade history imported below (or the CSV/XLSX importer)."""
+        are synced as separate Positions (wallet="spot" / wallet="earn") sharing
+        the same symbol/Asset, since Earn is a real, distinct holding (locked in
+        a savings product) rather than merely "the same coin as spot". Futures
+        positions are leveraged derivatives with no cost-basis ledger, so they're
+        upserted directly from Binance's own position snapshot rather than
+        replayed through recalculate_position. Binance's account/position
+        endpoints report current balances only, not historical cost basis for
+        Spot/Earn — accurate P&L for Spot depends on the trade history imported
+        below (or the CSV/XLSX importer); Earn has no trade-history ledger at
+        all, so its avg_buy_price stays at the 0.0 snapshot placeholder."""
         self.get_portfolio(portfolio_id)
 
-        quantities: Dict[str, float] = {}
+        spot_quantities: Dict[str, float] = {}
         for b in holdings.get("spot") or []:
             asset = (b.get("asset") or "").upper().strip()
             if not asset:
@@ -1433,28 +1564,35 @@ class PortfolioService(BaseService):
             # quote/price source any provider can ever resolve.
             if asset.startswith("LD") and len(asset) > 2:
                 asset = asset[2:]
-            quantities[asset] = quantities.get(asset, 0.0) + float(b.get("free") or 0) + float(b.get("locked") or 0)
+            spot_quantities[asset] = spot_quantities.get(asset, 0.0) + float(b.get("free") or 0) + float(b.get("locked") or 0)
+
+        earn_quantities: Dict[str, float] = {}
         for e in holdings.get("earn") or []:
             asset = (e.get("asset") or "").upper().strip()
             if not asset:
                 continue
             amount = float(e.get("totalAmount") or e.get("amount") or 0)
-            quantities[asset] = quantities.get(asset, 0.0) + amount
+            earn_quantities[asset] = earn_quantities.get(asset, 0.0) + amount
 
-        rows = [
-            {
-                "symbol": f"{asset}-USD",
-                "quantity": qty,
-                "avg_price": 0.0,
-                "name": asset,
-                "asset_class": "stablecoin" if asset in STABLECOIN_ASSETS else "crypto",
-            }
-            for asset, qty in quantities.items()
-            if qty > 0
-        ]
+        def _rows(quantities: Dict[str, float]) -> List[Dict[str, Any]]:
+            return [
+                {
+                    "symbol": f"{asset}-USD",
+                    "quantity": qty,
+                    "avg_price": 0.0,
+                    "name": asset,
+                    "asset_class": "stablecoin" if asset in STABLECOIN_ASSETS else "crypto",
+                }
+                for asset, qty in quantities.items()
+                if qty > 0
+            ]
 
         trades = holdings.get("trades") or {}
-        result = self._sync_spot_with_cost_basis(portfolio_id, "binance", rows, trades.get("spot") or [])
+        result = self._sync_spot_with_cost_basis(portfolio_id, "binance", _rows(spot_quantities), trades.get("spot") or [], wallet="spot")
+        earn_result = self._sync_spot_with_cost_basis(portfolio_id, "binance", _rows(earn_quantities), [], wallet="earn")
+        result["synced_holdings"] += earn_result["synced_holdings"]
+        result["removed"] += earn_result["removed"]
+        result["imported_trades"] += earn_result["imported_trades"]
 
         self._sync_futures_positions(portfolio_id, "binance", "futures_usdm", holdings.get("futures_usdm") or [])
         self._sync_futures_positions(portfolio_id, "binance", "futures_coinm", holdings.get("futures_coinm") or [])
@@ -1471,6 +1609,7 @@ class PortfolioService(BaseService):
         broker: str,
         rows: List[Dict[str, Any]],
         spot_trades: List[Dict[str, Any]],
+        wallet: str = "spot",
     ) -> Dict[str, Any]:
         """Atomic unit for Spot/Earn: syncs the live balance snapshot, imports
         trade history, then reapplies cost basis from that history — in that
@@ -1479,10 +1618,10 @@ class PortfolioService(BaseService):
         basis must be (re)applied *after* both snapshot sync and trade import,
         on every call, not just when a new trade appears) lives in one place
         instead of being the caller's responsibility to get right."""
-        result = self._sync_broker_snapshot(portfolio_id, broker, rows)
-        result["imported_trades"] = self._import_broker_trades(portfolio_id, broker, spot_trades, "spot")
+        result = self._sync_broker_snapshot(portfolio_id, broker, rows, wallet=wallet)
+        result["imported_trades"] = self._import_broker_trades(portfolio_id, broker, spot_trades, wallet)
         for row in rows:
-            self._apply_trade_cost_basis(portfolio_id, row["symbol"])
+            self._apply_trade_cost_basis(portfolio_id, row["symbol"], wallet=wallet)
         return result
 
     def _sync_futures_positions(
@@ -1669,13 +1808,13 @@ class PortfolioService(BaseService):
         # newly-imported trade this round.
         return committed
 
-    def _apply_trade_cost_basis(self, portfolio_id: uuid.UUID, symbol: str) -> None:
+    def _apply_trade_cost_basis(self, portfolio_id: uuid.UUID, symbol: str, wallet: str = "spot") -> None:
         """Derives avg_buy_price from kind="broker_trade" transactions for `symbol`
         (same running-average math as recalculate_position) and applies it to the
         existing Position without touching its quantity."""
         pos = (
             self.session.query(Position)
-            .filter(Position.portfolio_id == portfolio_id, Position.symbol == symbol)
+            .filter(Position.portfolio_id == portfolio_id, Position.symbol == symbol, Position.wallet == wallet)
             .first()
         )
         if not pos:

@@ -5,6 +5,7 @@ from sqlalchemy import select
 from app.modules.portfolio.repositories.portfolio_snapshot import (
     PortfolioSnapshotRepository,
 )
+from app.modules.portfolio.repositories.import_runs import ImportRunsRepository
 from app.modules.portfolio.repositories.portfolios import PortfoliosRepository
 from app.modules.portfolio.repositories.positions import PositionsRepository
 from app.modules.portfolio.repositories.transactions import TransactionsRepository
@@ -30,6 +31,7 @@ def _make_service(db_session):
         TransactionsRepository(db_session),
         PositionsRepository(db_session),
         PortfolioSnapshotRepository(db_session),
+        ImportRunsRepository(db_session),
     )
 
 

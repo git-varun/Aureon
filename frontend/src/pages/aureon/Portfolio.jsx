@@ -18,7 +18,7 @@ import { PfHoldingsTable }     from '@/components/aureon/portfolio/PfHoldingsTab
 import { PfActivityFeed }      from '@/components/aureon/portfolio/PfActivityFeed';
 import { ManualAssetModal }        from '@/components/aureon/portfolio/ManualAssetModal';
 import { PfConcentrationSection }  from '@/components/aureon/portfolio/PfConcentrationSection';
-import { NotBuiltState } from '@/components/aureon/ds.jsx';
+import { PfTrendChart }        from '@/components/aureon/portfolio/PfTrendChart';
 import OutcomesTab from '@/components/aureon/decisions/tabs/OutcomesTab';
 
 const PfSection = ({ eyebrow, title, action, children }) => (
@@ -41,7 +41,7 @@ export default function Portfolio() {
   const qc       = useQueryClient();
   const fmt      = useFmtMoney();
   const { activePortfolioId } = usePortfolio();
-  const { holdings, netWorth, investedValue, unrealizedPnl, dayDelta, loading, allocByClass, activity, freshness } = useAureonData();
+  const { holdings, netWorth, investedValue, unrealizedPnl, dayDelta, loading, allocByClass, classTarget, activity, freshness } = useAureonData();
   const [showTrade,  setShowTrade]  = useState(false);
   const [showManual, setShowManual] = useState(false);
 
@@ -76,7 +76,7 @@ export default function Portfolio() {
 
       {/* 4 · Allocation */}
       <PfSection eyebrow="Breakdown" title="Allocation">
-        <PfAllocationSection holdings={holdings} allocByClass={allocByClass} />
+        <PfAllocationSection holdings={holdings} allocByClass={allocByClass} classTarget={classTarget} />
       </PfSection>
 
       {/* 5 · Holdings */}
@@ -115,10 +115,7 @@ export default function Portfolio() {
 
       {/* 9 · Trend Analysis */}
       <PfSection eyebrow="Intelligence" title="Portfolio Trend Analysis">
-        <NotBuiltState
-          title="Trend Analysis"
-          body="Trend analysis isn't built yet — there's no backend endpoint computing it, regardless of provider or snapshot data."
-        />
+        <PfTrendChart />
       </PfSection>
 
       {/* 10 · Recommendation Outcomes */}

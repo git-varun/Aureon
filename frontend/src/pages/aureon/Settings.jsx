@@ -249,7 +249,12 @@ function JobHistorySection() {
 }
 
 // ── Section: Import Data ──────────────────────────────────────────────────────
+const IMPORT_CENTER_TABS = new Set(['csv', 'cas', 'nps', 'epf', 'manual']);
+
 function ImportDataSection() {
+    const location = useLocation();
+    const requestedTab = new URLSearchParams(location.search).get('importTab');
+    const initialTab = IMPORT_CENTER_TABS.has(requestedTab) ? requestedTab : 'csv';
     return (
         <section className="layer-1" style={{padding: 0}}>
             <div style={{padding: 24}}>
@@ -258,7 +263,7 @@ function ImportDataSection() {
                     title="Import Data"
                     desc="Import transactions and holdings via CSV, CAS, NPS, EPF, or add a manual asset"
                 />
-                <PfImportCenter/>
+                <PfImportCenter initialTab={initialTab}/>
             </div>
         </section>
     );

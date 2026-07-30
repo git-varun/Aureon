@@ -4,7 +4,7 @@ import {toast} from 'react-hot-toast';
 import {apiService} from '@/api/apiService';
 import {BinanceBackfillRow} from '@/components/aureon/profile/ProviderConfig';
 
-// Covers all 15 backend job_configs rows (see ConfigService._TASK_MAPPING) —
+// Covers all 14 backend job_configs rows (see ConfigService._TASK_MAPPING) —
 // every job must resolve to a real label here, never fall back to raw
 // snake_case in the UI.
 export const JOB_LABELS = {
@@ -21,7 +21,6 @@ export const JOB_LABELS = {
     weekly_briefing: {label: 'Weekly Briefing', desc: 'Generate the weekly AI alpha briefing'},
     monthly_briefing: {label: 'Monthly Briefing', desc: 'Generate the monthly AI alpha briefing'},
     seed_price_history: {label: 'Price History Seed', desc: 'Backfill 1-year OHLCV price history'},
-    seed_market_universe: {label: 'Market Universe Seed', desc: 'Seed/refresh the tradable asset universe'},
     validate_data_quality: {label: 'Data Quality Check', desc: 'Validate data integrity across the pipeline'},
 };
 
@@ -503,14 +502,12 @@ export default function JobConfig() {
     const groupedJobNames = new Set(JOB_GROUPS.flatMap(g => g.jobs));
     const hiddenFromFlat = new Set([...groupedJobNames, ...NESTED_JOB_NAMES]);
 
-    // job_tier='system' happens to be exactly the two jobs this session's
-    // dependency audit confirmed have no real provider dependency
-    // (validate_data_quality: pure internal DB checks; seed_market_universe:
-    // static asset-list seeding) — reusing that existing tier split rather
-    // than adding a second, near-duplicate grouping axis. If a future job
-    // changes this membership, that's a real signal the tier and the
-    // independence claim have diverged and need reconciling, not just a
-    // silent relabel.
+    // job_tier='system' marks jobs with no real provider dependency
+    // (validate_data_quality: pure internal DB checks) — reusing that
+    // existing tier split rather than adding a second, near-duplicate
+    // grouping axis. If a future job changes this membership, that's a real
+    // signal the tier and the independence claim have diverged and need
+    // reconciling, not just a silent relabel.
     const userJobs = jobs.filter(j => j.job_tier !== 'system' && !hiddenFromFlat.has(j.job_name));
     const independentJobs = jobs.filter(j => j.job_tier === 'system' && !hiddenFromFlat.has(j.job_name));
     const enabledCount = jobs.filter(j => j.enabled).length;
@@ -593,10 +590,7 @@ export default function JobConfig() {
                 </div>
                 {colHead}
                 {independentJobs.map(job => (
-                    <JobRow
-                        key={job.job_name} job={job} onUpdate={handleUpdate} onRun={handleRun}
-                        note={job.job_name === 'seed_market_universe' ? 'Also triggers a background price refresh afterward — not gated by this job\'s own success or failure.' : undefined}
-                    />
+                    <JobRow key={job.job_name} job={job} onUpdate={handleUpdate} onRun={handleRun}/>
                 ))}
             </>)}
             {!loading && (

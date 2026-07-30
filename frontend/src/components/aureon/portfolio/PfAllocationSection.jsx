@@ -1,6 +1,6 @@
 import React, { useState, useMemo } from 'react';
 import { AllocDonut } from '@/components/aureon/ui';
-import { CLASS_LABEL, CLASS_TARGET, valueOf } from '@/components/aureon/utils';
+import { CLASS_LABEL, valueOf } from '@/components/aureon/utils';
 
 const ALLOC_PALETTE = {
   stocks:'#C9A86A', funds:'#D4B888', bonds:'#7AA8D4', crypto:'#D4A257',
@@ -8,17 +8,9 @@ const ALLOC_PALETTE = {
   Tech:'#C9A86A', Healthcare:'#6FAE88', Financials:'#7AA8D4', 'Layer 1':'#D4A257',
   Broad:'#D4B888', Intl:'#8A909B', Treasury:'#7AA8D4', Aggregate:'#8A909B',
   Residential:'#6FAE88', 'Target 2045':'#969CA6', 'Self-managed':'#7AA8D4', 'Whole life':'#4B4F57',
-  'Mega cap':'#C9A86A', 'Large cap':'#D4B888', 'Index fund':'#7AA8D4',
-  'Fixed income':'#6FAE88', Crypto:'#D4A257', Illiquid:'#8A909B', Other:'#4B4F57',
 };
 
-const MCAP_MAP = {
-  NVDA:'Mega cap', AAPL:'Mega cap', MSFT:'Mega cap', GOOGL:'Mega cap',
-  JPM:'Large cap', JNJ:'Large cap', BTC:'Crypto', ETH:'Crypto', SOL:'Crypto',
-  VTI:'Index fund', VXUS:'Index fund', TLT:'Fixed income', AGG:'Fixed income',
-};
-
-function AllocationBars({ entries, showTarget }) {
+function AllocationBars({ entries, classTarget, showTarget }) {
   if (!entries?.length) return (
     <div style={{ padding:'28px 16px', textAlign:'center', fontSize:13, color:'var(--ink-40)' }}>No allocation data</div>
   );
@@ -26,7 +18,7 @@ function AllocationBars({ entries, showTarget }) {
   return (
     <div style={{ display:'flex', flexDirection:'column', gap:9 }}>
       {entries.map(([k,v]) => {
-        const tgt = CLASS_TARGET[k];
+        const tgt = classTarget[k];
         const drift = tgt ? (v - tgt) : null;
         return (
           <div key={k} style={{ display:'grid', gridTemplateColumns:'112px 1fr 56px', gap:10, alignItems:'center' }}>
@@ -55,7 +47,7 @@ function AllocationBars({ entries, showTarget }) {
   );
 }
 
-export function PfAllocationSection({ holdings, allocByClass }) {
+export function PfAllocationSection({ holdings, allocByClass, classTarget }) {
   const [tab, setTab] = useState('class');
 
   const classBars = useMemo(() =>
@@ -69,17 +61,7 @@ export function PfAllocationSection({ holdings, allocByClass }) {
     return Object.entries(map).sort((a,b) => b[1]-a[1]);
   }, [holdings]);
 
-  const mcapBars = useMemo(() => {
-    const total = holdings.reduce((s,h) => s + valueOf(h), 0) || 1;
-    const map = {};
-    holdings.forEach(h => {
-      const k = MCAP_MAP[h.ticker] || (h.tier==='passive'?'Illiquid':'Other');
-      map[k] = (map[k]||0) + valueOf(h)/total;
-    });
-    return Object.entries(map).sort((a,b) => b[1]-a[1]);
-  }, [holdings]);
-
-  const barData = tab==='class' ? classBars : tab==='sector' ? sectorBars : mcapBars;
+  const barData = tab==='class' ? classBars : sectorBars;
   const donutData = tab==='class' ? allocByClass : Object.fromEntries(barData);
 
   if (!holdings.length) return (
@@ -94,7 +76,7 @@ export function PfAllocationSection({ holdings, allocByClass }) {
       <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between', padding:'12px 18px', borderBottom:'1px solid rgba(255,255,255,0.05)' }}>
         <span style={{ fontFamily:'var(--font-heading)', fontSize:14, fontWeight:600, color:'var(--ink-10)' }}>Allocation breakdown</span>
         <div style={{ display:'flex', gap:2, padding:3, borderRadius:7, background:'rgba(255,255,255,0.04)', border:'1px solid rgba(255,255,255,0.06)' }}>
-          {[['class','Asset Class'],['sector','Sector'],['mcap','Market Cap']].map(([k,l]) => (
+          {[['class','Asset Class'],['sector','Sector']].map(([k,l]) => (
             <button key={k} onClick={() => setTab(k)} style={{ padding:'5px 12px', fontSize:11.5, borderRadius:5, border:'none', cursor:'pointer', fontFamily:'var(--font-ui)', background:tab===k?'rgba(255,255,255,0.09)':'transparent', color:tab===k?'var(--ink-00)':'var(--ink-40)' }}>{l}</button>
           ))}
         </div>
@@ -104,7 +86,7 @@ export function PfAllocationSection({ holdings, allocByClass }) {
           <AllocDonut alloc={Object.keys(donutData).length ? donutData : { stocks: 1 }} size={148}/>
         </div>
         <div style={{ padding:'20px 22px' }}>
-          <AllocationBars entries={barData} showTarget={tab==='class'}/>
+          <AllocationBars entries={barData} classTarget={classTarget} showTarget={tab==='class'}/>
           {tab==='class' && <div style={{ marginTop:10, fontSize:11, color:'var(--ink-50)' }}>Vertical bar = target weight · drift label turns amber &gt;2pp, red &gt;5pp</div>}
         </div>
       </div>

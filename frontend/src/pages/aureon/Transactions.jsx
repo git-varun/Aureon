@@ -15,13 +15,14 @@ const TXN_TYPE_TONE = {
   BONUS:    { bg:'rgba(111,174,136,0.14)',  fg:'var(--sage-500)',    dot:'var(--sage-500)' },
   SPLIT:    { bg:'rgba(122,168,212,0.13)',  fg:'#7AA8D4',            dot:'#7AA8D4' },
 };
-const SRC_TONE = {
+const ORIGIN_TONE = {
   Manual: { bg:'rgba(255,255,255,0.05)', fg:'var(--ink-30)' },
   CSV:    { bg:'rgba(122,168,212,0.10)', fg:'#7AA8D4' },
-  CAS:    { bg:'rgba(201,168,106,0.10)', fg:'var(--aurum-300)' },
+  Synced: { bg:'rgba(111,174,136,0.12)', fg:'var(--sage-500)' },
 };
 const ALL_TYPES = ['BUY', 'SELL', 'DIVIDEND', 'INTEREST', 'BONUS', 'SPLIT'];
-const LCOLS = '88px 76px minmax(160px,1.6fr) 98px 74px 80px 96px 68px 68px minmax(80px,1fr) 70px 56px';
+const LCOLS = '84px minmax(150px,1.6fr) 112px 74px 78px 92px 104px 66px 66px minmax(90px,1fr) 56px';
+const PAGE_SIZES = [10, 25, 50, 100];
 const fldS = { width:'100%', padding:'9px 12px', borderRadius:7, background:'rgba(255,255,255,0.03)', border:'1px solid rgba(255,255,255,0.07)', color:'var(--ink-10)', fontSize:13, outline:'none', boxSizing:'border-box', fontFamily:'var(--font-ui)' };
 const lblS = { fontSize:10.5, letterSpacing:'0.12em', textTransform:'uppercase', color:'var(--ink-30)', fontWeight:600, display:'block', marginBottom:5 };
 
@@ -30,14 +31,16 @@ const fmtNum = (n, dp=2) => n == null ? '—' : Number(n).toLocaleString('en-IN'
 const fmtMoney = n => n == null ? '—' : '₹' + Number(n).toLocaleString('en-IN', { minimumFractionDigits:2, maximumFractionDigits:2 });
 const displayType = raw => (raw || '').toUpperCase();
 const txnDate = txn => txn.transaction_date ? String(txn.transaction_date).slice(0,10) : '';
-const deriveSource = txn => txn.broker_reference ? 'CSV' : 'Manual';
-const normKind = kind => kind ? kind.charAt(0).toUpperCase() + kind.slice(1).toLowerCase() : '—';
 const FUTURES_SYMBOL_SUFFIXES = ['-USDM', '-COINM'];
 const isSyncedTxn = txn => {
   const kind = (txn.kind || '').toLowerCase();
   if (kind === 'broker_trade' || kind === 'broker_snapshot') return true;
   return FUTURES_SYMBOL_SUFFIXES.some(s => (txn.symbol || '').toUpperCase().endsWith(s));
 };
+/* method = how the row entered the ledger; broker = who it's with. Shown together as one "Origin" cell. */
+const deriveMethod = txn => isSyncedTxn(txn) ? 'Synced' : (txn.broker_reference ? 'CSV' : 'Manual');
+const brokerLabel = txn => txn.broker ? txn.broker.charAt(0).toUpperCase() + txn.broker.slice(1) : 'Manual';
+const txnValue = txn => (txn.quantity != null && txn.price != null) ? txn.quantity * txn.price : null;
 
 /* ── chips ──────────────────────────────────────────────────────────────── */
 const TypeBadge = ({ type }) => {
@@ -50,14 +53,15 @@ const TypeBadge = ({ type }) => {
   );
 };
 
-const SourceBadge = ({ source='Manual' }) => {
-  const s = SRC_TONE[source] || SRC_TONE.Manual;
-  return <span style={{ display:'inline-flex', alignItems:'center', padding:'2px 7px', borderRadius:5, background:s.bg, fontSize:10.5, fontWeight:600, color:s.fg, letterSpacing:'0.06em', whiteSpace:'nowrap' }}>{source}</span>;
+const OriginCell = ({ txn, method }) => {
+  const t = ORIGIN_TONE[method] || ORIGIN_TONE.Manual;
+  return (
+    <div style={{ display:'flex', flexDirection:'column', gap:2, minWidth:0 }}>
+      <span style={{ fontSize:12, color:'var(--ink-10)', fontWeight:500, whiteSpace:'nowrap', overflow:'hidden', textOverflow:'ellipsis' }}>{brokerLabel(txn)}</span>
+      <span style={{ display:'inline-flex', alignSelf:'flex-start', padding:'1px 6px', borderRadius:4, background:t.bg, color:t.fg, fontSize:10, fontWeight:600, letterSpacing:'0.05em' }}>{method}</span>
+    </div>
+  );
 };
-
-const ClassChip = ({ cls }) => (
-  <span style={{ fontSize:11, color:'var(--ink-30)', background:'rgba(255,255,255,0.04)', padding:'2px 7px', borderRadius:4, border:'1px solid rgba(255,255,255,0.06)', whiteSpace:'nowrap', display:'inline-block' }}>{cls}</span>
-);
 
 /* ── skeleton ───────────────────────────────────────────────────────────── */
 const Shim = ({ w='100%', h=11, r=4 }) => (
@@ -69,7 +73,7 @@ function SkeletonRows() {
     <>
       {[...Array(7)].map((_,i) => (
         <div key={i} style={{ display:'flex', alignItems:'center', gap:12, padding:'13px 18px', borderBottom:'1px solid rgba(255,255,255,0.04)', opacity:Math.max(0.15, 1 - i * 0.12) }}>
-          <Shim w={64}/><Shim w={52}/><Shim w={130}/><Shim w={72}/><Shim w={50}/><Shim w={66}/><Shim w={76}/><Shim w={52}/><Shim w={52}/><Shim w={92}/>
+          <Shim w={64}/><Shim w={130}/><Shim w={72}/><Shim w={50}/><Shim w={56}/><Shim w={66}/><Shim w={72}/><Shim w={44}/><Shim w={44}/><Shim w={92}/>
         </div>
       ))}
     </>
@@ -121,7 +125,7 @@ const TxnSelect = ({ label, value, onChange, options }) => {
   );
 };
 
-function FilterBar({ q, setQ, fDate, setFDate, fClass, setFClass, fType, setFType, fSource, setFSource, fBroker, setFBroker, classes, sources, brokers, dirty, onClear }) {
+function FilterBar({ q, setQ, fDate, setFDate, fMethod, setFMethod, fType, setFType, fBroker, setFBroker, methods, brokers, dirty, onClear }) {
   return (
     <div style={{ display:'flex', gap:8, flexWrap:'wrap', alignItems:'center', marginBottom:14 }}>
       <div style={{ position:'relative', flex:'1 1 180px', minWidth:180 }}>
@@ -139,9 +143,8 @@ function FilterBar({ q, setQ, fDate, setFDate, fClass, setFClass, fType, setFTyp
         <span style={{ color:'var(--ink-50)', fontSize:11, flexShrink:0 }}>–</span>
         <input type="date" value={fDate.to} onChange={e => setFDate(d => ({...d, to:e.target.value}))} style={{ background:'transparent', border:'none', color:fDate.to?'var(--ink-10)':'var(--ink-40)', fontSize:12, outline:'none', colorScheme:'dark', width:105, cursor:'pointer', fontFamily:'var(--font-mono)' }}/>
       </div>
-      <TxnSelect label="Class"  value={fClass}  onChange={setFClass}  options={['All', ...classes]}/>
+      <TxnSelect label="Method" value={fMethod} onChange={setFMethod} options={['All', ...methods]}/>
       <TxnSelect label="Type"   value={fType}   onChange={setFType}   options={['All', ...ALL_TYPES]}/>
-      <TxnSelect label="Source" value={fSource} onChange={setFSource} options={['All', ...sources]}/>
       {brokers.length > 0 && <TxnSelect label="Broker" value={fBroker} onChange={setFBroker} options={['All', ...brokers]}/>}
       {dirty && <button onClick={onClear} className="du3-cta ghost" style={{ height:36, padding:'0 12px', fontSize:12, color:'var(--aurum-300)', flexShrink:0 }}>Clear</button>}
     </div>
@@ -150,11 +153,11 @@ function FilterBar({ q, setQ, fDate, setFDate, fClass, setFClass, fType, setFTyp
 
 /* ── ledger table ───────────────────────────────────────────────────────── */
 const LedgerHead = () => (
-  <div style={{ display:'grid', gridTemplateColumns:LCOLS, gap:8, padding:'10px 18px', fontSize:10, letterSpacing:'0.13em', textTransform:'uppercase', color:'var(--ink-40)', fontWeight:700, borderBottom:'1px solid rgba(255,255,255,0.07)', minWidth:1020, userSelect:'none' }}>
-    <div>Trade</div><div>Sett.</div><div>Symbol</div><div>Class</div><div>Dir</div>
-    <div style={{textAlign:'right'}}>Qty</div><div style={{textAlign:'right'}}>Avg Price</div>
+  <div style={{ display:'grid', gridTemplateColumns:LCOLS, gap:8, padding:'10px 18px', fontSize:10.5, letterSpacing:'0.13em', textTransform:'uppercase', color:'var(--ink-40)', fontWeight:700, borderBottom:'1px solid rgba(255,255,255,0.07)', minWidth:1000, userSelect:'none' }}>
+    <div>Trade</div><div>Symbol</div><div>Origin</div><div>Dir</div>
+    <div style={{textAlign:'right'}}>Qty</div><div style={{textAlign:'right'}}>Avg Price</div><div style={{textAlign:'right'}}>Value</div>
     <div style={{textAlign:'right'}}>Fees</div><div style={{textAlign:'right'}}>Taxes</div>
-    <div>Notes</div><div>Source</div><div/>
+    <div>Notes</div><div/>
   </div>
 );
 
@@ -162,29 +165,28 @@ function LedgerRow({ txn, onEdit, onDelete }) {
   const [hov, setHov] = useState(false);
   const type   = displayType(txn.transaction_type);
   const date   = txnDate(txn);
-  const source = deriveSource(txn);
-  const kind   = normKind(txn.kind);
+  const method = deriveMethod(txn);
+  const value  = txnValue(txn);
   const synced = isSyncedTxn(txn);
 
   return (
     <div
       onMouseEnter={() => setHov(true)}
       onMouseLeave={() => setHov(false)}
-      style={{ display:'grid', gridTemplateColumns:LCOLS, gap:8, padding:'11px 18px', borderBottom:'1px solid rgba(255,255,255,0.04)', alignItems:'center', minWidth:1020, background:hov?'rgba(255,255,255,0.018)':'transparent', transition:'background 80ms' }}
+      style={{ display:'grid', gridTemplateColumns:LCOLS, gap:8, padding:'12px 18px', borderBottom:'1px solid rgba(255,255,255,0.04)', alignItems:'center', minWidth:1000, background:hov?'rgba(255,255,255,0.018)':'transparent', transition:'background 80ms' }}
     >
-      <span style={{ fontFamily:'var(--font-mono)', fontSize:11.5, color:'var(--ink-30)' }}>{date.slice(5) || '—'}</span>
-      <span style={{ fontFamily:'var(--font-mono)', fontSize:11, color:'var(--ink-50)' }}>—</span>
-      <div style={{ display:'flex', flexDirection:'column', gap:1, minWidth:0, overflow:'hidden' }}>
-        <span style={{ fontFamily:'var(--font-mono)', fontSize:12.5, fontWeight:600, color:'var(--ink-00)', letterSpacing:'0.03em' }}>{txn.symbol}</span>
-        {txn.broker && <span style={{ fontSize:11, color:'var(--ink-40)', whiteSpace:'nowrap', overflow:'hidden', textOverflow:'ellipsis', textTransform:'capitalize' }}>{txn.broker}</span>}
-      </div>
-      <ClassChip cls={kind}/>
+      <span style={{ fontFamily:'var(--font-mono)', fontSize:12, color:'var(--ink-30)' }}>{date.slice(5) || '—'}</span>
+      <span style={{ fontFamily:'var(--font-mono)', fontSize:13, fontWeight:600, color:'var(--ink-00)', letterSpacing:'0.03em', overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap' }}>{txn.symbol}</span>
+      <OriginCell txn={txn} method={method}/>
       <TypeBadge type={type}/>
-      <span style={{ fontFamily:'var(--font-mono)', fontSize:12, color:'var(--ink-20)', textAlign:'right' }}>
+      <span style={{ fontFamily:'var(--font-mono)', fontSize:12.5, color:'var(--ink-20)', textAlign:'right' }}>
         {txn.quantity != null ? fmtNum(txn.quantity, txn.quantity >= 1 ? 0 : 4) : '—'}
       </span>
-      <span style={{ fontFamily:'var(--font-mono)', fontSize:12, color:'var(--ink-20)', textAlign:'right' }}>
+      <span style={{ fontFamily:'var(--font-mono)', fontSize:12.5, color:'var(--ink-20)', textAlign:'right' }}>
         {txn.price != null ? fmtMoney(txn.price) : '—'}
+      </span>
+      <span style={{ fontFamily:'var(--font-mono)', fontSize:12.5, color:'var(--ink-10)', textAlign:'right', fontWeight:500 }}>
+        {value != null ? fmtMoney(value) : '—'}
       </span>
       <span style={{ fontFamily:'var(--font-mono)', fontSize:11.5, textAlign:'right', color:(txn.fees||0)>0?'var(--crimson-500)':'var(--ink-60,#3a3e46)' }}>
         {(txn.fees||0)>0 ? fmtMoney(txn.fees) : '—'}
@@ -193,7 +195,6 @@ function LedgerRow({ txn, onEdit, onDelete }) {
         {(txn.taxes||0)>0 ? fmtMoney(txn.taxes) : '—'}
       </span>
       <span style={{ fontSize:11.5, color:'var(--ink-40)', whiteSpace:'nowrap', overflow:'hidden', textOverflow:'ellipsis' }} title={txn.notes||''}>{txn.notes || '—'}</span>
-      <SourceBadge source={source}/>
       {synced ? (
         <div style={{ display:'flex', justifyContent:'flex-end', opacity:hov?1:0, transition:'opacity 80ms' }}>
           <span title={`Synced from ${txn.broker || 'broker'} — managed automatically`} style={{ fontSize:10, color:'var(--ink-40)', background:'rgba(255,255,255,0.03)', border:'1px solid rgba(255,255,255,0.06)', borderRadius:5, padding:'3px 7px', whiteSpace:'nowrap', cursor:'default' }}>
@@ -562,24 +563,264 @@ function TransactionDrawer({ mode, txn, onClose, onSaved }) {
   );
 }
 
-/* ── pending imports (no backend endpoint yet) ──────────────────────────── */
-const PendingImportsEmpty = () => (
-  <div style={{ padding:'52px 32px', textAlign:'center', border:'1px dashed rgba(255,255,255,0.09)', borderRadius:12, background:'rgba(255,255,255,0.012)' }}>
-    <div style={{ width:46, height:46, borderRadius:12, background:'rgba(255,255,255,0.04)', border:'1px solid rgba(255,255,255,0.08)', display:'inline-flex', alignItems:'center', justifyContent:'center', color:'var(--ink-40)', marginBottom:14 }}>
-      <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" strokeLinejoin="round"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg>
-    </div>
-    <div style={{ fontFamily:'var(--font-heading)', fontSize:16, fontWeight:600, color:'var(--ink-00)', marginBottom:7 }}>No pending imports</div>
-    <div style={{ fontSize:13, color:'var(--ink-30)', lineHeight:1.55 }}>All imported transactions have been reviewed. Import a new CSV or CAS statement to continue.</div>
-  </div>
-);
+/* ── provider gaps: broker sync recency + file-source recency, per account ── */
+const GAP_STALE_DAYS = 3;
 
-/* ── import history (no backend endpoint yet) ───────────────────────────── */
+const FILE_SOURCE_ROWS = [
+  { source: 'cdsl_cas', label: 'CDSL CAS',  importTab: 'cas' },
+  { source: 'nps',      label: 'NPS',       importTab: 'nps' },
+  { source: 'epf',      label: 'EPF',       importTab: 'epf' },
+];
+
+function daysSince(iso) {
+  if (!iso) return null;
+  const ms = Date.now() - new Date(iso).getTime();
+  return Math.max(0, Math.floor(ms / 86400000));
+}
+
+function gapAgeLabel(days) {
+  if (days == null) return 'Never';
+  if (days === 0) return 'Today';
+  if (days === 1) return '1 day ago';
+  return `${days} days ago`;
+}
+
+function GapRow({ label, sub, extra, days, stale, actionLabel, onAction, actionDisabled }) {
+  return (
+    <div style={{ display:'flex', alignItems:'center', gap:16, padding:'14px 16px', borderRadius:10, background:'rgba(255,255,255,0.02)', border:'1px solid rgba(255,255,255,0.06)', flexWrap:'wrap' }}>
+      <div style={{ display:'flex', alignItems:'center', gap:8, minWidth:160 }}>
+        <span style={{ width:7, height:7, borderRadius:999, flexShrink:0, background: stale ? 'var(--crimson-500)' : 'var(--sage-500)' }}/>
+        <span style={{ fontSize:13.5, fontWeight:600, color:'var(--ink-00)' }}>{label}</span>
+      </div>
+      <div style={{ fontSize:12, color:'var(--ink-30)', flex:1, minWidth:180 }}>
+        <div>{sub}</div>
+        {extra && (
+          <div style={{ marginTop:2, color: stale ? 'var(--crimson-500)' : 'var(--ink-40)' }}>
+            {extra}
+            {stale && <span style={{ marginLeft:8, fontFamily:'var(--font-mono)', fontSize:9.5, padding:'2px 7px', borderRadius:999, background:'rgba(209,107,107,0.14)', color:'var(--crimson-500)', fontWeight:600, letterSpacing:'0.04em' }}>GAP{days != null ? ` · ${gapAgeLabel(days)}` : ''}</span>}
+          </div>
+        )}
+      </div>
+      <button
+        onClick={onAction}
+        disabled={actionDisabled}
+        className="du3-cta ghost"
+        style={{ height:30, padding:'0 12px', fontSize:12, flexShrink:0, opacity: actionDisabled ? 0.5 : 1 }}
+      >
+        {actionLabel}
+      </button>
+    </div>
+  );
+}
+
+function ProviderGapsPanel({ portfolioId }) {
+  const navigate = useNavigate();
+  const qc = useQueryClient();
+  const [syncing, setSyncing] = useState(null);
+
+  const { data: syncStatus = [], isLoading: syncLoading } = useQuery({
+    queryKey: ['portfolio', 'sync-status'],
+    queryFn:  () => apiService.getSyncStatus(),
+  });
+  const { data: runs = [], isPending: runsLoading } = useQuery({
+    queryKey: ['portfolio', portfolioId, 'import-history'],
+    queryFn:  () => apiService.getImportHistory(portfolioId),
+    enabled:  !!portfolioId,
+  });
+  const { data: coverage = {}, isPending: coverageLoading } = useQuery({
+    queryKey: ['portfolio', portfolioId, 'broker-coverage'],
+    queryFn:  () => apiService.getBrokerTransactionCoverage(portfolioId),
+    enabled:  !!portfolioId,
+  });
+
+  const handleResync = async (provider) => {
+    setSyncing(provider);
+    try {
+      await apiService.syncBrokers(provider);
+      toast.success(`${provider} sync queued`);
+      await qc.invalidateQueries({ queryKey: ['portfolio', 'sync-status'] });
+    } catch (e) {
+      toast.error(e.message || 'Sync failed');
+    } finally {
+      setSyncing(null);
+    }
+  };
+
+  if (syncLoading || runsLoading || coverageLoading) {
+    return <div style={{ padding:'44px 32px', textAlign:'center', color:'var(--ink-30)', fontSize:13 }}>Loading provider status…</div>;
+  }
+
+  const lastImportBySource = {};
+  for (const run of runs) {
+    if (!lastImportBySource[run.source] || new Date(run.started_at) > new Date(lastImportBySource[run.source])) {
+      lastImportBySource[run.source] = run.started_at;
+    }
+  }
+
+  return (
+    <div style={{ display:'flex', flexDirection:'column', gap:8 }}>
+      <div style={{ fontSize:11, color:'var(--ink-40)', marginBottom:4 }}>
+        "Transaction history" is the actual gap in your recorded ledger for that broker — the last dated buy/sell it holds, not when a sync last ran. Zerodha/Groww syncs only refresh current holdings, so they can show "Never" here even when sync is healthy.
+      </div>
+
+      {syncStatus.map(entry => {
+        const isZerodha = entry.provider === 'zerodha';
+        const historyDays = daysSince(coverage[entry.provider]);
+        const historyLine = `Transaction history: ${coverage[entry.provider] ? `last recorded ${gapAgeLabel(historyDays)}` : 'no recorded transactions'}`;
+        const historyGap = coverage[entry.provider] == null || historyDays > GAP_STALE_DAYS;
+
+        if (isZerodha) {
+          return (
+            <GapRow
+              key={entry.provider}
+              label="Zerodha"
+              sub="Live sync unavailable for this deployment — import via CDSL CAS/CSV"
+              extra={historyLine}
+              days={historyDays}
+              stale={historyGap}
+              actionLabel="Upload statement"
+              onAction={() => navigate('/settings?importTab=cas#import-data')}
+            />
+          );
+        }
+        const sub = entry.status === 'auth_required'
+          ? (entry.error ? 'Access expired — reconnect in Settings' : 'Not connected — connect in Settings')
+          : `Sync: ${gapAgeLabel(daysSince(entry.last_synced_at))}`;
+        return (
+          <GapRow
+            key={entry.provider}
+            label={entry.provider[0].toUpperCase() + entry.provider.slice(1)}
+            sub={sub}
+            extra={historyLine}
+            days={historyDays}
+            stale={historyGap}
+            actionLabel={entry.status === 'auth_required' ? 'Go to Settings' : (syncing === entry.provider ? 'Syncing…' : 'Resync now')}
+            actionDisabled={syncing === entry.provider}
+            onAction={() => entry.status === 'auth_required'
+              ? navigate('/settings#provider-list')
+              : handleResync(entry.provider)}
+          />
+        );
+      })}
+
+      {FILE_SOURCE_ROWS.map(({ source, label, importTab }) => {
+        const lastAt = lastImportBySource[source];
+        const days = daysSince(lastAt);
+        return (
+          <GapRow
+            key={source}
+            label={label}
+            sub={lastAt ? `Last imported ${gapAgeLabel(days)}` : 'Never imported'}
+            days={days}
+            stale={false}
+            actionLabel="Upload statement"
+            onAction={() => navigate(`/settings?importTab=${importTab}#import-data`)}
+          />
+        );
+      })}
+    </div>
+  );
+}
+
+/* ── import history ─────────────────────────────────────────────────────── */
 const ImportHistoryEmpty = () => (
   <div style={{ padding:'44px 32px', textAlign:'center', border:'1px dashed rgba(255,255,255,0.09)', borderRadius:12, background:'rgba(255,255,255,0.012)' }}>
     <div style={{ fontFamily:'var(--font-heading)', fontSize:15, fontWeight:600, color:'var(--ink-00)', marginBottom:7 }}>No import history yet</div>
     <div style={{ fontSize:13, color:'var(--ink-30)' }}>Import a broker CSV or CAS statement to populate this list.</div>
   </div>
 );
+
+const IMPORT_STATUS_TONE = {
+  SUCCESS: { bg:'rgba(111,174,136,0.14)', fg:'var(--sage-500)' },
+  PARTIAL: { bg:'rgba(201,168,106,0.13)', fg:'var(--aurum-100)' },
+  FAILED:  { bg:'rgba(209,107,107,0.14)', fg:'var(--crimson-500)' },
+};
+
+const IMPORT_SOURCE_LABEL = {
+  csv: 'CSV', cdsl_cas: 'CDSL CAS', groww_holdings: 'Groww Holdings',
+  groww_mf_holdings: 'Groww MF Holdings', nps: 'NPS', epf: 'EPF',
+};
+
+function ImportRunTransactions({ portfolioId, runId }) {
+  const { data: txns = [], isPending } = useQuery({
+    queryKey: ['portfolio', portfolioId, 'import-history', runId, 'transactions'],
+    queryFn:  () => apiService.getImportRunTransactions(portfolioId, runId),
+    enabled:  !!portfolioId && !!runId,
+  });
+
+  if (isPending) {
+    return <div style={{ padding:'12px 16px', fontSize:12, color:'var(--ink-40)' }}>Loading rows…</div>;
+  }
+  if (!txns.length) {
+    return <div style={{ padding:'12px 16px', fontSize:12, color:'var(--ink-40)' }}>No transactions still reference this import (skipped rows are duplicates already in your ledger, or the rows were later edited/deleted).</div>;
+  }
+
+  return (
+    <div style={{ padding:'8px 16px 14px', display:'flex', flexDirection:'column', gap:4 }}>
+      {txns.map(t => {
+        const tone = TXN_TYPE_TONE[t.transaction_type] || { bg:'rgba(255,255,255,0.05)', fg:'var(--ink-20)' };
+        return (
+          <div key={t.id} style={{ display:'flex', alignItems:'center', gap:10, padding:'6px 10px', borderRadius:7, background:'rgba(255,255,255,0.015)', fontSize:12.5 }}>
+            <span style={{ fontFamily:'var(--font-mono)', fontSize:10, padding:'2px 7px', borderRadius:999, background:tone.bg, color:tone.fg, fontWeight:600, minWidth:44, textAlign:'center' }}>{t.transaction_type}</span>
+            <span style={{ color:'var(--ink-10)', fontWeight:500, minWidth:100 }}>{t.symbol}</span>
+            <span style={{ fontFamily:'var(--font-mono)', color:'var(--ink-30)' }}>{t.quantity} @ {t.price}</span>
+            <span style={{ fontFamily:'var(--font-mono)', color:'var(--ink-40)', marginLeft:'auto' }}>{new Date(t.transaction_date).toLocaleDateString()}</span>
+          </div>
+        );
+      })}
+    </div>
+  );
+}
+
+function ImportHistoryList({ portfolioId }) {
+  const { data: runs = [], isPending } = useQuery({
+    queryKey: ['portfolio', portfolioId, 'import-history'],
+    queryFn:  () => apiService.getImportHistory(portfolioId),
+    enabled:  !!portfolioId,
+  });
+  const [expandedId, setExpandedId] = useState(null);
+
+  if (isPending) {
+    return <div style={{ padding:'44px 32px', textAlign:'center', color:'var(--ink-30)', fontSize:13 }}>Loading import history…</div>;
+  }
+  if (!runs.length) return <ImportHistoryEmpty/>;
+
+  return (
+    <div style={{ display:'flex', flexDirection:'column', gap:8 }}>
+      {runs.map(run => {
+        const tone = IMPORT_STATUS_TONE[run.status] || IMPORT_STATUS_TONE.FAILED;
+        const isOpen = expandedId === run.id;
+        return (
+          <div key={run.id} style={{ borderRadius:10, background:'rgba(255,255,255,0.02)', border:'1px solid rgba(255,255,255,0.06)' }}>
+          <div
+            onClick={() => setExpandedId(isOpen ? null : run.id)}
+            style={{ display:'flex', alignItems:'center', justifyContent:'space-between', gap:16, padding:'12px 16px', flexWrap:'wrap', cursor:'pointer' }}
+          >
+            <div style={{ display:'flex', alignItems:'center', gap:12, minWidth:0 }}>
+              <span style={{ fontFamily:'var(--font-mono)', fontSize:10.5, padding:'3px 9px', borderRadius:999, background:tone.bg, color:tone.fg, fontWeight:600, letterSpacing:'0.04em' }}>{run.status}</span>
+              <div style={{ minWidth:0 }}>
+                <div style={{ fontSize:13, color:'var(--ink-10)', fontWeight:500, overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap' }}>{run.filename}</div>
+                <div style={{ fontSize:11.5, color:'var(--ink-40)' }}>
+                  {IMPORT_SOURCE_LABEL[run.source] || run.source} · {new Date(run.started_at).toLocaleString()}
+                </div>
+              </div>
+            </div>
+            <div style={{ display:'flex', alignItems:'center', gap:18, flexShrink:0 }}>
+              <div style={{ textAlign:'right' }}>
+                <div style={{ fontFamily:'var(--font-mono)', fontSize:12.5, color:'var(--ink-10)' }}>{run.rows_committed} committed{run.rows_skipped ? ` · ${run.rows_skipped} skipped` : ''}</div>
+                {run.error_summary && (
+                  <div style={{ fontSize:11, color:'var(--crimson-500)', maxWidth:320, overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap' }} title={run.error_summary}>{run.error_summary}</div>
+                )}
+              </div>
+            </div>
+          </div>
+          {isOpen && <ImportRunTransactions portfolioId={portfolioId} runId={run.id}/>}
+          </div>
+        );
+      })}
+    </div>
+  );
+}
 
 /* ── stat bar ───────────────────────────────────────────────────────────── */
 const StatEyebrow = ({ children }) => (
@@ -634,28 +875,23 @@ function TransactionsLedger({ txns, isLoading, isError, refetch, onAdd, onMutate
   const qc = useQueryClient();
   const [q, setQ]           = useState('');
   const [fDate, setFDate]   = useState({ from:'', to:'' });
-  const [fClass, setFClass] = useState('All');
+  const [fMethod, setFMethod] = useState('All');
   const [fType, setFType]   = useState('All');
-  const [fSource, setFSource] = useState('All');
   const [fBroker, setFBroker] = useState('All');
   const [drawer, setDrawer] = useState(null);  // null | 'create' | txnObj
   const [confirm, setConfirm] = useState(null);
   const [deleting, setDeleting] = useState(false);
-  const [visibleCount, setVisibleCount] = useState(25);
+  const [pageSize, setPageSize] = useState(25);
+  const [page, setPage] = useState(0);
   const [prevFilterSig, setPrevFilterSig] = useState('');
-  const filterSig = `${q}|${fDate.from}|${fDate.to}|${fClass}|${fType}|${fSource}|${fBroker}`;
+  const filterSig = `${q}|${fDate.from}|${fDate.to}|${fMethod}|${fType}|${fBroker}|${pageSize}`;
   if (prevFilterSig !== filterSig) {
     setPrevFilterSig(filterSig);
-    setVisibleCount(25);
+    setPage(0);
   }
 
-  const classes = useMemo(() => {
-    const s = new Set(txns.map(t => normKind(t.kind)).filter(k => k && k !== '—'));
-    return [...s].sort();
-  }, [txns]);
-
-  const sources = useMemo(() => {
-    const s = new Set(txns.map(deriveSource));
+  const methods = useMemo(() => {
+    const s = new Set(txns.map(deriveMethod));
     return [...s].sort();
   }, [txns]);
 
@@ -664,15 +900,14 @@ function TransactionsLedger({ txns, isLoading, isError, refetch, onAdd, onMutate
     return [...s].sort();
   }, [txns]);
 
-  const dirty = !!(q || fDate.from || fDate.to || fClass !== 'All' || fType !== 'All' || fSource !== 'All' || fBroker !== 'All');
-  const clearFilters = useCallback(() => { setQ(''); setFDate({from:'',to:''}); setFClass('All'); setFType('All'); setFSource('All'); setFBroker('All'); }, []);
+  const dirty = !!(q || fDate.from || fDate.to || fMethod !== 'All' || fType !== 'All' || fBroker !== 'All');
+  const clearFilters = useCallback(() => { setQ(''); setFDate({from:'',to:''}); setFMethod('All'); setFType('All'); setFBroker('All'); }, []);
 
   const filtered = useMemo(() => {
     const ql = q.trim().toLowerCase();
     return txns.filter(t => {
-      if (fClass !== 'All' && normKind(t.kind) !== fClass) return false;
+      if (fMethod !== 'All' && deriveMethod(t) !== fMethod) return false;
       if (fType !== 'All' && displayType(t.transaction_type) !== fType) return false;
-      if (fSource !== 'All' && deriveSource(t) !== fSource) return false;
       if (fBroker !== 'All' && t.broker !== fBroker) return false;
       const date = txnDate(t);
       if (fDate.from && date < fDate.from) return false;
@@ -680,7 +915,7 @@ function TransactionsLedger({ txns, isLoading, isError, refetch, onAdd, onMutate
       if (ql && !(t.symbol||'').toLowerCase().includes(ql)) return false;
       return true;
     });
-  }, [txns, q, fDate, fClass, fType, fSource, fBroker]);
+  }, [txns, q, fDate, fMethod, fType, fBroker]);
 
   const handleDelete = async () => {
     if (!confirm || deleting) return;
@@ -705,11 +940,11 @@ function TransactionsLedger({ txns, isLoading, isError, refetch, onAdd, onMutate
   return (
     <>
       <StatBar filtered={filtered} total={txns.length} loaded={!isLoading && !isError}/>
-      <FilterBar q={q} setQ={setQ} fDate={fDate} setFDate={setFDate} fClass={fClass} setFClass={setFClass} fType={fType} setFType={setFType} fSource={fSource} setFSource={setFSource} fBroker={fBroker} setFBroker={setFBroker} classes={classes} sources={sources} brokers={brokers} dirty={dirty} onClear={clearFilters}/>
+      <FilterBar q={q} setQ={setQ} fDate={fDate} setFDate={setFDate} fMethod={fMethod} setFMethod={setFMethod} fType={fType} setFType={setFType} fBroker={fBroker} setFBroker={setFBroker} methods={methods} brokers={brokers} dirty={dirty} onClear={clearFilters}/>
 
       <div className="layer-1" style={{ padding:0, overflow:'hidden' }}>
         <LedgerHead/>
-        <div style={{ overflowX:'auto' }}>
+        <div style={{ overflowX:'auto', overflowY:'auto', maxHeight:620 }}>
           {isLoading && <SkeletonRows/>}
           {isError && (
             <div style={{padding:20}}>
@@ -721,17 +956,28 @@ function TransactionsLedger({ txns, isLoading, isError, refetch, onAdd, onMutate
               <LedgerEmpty isFiltered={dirty} onClear={clearFilters} onAdd={onAdd}/>
             </div>
           )}
-          {!isLoading && !isError && filtered.slice(0, visibleCount).map(t => (
+          {!isLoading && !isError && filtered.slice(page * pageSize, page * pageSize + pageSize).map(t => (
             <LedgerRow key={t.id} txn={t} onEdit={t => setDrawer(t)} onDelete={t => setConfirm(t)}/>
           ))}
         </div>
       </div>
 
-      {!isLoading && !isError && filtered.length > visibleCount && (
-        <div style={{ display:'flex', justifyContent:'center', marginTop:16 }}>
-          <button onClick={() => setVisibleCount(c => c + 25)} className="du3-cta ghost" style={{ height:36, padding:'0 24px', fontSize:12.5 }}>
-            Load more ({filtered.length - visibleCount} remaining)
-          </button>
+      {!isLoading && !isError && filtered.length > 0 && (
+        <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between', gap:16, marginTop:14, flexWrap:'wrap' }}>
+          <div style={{ display:'flex', alignItems:'center', gap:8, fontSize:12, color:'var(--ink-40)' }}>
+            <span>Rows per page</span>
+            <select value={pageSize} onChange={e => setPageSize(Number(e.target.value))} style={{ height:30, padding:'0 8px', borderRadius:6, background:'rgba(255,255,255,0.03)', border:'1px solid rgba(255,255,255,0.08)', color:'var(--ink-20)', fontSize:12, cursor:'pointer', fontFamily:'var(--font-ui)' }}>
+              {PAGE_SIZES.map(n => <option key={n} value={n} style={{background:'#16181c'}}>{n}</option>)}
+            </select>
+            <span>{page*pageSize + 1}–{Math.min((page+1)*pageSize, filtered.length)} of {filtered.length}</span>
+          </div>
+          {filtered.length > pageSize && (
+            <div style={{ display:'flex', alignItems:'center', gap:8 }}>
+              <button onClick={() => setPage(p => Math.max(0, p-1))} disabled={page===0} className="du3-cta ghost" style={{ height:30, padding:'0 12px', fontSize:12, opacity:page===0?0.4:1 }}>Prev</button>
+              <span style={{ fontSize:12, color:'var(--ink-40)' }}>Page {page+1} of {Math.max(1, Math.ceil(filtered.length/pageSize))}</span>
+              <button onClick={() => setPage(p => (p+1)*pageSize < filtered.length ? p+1 : p)} disabled={(page+1)*pageSize >= filtered.length} className="du3-cta ghost" style={{ height:30, padding:'0 12px', fontSize:12, opacity:(page+1)*pageSize >= filtered.length?0.4:1 }}>Next</button>
+            </div>
+          )}
         </div>
       )}
 
@@ -765,7 +1011,7 @@ function TransactionsLedger({ txns, isLoading, isError, refetch, onAdd, onMutate
 /* ── page shell ─────────────────────────────────────────────────────────── */
 const SUB_TABS = [
   { id:'confirmed', label:'Confirmed' },
-  { id:'pending',   label:'Pending imports' },
+  { id:'pending',   label:'Data gaps' },
   { id:'history',   label:'Import history' },
 ];
 
@@ -778,7 +1024,7 @@ export default function Transactions() {
 
   const TXN_QUERY_KEY = ["portfolio", activePortfolioId, "transactions"];
 
-  const { data: txns = [], isLoading, isError, refetch } = useQuery({
+  const { data: txns = [], isPending, isError, refetch } = useQuery({
     queryKey: TXN_QUERY_KEY,
     queryFn:  () => apiService.listTransactions(activePortfolioId),
     enabled:  !!activePortfolioId,
@@ -829,15 +1075,15 @@ export default function Transactions() {
       {subTab === 'confirmed' && (
         <TransactionsLedger
           txns={txns}
-          isLoading={isLoading}
+          isLoading={isPending}
           isError={isError}
           refetch={refetch}
           onAdd={() => setShowDrawer(true)}
           onMutated={() => qc.invalidateQueries({ queryKey: TXN_QUERY_KEY })}
         />
       )}
-      {subTab === 'pending' && <PendingImportsEmpty/>}
-      {subTab === 'history' && <ImportHistoryEmpty/>}
+      {subTab === 'pending' && <ProviderGapsPanel portfolioId={activePortfolioId}/>}
+      {subTab === 'history' && <ImportHistoryList portfolioId={activePortfolioId}/>}
 
       <div style={{ height:32 }}/>
 

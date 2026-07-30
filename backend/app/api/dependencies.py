@@ -25,6 +25,7 @@ from app.modules.market.repositories.market import MarketRepository
 from app.core.repositories.monitoring import MonitoringRepository
 from app.core.repositories.task_run import TaskRunRepository
 from app.modules.news.repositories.news import NewsRepository
+from app.modules.portfolio.repositories.import_runs import ImportRunsRepository
 from app.modules.portfolio.repositories.portfolio_snapshot import (
     PortfolioSnapshotRepository,
 )
@@ -53,14 +54,18 @@ def get_positions_repo(db: Session = Depends(get_db)) -> PositionsRepository:
 def get_portfolio_snapshot_repo(db: Session = Depends(get_db)) -> PortfolioSnapshotRepository:
     return PortfolioSnapshotRepository(db)
 
+def get_import_runs_repo(db: Session = Depends(get_db)) -> ImportRunsRepository:
+    return ImportRunsRepository(db)
+
 # Service dependencies
 def get_portfolio_service(
     portfolios_repo: PortfoliosRepository = Depends(get_portfolios_repo),
     transactions_repo: TransactionsRepository = Depends(get_transactions_repo),
     positions_repo: PositionsRepository = Depends(get_positions_repo),
     snapshot_repo: PortfolioSnapshotRepository = Depends(get_portfolio_snapshot_repo),
+    import_runs_repo: ImportRunsRepository = Depends(get_import_runs_repo),
 ) -> PortfolioService:
-    return PortfolioService(portfolios_repo, transactions_repo, positions_repo, snapshot_repo)
+    return PortfolioService(portfolios_repo, transactions_repo, positions_repo, snapshot_repo, import_runs_repo)
 
 def get_recommendation_repo(db: Session = Depends(get_db)) -> RecommendationRepository:
     return RecommendationRepository(db)

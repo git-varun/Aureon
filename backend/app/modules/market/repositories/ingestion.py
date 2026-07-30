@@ -5,6 +5,8 @@ from sqlalchemy import or_, select
 from sqlalchemy.dialects.postgresql import insert
 
 from app.modules.market.entities.market import Asset, LatestQuote
+from app.modules.market.entities.watchlist import WatchlistSymbol
+from app.modules.portfolio.entities.portfolio import Position
 from app.core.entities.system import FailedIngestion, Provider, ProviderUsage
 from app.core.providers.models import NormalizedQuote
 from app.core.repositories.base import BaseRepository
@@ -94,9 +96,32 @@ class IngestionRepository(BaseRepository):
         return True
 
     def list_symbols_for_quote_ingestion(self) -> list[tuple[str, str]]:
-        """(symbol, asset_class) for every known asset — used by ingest_all_quotes
-        to pick which market-data provider to route each symbol to."""
-        return [(r[0], r[1]) for r in self.session.query(Asset.symbol, Asset.asset_class).distinct().all()]
+        """(symbol, asset_class) for every asset the user actually cares about —
+        held in a portfolio position or added to a watchlist — used by
+        ingest_all_quotes to pick which market-data provider to route each symbol
+        to. Scoped this way (rather than every Asset row) so quote ingestion, and
+        everything chained off it (features/signals/scores), never runs for
+        assets the user has no relationship to."""
+        held = select(Position.symbol).distinct()
+        watchlisted = select(WatchlistSymbol.symbol).distinct()
+        symbols = {r[0] for r in self.session.execute(held).all()} | {
+            r[0] for r in self.session.execute(watchlisted).all()
+        }
+        if not symbols:
+            return []
+        return [
+            (r[0], r[1])
+            for r in self.session.query(Asset.symbol, Asset.asset_class)
+            .filter(Asset.symbol.in_(symbols))
+            .distinct()
+            .all()
+        ]
+
+    def is_symbol_held(self, symbol: str) -> bool:
+        """True if `symbol` is held in at least one portfolio position — used to
+        gate the features/signals/scores evaluation chain so it only ever runs
+        for assets actually owned, not merely watchlisted."""
+        return self.session.query(Position.symbol).filter(Position.symbol == symbol).first() is not None
 
     def list_asset_ids_with_quotes(self) -> list[uuid.UUID]:
         return [r[0] for r in self.session.query(LatestQuote.asset_id).distinct().all() if r[0] is not None]

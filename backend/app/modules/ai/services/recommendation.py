@@ -218,7 +218,7 @@ class RecommendationService(BaseService):
         return rec
 
     def generate_recommendations(self) -> list[dict[str, Any]]:
-        snapshots = self.repo.list_all_snapshots()
+        snapshots = self.repo.list_held_snapshots()
         recs_created = []
 
         for snap in snapshots:

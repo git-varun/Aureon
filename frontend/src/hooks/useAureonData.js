@@ -124,13 +124,16 @@ export function useAureonData() {
                 ticker: pos.symbol.toUpperCase().replace(/\.NS$/i, ''),
                 name: assetData.name || pos.symbol,
                 class: assetData.class || 'stocks',
-                tier: 'active',
+                // price_source "manual"/"epf_estimated" means resolve_position_price()
+                // found a user-entered valuation, not a market quote — the same
+                // positions PfHoldingsTable/TierChip need flagged "passive" (manually
+                // revalued, no live Trade action) get it from here.
+                tier: (pos.price_source === 'manual' || pos.price_source === 'epf_estimated') ? 'passive' : 'active',
                 qty: pos.quantity,
                 cost: pos.avg_buy_price,
                 price: price,
                 dayPct: assetData.dayPct ?? null,
                 sector: assetData.sector || 'General',
-                beta: 1.0,
                 spark: price != null ? [price] : [],
                 wallet: pos.wallet,
                 leverage: pos.leverage,
@@ -166,18 +169,6 @@ export function useAureonData() {
         }
         return map;
     }, [holdings, netWorth, fxRates]);
-
-    const techTarget = 0.28;
-    const { techWt, techDriftPp, techDriftLabel, techDriftProse } = useMemo(() => {
-        const investable = holdings.filter(h => h.tier !== 'passive');
-        const base = investable.reduce((s, h) => s + valueOfBase(h, fxRates), 0) || 1;
-        const tech = investable.filter(h => h.sector === 'Tech').reduce((s, h) => s + valueOfBase(h, fxRates), 0);
-        const wt = tech / base;
-        const driftPp = (wt - techTarget) * 100;
-        const driftLabel = (driftPp >= 0 ? '+' : '−') + Math.abs(driftPp).toFixed(1) + 'pp';
-        const driftProse = `${Math.abs(driftPp).toFixed(1)}pp ${driftPp >= 0 ? 'above' : 'below'} target`;
-        return { techWt: wt, techDriftPp: driftPp, techDriftLabel: driftLabel, techDriftProse: driftProse };
-    }, [holdings, fxRates]);
 
     // 8. Per-position signals from RSI/signal endpoint
     const signalQueries = useQueries({
@@ -269,14 +260,17 @@ export function useAureonData() {
         return marketQuoteTimes.length ? new Date(Math.min(...marketQuoteTimes)).toISOString() : null;
     }, [marketQuotedPositions]);
 
-    const loading = positionsQuery.isLoading || snapshotQuery.isLoading || recommendationsQuery.isLoading || transactionsQuery.isLoading;
+    // isPending (not isLoading) — isLoading is isPending && isFetching, which stays
+    // false the whole time these queries sit disabled waiting on activePortfolioId
+    // (enabled: !!activePortfolioId), so it never trips the loading UI during that window.
+    const loading = positionsQuery.isPending || snapshotQuery.isPending || recommendationsQuery.isPending || transactionsQuery.isPending;
     const error = positionsQuery.error || snapshotQuery.error || recommendationsQuery.error || transactionsQuery.error;
 
     return {
         loading,
         error,
         historySnapshots,
-        historyLoading: historyQuery.isLoading,
+        historyLoading: historyQuery.isPending,
         historyError: historyQuery.error,
         holdings,
         classLabel: CLASS_LABEL,
@@ -304,10 +298,5 @@ export function useAureonData() {
         },
         goalProgress: null,
         apiState: {holdings, netWorth, activity},
-        techTarget,
-        techWt,
-        techDriftPp,
-        techDriftLabel,
-        techDriftProse,
     };
 }

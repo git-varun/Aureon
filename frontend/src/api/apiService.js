@@ -124,6 +124,21 @@ export const apiService = {
         }));
     },
 
+    getImportHistory: (portfolioId) => {
+        const pid = portfolioId || getPortfolioId();
+        return handleRequest(API.get(`/portfolio/portfolios/${pid}/import/history`));
+    },
+
+    getImportRunTransactions: (portfolioId, runId) => {
+        const pid = portfolioId || getPortfolioId();
+        return handleRequest(API.get(`/portfolio/portfolios/${pid}/import/history/${runId}/transactions`));
+    },
+
+    getBrokerTransactionCoverage: (portfolioId) => {
+        const pid = portfolioId || getPortfolioId();
+        return handleRequest(API.get(`/portfolio/portfolios/${pid}/transactions/broker-coverage`));
+    },
+
     // ── Recommendations (V1) ──────────────────────────────────────────────────
     listRecommendations: (status = null) => {
         const q = status ? `?status=${encodeURIComponent(status)}` : '';
@@ -386,6 +401,10 @@ export const apiService = {
         handleRequest(API.get('/intelligence/cash-opportunities', {params: {portfolio_id: portfolioId}})),
     getIntelligenceCalibration: () =>
         handleRequest(API.get('/intelligence/calibration')),
+    getPortfolioHealthTrend: (portfolioId, days = 90) =>
+        handleRequest(API.get('/intelligence/portfolio-health/trend', {params: {portfolio_id: portfolioId, days}})),
+    getDiversificationTrend: (portfolioId, days = 90) =>
+        handleRequest(API.get('/intelligence/diversification/trend', {params: {portfolio_id: portfolioId, days}})),
     getRecommendationOutcomes: (portfolioId) => {
         const pid = portfolioId || getPortfolioId();
         return handleRequest(API.get('/intelligence/outcomes', {params: {portfolio_id: pid}}));

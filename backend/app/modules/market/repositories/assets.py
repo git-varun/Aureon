@@ -1,3 +1,4 @@
+from dataclasses import dataclass
 from datetime import datetime
 from typing import Optional
 
@@ -5,6 +6,15 @@ from app.modules.market.entities.market import Asset, AssetSnapshot, LatestQuote
 from app.modules.market.entities.evaluation import AssetScore
 from app.modules.portfolio.entities.portfolio import Position
 from app.core.repositories.base import BaseRepository
+
+
+@dataclass
+class CombinedPosition:
+    """Aggregated view across a symbol's Position rows (e.g. Binance
+    wallet="spot" + wallet="earn" sharing one symbol) — not a real Position
+    row, just enough for read-only display callers like get_aureon_asset."""
+    quantity: float
+    avg_buy_price: float
 
 
 class AssetsRepository(BaseRepository):
@@ -46,9 +56,17 @@ class AssetsRepository(BaseRepository):
             .all()
         )
 
-    def get_position(self, portfolio_id, symbol: str) -> Optional[Position]:
-        return (
+    def get_position(self, portfolio_id, symbol: str) -> Optional[CombinedPosition]:
+        positions = (
             self.session.query(Position)
             .filter(Position.portfolio_id == portfolio_id, Position.symbol == symbol)
-            .first()
+            .all()
         )
+        if not positions:
+            return None
+        total_qty = sum(float(p.quantity) for p in positions)
+        if total_qty > 0:
+            avg_price = sum(float(p.quantity) * float(p.avg_buy_price) for p in positions) / total_qty
+        else:
+            avg_price = float(positions[0].avg_buy_price)
+        return CombinedPosition(quantity=total_qty, avg_buy_price=avg_price)

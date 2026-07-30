@@ -534,11 +534,12 @@ not a `classify()` output (see Known Backlog below).
    `holdings_imported`. Already noted in `KnownLimitation.md` as cosmetic,
    not worth a breaking-change fix right now.
 
-5. **`useAureonData.js` hardcodes `tier: 'active'` — confirmed, documented.**
-   Every constructed holding gets a hardcoded `tier: 'active'`, so
-   `PfHoldingsTable.jsx`'s "Passive" filter tab (`h.tier === 'passive'`) and
-   "Manual" row badge never trigger for real data. Already noted in
-   `KnownLimitation.md`.
+5. **`useAureonData.js` hardcoded `tier: 'active'` — resolved.** Now derives
+   `tier` from `pos.price_source` (`"manual"`/`"epf_estimated"` → `'passive'`,
+   else `'active'`), the same field `resolve_position_price()` already sets
+   to distinguish a user-entered valuation from a real market quote — so
+   `PfHoldingsTable.jsx`'s "Passive" filter tab and "Manual" row badge now
+   reflect real state.
 
 6. **`app/core/repositories/monitoring.py` imports domain entities directly
    — confirmed.** Imports `LatestQuote` (market), `Position`/`Transaction`

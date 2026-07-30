@@ -2,11 +2,12 @@ import React, { useRef, useState } from 'react';
 import { ManualAssetModal } from './ManualAssetModal';
 import { apiService } from '@/api/apiService';
 
-export function PfImportCenter() {
-  const [tab, setTab]          = useState('csv');
+export function PfImportCenter({ initialTab = 'csv' } = {}) {
+  const [tab, setTab]          = useState(initialTab);
   const [csvState, setCsvSt]   = useState('idle'); // idle | over | processing | done | error
   const [csvError, setCsvErr]  = useState('');
   const [csvResult, setCsvRes] = useState(null);
+  const [csvBroker, setCsvBroker] = useState(''); // '' = auto-detect from column headers
   const [casFile, setCasFile]  = useState(null);
   const [casState, setCasSt]   = useState('idle'); // idle | processing | done | error | password
   const [casError, setCasErr]  = useState('');
@@ -32,7 +33,7 @@ export function PfImportCenter() {
     setCsvSt('processing');
     setCsvErr('');
     try {
-      const result = await apiService.importTransactions(null, file);
+      const result = await apiService.importTransactions(null, file, csvBroker || null);
       setCsvRes(result);
       setCsvSt('done');
     } catch (err) {
@@ -109,6 +110,21 @@ export function PfImportCenter() {
               <p style={{ margin:0, fontSize:13, color:'var(--ink-30)', lineHeight:1.6, maxWidth:540 }}>
                 Import trades and holdings from a broker-exported CSV or Excel file. Aureon normalises column names automatically across supported brokers.
               </p>
+              <label style={{ display:'flex', alignItems:'center', gap:10, fontSize:12.5, color:'var(--ink-30)' }}>
+                Source
+                <select
+                  value={csvBroker}
+                  onChange={e => setCsvBroker(e.target.value)}
+                  style={{ height:30, padding:'0 10px', borderRadius:6, background:'rgba(255,255,255,0.03)', border:'1px solid rgba(255,255,255,0.1)', color:'var(--ink-10)', fontSize:12.5 }}
+                >
+                  <option value="">Auto-detect from file</option>
+                  <option value="zerodha">Zerodha</option>
+                  <option value="groww">Groww (transactions)</option>
+                  <option value="groww_mf">Groww (mutual funds)</option>
+                  <option value="binance">Binance</option>
+                </select>
+                <span style={{ fontSize:11, color:'var(--ink-50)' }}>Tags every imported row with this broker — fixes misdetection and lets Data Gaps track this account's history.</span>
+              </label>
               <div
                 onDragOver={e => { e.preventDefault(); setCsvSt('over'); }}
                 onDragLeave={() => setCsvSt(s => s === 'over' ? 'idle' : s)}
