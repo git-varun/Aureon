@@ -6,7 +6,7 @@ from app.core.providers.capabilities import Capability
 from app.core.providers.interfaces import AIProvider
 from app.core.providers.registry import registry
 
-MODELS = ["gemini-2.5-flash", "gemini-2.0-flash", "gemini-2.0-flash-lite"]
+MODELS = ["gemini-3.5-flash-lite", "gemini-3.1-flash-lite", "gemini-3.6-flash"]
 
 
 class GeminiProvider(AIProvider):
