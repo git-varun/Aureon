@@ -1,14 +1,6 @@
 import React, { useState, useMemo } from 'react';
 import { AllocDonut } from '@/components/aureon/ui';
-import { CLASS_LABEL, valueOf } from '@/components/aureon/utils';
-
-const ALLOC_PALETTE = {
-  stocks:'#C9A86A', funds:'#D4B888', bonds:'#7AA8D4', crypto:'#D4A257',
-  real_estate:'#6FAE88', retirement:'#8A909B', insurance:'#4B4F57',
-  Tech:'#C9A86A', Healthcare:'#6FAE88', Financials:'#7AA8D4', 'Layer 1':'#D4A257',
-  Broad:'#D4B888', Intl:'#8A909B', Treasury:'#7AA8D4', Aggregate:'#8A909B',
-  Residential:'#6FAE88', 'Target 2045':'#969CA6', 'Self-managed':'#7AA8D4', 'Whole life':'#4B4F57',
-};
+import { CLASS_LABEL, ALLOC_PALETTE, valueOf } from '@/components/aureon/utils';
 
 function AllocationBars({ entries, classTarget, showTarget }) {
   if (!entries?.length) return (
@@ -47,7 +39,7 @@ function AllocationBars({ entries, classTarget, showTarget }) {
   );
 }
 
-export function PfAllocationSection({ holdings, allocByClass, classTarget }) {
+export function PfAllocationSection({ holdings, allocByClass, classTarget, classTargetsLoading, classTargetsError, classTargetsUsingDefaults, cashNotTracked }) {
   const [tab, setTab] = useState('class');
 
   const classBars = useMemo(() =>
@@ -81,13 +73,28 @@ export function PfAllocationSection({ holdings, allocByClass, classTarget }) {
           ))}
         </div>
       </div>
+      {cashNotTracked && (
+        <div style={{ padding:'8px 18px', fontSize:10.5, color:'var(--ink-50)', borderBottom:'1px solid rgba(255,255,255,0.05)' }}>
+          Based on holdings only — cash balance isn't tracked yet
+        </div>
+      )}
       <div style={{ display:'grid', gridTemplateColumns:'auto 1fr', gap:0 }}>
         <div style={{ padding:'20px', display:'flex', alignItems:'center', justifyContent:'center', borderRight:'1px solid rgba(255,255,255,0.05)' }}>
           <AllocDonut alloc={Object.keys(donutData).length ? donutData : { stocks: 1 }} size={148}/>
         </div>
         <div style={{ padding:'20px 22px' }}>
-          <AllocationBars entries={barData} classTarget={classTarget} showTarget={tab==='class'}/>
-          {tab==='class' && <div style={{ marginTop:10, fontSize:11, color:'var(--ink-50)' }}>Vertical bar = target weight · drift label turns amber &gt;2pp, red &gt;5pp</div>}
+          <AllocationBars entries={barData} classTarget={classTarget} showTarget={tab==='class' && !classTargetsLoading}/>
+          {tab==='class' && (
+            <div style={{ marginTop:10, fontSize:11, color: classTargetsError ? 'var(--crimson-500)' : 'var(--ink-50)' }}>
+              {classTargetsLoading
+                ? 'Loading your saved target weights…'
+                : classTargetsError
+                ? "Couldn't load your target weights — showing allocation only, no target markers"
+                : classTargetsUsingDefaults
+                ? 'No saved targets yet — showing suggested starter weights, not your saved targets'
+                : 'Vertical bar = target weight · drift label turns amber >2pp, red >5pp'}
+            </div>
+          )}
         </div>
       </div>
     </div>

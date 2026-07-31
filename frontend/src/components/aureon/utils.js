@@ -4,10 +4,25 @@ import {convert} from '../../pages/aureon/marketData';
 export const CLASS_LABEL = {
     stocks: 'Stocks', crypto: 'Crypto', funds: 'Funds', bonds: 'Bonds',
     real_estate: 'Real estate', retirement: 'Retirement', insurance: 'Insurance',
+    unclassified: 'Unclassified',
 };
 export const CLASS_TARGET = {
     stocks: 0.46, crypto: 0.07, funds: 0.16, bonds: 0.10,
     real_estate: 0.10, retirement: 0.09, insurance: 0.02,
+};
+
+// Single source of truth for allocation swatch colors, shared by AllocDonut
+// (ui.jsx) and the allocation bar list (PfAllocationSection.jsx) — previously
+// each maintained its own palette and AllocDonut's was missing every sector
+// key, so Sector-tab donut segments silently fell back to gray while the
+// bar list showed the real color for the same key.
+export const ALLOC_PALETTE = {
+    stocks: '#C9A86A', funds: '#D4B888', bonds: '#7AA8D4', crypto: '#D4A257',
+    real_estate: '#6FAE88', retirement: '#8A909B', insurance: '#4B4F57', unclassified: '#6B6F76',
+    Tech: '#C9A86A', Healthcare: '#6FAE88', Financials: '#7AA8D4', 'Layer 1': '#D4A257',
+    Broad: '#D4B888', Intl: '#8A909B', Treasury: '#7AA8D4', Aggregate: '#8A909B',
+    Residential: '#6FAE88', 'Target 2045': '#969CA6', 'Self-managed': '#7AA8D4', 'Whole life': '#4B4F57',
+    Unclassified: '#6B6F76',
 };
 
 export const HIGH_IMPACT_USD = 10000;

@@ -1,6 +1,7 @@
 /* Aureon — Shared UI primitives (ported from app/ui.jsx). */
 import React, {useRef, useState} from 'react';
 import {createPortal} from 'react-dom';
+import {ALLOC_PALETTE} from '@/components/aureon/utils';
 
 export const Sparkline = ({data, w = 80, h = 22, color, fill = true}) => {
     const clean = (data || []).filter(v => typeof v === 'number' && Number.isFinite(v));
@@ -264,10 +265,6 @@ export const PriceChart = ({series, events = [], height = 220, color}) => {
 
 export const AllocDonut = ({size = 140, alloc}) => {
     const r = size / 2 - 8, cx = size / 2, cy = size / 2;
-    const palette = {
-        stocks: '#C9A86A', funds: '#D4B888', bonds: '#7AA8D4',
-        crypto: '#D4A257', real_estate: '#6FAE88', retirement: '#8A909B', insurance: '#4B4F57',
-    };
     const entries = Object.entries(alloc).sort((a, b) => b[1] - a[1]);
     const segs = entries.reduce((arr, [k, v]) => {
         const start = arr.length ? arr[arr.length - 1].end : 0;
@@ -282,7 +279,7 @@ export const AllocDonut = ({size = 140, alloc}) => {
             v,
             end,
             d: `M ${cx} ${cy} L ${x0} ${y0} A ${r} ${r} 0 ${large} 1 ${x1} ${y1} Z`,
-            color: palette[k] || '#888'
+            color: ALLOC_PALETTE[k] || '#888'
         });
         return arr;
     }, []);

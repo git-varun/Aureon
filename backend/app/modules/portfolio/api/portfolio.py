@@ -225,8 +225,10 @@ def _serialize_snapshot_for_cache(snapshot) -> Dict[str, Any]:
     return {
         "portfolio_id": str(snapshot.portfolio_id),
         "market_value": float(snapshot.market_value) if snapshot.market_value is not None else 0.0,
-        "cash_balance": float(snapshot.cash_balance) if snapshot.cash_balance is not None else 0.0,
-        "allocation": snapshot.allocation,
+        # Unlike the other fields here, None is a real, distinct value for
+        # cash_balance ("not tracked") — must round-trip through the cache as
+        # None, not get coerced to a fake 0.0.
+        "cash_balance": float(snapshot.cash_balance) if snapshot.cash_balance is not None else None,
         "daily_return": float(snapshot.daily_return) if snapshot.daily_return is not None else 0.0,
         "total_return": float(snapshot.total_return) if snapshot.total_return is not None else 0.0,
         "updated_at": snapshot.updated_at.isoformat() if snapshot.updated_at else datetime.now(timezone.utc).isoformat()
@@ -469,7 +471,6 @@ def get_portfolio_snapshot_route(
             portfolio_id=uuid.UUID(cached["portfolio_id"]),
             market_value=cached.get("market_value"),
             cash_balance=cached.get("cash_balance"),
-            allocation=cached.get("allocation"),
             daily_return=cached.get("daily_return"),
             total_return=cached.get("total_return"),
             updated_at=datetime.fromisoformat(cached["updated_at"]) if cached.get("updated_at") else datetime.now(timezone.utc)

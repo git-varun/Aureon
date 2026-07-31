@@ -107,7 +107,6 @@ class SnapshotResponse(BaseModel):
     portfolio_id: uuid.UUID
     market_value: Optional[float] = None
     cash_balance: Optional[float] = None
-    allocation: Optional[dict[str, Any]] = None  # wait, import Any from typing at the top if needed. Let's make it Optional[dict]
     daily_return: Optional[float] = None
     total_return: Optional[float] = None
     updated_at: datetime

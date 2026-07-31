@@ -1,9 +1,7 @@
 import uuid
 from datetime import datetime
-from typing import Any
 
-from sqlalchemy import JSON, BigInteger, Boolean, ForeignKey, Index, Integer, Numeric, String, Text, UniqueConstraint, text
-from sqlalchemy.dialects.postgresql import JSONB
+from sqlalchemy import BigInteger, Boolean, ForeignKey, Index, Integer, Numeric, String, Text, UniqueConstraint, text
 from sqlalchemy.orm import Mapped, mapped_column
 
 from app.core.entities.base import Base, TimestampMixin, UUIDMixin
@@ -119,7 +117,6 @@ class PortfolioSnapshot(TimestampMixin, Base):
     )
     market_value: Mapped[float] = mapped_column(Numeric, nullable=True)
     cash_balance: Mapped[float] = mapped_column(Numeric, nullable=True)
-    allocation: Mapped[dict[str, Any]] = mapped_column(JSON().with_variant(JSONB, "postgresql"), nullable=True)
     daily_return: Mapped[float] = mapped_column(Numeric, nullable=True)
     total_return: Mapped[float] = mapped_column(Numeric, nullable=True)
 

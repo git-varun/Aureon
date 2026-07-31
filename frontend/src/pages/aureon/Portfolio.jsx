@@ -41,7 +41,7 @@ export default function Portfolio() {
   const qc       = useQueryClient();
   const fmt      = useFmtMoney();
   const { activePortfolioId } = usePortfolio();
-  const { holdings, netWorth, investedValue, unrealizedPnl, dayDelta, loading, allocByClass, classTarget, activity, freshness } = useAureonData();
+  const { holdings, netWorth, investedValue, unrealizedPnl, dayDelta, loading, allocByClass, classTarget, classTargetsLoading, classTargetsError, classTargetsUsingDefaults, cashNotTracked, activity, freshness } = useAureonData();
   const [showTrade,  setShowTrade]  = useState(false);
   const [showManual, setShowManual] = useState(false);
 
@@ -76,7 +76,15 @@ export default function Portfolio() {
 
       {/* 4 · Allocation */}
       <PfSection eyebrow="Breakdown" title="Allocation">
-        <PfAllocationSection holdings={holdings} allocByClass={allocByClass} classTarget={classTarget} />
+        <PfAllocationSection
+          holdings={holdings}
+          allocByClass={allocByClass}
+          classTarget={classTarget}
+          classTargetsLoading={classTargetsLoading}
+          classTargetsError={classTargetsError}
+          classTargetsUsingDefaults={classTargetsUsingDefaults}
+          cashNotTracked={cashNotTracked}
+        />
       </PfSection>
 
       {/* 5 · Holdings */}

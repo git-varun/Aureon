@@ -84,7 +84,20 @@ export function useAureonData() {
         staleTime: 60000,
     });
 
-    const allocationTargets = allocationTargetsQuery.data || CLASS_TARGET;
+    // GET /config/allocation_targets returns {} (a successful, empty response)
+    // when the user hasn't saved any targets yet — a real state, distinct from
+    // the query still being in flight or having failed. CLASS_TARGET (hardcoded
+    // suggested weights) may only stand in for that genuine-empty case; while
+    // loading or on error it must NOT silently substitute CLASS_TARGET, since
+    // that would render as if it were the user's real saved targets with no
+    // visual difference. See classTargetsLoading/classTargetsError/
+    // classTargetsUsingDefaults below, which callers must use to distinguish
+    // these states in the UI.
+    const targetsLoaded = allocationTargetsQuery.isSuccess;
+    const targetsUsingDefaults = targetsLoaded && Object.keys(allocationTargetsQuery.data || {}).length === 0;
+    const classTarget = targetsLoaded
+        ? (targetsUsingDefaults ? CLASS_TARGET : allocationTargetsQuery.data)
+        : {};
 
     // Hydrate position details (name, class, sector, price) by searching assets in parallel
     const assetQueries = useQueries({
@@ -93,7 +106,11 @@ export function useAureonData() {
             queryFn: async () => {
                 const results = await apiService.searchAssets(pos.symbol);
                 const match = results?.data?.find(a => a.sym.toUpperCase() === pos.symbol.toUpperCase());
-                return match || {sym: pos.symbol, name: pos.symbol, price: pos.avg_buy_price, class: 'stocks', sector: 'General'};
+                // No match means /assets has no Asset row for this symbol (crypto,
+                // EPF, oddly-formatted MF symbols are the common cases) — defaulting
+                // to a real class like 'stocks' would silently misclassify it in
+                // the allocation chart. Surface it as its own bucket instead.
+                return match || {sym: pos.symbol, name: pos.symbol, price: pos.avg_buy_price, class: 'unclassified', sector: 'Unclassified'};
             },
             staleTime: 60000,
             enabled: !!pos.symbol,
@@ -148,14 +165,28 @@ export function useAureonData() {
         });
     }, [positions, assetsMap]);
 
+    // netWorth must be built from the exact same holdings values allocByClass
+    // sums over, or the two can disagree: holdings come from /positions (10s
+    // stale-time, always live-priced), while snapshot.market_value is a Redis
+    // snapshot cached up to 15 min (see cache_portfolio_snapshot). Deriving
+    // netWorth from snapshot.market_value let the allocation numerator (live)
+    // and denominator (up to 15min stale) drift apart after any price move,
+    // so allocByClass wouldn't sum to 100%. Summing holdings directly keeps
+    // numerator and denominator on one source by construction. cash_balance
+    // still comes from the snapshot (holdings carry no cash) but is null
+    // whenever it isn't tracked (no cash-tracking mechanism exists yet — see
+    // generate_portfolio_snapshot), which `|| 0` correctly excludes from the
+    // sum rather than folding an unknown into a fake zero.
     const netWorth = useMemo(() => {
-        if (snapshot) {
-            return (snapshot.market_value || 0) + (snapshot.cash_balance || 0);
-        }
         // Holdings mix native currencies (INR for NSE/EPF/NPS/mutual funds,
         // USD otherwise) — normalize each to INR before summing.
-        return holdings.reduce((s, h) => s + valueOfBase(h, fxRates), 0);
-    }, [snapshot, holdings, fxRates]);
+        const holdingsValue = holdings.reduce((s, h) => s + valueOfBase(h, fxRates), 0);
+        return holdingsValue + (snapshot?.cash_balance || 0);
+    }, [holdings, snapshot, fxRates]);
+
+    // Only meaningful once the snapshot has actually loaded — while it's still
+    // loading we don't yet know either way, so no "not tracked" claim is made.
+    const cashNotTracked = snapshot != null && snapshot.cash_balance == null;
 
     const allocByClass = useMemo(() => {
         const map = {};
@@ -274,8 +305,8 @@ export function useAureonData() {
         historyError: historyQuery.error,
         holdings,
         classLabel: CLASS_LABEL,
-        classTarget: allocationTargets,
         netWorth,
+        cashNotTracked,
         investedValue: snapshot ? (snapshot.market_value || 0) - (snapshot.total_return || 0) : null,
         unrealizedPnl: snapshot ? (snapshot.total_return ?? null) : null,
         dayDelta: {dollars: snapshot?.daily_return || 0, pct: (snapshot?.daily_return / (netWorth || 1)) || 0},
@@ -284,6 +315,10 @@ export function useAureonData() {
         activity,
         portfolioRec: null,
         allocByClass,
+        classTarget,
+        classTargetsLoading: allocationTargetsQuery.isPending,
+        classTargetsError: allocationTargetsQuery.error,
+        classTargetsUsingDefaults: targetsUsingDefaults,
         unreadCount: notifications.filter(n => !n.read).length,
         marketPulse: null,
         aiBriefing,

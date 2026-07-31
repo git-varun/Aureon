@@ -23,7 +23,6 @@ class PortfolioSnapshotRepository(BaseRepository):
             portfolio_id=snapshot.portfolio_id,
             market_value=snapshot.market_value,
             cash_balance=snapshot.cash_balance,
-            allocation=snapshot.allocation,
             daily_return=snapshot.daily_return,
             total_return=snapshot.total_return,
             created_at=now,
@@ -34,7 +33,6 @@ class PortfolioSnapshotRepository(BaseRepository):
             set_=dict(
                 market_value=stmt.excluded.market_value,
                 cash_balance=stmt.excluded.cash_balance,
-                allocation=stmt.excluded.allocation,
                 daily_return=stmt.excluded.daily_return,
                 total_return=stmt.excluded.total_return,
                 updated_at=stmt.excluded.updated_at,

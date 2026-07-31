@@ -607,7 +607,10 @@ class FinancialIntelligenceService(BaseService):
         
         snapshot = self.repo.get_portfolio_snapshot(portfolio_id)
         positions = self.repo.get_positions(portfolio_id)
-        net_worth = float(snapshot.market_value + snapshot.cash_balance) if snapshot else 10000.0
+        # cash_balance is None (not tracked) whenever it isn't a real computed
+        # value — see generate_portfolio_snapshot — so it must not be added
+        # directly here or this crashes on float + None.
+        net_worth = float(snapshot.market_value + (snapshot.cash_balance or 0)) if snapshot else 10000.0
 
         class_target = self._get_allocation_targets()
         alloc = {}
@@ -663,7 +666,10 @@ class FinancialIntelligenceService(BaseService):
     def get_goal_progress_metrics(self, portfolio_id: uuid.UUID, user_id: uuid.UUID) -> Dict[str, Any]:
         """Initiative 6: Goal Progress Metrics"""
         snapshot = self.repo.get_portfolio_snapshot(portfolio_id)
-        current_net_worth = float(snapshot.market_value + snapshot.cash_balance) if snapshot else 10000.0
+        # cash_balance is None (not tracked) whenever it isn't a real computed
+        # value — see generate_portfolio_snapshot — so it must not be added
+        # directly here or this crashes on float + None.
+        current_net_worth = float(snapshot.market_value + (snapshot.cash_balance or 0)) if snapshot else 10000.0
 
         # monthly_saving lives on UserPreference, not User (see
         # serialize_user_profile in app/api/dependencies.py) — same field

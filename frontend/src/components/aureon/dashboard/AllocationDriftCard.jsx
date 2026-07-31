@@ -11,8 +11,14 @@ const dc = pp => Math.abs(pp) < 1 ? 'var(--ink-30)' : Math.abs(pp) < 3 ? 'var(--
 // drift against in-progress, unsaved edits instead of only the persisted value.
 export function AllocationDriftCard({ onNavigatePortfolio, targetsOverride }) {
   const queryClient = useQueryClient();
-  const { loading, error, allocByClass, classTarget: savedClassTarget, classLabel } = useAureonData();
+  const { loading, error, allocByClass, classTarget: savedClassTarget, classLabel, classTargetsLoading, classTargetsError, classTargetsUsingDefaults } = useAureonData();
   const classTarget = targetsOverride || savedClassTarget;
+  // Only relevant when using the saved query (not a Settings-editor preview
+  // override) — see useAureonData.js for why an empty object during loading
+  // must not be treated the same as "targets loaded, drift is 0".
+  const targetsLoading = !targetsOverride && classTargetsLoading;
+  const targetsError = !targetsOverride && classTargetsError;
+  const usingDefaultTargets = !targetsOverride && classTargetsUsingDefaults;
 
   const driftRows = useMemo(() => {
     const keys = [...new Set([...Object.keys(allocByClass), ...Object.keys(classTarget)])];
@@ -29,7 +35,7 @@ export function AllocationDriftCard({ onNavigatePortfolio, targetsOverride }) {
   }, [allocByClass, classTarget, classLabel, targetsOverride]);
 
   const data = driftRows.length > 0 ? driftRows : null;
-  const status = loading ? 'loading' : error ? 'error' : !data ? 'empty' : 'ready';
+  const status = (loading || targetsLoading) ? 'loading' : (error || targetsError) ? 'error' : !data ? 'empty' : 'ready';
   const refetch = () => queryClient.invalidateQueries();
 
   return (
@@ -56,7 +62,7 @@ export function AllocationDriftCard({ onNavigatePortfolio, targetsOverride }) {
         </div>
       )}
 
-      {status === 'error' && <Cerr msg={error?.message} retry={refetch} />}
+      {status === 'error' && <Cerr msg={(error || targetsError)?.message} retry={refetch} />}
       {status === 'empty' && <Cmt msg="No allocation data" />}
 
       {status === 'ready' && data && (() => {
@@ -74,7 +80,9 @@ export function AllocationDriftCard({ onNavigatePortfolio, targetsOverride }) {
                 <span style={{ fontFamily: 'var(--font-mono)', fontSize: 10.5, color: dc(row.drift), textAlign: 'right' }}>{row.drift >= 0 ? '+' : ''}{row.drift.toFixed(1)}</span>
               </div>
             ))}
-            <div style={{ marginTop: 2, fontSize: 10, color: 'var(--ink-60)' }}>pp vs target · white marker = target weight</div>
+            <div style={{ marginTop: 2, fontSize: 10, color: 'var(--ink-60)' }}>
+              {usingDefaultTargets ? 'pp vs suggested starter weight (no saved targets yet) · white marker = target weight' : 'pp vs target · white marker = target weight'}
+            </div>
           </div>
         );
       })()}

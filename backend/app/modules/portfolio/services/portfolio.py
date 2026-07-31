@@ -695,7 +695,6 @@ class PortfolioService(BaseService):
         positions = self.positions_repo.get_by_portfolio(portfolio_id)
         market_value = 0.0
         total_invested = 0.0
-        position_values = {}
 
         for pos in positions:
             pp = self.get_position_price(pos)
@@ -730,24 +729,6 @@ class PortfolioService(BaseService):
 
             market_value += val
             total_invested += cost
-            position_values[pos.symbol] = position_values.get(pos.symbol, 0.0) + val
-
-        allocation = {}
-        for symbol, val in position_values.items():
-            if symbol.endswith("_MF"):
-                atype = "mutual_fund"
-            elif any(symbol.endswith(f"-{s}") for s in WALLET_SUFFIXES.values()):
-                atype = "crypto_futures"
-            elif symbol.endswith("-USD"):
-                atype = "stablecoin" if symbol[: -len("-USD")] in STABLECOIN_ASSETS else "crypto"
-            else:
-                atype = "equity"
-            allocation[atype] = allocation.get(atype, 0.0) + val
-
-        if market_value > 0:
-            allocation = {k: round(v / market_value * 100, 2) for k, v in allocation.items()}
-        else:
-            allocation = {}
 
         total_return = market_value - total_invested
         daily_return = 0.0  # Placeholder as we do not have historical daily metrics in quotes
@@ -755,8 +736,11 @@ class PortfolioService(BaseService):
         snapshot = PortfolioSnapshot(
             portfolio_id=portfolio_id,
             market_value=market_value,
-            cash_balance=0.0,
-            allocation=allocation,
+            # No cash-tracking mechanism exists yet (manual entry vs.
+            # transaction-derived vs. broker-reported balance — see
+            # BACKLOG_SWEEP_SCOPE.md). None means "not tracked", distinguishable
+            # from a real, computed $0 cash balance if that's ever built.
+            cash_balance=None,
             daily_return=daily_return,
             total_return=total_return,
             updated_at=datetime.now(timezone.utc),
