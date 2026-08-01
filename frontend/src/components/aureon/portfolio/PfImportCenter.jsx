@@ -1,8 +1,10 @@
 import React, { useRef, useState } from 'react';
+import { useQueryClient } from '@tanstack/react-query';
 import { ManualAssetModal } from './ManualAssetModal';
 import { apiService } from '@/api/apiService';
 
 export function PfImportCenter({ initialTab = 'csv' } = {}) {
+  const queryClient = useQueryClient();
   const [tab, setTab]          = useState(initialTab);
   const [csvState, setCsvSt]   = useState('idle'); // idle | over | processing | done | error
   const [csvError, setCsvErr]  = useState('');
@@ -28,8 +30,15 @@ export function PfImportCenter({ initialTab = 'csv' } = {}) {
   const epfInputRef            = useRef(null);
   const TABS = [['csv','CSV Import'],['cas','CAS Import'],['nps','NPS Import'],['epf','EPF Import'],['manual','Manual Asset']];
 
+  const MAX_IMPORT_BYTES = 10 * 1024 * 1024;
+
   const handleCsvFile = async (file) => {
     if (!file) return;
+    if (file.size > MAX_IMPORT_BYTES) {
+      setCsvErr(`File is ${(file.size / (1024 * 1024)).toFixed(1)}MB — max is 10MB`);
+      setCsvSt('error');
+      return;
+    }
     setCsvSt('processing');
     setCsvErr('');
     try {
@@ -292,7 +301,10 @@ export function PfImportCenter({ initialTab = 'csv' } = {}) {
           )}
         </div>
       </div>
-      {showManual && <ManualAssetModal defaultCls={showManual} onClose={() => setShowM(null)}/>}
+      {showManual && <ManualAssetModal defaultCls={showManual} onClose={(success) => {
+        setShowM(null);
+        if (success) queryClient.invalidateQueries({ queryKey: ['portfolio'] });
+      }}/>}
     </>
   );
 }

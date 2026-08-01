@@ -144,7 +144,7 @@ export default function Portfolio() {
       <div style={{ height: 24 }} />
 
       {showTrade  && <LogTradeModal onClose={refresh => { setShowTrade(false); if (refresh) qc.invalidateQueries(); }} />}
-      {showManual && <ManualAssetModal onClose={() => setShowManual(false)} />}
+      {showManual && <ManualAssetModal onClose={refresh => { setShowManual(false); if (refresh) qc.invalidateQueries(); }} />}
     </>
   );
 }

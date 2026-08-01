@@ -24,10 +24,16 @@ export function PfSummaryHero({ netWorth, investedValue, unrealizedPnl, dayDelta
 
   const dayDlt = dayDelta?.dollars ?? 0;
   const dayPct = dayDelta?.pct ?? 0;
+  // Invested/Unrealized P/L come from the portfolio snapshot (cached up to 15
+  // min); Current Value is deliberately computed live from holdings instead
+  // (keeps the allocation chart's numerator/denominator on one source — see
+  // useAureonData.js). After a price move these won't sum to Current Value —
+  // the hint below is so that reads as "different as-of times", not a bug.
+  const snapshotHint = 'As of last portfolio snapshot — may lag Current Value, which is live.';
   const metricGrid = [
-    { label:'Invested',       val: investedValue != null ? fmt(investedValue, 'INR', {dp:0}) : '—', sub:null },
+    { label:'Invested',       val: investedValue != null ? fmt(investedValue, 'INR', {dp:0}) : '—', sub:null, hint: snapshotHint },
     { label:'Current Value',  val: netWorth ? fmt(netWorth, 'INR', {dp:0}) : '—', sub:null },
-    { label:'Unrealized P/L', val: unrealizedPnl != null ? fmt(unrealizedPnl, 'INR', {dp:0}) : '—', sub:null, col: unrealizedPnl != null ? (unrealizedPnl >= 0 ? 'var(--sage-500)' : 'var(--crimson-500)') : undefined },
+    { label:'Unrealized P/L', val: unrealizedPnl != null ? fmt(unrealizedPnl, 'INR', {dp:0}) : '—', sub:null, col: unrealizedPnl != null ? (unrealizedPnl >= 0 ? 'var(--sage-500)' : 'var(--crimson-500)') : undefined, hint: snapshotHint },
     { label:'Realized P/L',   val:'—',  sub:'no closed-position ledger yet', col:'var(--sage-500)' },
     { label:'XIRR',           val:'—',  sub:'annualized return',          col:'var(--aurum-300)' },
     { label:'CAGR',           val:'—',  sub:'cost → current value',       col:'var(--aurum-300)' },
@@ -54,7 +60,9 @@ export function PfSummaryHero({ netWorth, investedValue, unrealizedPnl, dayDelta
       <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr 1fr', gap:'14px 28px', minWidth:480 }}>
         {metricGrid.map(m => (
           <div key={m.label}>
-            <div style={{ fontSize:10, letterSpacing:'0.12em', textTransform:'uppercase', color:'var(--ink-50)', fontWeight:600, marginBottom:3 }}>{m.label}</div>
+            <div style={{ fontSize:10, letterSpacing:'0.12em', textTransform:'uppercase', color:'var(--ink-50)', fontWeight:600, marginBottom:3 }}>
+              {m.label}{m.hint && <span title={m.hint} style={{ marginLeft:4, cursor:'help', color:'var(--ink-40)' }}>ⓘ</span>}
+            </div>
             <div style={{ fontFamily:'var(--font-mono)', fontSize:15, fontWeight:500, color:m.col||'var(--ink-00)', letterSpacing:'-0.01em' }}>{m.val}</div>
             {m.sub && <div style={{ fontSize:10.5, color:'var(--ink-40)', marginTop:2 }}>{m.sub}</div>}
           </div>

@@ -120,7 +120,7 @@ export function PfHoldingsTable({ holdings, loading, fmt, onLogTrade, onAddManua
                 Liq. {h.liquidationPrice != null ? fmtPrice(h.liquidationPrice) : '—'}
               </span>
             ) : (
-              <span style={{ fontFamily:'var(--font-mono)', fontSize:12.5, color:'var(--ink-30)', overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap' }}>{h.qty >= 1 ? h.qty.toLocaleString() : h.qty.toFixed(4)}</span>
+              <span style={{ fontFamily:'var(--font-mono)', fontSize:12.5, color:'var(--ink-30)', overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap' }}>{h.qty == null ? '—' : h.qty >= 1 ? h.qty.toLocaleString() : h.qty.toFixed(4)}</span>
             )}
             <span style={{ fontFamily:'var(--font-mono)', fontSize:12, color:(h.dayPct == null || h.dayPct===0)?'var(--ink-50)':h.dayPct>0?'var(--sage-500)':'var(--crimson-500)' }}>
               {futures || h.dayPct == null || h.dayPct===0 ? '—' : `${h.dayPct>0?'▲':'▼'} ${(Math.abs(h.dayPct)*100).toFixed(2)}%`}

@@ -68,8 +68,10 @@ export function LogTradeModal({onClose, transaction}) {
         setResults([]);
     };
 
+    const isValidQtyPrice = Number(form.qty) > 0 && Number(form.price) > 0;
+
     const submit = async () => {
-        if (!form.ticker || !form.qty || !form.price) return;
+        if (!form.ticker || !isValidQtyPrice) return;
         setSubmitting(true);
         try {
             const payload = {
@@ -101,7 +103,7 @@ export function LogTradeModal({onClose, transaction}) {
             <button onClick={onClose} className="du3-cta ghost" style={{flex: 1}}>Cancel</button>
             <button
                 onClick={submit}
-                disabled={submitting || !form.ticker || !form.qty || !form.price}
+                disabled={submitting || !form.ticker || !isValidQtyPrice}
                 className="du3-cta"
                 style={{
                     flex: 2,
@@ -191,7 +193,7 @@ export function LogTradeModal({onClose, transaction}) {
                         <div>
                             <label style={labelStyle}>Price per unit</label>
                             <div style={{position: 'relative'}}>
-                                <span style={{position: 'absolute', left: 10, top: '50%', transform: 'translateY(-50%)', fontSize: 13, color: 'var(--ink-30)', fontFamily: 'var(--font-mono)', pointerEvents: 'none'}}>₹</span>
+                                <span style={{position: 'absolute', left: 10, top: '50%', transform: 'translateY(-50%)', fontSize: 13, color: 'var(--ink-30)', fontFamily: 'var(--font-mono)', pointerEvents: 'none'}}>{form.broker === 'binance' ? '$' : '₹'}</span>
                                 <input type="number" value={form.price} onChange={e => set('price', e.target.value)}
                                        placeholder="0.00" min="0"
                                        style={{...fieldStyle, paddingLeft: 24, fontFamily: 'var(--font-mono)'}}

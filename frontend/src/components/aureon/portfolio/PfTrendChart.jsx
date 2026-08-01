@@ -1,4 +1,4 @@
-import React, { useState, useCallback } from 'react';
+import React, { useState, useCallback, useId } from 'react';
 import { useCardData } from '@/hooks/useCardData';
 import { apiService } from '@/api/apiService';
 import { usePortfolio } from '@/contexts/PortfolioContext';
@@ -12,6 +12,9 @@ const METRICS = [
 ];
 
 export function PfTrendChart() {
+  // useId() ids contain colons, which CSS's url(#...) fragment syntax can't
+  // reference without escaping — strip them rather than fight CSS escaping rules.
+  const gradId = 'pfTrendGrad-' + useId().replace(/:/g, '');
   const { activePortfolioId } = usePortfolio();
   const [range, setRange] = useState(90);
   const [metric, setMetric] = useState('health');
@@ -94,9 +97,9 @@ export function PfTrendChart() {
         {rangeBar}
       </div>
       <svg viewBox={`0 0 ${w} ${h}`} preserveAspectRatio="none" style={{ width:'100%', height:190, display:'block' }}>
-        <defs><linearGradient id="pfTrendGrad" x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stopColor={c} stopOpacity="0.14"/><stop offset="100%" stopColor={c} stopOpacity="0.01"/></linearGradient></defs>
+        <defs><linearGradient id={gradId} x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stopColor={c} stopOpacity="0.14"/><stop offset="100%" stopColor={c} stopOpacity="0.01"/></linearGradient></defs>
         {ticks.map((t,i) => (<g key={i}><line x1={pad.l} x2={w-pad.r} y1={y(t)} y2={y(t)} stroke="rgba(255,255,255,0.04)"/><text x={pad.l-7} y={y(t)+4} textAnchor="end" fontSize="9.5" fontFamily="var(--font-mono)" fill="var(--ink-50)">{t.toFixed(0)}</text></g>))}
-        <path d={fill} fill="url(#pfTrendGrad)"/>
+        <path d={fill} fill={`url(#${gradId})`}/>
         <path d={d} fill="none" stroke={c} strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round"/>
         <circle cx={x(points.length-1)} cy={y(last)} r="3.5" fill={c} stroke="var(--canvas)" strokeWidth="1.5"/>
         {points[0] && <text x={pad.l} y={h-5} fontSize="9.5" fontFamily="var(--font-mono)" fill="var(--ink-50)">{fd(points[0].date)}</text>}

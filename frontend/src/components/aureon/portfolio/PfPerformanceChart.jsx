@@ -1,4 +1,4 @@
-import React, { useState, useCallback } from 'react';
+import React, { useState, useCallback, useId } from 'react';
 import { useCardData } from '@/hooks/useCardData';
 import { apiService } from '@/api/apiService';
 import { usePortfolio } from '@/contexts/PortfolioContext';
@@ -8,6 +8,9 @@ import { NotBuiltState } from '@/components/aureon/ds.jsx';
 const RANGES = [['1W',7],['1M',30],['3M',90],['6M',180],['1Y',252],['All',500]];
 
 export function PfPerformanceChart() {
+  // useId() ids contain colons, which CSS's url(#...) fragment syntax can't
+  // reference without escaping — strip them rather than fight CSS escaping rules.
+  const gradId = 'pfGrad-' + useId().replace(/:/g, '');
   const { activePortfolioId } = usePortfolio();
   const [range, setRange] = useState(252);
   const { status, data, error, refetch } = useCardData(
@@ -53,12 +56,12 @@ export function PfPerformanceChart() {
   const w=900, h=190, pad={l:56,r:16,t:10,b:28};
   const vals = snapshots.map(s => s.value);
   const min=Math.min(...vals), max=Math.max(...vals), rng=max-min||1;
-  const x=i=>pad.l+(i/(snapshots.length-1))*(w-pad.l-pad.r);
+  const x=i=>pad.l+(i/(snapshots.length-1||1))*(w-pad.l-pad.r);
   const y=v=>pad.t+(1-(v-min)/rng)*(h-pad.t-pad.b);
   const d=snapshots.map((s,i)=>(i?'L':'M')+x(i).toFixed(1)+' '+y(s.value).toFixed(1)).join(' ');
   const fill=d+` L ${x(snapshots.length-1).toFixed(1)} ${h-pad.b} L ${x(0).toFixed(1)} ${h-pad.b} Z`;
   const c=vals[vals.length-1]>=vals[0]?'var(--sage-500)':'var(--crimson-500)';
-  const pct=(vals[vals.length-1]-vals[0])/vals[0]*100;
+  const pct=vals[0] ? (vals[vals.length-1]-vals[0])/vals[0]*100 : null;
   const ticks=[min,min+rng*0.5,max];
   const fmtTick=v=>v>=1e6?`$${(v/1e6).toFixed(1)}M`:v>=1e3?`$${(v/1e3).toFixed(0)}K`:`$${v.toFixed(0)}`;
   const fd=dt=>new Date(dt).toLocaleDateString('en-US',{month:'short',day:'numeric'});
@@ -66,15 +69,15 @@ export function PfPerformanceChart() {
     <div style={{ borderRadius:12, background:'rgba(255,255,255,0.02)', border:'1px solid rgba(255,255,255,0.06)', padding:'16px 20px 10px' }}>
       <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between', marginBottom:10 }}>
         <div style={{ display:'flex', alignItems:'center', gap:10 }}>
-          <span style={{ fontFamily:'var(--font-mono)', fontSize:13, color:pct>=0?'var(--sage-500)':'var(--crimson-500)', fontWeight:500 }}>{pct>=0?'▲':'▼'} {Math.abs(pct).toFixed(2)}%</span>
+          <span style={{ fontFamily:'var(--font-mono)', fontSize:13, color:pct==null?'var(--ink-50)':pct>=0?'var(--sage-500)':'var(--crimson-500)', fontWeight:500 }}>{pct==null ? '—' : `${pct>=0?'▲':'▼'} ${Math.abs(pct).toFixed(2)}%`}</span>
           <span style={{ fontSize:11.5, color:'var(--ink-50)' }}>{snapshots.length} snapshots</span>
         </div>
         {rangeBar}
       </div>
       <svg viewBox={`0 0 ${w} ${h}`} preserveAspectRatio="none" style={{ width:'100%', height:190, display:'block' }}>
-        <defs><linearGradient id="pfGrad" x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stopColor={c} stopOpacity="0.14"/><stop offset="100%" stopColor={c} stopOpacity="0.01"/></linearGradient></defs>
+        <defs><linearGradient id={gradId} x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stopColor={c} stopOpacity="0.14"/><stop offset="100%" stopColor={c} stopOpacity="0.01"/></linearGradient></defs>
         {ticks.map((t,i) => (<g key={i}><line x1={pad.l} x2={w-pad.r} y1={y(t)} y2={y(t)} stroke="rgba(255,255,255,0.04)"/><text x={pad.l-7} y={y(t)+4} textAnchor="end" fontSize="9.5" fontFamily="var(--font-mono)" fill="var(--ink-50)">{fmtTick(t)}</text></g>))}
-        <path d={fill} fill="url(#pfGrad)"/>
+        <path d={fill} fill={`url(#${gradId})`}/>
         <path d={d} fill="none" stroke={c} strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round"/>
         <circle cx={x(snapshots.length-1)} cy={y(vals[vals.length-1])} r="3.5" fill={c} stroke="var(--canvas)" strokeWidth="1.5"/>
         {snapshots[0] && <text x={pad.l} y={h-5} fontSize="9.5" fontFamily="var(--font-mono)" fill="var(--ink-50)">{fd(snapshots[0].ts)}</text>}

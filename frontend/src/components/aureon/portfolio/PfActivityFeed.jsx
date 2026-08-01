@@ -1,4 +1,5 @@
 import React from 'react';
+import { useFmtMoney } from '@/hooks/useFmtMoney';
 
 const TXN_STYLE = {
   BUY:     { bg:'rgba(111,174,136,0.12)', col:'var(--sage-500)',    lbl:'Buy'    },
@@ -9,6 +10,7 @@ const TXN_STYLE = {
 };
 
 export function PfActivityFeed({ txns, onViewAll }) {
+  const fmt = useFmtMoney();
   const rows = txns || [];
   if (!rows.length) return (
     <div style={{ padding:'40px 24px', textAlign:'center', border:'1px dashed rgba(255,255,255,0.10)', borderRadius:12, background:'rgba(255,255,255,0.012)' }}>
@@ -28,7 +30,11 @@ export function PfActivityFeed({ txns, onViewAll }) {
         const s = TXN_STYLE[txnType] || TXN_STYLE.BUY;
         const gross = t.amount != null ? t.amount : ((t.quantity || t.qty || 0) * (t.price || 0));
         const inflow = txnType === 'SELL' || txnType === 'DIVIDEND';
-        const fmtGross = gross >= 1e6 ? `$${(gross/1e6).toFixed(2)}M` : gross >= 1e3 ? `$${(gross/1e3).toFixed(1)}K` : `$${gross.toFixed(0)}`;
+        // TODO(data-gap): Transaction has no currency column backend-side, so
+        // there's no real per-transaction currency to convert from — 'USD' is
+        // an assumption, not a known fact. At least this respects the user's
+        // selected display currency instead of hardcoding a '$' glyph outright.
+        const fmtGross = fmt(gross, 'USD', { compact: true });
         const ticker = t.symbol || t.ticker || '—';
         const name   = t.name || t.notes || ticker;
         const broker = t.broker || t.source || '—';
