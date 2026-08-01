@@ -7,6 +7,21 @@ export class ErrorBoundary extends React.Component {
         return { error };
     }
 
+    componentDidCatch(error, info) {
+        console.error('[ErrorBoundary]', error, info?.componentStack);
+    }
+
+    componentDidUpdate(prevProps) {
+        // resetKey (e.g. the current route) changing while an error is shown
+        // means the user navigated away — clear the stale error rather than
+        // leaving every subsequent page stuck on "Something went wrong" until
+        // a manual Retry click, since React Router swaps <Route> elements
+        // underneath this boundary without remounting it.
+        if (this.state.error && prevProps.resetKey !== this.props.resetKey) {
+            this.setState({ error: null });
+        }
+    }
+
     render() {
         if (this.state.error) {
             return (

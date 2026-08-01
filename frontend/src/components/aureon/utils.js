@@ -53,11 +53,11 @@ export const valueOfBase = (h, rates) => convert(valueOf(h), h.currency || 'USD'
 export const costOfBase = (h, rates) => convert(costOf(h), h.currency || 'USD', 'INR', rates);
 export const plOfBase = (h, rates) => valueOfBase(h, rates) - costOfBase(h, rates);
 
-export const fmt$ = (n, d = 0) => (n < 0 ? '−' : '') + '$' + Math.abs(n).toLocaleString('en-US', {
+export const fmt$ = (n, d = 0) => Number.isFinite(n) ? (n < 0 ? '−' : '') + '$' + Math.abs(n).toLocaleString('en-US', {
     minimumFractionDigits: d,
     maximumFractionDigits: d
-});
-export const fmtPct1 = (n) => (n >= 0 ? '+' : '−') + Math.abs(n * 100).toFixed(1) + '%';
+}) : '—';
+export const fmtPct1 = (n) => Number.isFinite(n) ? (n >= 0 ? '+' : '−') + Math.abs(n * 100).toFixed(1) + '%' : '—';
 export const band = (c) => c >= 80 ? 'high' : c >= 50 ? 'med' : 'low';
 export const bandLabel = (c) => band(c) === 'high' ? 'High' : band(c) === 'med' ? 'Medium' : 'Low';
 

@@ -1,7 +1,6 @@
 /* Aureon shell — composes sidebar/topbar/router/pages. */
 import React, {lazy, Suspense} from 'react';
-import {Routes, Route, Navigate} from 'react-router-dom';
-import {Toaster} from 'react-hot-toast';
+import {Routes, Route, Navigate, useLocation} from 'react-router-dom';
 import {AppProvider} from '@/components/aureon/store';
 import {V4Provider} from '@/contexts/V4Context';
 import {Sidebar, TopBar, Toast, BottomNav} from '@/components/aureon/shell';
@@ -30,6 +29,7 @@ const PageSkeleton = () => (
 
 function AureonShellInner({userName}) {
     const {holdings, signals, activity, unreadCount} = useAureonData();
+    const location = useLocation();
 
     return (
         <div style={{display: 'flex', height: '100vh', overflow: 'hidden', background: 'var(--canvas)', color: 'var(--ink-10)'}}>
@@ -42,7 +42,7 @@ function AureonShellInner({userName}) {
                 <TopBar/>
                 <div style={{flex: 1, overflowY: 'auto', padding: '22px 28px 40px'}}>
                     <div style={{maxWidth: 1280, width: '100%', margin: '0 auto'}}>
-                        <ErrorBoundary>
+                        <ErrorBoundary resetKey={location.pathname}>
                             <Suspense fallback={<PageSkeleton/>}>
                                 <Routes>
                                     <Route index element={<Navigate to={ROUTES.DASHBOARD} replace/>}/>
@@ -83,13 +83,6 @@ export default function AureonShell({userName}) {
         <V4Provider>
             <AppProvider>
                 <AureonShellInner userName={userName}/>
-                <Toaster position="top-right" toastOptions={{
-                    style: {
-                        background: '#16181c',
-                        color: '#E4E7ED',
-                        border: '1px solid rgba(255,255,255,0.10)'
-                    }
-                }}/>
             </AppProvider>
         </V4Provider>
     );

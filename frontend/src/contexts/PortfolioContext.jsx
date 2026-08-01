@@ -1,4 +1,4 @@
-import React, {createContext, useContext, useState, useEffect} from 'react';
+import React, {createContext, useContext, useState, useEffect, useCallback, useMemo} from 'react';
 import {useQueryClient} from '@tanstack/react-query';
 import {apiService} from '../api/apiService';
 
@@ -25,7 +25,7 @@ export const PortfolioProvider = ({children}) => {
     const [loading, setLoading] = useState(false);
     const queryClient = useQueryClient();
 
-    const fetchPortfolios = async () => {
+    const fetchPortfolios = useCallback(async () => {
         setLoading(true);
         try {
             const portfolioList = await apiService.listPortfolios();
@@ -47,13 +47,13 @@ export const PortfolioProvider = ({children}) => {
         } finally {
             setLoading(false);
         }
-    };
+    }, []);
 
     useEffect(() => {
         fetchPortfolios();
-    }, []);
+    }, [fetchPortfolios]);
 
-    const switchPortfolio = async (portfolioId) => {
+    const switchPortfolio = useCallback(async (portfolioId) => {
         const selectedPort = portfolios.find(p => p.id === portfolioId);
         if (!selectedPort) return;
 
@@ -63,19 +63,21 @@ export const PortfolioProvider = ({children}) => {
         queryClient.invalidateQueries({
             queryKey: ["portfolio"]
         });
-    };
+    }, [portfolios, queryClient]);
 
     const activePortfolioId = activePortfolio ? activePortfolio.id : null;
 
+    const value = useMemo(() => ({
+        portfolios,
+        activePortfolio,
+        activePortfolioId,
+        loading,
+        switchPortfolio,
+        refreshPortfolios: fetchPortfolios,
+    }), [portfolios, activePortfolio, activePortfolioId, loading, switchPortfolio, fetchPortfolios]);
+
     return (
-        <PortfolioContext.Provider value={{
-            portfolios,
-            activePortfolio,
-            activePortfolioId,
-            loading,
-            switchPortfolio,
-            refreshPortfolios: fetchPortfolios
-        }}>
+        <PortfolioContext.Provider value={value}>
             {children}
         </PortfolioContext.Provider>
     );

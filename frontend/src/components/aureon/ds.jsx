@@ -5,7 +5,8 @@
    Feedback: EmptyState, ErrorState
    Overlay: ModalShell, Drawer
 */
-import React, {useEffect, useRef, useState} from 'react';
+import React, {useRef, useState} from 'react';
+import {useOverlayA11y} from '@/hooks/useOverlayA11y';
 
 /* ── PageHeader ─────────────────────────────────────────────── */
 export const PageHeader = ({eyebrow, title, meta, actions, border = true}) => (
@@ -379,16 +380,7 @@ export const ErrorState = ({title, body, actions}) => (
 export const ModalShell = ({open, onClose, title, subtitle, width = '640px', footer, children}) => {
     const panelRef = useRef(null);
 
-    useEffect(() => {
-        if (!open) return;
-        const onKey = (e) => { if (e.key === 'Escape') onClose(); };
-        document.addEventListener('keydown', onKey);
-        return () => document.removeEventListener('keydown', onKey);
-    }, [open, onClose]);
-
-    useEffect(() => {
-        if (open) panelRef.current?.focus();
-    }, [open]);
+    useOverlayA11y(open, onClose, panelRef);
 
     if (!open) return null;
 
@@ -405,6 +397,9 @@ export const ModalShell = ({open, onClose, title, subtitle, width = '640px', foo
             <div
                 ref={panelRef}
                 tabIndex={-1}
+                role="dialog"
+                aria-modal="true"
+                aria-label={title}
                 onClick={e => e.stopPropagation()}
                 style={{
                     width: `min(${width}, 92vw)`, maxHeight: '88vh', overflowY: 'auto',
@@ -433,6 +428,7 @@ export const ModalShell = ({open, onClose, title, subtitle, width = '640px', foo
                     <button
                         onClick={onClose}
                         className="du3-cta ghost"
+                        aria-label="Close"
                         style={{padding: '0 8px', flexShrink: 0}}
                     >
                         ✕
@@ -449,12 +445,9 @@ export const ModalShell = ({open, onClose, title, subtitle, width = '640px', foo
 
 /* ── Drawer ─────────────────────────────────────────────────── */
 export const Drawer = ({open, onClose, title, width = '520px', children}) => {
-    useEffect(() => {
-        if (!open) return;
-        const onKey = (e) => { if (e.key === 'Escape') onClose(); };
-        document.addEventListener('keydown', onKey);
-        return () => document.removeEventListener('keydown', onKey);
-    }, [open, onClose]);
+    const panelRef = useRef(null);
+
+    useOverlayA11y(open, onClose, panelRef);
 
     if (!open) return null;
 
@@ -468,6 +461,11 @@ export const Drawer = ({open, onClose, title, width = '520px', children}) => {
                 }}
             />
             <div
+                ref={panelRef}
+                tabIndex={-1}
+                role="dialog"
+                aria-modal="true"
+                aria-label={title}
                 className="drawer-in"
                 style={{
                     position: 'fixed', top: 0, right: 0, bottom: 0,
@@ -477,7 +475,7 @@ export const Drawer = ({open, onClose, title, width = '520px', children}) => {
                     borderRight: 'none',
                     boxShadow: '-24px 0 64px rgba(0,0,0,0.50)',
                     display: 'flex', flexDirection: 'column',
-                    zIndex: 111, overflowY: 'auto',
+                    zIndex: 111, overflowY: 'auto', outline: 'none',
                 }}
             >
                 <div style={{
@@ -491,7 +489,7 @@ export const Drawer = ({open, onClose, title, width = '520px', children}) => {
                     }}>
                         {title}
                     </div>
-                    <button onClick={onClose} className="du3-cta ghost" style={{padding: '0 8px'}}>✕</button>
+                    <button onClick={onClose} className="du3-cta ghost" aria-label="Close" style={{padding: '0 8px'}}>✕</button>
                 </div>
                 <div style={{flex: 1, padding: '20px', overflowY: 'auto'}}>{children}</div>
             </div>

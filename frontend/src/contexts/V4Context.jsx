@@ -1,5 +1,5 @@
 /* Aureon v4 — Currency layer + Jobs layer context. */
-import React, { createContext, useContext, useState, useEffect, useMemo } from 'react';
+import React, { createContext, useContext, useState, useEffect, useMemo, useCallback } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
 import { apiService } from '../api/apiService';
 import { SUPPORTED_CURRENCIES, FX_PER_INR } from '../pages/aureon/marketData';
@@ -81,6 +81,24 @@ const _aiErrorFallback = () => ({
     confidence: null,
 });
 
+/* Map job IDs to the real API call that backs them. Module-level: doesn't
+   close over any component state. */
+const _jobApiCall = (jobId) => {
+    switch (jobId) {
+        case 'j-prices':   return apiService.refreshPrices();
+        case 'j-briefing': return apiService.runGlobalAI();
+        case 'j-providers':return apiService.syncBrokers();
+        case 'j-signals':  return apiService.generateRecommendations();
+        case 'j-news':     return apiService.analyzeNewsBatch();
+        case 'j-analytics':return apiService.refreshPrices(); // prices are the base for all analytics
+        case 'j-alerts':   return apiService.refreshPrices(); // re-evaluates price-based thresholds
+        case 'j-ai':          return Promise.resolve(null); // handled separately below with polling
+        case 'j-market-data': return apiService.refreshMarket();
+        case 'j-themes':      return Promise.resolve(null);
+        default:              return Promise.resolve(null);
+    }
+};
+
 /* ============================================================
    V4Provider — currency state + jobs state
    ============================================================ */
@@ -110,9 +128,9 @@ export const V4Provider = ({ children }) => {
             .catch(() => {}); // fall back to static FX_PER_INR constants
     }, []);
 
-    const setCurrency = (c) => {
+    const setCurrency = useCallback((c) => {
         if (SUPPORTED_CURRENCIES.includes(c)) setCurrencyState(c);
-    };
+    }, []);
 
     const [running, setRunning] = useState([]);
     const [jobHistory, setJobHistory] = useState({});
@@ -123,24 +141,7 @@ export const V4Provider = ({ children }) => {
         return fxRates || FX_PER_INR;
     }, [fxRates]);
 
-    /* Map job IDs to the real API call that backs them. */
-    const _jobApiCall = (jobId, ticker) => {
-        switch (jobId) {
-            case 'j-prices':   return apiService.refreshPrices();
-            case 'j-briefing': return apiService.runGlobalAI();
-            case 'j-providers':return apiService.syncBrokers();
-            case 'j-signals':  return apiService.generateRecommendations();
-            case 'j-news':     return apiService.analyzeNewsBatch();
-            case 'j-analytics':return apiService.refreshPrices(); // prices are the base for all analytics
-            case 'j-alerts':   return apiService.refreshPrices(); // re-evaluates price-based thresholds
-            case 'j-ai':          return Promise.resolve(null); // handled separately below with polling
-            case 'j-market-data': return apiService.refreshMarket();
-            case 'j-themes':      return Promise.resolve(null);
-            default:              return Promise.resolve(null);
-        }
-    };
-
-    const runJob = ({ jobId, name, screen, ticker, durationMs }) => {
+    const runJob = useCallback(({ jobId, name, screen, ticker, durationMs }) => {
         const runId = 'r-' + Date.now().toString(36) + Math.random().toString(36).slice(2, 5);
         const dur = durationMs || 1800;
         const startedAt = Date.now();
@@ -210,10 +211,14 @@ export const V4Provider = ({ children }) => {
                     });
                 });
         }
-    };
+    }, [queryClient]);
+
+    const value = useMemo(() => ({
+        currency, setCurrency, fxRates: effectiveRates, running, jobHistory, runJob, aiRuns,
+    }), [currency, setCurrency, effectiveRates, running, jobHistory, runJob, aiRuns]);
 
     return (
-        <V4Context.Provider value={{ currency, setCurrency, fxRates: effectiveRates, running, jobHistory, runJob, aiRuns }}>
+        <V4Context.Provider value={value}>
             {children}
         </V4Context.Provider>
     );
