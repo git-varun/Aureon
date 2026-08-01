@@ -503,7 +503,7 @@ const StepImport = ({ importState, setImportState }) => {
                         background: 'rgba(122,168,212,0.06)', border: '1px solid rgba(122,168,212,0.14)',
                         fontSize: 12, color: 'var(--ink-20)', display: 'flex', gap: 10 }}>
                         <span style={{ color: '#7AA8D4' }}>ⓘ</span>
-                        <span>Manual holdings are saved locally for reference. To record actual trades, use Transactions after onboarding.</span>
+                        <span>Each row is logged as a buy transaction when you finish setup. To record trades after that, use Transactions.</span>
                     </div>
                 </div>
             )}
@@ -538,7 +538,9 @@ const StepSummary = ({ portfolio, providers, importState, submitError }) => {
         if (importState.mode === 'csv' && importState.csvFile) return `CSV · ${importState.csvFile.name}`;
         if (importState.mode === 'cas' && importState.casFile) return `CAS PDF · ${importState.casFile.name}`;
         if (importState.mode === 'manual') {
-            const n = importState.manualRows.filter(r => r.sym.trim()).length;
+            // Matches finish()'s submission filter — a row needs sym+qty+avg to
+            // actually become a transaction; don't count rows that won't be sent.
+            const n = importState.manualRows.filter(r => r.sym.trim() && r.qty && r.avg).length;
             return n ? `${n} manually entered` : 'No holdings entered';
         }
         return 'Skipped';
@@ -695,6 +697,18 @@ export default function Onboarding({ onDone }) {
                 await apiService.importTransactions(pfId, importState.csvFile).catch(() => {});
             } else if (importState.mode === 'cas' && importState.casFile) {
                 await apiService.importCAS(pfId, importState.casFile).catch(() => {});
+            } else if (importState.mode === 'manual') {
+                const today = new Date().toISOString().slice(0, 10);
+                const rows = importState.manualRows.filter(r => r.sym.trim() && r.qty && r.avg);
+                await Promise.all(rows.map(r => apiService.createTransaction(pfId, {
+                    symbol: r.sym.trim().toUpperCase(),
+                    transaction_type: 'buy',
+                    quantity: parseFloat(r.qty),
+                    price: parseFloat(r.avg),
+                    transaction_date: today,
+                    broker: r.account.trim() || 'manual',
+                    notes: r.name.trim() || undefined,
+                }).catch(() => {})));
             }
 
             onDone();

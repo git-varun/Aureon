@@ -56,7 +56,7 @@ function normalizeTheme(raw, isSector) {
         sym:    c.symbol || c.sym || c.ticker || '',
         name:   c.name || c.instrument_name || '',
         weight: c.weight || c.allocation || 0,
-        ret1m:  c.ret_1m ?? c.ret1m ?? c.return_1m ?? 0,
+        ret1m:  c.ret_1m ?? c.ret1m ?? c.return_1m ?? null,
         signal: c.signal || c.recommendation || null,
     }));
     return {
@@ -64,7 +64,7 @@ function normalizeTheme(raw, isSector) {
         name:         raw.name || raw.sector_name || raw.theme_name || '',
         desc:         raw.description || raw.desc || '',
         count:        raw.constituent_count ?? raw.instrument_count ?? constituents.length,
-        ret1m:        raw.ret_1m ?? raw.ret1m ?? raw.return_1m ?? 0,
+        ret1m:        raw.ret_1m ?? raw.ret1m ?? raw.return_1m ?? null,
         vsBench:      raw.vs_bench    ?? raw.vs_nifty   ?? raw.vs_benchmark ?? null,
         maxDrawdown:  raw.max_drawdown ?? raw.maxDrawdown ?? null,
         annReturn:    raw.ann_return  ?? raw.annReturn  ?? raw.annualized_return ?? null,
@@ -282,7 +282,7 @@ const CollectionConstituents = ({rows, show={}, onOpen, emptyText}) => {
                             <span style={{fontFamily:'var(--font-mono)',fontSize:11.5,color:'var(--ink-20)',width:42,textAlign:'right'}}>{(c.weight*100).toFixed(1)}%</span>
                         </div>
                     )}
-                    <span style={{fontFamily:'var(--font-mono)',fontSize:12,color:c.ret1m>=0?'var(--sage-500)':'var(--crimson-500)'}}>
+                    <span style={{fontFamily:'var(--font-mono)',fontSize:12,color:c.ret1m!=null?(c.ret1m>=0?'var(--sage-500)':'var(--crimson-500)'):'var(--ink-40)'}}>
                         {fmtRet(c.ret1m)}
                     </span>
                     {show.signal && <span style={{fontSize:9.5,letterSpacing:'0.08em',textTransform:'uppercase',fontWeight:600,color:c.signal?sigColor(c.signal):'var(--ink-40)'}}>{c.signal||'—'}</span>}
@@ -305,9 +305,7 @@ const CollectionTechnical = ({intro, ctaLabel='Generate Signal', run}) => {
 
     const start = () => {
         setPhase('fetching');
-        setTimeout(()=>{
-            Promise.resolve(run()).then(s=>{setSignals(s);setPhase('done');});
-        }, 1700);
+        Promise.resolve(run()).then(s=>{setSignals(s);setPhase('done');});
     };
 
     if (phase==='idle'||(phase==='fetching'&&!signals)) {
@@ -587,7 +585,7 @@ const ThemeOverviewTab = ({theme, navSeries, constituents, fundamentals}) => {
                                     </div>
                                     <span style={{fontFamily:'var(--font-mono)',fontSize:11,color:'var(--ink-30)',minWidth:26,textAlign:'right'}}>{((c.weight||0)*100).toFixed(0)}%</span>
                                 </div>
-                                <span style={{fontFamily:'var(--font-mono)',fontSize:12,color:c.ret1m>=0?'var(--sage-500)':'var(--crimson-500)',textAlign:'right'}}>{fmtRet(c.ret1m)}</span>
+                                <span style={{fontFamily:'var(--font-mono)',fontSize:12,color:c.ret1m!=null?(c.ret1m>=0?'var(--sage-500)':'var(--crimson-500)'):'var(--ink-40)',textAlign:'right'}}>{fmtRet(c.ret1m)}</span>
                                 <span style={{fontSize:9.5,letterSpacing:'0.08em',textTransform:'uppercase',fontWeight:600,color:sigColor(c.signal),textAlign:'right'}}>{c.signal||'—'}</span>
                             </div>
                         ))}
@@ -600,7 +598,7 @@ const ThemeOverviewTab = ({theme, navSeries, constituents, fundamentals}) => {
                     <Eyebrow>Returns</Eyebrow>
                     <div style={{marginTop:10,display:'flex',flexDirection:'column',gap:9}}>
                         {[
-                            ['1M return',    fmtRet(theme.ret1m),     theme.ret1m>=0?'var(--sage-500)':'var(--crimson-500)'],
+                            ['1M return',    fmtRet(theme.ret1m),     theme.ret1m!=null?(theme.ret1m>=0?'var(--sage-500)':'var(--crimson-500)'):'var(--ink-40)'],
                             ['vs Benchmark', theme.vsBench    ?? '—', theme.vsBench!=null?(parseFloat(theme.vsBench)>=0?'var(--sage-500)':'var(--crimson-500)'):'var(--ink-40)'],
                             ['Max drawdown', theme.maxDrawdown ?? '—', 'var(--crimson-500)'],
                             ['Annualised',   theme.annReturn   ?? '—', 'var(--ink-40)'],
@@ -644,7 +642,7 @@ const ThemeOverviewTab = ({theme, navSeries, constituents, fundamentals}) => {
 /* ─── Performance tab ────────────────────────────────────── */
 const ThemePerfTab = ({theme, navSeries}) => {
     const [tf, setTf] = useState('3M');
-    const retColor = theme.ret1m>=0?'var(--sage-500)':'var(--crimson-500)';
+    const retColor = theme.ret1m!=null?(theme.ret1m>=0?'var(--sage-500)':'var(--crimson-500)'):'var(--ink-40)';
     return (
         <div style={{display:'flex',flexDirection:'column',gap:12}}>
             <div className="layer-1" style={{padding:'16px 18px'}}>
@@ -893,7 +891,7 @@ export default function ThemeDetail() {
 
     const theme = themeState.data;
 
-    const retColor = theme.ret1m>=0 ? 'var(--sage-500)' : 'var(--crimson-500)';
+    const retColor = theme.ret1m!=null ? (theme.ret1m>=0 ? 'var(--sage-500)' : 'var(--crimson-500)') : 'var(--ink-40)';
 
     const renderTab = () => {
         switch (tab) {

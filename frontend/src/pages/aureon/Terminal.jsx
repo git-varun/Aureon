@@ -110,12 +110,25 @@ function WatchlistPanel({ sym, watchlists, onToggle, onCreateWatchlist }) {
     const [open, setOpen] = useState(false);
     const [creating, setCreating] = useState(false);
     const [newName, setNewName] = useState('');
-    // Initialize membership from watchlists — each watchlist has a `symbols` array of {symbol,...} objects
-    const [membership, setMembership] = useState(() =>
-        Object.fromEntries(watchlists
+    // Membership derived from watchlists — each watchlist has a `symbols`
+    // array of {symbol,...} objects. `watchlists` is fetched async by the
+    // parent and is very likely still [] when this component first mounts,
+    // so deriving membership only once (e.g. a lazy useState initializer)
+    // would permanently miss lists the symbol actually belongs to once the
+    // real data arrives. Recomputing on every render instead (this component
+    // remounts per-symbol anyway — see the `key={pickedSym}` on AssetView —
+    // so there's no stale-derivation risk across symbol changes) — merged
+    // with `touched`, which records the lists the user has manually toggled
+    // locally, since handleToggleWatchlist in Terminal.jsx doesn't write
+    // back to the `watchlists` prop.
+    const [touched, setTouched] = useState({});
+    const membership = useMemo(() => {
+        const base = Object.fromEntries(watchlists
             .filter(l => (l.symbols || []).some(s => (s.symbol || s) === sym))
-            .map(l => [l.id, true]))
-    );
+            .map(l => [l.id, true]));
+        return {...base, ...touched};
+    }, [watchlists, sym, touched]);
+
     const ref = useRef(null);
     const inputRef = useRef(null);
 
@@ -129,7 +142,7 @@ function WatchlistPanel({ sym, watchlists, onToggle, onCreateWatchlist }) {
 
     const toggle = (id) => {
         const next = !membership[id];
-        setMembership(m => ({ ...m, [id]: next }));
+        setTouched(t => ({ ...t, [id]: next }));
         if (next) onToggle?.(id, sym, true);
         else onToggle?.(id, sym, false);
     };
@@ -1053,13 +1066,18 @@ export default function Terminal() {
     }, [query, fullUniverse, liveResults]);
 
     useEffect(() => {
+        let cancelled = false;
         const q = query.trim();
         const local = q.length >= 2 ? fullUniverse.filter(u => (u.sym + ' ' + u.name).toLowerCase().includes(q.toLowerCase())) : [];
         if (q.length < 2 || local.length >= 5) { const t = setTimeout(() => setLiveResults([]), 0); return () => clearTimeout(t); }
         const timer = setTimeout(() => {
-            apiService.searchGlobalSymbol(q).then(data => setLiveResults(Array.isArray(data) ? data : [])).catch(() => setLiveResults([]));
+            apiService.searchGlobalSymbol(q)
+                // A slower earlier request can resolve after a newer one —
+                // discard it instead of letting it overwrite fresher results.
+                .then(data => { if (!cancelled) setLiveResults(Array.isArray(data) ? data : []); })
+                .catch(() => { if (!cancelled) setLiveResults([]); });
         }, 400);
-        return () => clearTimeout(timer);
+        return () => { cancelled = true; clearTimeout(timer); };
     }, [query, fullUniverse]);
 
     const fmt = useFmtMoney();

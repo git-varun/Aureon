@@ -5,6 +5,7 @@ import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { toast } from 'react-hot-toast';
 import { apiService } from '@/api/apiService';
 import { usePortfolio } from '@/contexts/PortfolioContext';
+import { useFmtMoney } from '@/hooks/useFmtMoney';
 
 /* ── tone maps ──────────────────────────────────────────────────────────── */
 const TXN_TYPE_TONE = {
@@ -28,7 +29,6 @@ const lblS = { fontSize:10.5, letterSpacing:'0.12em', textTransform:'uppercase',
 
 /* ── helpers ────────────────────────────────────────────────────────────── */
 const fmtNum = (n, dp=2) => n == null ? '—' : Number(n).toLocaleString('en-IN', { minimumFractionDigits:dp, maximumFractionDigits:dp });
-const fmtMoney = n => n == null ? '—' : '₹' + Number(n).toLocaleString('en-IN', { minimumFractionDigits:2, maximumFractionDigits:2 });
 const displayType = raw => (raw || '').toUpperCase();
 const txnDate = txn => txn.transaction_date ? String(txn.transaction_date).slice(0,10) : '';
 const FUTURES_SYMBOL_SUFFIXES = ['-USDM', '-COINM'];
@@ -162,6 +162,7 @@ const LedgerHead = () => (
 );
 
 function LedgerRow({ txn, onEdit, onDelete }) {
+  const fmtMoney = useFmtMoney();
   const [hov, setHov] = useState(false);
   const type   = displayType(txn.transaction_type);
   const date   = txnDate(txn);
@@ -498,6 +499,9 @@ function TransactionDrawer({ mode, txn, onClose, onSaved }) {
               </div>
               <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:12 }}>
                 <FieldLabel label="Trade date"><input type="date" value={form.date} onChange={e => set('date', e.target.value)} style={{ ...fldS, colorScheme:'dark' }}/></FieldLabel>
+                {/* TODO(data-gap): Transaction has no settlement_date column backend-side —
+                    this field is captured but never submitted (see the payload builder
+                    below). Either add the column, or remove this input. */}
                 <FieldLabel label="Settlement date"><input type="date" value={form.settlementDate} onChange={e => set('settlementDate', e.target.value)} style={{ ...fldS, colorScheme:'dark' }}/></FieldLabel>
               </div>
               <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:12 }}>
@@ -828,6 +832,7 @@ const StatEyebrow = ({ children }) => (
 );
 
 function StatBar({ filtered, total, loaded }) {
+  const fmtMoney = useFmtMoney();
   const buys       = loaded ? filtered.filter(t => displayType(t.transaction_type) === 'BUY').length : null;
   const sells      = loaded ? filtered.filter(t => displayType(t.transaction_type) === 'SELL').length : null;
   const totalFees  = loaded ? filtered.reduce((s, t) => s + (t.fees||0), 0) : null;
