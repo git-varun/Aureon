@@ -1,11 +1,6 @@
 import React from 'react';
 import {TabSkeleton} from './primitives';
 
-const ACTION_COLOR = {
-    BUY: 'var(--sage-500)', SELL: 'var(--crimson-500)',
-    HOLD: 'var(--ink-30)', 'AVG DOWN': 'var(--aurum-100)',
-};
-
 export function AiTab({take, loading, sym, onRun}) {
     if (loading) {
         return (

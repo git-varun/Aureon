@@ -54,7 +54,7 @@ export const RunMenu = ({screen, ticker}) => {
 
     return (
         <div ref={ref} style={{position: 'relative', display: 'inline-flex'}}>
-            <button onClick={() => setOpen(o => !o)} className={triggerClass}>
+            <button onClick={() => setOpen(o => !o)} aria-haspopup="true" aria-expanded={open} className={triggerClass}>
                 <span className={`${s.spinner}${isRunning ? ' ' + s.spinnerRunning : ''}`}>{I.spinner}</span>
                 <span>{isRunning ? `Running · ${myRunning.length}` : 'Run'}</span>
                 <span className={`${s.chevron}${open ? ' ' + s.chevronOpen : ''}`}>{I.chevronDown}</span>

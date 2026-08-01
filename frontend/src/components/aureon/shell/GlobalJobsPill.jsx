@@ -30,7 +30,7 @@ export const GlobalJobsPill = () => {
 
     return (
         <div ref={ref} style={{position: 'relative'}}>
-            <button onClick={() => setOpen(o => !o)} className={s.pill}>
+            <button onClick={() => setOpen(o => !o)} aria-haspopup="true" aria-expanded={open} className={s.pill}>
                 <span className={s.spinner}>{I.spinnerSm}</span>
                 <span>{running.length} running</span>
                 <span className={s.progressBar} style={{width: (avg * 100) + '%'}}/>

@@ -44,9 +44,17 @@ const inputStyle = {
     boxSizing: 'border-box',
 };
 
-const parseKeyNames = (rawKeys) => Array.isArray(rawKeys) ? rawKeys
-    : (typeof rawKeys === 'string' && rawKeys) ? rawKeys.split(',').map(s => s.trim()).filter(Boolean)
-    : [];
+const parseKeyNames = (rawKeys) => {
+    if (Array.isArray(rawKeys)) return rawKeys;
+    if (typeof rawKeys !== 'string' || !rawKeys) return [];
+    if (rawKeys.startsWith('[')) {
+        try {
+            const parsed = JSON.parse(rawKeys);
+            if (Array.isArray(parsed)) return parsed;
+        } catch (_) { /* fall through to comma-split below */ }
+    }
+    return rawKeys.split(',').map(s => s.trim()).filter(Boolean);
+};
 
 // Condensed per-provider summary chip — folds in what the old standalone
 // ApiKeysSection (key-name dots) and ConnectionStatusSection (connected/
@@ -167,12 +175,7 @@ function ProviderRow({provider, onToggle, onSetKey, onRemoveKey, onSaveConfig, h
     const [showValues, setShowValues] = useState({});
     const [checking, setChecking] = useState(false);
 
-    const rawKeys = provider.key_names;
-    const keyNames = Array.isArray(rawKeys)
-        ? rawKeys
-        : typeof rawKeys === 'string' && rawKeys
-            ? (rawKeys.startsWith('[') ? JSON.parse(rawKeys) : rawKeys.split(',').map(s => s.trim()).filter(Boolean))
-            : [];
+    const keyNames = parseKeyNames(provider.key_names);
     const keysStatus = provider.keys_status || {};
     const keysHealth = provider.keys_health || {};
     const allKeysSet = keyNames.length === 0 || keyNames.every(k => keysStatus[k]);

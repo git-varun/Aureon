@@ -41,6 +41,7 @@ export default function TradingViewChart({ symbol, assetType }) {
 
 function CryptoChart({symbol}) {
     const getTVSymbol = (sym) => {
+        if (!sym) return 'BINANCE:BTCUSDT';
         const base = sym.includes('-USD-') ? sym.split('-USD-')[0] : sym.replace('-USD', '');
         if (base === 'USDT') return 'BINANCE:USDTUSD';
         return `BINANCE:${base}USDT`;
@@ -229,6 +230,8 @@ function ChartSkeleton() {
 function ChartCanvas({symbol, days, showSMA, showEMA, showBB, onLoadingChange}) {
     const containerRef = useRef(null);
     const resizeObserver = useRef(null);
+    const overlaySeriesRef = useRef({});
+    const overlayVisibilityRef = useRef({showSMA, showEMA, showBB});
 
     const [data, setData] = useState(null);
     const [error, setError] = useState(null);
@@ -278,23 +281,29 @@ function ChartCanvas({symbol, days, showSMA, showEMA, showBB, onLoadingChange}) 
             timeScale: {borderColor: CHART_THEME.border, timeVisible: true},
         });
 
-        const validCandles = data.filter(
-            d => typeof d.open === 'number' && typeof d.high === 'number'
-                && typeof d.low === 'number' && typeof d.close === 'number'
-        );
+        // Backend price_history has no open/high/low — only one real `close` sample
+        // per timestamp (see BACKLOG at MarketService/AssetsService.get_chart on the
+        // backend) — so this renders as a line/area series on real closes, not
+        // candlesticks. Candlesticks would need fabricated wicks to render at all.
+        const validPoints = data.filter(d => typeof d.time === 'number' && typeof d.close === 'number');
 
-        const candleSeries = chart.addCandlestickSeries({
-            upColor: CHART_THEME.upColor, downColor: CHART_THEME.downColor,
-            borderVisible: false, wickUpColor: CHART_THEME.upColor, wickDownColor: CHART_THEME.downColor,
+        const priceSeries = chart.addAreaSeries({
+            lineColor: CHART_THEME.upColor,
+            topColor: 'rgba(8, 153, 129, 0.28)',
+            bottomColor: 'rgba(8, 153, 129, 0.02)',
+            lineWidth: 2,
+            crosshairMarkerVisible: true,
+            priceLineVisible: false,
         });
-        candleSeries.setData(validCandles);
+        priceSeries.setData(validPoints.map(d => ({time: d.time, value: d.close})));
 
+        const volumePoints = validPoints.filter(d => typeof d.volume === 'number');
         const volumeSeries = chart.addHistogramSeries({
             priceFormat: {type: 'volume'}, priceScaleId: '', scaleMargins: {top: 0.8, bottom: 0},
         });
-        volumeSeries.setData(validCandles.map(d => ({
+        volumeSeries.setData(volumePoints.map((d, i) => ({
             time: d.time, value: d.volume,
-            color: d.close >= d.open ? CHART_THEME.upVolume : CHART_THEME.downVolume,
+            color: i === 0 || d.close >= volumePoints[i - 1].close ? CHART_THEME.upVolume : CHART_THEME.downVolume,
         })));
 
         const addLine = (key, color, lineWidth, lineStyle = 0) => {
@@ -314,11 +323,16 @@ function ChartCanvas({symbol, days, showSMA, showEMA, showBB, onLoadingChange}) 
         const bbu = addLine('bbu', '#64748b', 1, 2);
         const bbl = addLine('bbl', '#64748b', 1, 2);
 
-        sma50.applyOptions({visible: showSMA});
-        sma200.applyOptions({visible: showSMA});
-        ema20.applyOptions({visible: showEMA});
-        bbu.applyOptions({visible: showBB});
-        bbl.applyOptions({visible: showBB});
+        // Read current toggle state at creation time via refs (see the
+        // separate effect below), not the showSMA/showEMA/showBB closed-over
+        // values — this effect only depends on [data], so those values would
+        // otherwise be stale after the first render.
+        overlaySeriesRef.current = {sma50, sma200, ema20, bbu, bbl};
+        sma50.applyOptions({visible: overlayVisibilityRef.current.showSMA});
+        sma200.applyOptions({visible: overlayVisibilityRef.current.showSMA});
+        ema20.applyOptions({visible: overlayVisibilityRef.current.showEMA});
+        bbu.applyOptions({visible: overlayVisibilityRef.current.showBB});
+        bbl.applyOptions({visible: overlayVisibilityRef.current.showBB});
 
         chart.timeScale().fitContent();
 
@@ -332,9 +346,24 @@ function ChartCanvas({symbol, days, showSMA, showEMA, showBB, onLoadingChange}) 
 
         return () => {
             resizeObserver.current?.disconnect();
+            overlaySeriesRef.current = {};
             chart.remove();
         };
     }, [data]); // eslint-disable-line react-hooks/exhaustive-deps
+
+    // Toggling an overlay button changes showSMA/showEMA/showBB but not
+    // `data`, so the chart-lifecycle effect above never reruns on its own —
+    // this effect updates the existing series' visibility directly instead
+    // of tearing down and rebuilding the whole chart on every click.
+    useEffect(() => {
+        overlayVisibilityRef.current = {showSMA, showEMA, showBB};
+        const s = overlaySeriesRef.current;
+        s.sma50?.applyOptions({visible: showSMA});
+        s.sma200?.applyOptions({visible: showSMA});
+        s.ema20?.applyOptions({visible: showEMA});
+        s.bbu?.applyOptions({visible: showBB});
+        s.bbl?.applyOptions({visible: showBB});
+    }, [showSMA, showEMA, showBB]);
 
     // ── Render ─────────────────────────────────────────────────────
     const isLoading = data === null && !error;

@@ -23,6 +23,8 @@ export const CurrencyMenu = () => {
             <button
                 onClick={() => setOpen(o => !o)}
                 aria-label="Display currency"
+                aria-haspopup="true"
+                aria-expanded={open}
                 className={`${s.trigger}${open ? ' ' + s.triggerOpen : ''}`}
             >
                 <span className={s.triggerSymbol}>{meta.symbol}</span>

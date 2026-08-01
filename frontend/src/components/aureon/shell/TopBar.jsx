@@ -99,6 +99,8 @@ export const TopBar = () => {
                             onFocus={() => setPaletteOpen(true)}
                             placeholder="Search assets, recommendations, activity…"
                             className={s.searchInput}
+                            aria-haspopup="dialog"
+                            aria-expanded={paletteOpen}
                         />
                         <span className={s.searchKbd}>⌘K</span>
                     </div>

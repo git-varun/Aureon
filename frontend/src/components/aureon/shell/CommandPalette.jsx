@@ -2,6 +2,7 @@ import React, {useCallback, useEffect, useMemo, useRef, useState} from 'react';
 import {useNavigate} from 'react-router-dom';
 import {apiService} from '../../../api/apiService';
 import {useAureonData} from '../../../hooks/useAureonData';
+import {useOverlayA11y} from '@/hooks/useOverlayA11y';
 import s from './CommandPalette.module.css';
 
 const PALETTE_ITEMS = [
@@ -24,6 +25,8 @@ export const CommandPalette = ({onClose}) => {
     const [idx, setIdx] = useState(0);
     const [globalAssets, setGlobalAssets] = useState([]);
     const inputRef = useRef(null);
+    const panelRef = useRef(null);
+    useOverlayA11y(true, onClose, panelRef);
 
     const filteredPages = useMemo(() => {
         if (!q.trim()) return PALETTE_ITEMS;
@@ -81,15 +84,16 @@ export const CommandPalette = ({onClose}) => {
     }, [navigate, onClose]);
 
     useEffect(() => {
+        // Escape is handled by useOverlayA11y above; this only needs the
+        // palette-specific arrow/enter navigation.
         const onKey = (e) => {
-            if (e.key === 'Escape')    { onClose(); return; }
             if (e.key === 'ArrowDown') { e.preventDefault(); setIdx(i => Math.min(allItems.length - 1, i + 1)); }
             if (e.key === 'ArrowUp')   { e.preventDefault(); setIdx(i => Math.max(0, i - 1)); }
             if (e.key === 'Enter' && allItems[idx]) { commit(allItems[idx]); }
         };
         window.addEventListener('keydown', onKey);
         return () => window.removeEventListener('keydown', onKey);
-    }, [allItems, idx, commit, onClose]);
+    }, [allItems, idx, commit]);
 
     const pageOffset = 0;
     const assetOffset = filteredPages.length;
@@ -97,7 +101,7 @@ export const CommandPalette = ({onClose}) => {
 
     return (
         <div className={s.overlay} onClick={onClose}>
-            <div className={s.modal} onClick={e => e.stopPropagation()}>
+            <div ref={panelRef} tabIndex={-1} role="dialog" aria-modal="true" aria-label="Command palette" className={s.modal} onClick={e => e.stopPropagation()}>
                 <div className={s.inputRow}>
                     <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" className={s.searchIcon}>
                         <circle cx="11" cy="11" r="7"/><path d="M21 21l-4.3-4.3"/>

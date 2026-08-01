@@ -43,8 +43,8 @@ export const Sidebar = ({userName, portfolioCount, transactionCount}) => {
         const handler = (e) => {
             if (menuRef.current && !menuRef.current.contains(e.target)) setMenuOpen(false);
         };
-        document.addEventListener('click', handler);
-        return () => document.removeEventListener('click', handler);
+        document.addEventListener('mousedown', handler);
+        return () => document.removeEventListener('mousedown', handler);
     }, [menuOpen]);
 
     return (
@@ -128,7 +128,7 @@ export const Sidebar = ({userName, portfolioCount, transactionCount}) => {
                         </button>
                     </div>
                 )}
-                <button onClick={() => setMenuOpen(o => !o)} className={s.userBtn}>
+                <button onClick={() => setMenuOpen(o => !o)} aria-haspopup="true" aria-expanded={menuOpen} className={s.userBtn}>
                     <div className={s.avatar}>{(userName || 'U').slice(0, 2).toUpperCase()}</div>
                     <div className={s.userMeta}>
                         <div className={s.userName}>{userName || 'You'}</div>

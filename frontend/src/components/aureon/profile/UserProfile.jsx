@@ -48,7 +48,7 @@ export default function UserProfile({form, setForm, isDirty, setIsDirty}) {
                 monthlySavings: form.monthly_saving,
                 swingTrading: form.swing_trading_enabled,
             };
-            saveProfile(nextProfile);
+            await saveProfile(nextProfile);
             setSavedAt(new Date().toLocaleTimeString('en-IN', {hour: '2-digit', minute: '2-digit'}));
             setIsDirty(false);
             toast.success('Profile saved');

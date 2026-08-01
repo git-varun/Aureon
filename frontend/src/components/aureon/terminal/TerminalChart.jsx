@@ -4,6 +4,11 @@ import { apiService } from '@/api/apiService';
 
 const TF_DAYS = { '1D': 1, '1W': 7, '1M': 30, '3M': 90, '1Y': 365, 'ALL': 1825 };
 
+// Defined once, always mounted (not nested inside the conditionally-rendered
+// FlexChart SVG) — Spin renders during the 'loading' state, before FlexChart
+// (and its candle-branch-only copy of this keyframe) ever mounts.
+const SpinKeyframes = () => <style>{`@keyframes tSpin{to{transform:rotate(360deg)}}`}</style>;
+
 const Spin = () => (
     <svg width={12} height={12} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"
         strokeLinecap="round" style={{ animation: 'tSpin 1s linear infinite', flexShrink: 0, display: 'block' }}>
@@ -29,7 +34,6 @@ function FlexChart({ data, kind, dayPct }) {
         const cw = Math.max(2, (w - pad.l - pad.r) / candles.length * 0.6);
         return (
             <svg viewBox={`0 0 ${w} ${h}`} preserveAspectRatio="none" style={{ width: '100%', height: h, display: 'block' }}>
-                <defs><style>{`@keyframes tSpin{to{transform:rotate(360deg)}}`}</style></defs>
                 {ticks.map((t, i) => (
                     <g key={i}>
                         <line x1={pad.l} x2={w - pad.r} y1={yF(t)} y2={yF(t)} stroke="rgba(255,255,255,0.04)" />
@@ -105,6 +109,7 @@ export function TerminalChart({ sym, dayPct }) {
 
     return (
         <div style={{ marginBottom: 20 }}>
+            <SpinKeyframes />
             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 8, gap: 8, flexWrap: 'wrap' }}>
                 <span style={{ fontSize: 9.5, letterSpacing: '0.14em', textTransform: 'uppercase', color: 'var(--ink-40)', fontWeight: 600 }}>
                     Price chart · {tf}

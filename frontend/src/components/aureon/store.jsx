@@ -234,7 +234,10 @@ export const AppProvider = ({children}) => {
             monthly_saving: next.monthlySavings !== '' ? parseFloat(next.monthlySavings) : null,
             swing_trading_enabled: next.swingTrading,
         };
-        apiService.updateCurrentUserProfile(payload).catch(() => {});
+        // Returned so callers (UserProfile.jsx) can tell persistence actually
+        // failed instead of always showing a success toast once local state
+        // and localStorage are updated.
+        return apiService.updateCurrentUserProfile(payload);
     }, []);
 
     useEffect(() => {

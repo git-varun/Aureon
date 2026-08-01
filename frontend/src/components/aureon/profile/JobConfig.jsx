@@ -184,10 +184,13 @@ function JobRow({job, onUpdate, onRun, note}) {
     const [running, setRunning] = useState(false);
     const [showLogs, setShowLogs] = useState(false);
     const [logs, setLogs] = useState([]);
+    const runTimeoutRef = useRef(null);
 
     useEffect(() => {
         setEnabled(Boolean(job.enabled));
     }, [job.enabled]);
+
+    useEffect(() => () => clearTimeout(runTimeoutRef.current), []);
 
     const dirty = enabled !== Boolean(job.enabled);
     const status = STATUS[job.last_status] ?? STATUS.never_run;
@@ -208,7 +211,7 @@ function JobRow({job, onUpdate, onRun, note}) {
             await onRun(job.job_name);
         } finally {
             // Keep the 'running' state briefly for visual feedback
-            setTimeout(() => setRunning(false), 2000);
+            runTimeoutRef.current = setTimeout(() => setRunning(false), 2000);
         }
     };
 
@@ -388,8 +391,10 @@ function JobGroupCard({group, jobs, onUpdate, onRun, onSettled}) {
             if (outcome && !cancelledRef.current) setResults(r => ({...r, [jobName]: outcome}));
         }));
 
-        if (!cancelledRef.current) setRunning(false);
-        onSettled?.();
+        if (!cancelledRef.current) {
+            setRunning(false);
+            onSettled?.();
+        }
     };
 
     const doneCount = Object.values(results).filter(r => r.state !== 'idle' && r.state !== 'running').length;
@@ -453,6 +458,8 @@ export default function JobConfig() {
     const [jobs, setJobs] = useState([]);
     const [loading, setLoading] = useState(true);
     const [refreshing, setRefreshing] = useState(false);
+    const runTimeoutsRef = useRef([]);
+    useEffect(() => () => runTimeoutsRef.current.forEach(clearTimeout), []);
 
     const load = useCallback(async (isRefresh = false) => {
         if (isRefresh) setRefreshing(true);
@@ -486,8 +493,8 @@ export default function JobConfig() {
             await apiService.runJob(jobName);
             toast.success(`Job '${jobName}' triggered.`);
             // Refresh sooner and maybe again a bit later to catch log updates
-            setTimeout(() => load(true), 1000);
-            setTimeout(() => load(true), 3000);
+            runTimeoutsRef.current.push(setTimeout(() => load(true), 1000));
+            runTimeoutsRef.current.push(setTimeout(() => load(true), 3000));
         } catch (e) {
             toast.error(e?.response?.data?.detail || `Failed to trigger '${jobName}'.`);
         }
