@@ -218,7 +218,7 @@ export default function AIBriefings({ tabState, onRetry }) {
         setRunning(true);
         try {
             await apiService.runGlobalAI();
-            toast.success('AI briefing queued');
+            toast.success('AI briefing generated');
             const data = await apiService.fetchBriefingHistory(30);
             setBriefings(Array.isArray(data) ? data : []);
         } catch (e) {

@@ -180,8 +180,7 @@ function DecisionLineageInline({ rec }) {
     const sigs = signals.filter(s => s.linkedRec === rec.id);
 
     const outcome = activity.find(
-        a => a.asset === rec.scope?.ref &&
-             a.action === rec.action &&
+        a => (a.extId === rec.id || a.ext_id === rec.id || a.refId === rec.id) &&
              (a.kind === 'applied' || a.kind === 'dismissed')
     );
 

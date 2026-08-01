@@ -1,6 +1,6 @@
 import React from 'react';
 import { ConfidenceIndicator } from '@/components/aureon/primitives';
-import { fmtImpactOneLine } from '../utils/recommendation';
+import { fmtImpactOneLine, fmtAge } from '../utils/recommendation';
 import RecStatusBadge from './RecStatusBadge';
 
 export default function RecHeader({ rec, status, age }) {
@@ -55,7 +55,7 @@ export default function RecHeader({ rec, status, age }) {
           fontSize:   10,
           color:      'var(--ink-50)',
         }}>
-          {age}
+          {fmtAge(age)}
         </span>
       </div>
     </div>

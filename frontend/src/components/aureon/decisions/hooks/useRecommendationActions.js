@@ -5,6 +5,11 @@ import { needsModal } from '@/components/aureon/utils';
 /**
  * Returns action handlers for a recommendation card.
  * Keeps action logic out of presentational components.
+ *
+ * TODO: unused — not imported anywhere. RecommendationsFeed.jsx and
+ * RecCard.jsx currently inline this same apply/dismiss/undo logic directly,
+ * so this hook is a duplicate that can silently drift out of sync with them.
+ * Either replace those inline call sites with this hook, or delete this file.
  */
 export function useRecommendationActions({ rec, onOpenModal, onUndo: externalUndo }) {
   const { apply, dismiss, undo } = useApp();

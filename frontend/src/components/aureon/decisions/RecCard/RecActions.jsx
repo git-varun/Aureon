@@ -12,6 +12,10 @@ export default function RecActions({
   onExplain,
   onStage,
   onSnooze,
+  // TODO(feature): DecisionLineageDrawer (fetches full backend lineage via
+  // apiService.getRecommendationLineage) exists and is wired up elsewhere
+  // (ActivityTab, Decisions.jsx) but is unreachable from here — the Lineage
+  // button below opens DecisionLineageInline instead, not this prop.
   onViewLineage,   // eslint-disable-line no-unused-vars -- reserved for external lineage navigation (Task 4)
   showLineage,
   onToggleLineage,
@@ -98,30 +102,34 @@ export default function RecActions({
         )}
       </div>
 
-      {/* Secondary group */}
-      <div style={{ display: 'flex', gap: 6, opacity: 0.75 }}>
-        <button
-          className="du3-cta ghost"
-          style={{
-            height:      28,
-            fontSize:    12,
-            color:       isStaged ? 'var(--aurum-100)' : undefined,
-            borderColor: isStaged ? 'rgba(201,168,106,0.28)' : undefined,
-            background:  isStaged ? 'rgba(201,168,106,0.08)' : undefined,
-          }}
-          onClick={onStage}
-        >
-          Stage
-        </button>
+      {/* Secondary group — only meaningful for recs still awaiting a decision;
+          staging/snoozing an already-applied or dismissed rec would leave a
+          dead entry in the Decision Basket. */}
+      {isActive && (
+        <div style={{ display: 'flex', gap: 6, opacity: 0.75 }}>
+          <button
+            className="du3-cta ghost"
+            style={{
+              height:      28,
+              fontSize:    12,
+              color:       isStaged ? 'var(--aurum-100)' : undefined,
+              borderColor: isStaged ? 'rgba(201,168,106,0.28)' : undefined,
+              background:  isStaged ? 'rgba(201,168,106,0.08)' : undefined,
+            }}
+            onClick={onStage}
+          >
+            Stage
+          </button>
 
-        <button
-          className="du3-cta ghost"
-          style={{ height: 28, fontSize: 12 }}
-          onClick={onSnooze}
-        >
-          Snooze
-        </button>
-      </div>
+          <button
+            className="du3-cta ghost"
+            style={{ height: 28, fontSize: 12 }}
+            onClick={onSnooze}
+          >
+            Snooze
+          </button>
+        </div>
+      )}
 
       {/* Spacer */}
       <div style={{ flex: 1 }} />

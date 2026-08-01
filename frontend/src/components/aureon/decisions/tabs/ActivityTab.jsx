@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useRef } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
 import { toast } from 'react-hot-toast';
 import { useApp } from '@/components/aureon/store';
@@ -6,6 +6,7 @@ import { Eyebrow } from '@/components/aureon/ui';
 import { usePortfolio } from '@/contexts/PortfolioContext';
 import { LogTradeModal } from '@/components/aureon/portfolio/LogTradeModal';
 import { apiService } from '@/api/apiService';
+import { useOverlayA11y } from '@/hooks/useOverlayA11y';
 
 export default function ActivityTab({ onViewLineage }) {
     const {activity, undo} = useApp();
@@ -15,9 +16,13 @@ export default function ActivityTab({ onViewLineage }) {
     const [undoneIds, setUndoneIds] = useState(new Set());
     const [removedIds, setRemovedIds] = useState(new Set());
     const [editingTxn, setEditingTxn] = useState(null);
+    const [deleteTarget, setDeleteTarget] = useState(null);
+    const deletePanelRef = useRef(null);
+    useOverlayA11y(!!deleteTarget, () => setDeleteTarget(null), deletePanelRef);
 
-    const handleDelete = async (a) => {
-        if (!window.confirm(`Delete the transaction for ${a.asset}?`)) return;
+    const confirmDelete = async () => {
+        const a = deleteTarget;
+        setDeleteTarget(null);
         try {
             await apiService.deleteTransaction(activePortfolioId, a.id);
             toast.success('Transaction deleted');
@@ -29,8 +34,12 @@ export default function ActivityTab({ onViewLineage }) {
 
     const handleUndo = (a) => {
         const undoId = a.extId || a.ext_id || null;
+        if (!undoId) {
+            toast.error('This entry has no linked recommendation to undo.');
+            return;
+        }
         setUndoneIds(prev => new Set([...prev, a.id]));
-        setTimeout(() => { setRemovedIds(prev => new Set([...prev, a.id])); if (undoId) undo(undoId); }, 120);
+        setTimeout(() => { setRemovedIds(prev => new Set([...prev, a.id])); undo(undoId); }, 120);
     };
 
     const filtered = activity.filter(a => (kind === 'all' || a.kind === kind) && !removedIds.has(a.id));
@@ -130,7 +139,7 @@ export default function ActivityTab({ onViewLineage }) {
                                             {a.kind === 'trade' && (
                                                 <>
                                                     <button onClick={() => setEditingTxn(a)} style={{display: 'inline-flex', alignItems: 'center', height: 26, padding: '0 10px', borderRadius: 6, cursor: 'pointer', background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.10)', color: 'var(--ink-20)', fontSize: 12}}>Edit</button>
-                                                    <button onClick={() => handleDelete(a)} style={{display: 'inline-flex', alignItems: 'center', height: 26, padding: '0 10px', borderRadius: 6, cursor: 'pointer', background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.10)', color: 'var(--ink-20)', fontSize: 12}}>Delete</button>
+                                                    <button onClick={() => setDeleteTarget(a)} style={{display: 'inline-flex', alignItems: 'center', height: 26, padding: '0 10px', borderRadius: 6, cursor: 'pointer', background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.10)', color: 'var(--ink-20)', fontSize: 12}}>Delete</button>
                                                 </>
                                             )}
                                         </div>
@@ -141,6 +150,26 @@ export default function ActivityTab({ onViewLineage }) {
                     </section>
                 ))
             )}
+            {deleteTarget && (
+                <div className="cm-scrim" onMouseDown={(e) => e.target === e.currentTarget && setDeleteTarget(null)}>
+                    <div ref={deletePanelRef} tabIndex={-1} role="dialog" aria-modal="true" className="cm-panel layer-3" style={{width: 'min(420px,94vw)', outline: 'none'}}>
+                        <div className="cm-head">
+                            <h2 style={{fontFamily: 'var(--font-heading)', fontSize: 17, fontWeight: 600, color: 'var(--ink-00)'}}>Delete transaction?</h2>
+                            <button className="du3-cta ghost" onClick={() => setDeleteTarget(null)} aria-label="Close" style={{flexShrink: 0}}>✕</button>
+                        </div>
+                        <div className="cm-body">
+                            <p style={{margin: 0, fontSize: 13, color: 'var(--ink-30)'}}>
+                                Delete the transaction for <strong style={{color: 'var(--ink-10)'}}>{deleteTarget.asset}</strong>? This can't be undone.
+                            </p>
+                        </div>
+                        <div className="cm-foot" style={{display: 'flex', gap: 10, justifyContent: 'flex-end'}}>
+                            <button className="du3-cta ghost" onClick={() => setDeleteTarget(null)}>Cancel</button>
+                            <button className="du3-cta primary" onClick={confirmDelete}>Delete</button>
+                        </div>
+                    </div>
+                </div>
+            )}
+
             <div style={{height: 32}}/>
         </>
     );

@@ -1,5 +1,6 @@
 /* Aureon — RecommendationsFeed: active, snoozed, basket, applied, dismissed sections. */
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
+import { useOverlayA11y } from '@/hooks/useOverlayA11y';
 import { useApp } from '@/components/aureon/store';
 import { band, needsModal } from '@/components/aureon/utils';
 import { useFmtMoney } from '@/hooks/useFmtMoney';
@@ -85,16 +86,13 @@ const RecsError = ({ onRetry }) => (
 /* ─── BasketConfirmModal (ported from Decisions.jsx) ─── */
 const BasketConfirmModal = ({ recs, onCancel, onConfirm }) => {
   const fmtCash = useFmtMoney();
-  useEffect(() => {
-    const onKey = (e) => { if (e.key === 'Escape') onCancel(); };
-    window.addEventListener('keydown', onKey);
-    return () => window.removeEventListener('keydown', onKey);
-  }, [onCancel]);
+  const panelRef = useRef(null);
+  useOverlayA11y(true, onCancel, panelRef);
   const cash = recs.reduce((s, r) => s + (r.impact?.cash || 0), 0);
   const modalCount = recs.filter(r => needsModal(r)).length;
   return (
     <div className="cm-scrim" onMouseDown={(e) => e.target === e.currentTarget && onCancel()}>
-      <div className="cm-panel layer-3" style={{ width: 'min(560px,94vw)' }}>
+      <div ref={panelRef} tabIndex={-1} role="dialog" aria-modal="true" className="cm-panel layer-3" style={{ width: 'min(560px,94vw)', outline: 'none' }}>
         <div className="cm-head">
           <div>
             <div style={{ fontSize: 10, letterSpacing: '0.14em', textTransform: 'uppercase', color: 'var(--aurum-100)', fontWeight: 600 }}>Confirm basket</div>
@@ -107,7 +105,7 @@ const BasketConfirmModal = ({ recs, onCancel, onConfirm }) => {
                 : 'Review the set before committing.'}
             </p>
           </div>
-          <button className="du3-cta ghost" onClick={onCancel} style={{ flexShrink: 0 }}>✕</button>
+          <button className="du3-cta ghost" onClick={onCancel} aria-label="Close" style={{ flexShrink: 0 }}>✕</button>
         </div>
         <div className="cm-body">
           <div style={{ display: 'grid', gap: 8 }}>
@@ -193,11 +191,20 @@ export default function RecommendationsFeed({ tabState, onRetry, onExplain, onVi
     return true;
   });
 
-  const snoozedRecs  = allRecs.filter(rec => snoozed.includes(rec.id));
+  // Staged/snoozed ids can outlive a rec's "active" status (e.g. staged, then
+  // applied directly from the same card) — filtering on current status here,
+  // not just membership in the staged/snoozed arrays, keeps an applied or
+  // dismissed rec from lingering in the Decision Basket or Snoozed list.
+  const isActionable = (rec) => {
+    const s = getStatus(rec);
+    return s === REC_STATUS.ACTIVE || s === REC_STATUS.CONFLICT;
+  };
+
+  const snoozedRecs  = allRecs.filter(rec => snoozed.includes(rec.id) && isActionable(rec));
   const appliedRecs  = allRecs.filter(rec => getStatus(rec) === REC_STATUS.APPLIED || getStatus(rec) === REC_STATUS.SETTLING);
   const dismissedRecs = allRecs.filter(rec => getStatus(rec) === REC_STATUS.DISMISSED);
 
-  const stagedRecs = allRecs.filter(r => staged.includes(r.id) && !snoozed.includes(r.id));
+  const stagedRecs = allRecs.filter(r => staged.includes(r.id) && !snoozed.includes(r.id) && isActionable(r));
 
   /* ─── Basket commit ─── */
   const commitBasket = () => {

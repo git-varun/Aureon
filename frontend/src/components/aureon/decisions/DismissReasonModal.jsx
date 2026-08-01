@@ -1,7 +1,8 @@
 /* Aureon — dismiss-reason capture: dropdown of common reasons + free text,
    wired through to dismiss_recommendation(reason=...) instead of the old
    hardcoded 'User dismissed' default. */
-import React, { useEffect, useState } from 'react';
+import React, { useRef, useState } from 'react';
+import { useOverlayA11y } from '@/hooks/useOverlayA11y';
 
 const COMMON_REASONS = [
   'Not aligned with my strategy',
@@ -16,16 +17,13 @@ export default function DismissReasonModal({ rec, onCancel, onConfirm }) {
   const [customReason, setCustomReason] = useState('');
   const isOther = selected === 'Other';
   const reason = (isOther ? customReason : selected).trim();
+  const panelRef = useRef(null);
 
-  useEffect(() => {
-    const onKey = (e) => { if (e.key === 'Escape') onCancel(); };
-    window.addEventListener('keydown', onKey);
-    return () => window.removeEventListener('keydown', onKey);
-  }, [onCancel]);
+  useOverlayA11y(true, onCancel, panelRef);
 
   return (
     <div className="cm-scrim" onMouseDown={(e) => e.target === e.currentTarget && onCancel()}>
-      <div className="cm-panel layer-3" style={{ width: 'min(440px,94vw)' }}>
+      <div ref={panelRef} tabIndex={-1} role="dialog" aria-modal="true" className="cm-panel layer-3" style={{ width: 'min(440px,94vw)', outline: 'none' }}>
         <div className="cm-head">
           <div>
             <div style={{ fontSize: 10, letterSpacing: '0.14em', textTransform: 'uppercase', color: 'var(--aurum-100)', fontWeight: 600 }}>Dismiss</div>
@@ -33,7 +31,7 @@ export default function DismissReasonModal({ rec, onCancel, onConfirm }) {
               {rec?.action} {rec?.scope?.ref || ''}
             </h2>
           </div>
-          <button className="du3-cta ghost" onClick={onCancel} style={{ flexShrink: 0 }}>✕</button>
+          <button className="du3-cta ghost" onClick={onCancel} aria-label="Close" style={{ flexShrink: 0 }}>✕</button>
         </div>
         <div className="cm-body">
           <label style={{ fontSize: 11.5, color: 'var(--ink-40)', display: 'block', marginBottom: 6 }}>Reason</label>

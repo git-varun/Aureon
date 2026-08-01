@@ -1,4 +1,5 @@
-import React, { useEffect } from 'react';
+import React, { useRef } from 'react';
+import { useOverlayA11y } from '@/hooks/useOverlayA11y';
 import { REC_STATUS } from './constants.js';
 import RecStatusBadge from './RecCard/RecStatusBadge.jsx';
 import RecSupportingSignals from './RecCard/RecSupportingSignals.jsx';
@@ -25,11 +26,8 @@ function Section({ label, children }) {
 }
 
 export default function ExplainPanel({ rec, status, signals, onClose, onApply, onDismiss }) {
-  useEffect(() => {
-    const fn = (e) => { if (e.key === 'Escape') onClose(); };
-    window.addEventListener('keydown', fn);
-    return () => window.removeEventListener('keydown', fn);
-  }, [onClose]);
+  const panelRef = useRef(null);
+  useOverlayA11y(true, onClose, panelRef);
 
   if (!rec) return null;
 
@@ -58,7 +56,13 @@ export default function ExplainPanel({ rec, status, signals, onClose, onApply, o
       />
 
       {/* Drawer */}
-      <div style={{
+      <div
+        ref={panelRef}
+        tabIndex={-1}
+        role="dialog"
+        aria-modal="true"
+        aria-label="AI Explanation"
+        style={{
         position:       'fixed',
         top:            0,
         right:          0,
@@ -71,6 +75,7 @@ export default function ExplainPanel({ rec, status, signals, onClose, onApply, o
         backdropFilter: 'blur(40px)',
         display:        'flex',
         flexDirection:  'column',
+        outline:        'none',
         animation:      'aureon-explain-drawerIn 260ms var(--ease-decel)',
       }}>
 
@@ -135,6 +140,7 @@ export default function ExplainPanel({ rec, status, signals, onClose, onApply, o
           {/* Close button */}
           <button
             onClick={onClose}
+            aria-label="Close"
             style={{
               width:        30,
               height:       30,
@@ -212,7 +218,7 @@ export default function ExplainPanel({ rec, status, signals, onClose, onApply, o
 
           {/* 4. Supporting signals */}
           <Section label="Supporting signals">
-            <RecSupportingSignals signals={signals} status={status} />
+            <RecSupportingSignals signals={signals} />
           </Section>
 
           {/* 5. Impact preview */}

@@ -30,6 +30,7 @@ const RecCard = React.memo(function RecCard({
 
   const handleApply = useCallback(() => {
     if (needsModal(rec)) { onOpenModal?.(); return; }
+    if (timerRef.current) clearInterval(timerRef.current);
     onApply();
     setUndoLeft(UNDO_WINDOW_SEC);
     timerRef.current = setInterval(() => {
