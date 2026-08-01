@@ -1,5 +1,5 @@
 import {useMemo} from 'react';
-import {useQuery, useQueries} from '@tanstack/react-query';
+import {useQuery} from '@tanstack/react-query';
 import {apiService} from '@/api/apiService';
 import {usePortfolio} from '@/contexts/PortfolioContext';
 import {useV4} from '@/contexts/V4Context';
@@ -99,33 +99,35 @@ export function useAureonData() {
         ? (targetsUsingDefaults ? CLASS_TARGET : allocationTargetsQuery.data)
         : {};
 
-    // Hydrate position details (name, class, sector, price) by searching assets in parallel
-    const assetQueries = useQueries({
-        queries: positions.map(pos => ({
-            queryKey: ["asset-detail", pos.symbol],
-            queryFn: async () => {
-                const results = await apiService.searchAssets(pos.symbol);
-                const match = results?.data?.find(a => a.sym.toUpperCase() === pos.symbol.toUpperCase());
-                // No match means /assets has no Asset row for this symbol (crypto,
-                // EPF, oddly-formatted MF symbols are the common cases) — defaulting
-                // to a real class like 'stocks' would silently misclassify it in
-                // the allocation chart. Surface it as its own bucket instead.
-                return match || {sym: pos.symbol, name: pos.symbol, price: pos.avg_buy_price, class: 'unclassified', sector: 'Unclassified'};
-            },
-            staleTime: 60000,
-            enabled: !!pos.symbol,
-        }))
+    // Hydrate position details (name, class, sector, price) AND per-position
+    // signals in one batched call instead of 2 requests per position (was
+    // N+1: one /assets search + one /signals/{symbol} per holding).
+    const batchSymbols = useMemo(
+        () => [...new Set(positions.map(p => p.symbol).filter(Boolean))].sort(),
+        [positions]
+    );
+
+    const assetsBatchQuery = useQuery({
+        queryKey: ["assets-batch", batchSymbols.join(",")],
+        queryFn: () => apiService.getAssetsBatch(batchSymbols),
+        enabled: batchSymbols.length > 0,
+        staleTime: 60000,
     });
+
+    const assetsBatch = assetsBatchQuery.data?.data || {};
 
     const assetsMap = useMemo(() => {
         const map = {};
-        assetQueries.forEach((q, idx) => {
-            if (q.data && positions[idx]) {
-                map[positions[idx].symbol] = q.data;
-            }
+        positions.forEach(pos => {
+            const entry = assetsBatch[pos.symbol.toUpperCase()];
+            // No match means /assets/batch has no Asset row for this symbol (crypto,
+            // EPF, oddly-formatted MF symbols are the common cases) — defaulting
+            // to a real class like 'stocks' would silently misclassify it in
+            // the allocation chart. Surface it as its own bucket instead.
+            map[pos.symbol] = entry?.asset || {sym: pos.symbol, name: pos.symbol, price: pos.avg_buy_price, class: 'unclassified', sector: 'Unclassified'};
         });
         return map;
-    }, [assetQueries, positions]);
+    }, [assetsBatch, positions]);
 
     // Construct the canonical holdings structure expected by components
     const holdings = useMemo(() => {
@@ -201,27 +203,11 @@ export function useAureonData() {
         return map;
     }, [holdings, netWorth, fxRates]);
 
-    // 8. Per-position signals from RSI/signal endpoint
-    const signalQueries = useQueries({
-        queries: positions.map(pos => ({
-            queryKey: ['signal', pos.symbol],
-            queryFn: async () => {
-                try {
-                    return await apiService.getAssetSignal(pos.symbol);
-                } catch (e) {
-                    if (e?.response?.status === 404) return null;
-                    throw e;
-                }
-            },
-            enabled: positions.length > 0 && !!pos.symbol,
-            staleTime: 120000,
-        }))
-    });
-
+    // 8. Per-position signals — from the same batched /assets/batch response above.
     const signals = useMemo(() => {
-        return signalQueries
-            .map((q) => {
-                const raw = q.data;
+        return positions
+            .map((pos) => {
+                const raw = assetsBatch[pos.symbol.toUpperCase()]?.signal;
                 // signal_type is null for assets the pipeline structurally can't
                 // cover (e.g. crypto futures) — backend returns 200 + nulls
                 // instead of 404 for these, so filter them out here explicitly.
@@ -229,18 +215,22 @@ export function useAureonData() {
                 const rsi = raw.rsi_14 ?? 50;
                 const severity = (rsi > 70 || rsi < 30) ? 'high' : (rsi > 60 || rsi < 40) ? 'med' : 'low';
                 const kind = (rsi > 70 || rsi < 30) ? 'volatility' : 'momentum';
+                // BUY/SELL/HOLD -> bull/bear/neutral: real backend field, not a guess.
+                const direction = raw.signal_type === 'BUY' ? 'bull' : raw.signal_type === 'SELL' ? 'bear' : 'neutral';
                 return {
                     id: `sig-${raw.symbol}`,
                     kind,
                     asset: raw.symbol,
                     severity,
+                    direction,
+                    confidence: raw.confidence ?? null,
                     ts: raw.created_at,
                     text: raw.rationale || `RSI ${rsi.toFixed(0)} — ${raw.signal_type}`,
                     linkedRec: null,
                 };
             })
             .filter(Boolean);
-    }, [signalQueries]);
+    }, [positions, assetsBatch]);
 
     const signalById = useMemo(() => Object.fromEntries(signals.map(s => [s.id, s])), [signals]);
 

@@ -4,21 +4,11 @@ import {useApp} from '@/components/aureon/store';
 import {useAureonData} from '@/hooks/useAureonData';
 import {Eyebrow} from '@/components/aureon/ui';
 
-/* ─── Signals helpers ─── */
-const inferDirection = (s) => {
-    const txt = (s.text || '').toLowerCase();
-    if (s.kind === 'momentum') return txt.includes('negative') || txt.includes('reset') ? 'bear' : 'bull';
-    if (s.kind === 'sentiment') return txt.includes('dropped') || txt.includes('negative') ? 'bear' : 'bull';
-    if (s.kind === 'volatility') return 'neutral';
-    if (s.kind === 'fundamentals') return txt.includes('beat') || txt.includes('reaffirmed') || txt.includes('reduced') || txt.includes('+') ? 'bull' : 'neutral';
-    if (s.kind === 'macro') return txt.includes('+bp') ? 'bear' : 'neutral';
-    return 'neutral';
-};
-
-const sigConfidence = (s) => {
-    const c = (s.id || 'xxx').charCodeAt(3) || 42;
-    return s.severity === 'high' ? 78 + (c % 10) : s.severity === 'med' ? 60 + (c % 12) : 42 + (c % 14);
-};
+/* ─── Signals helpers ───
+ * direction and confidence are real fields from useAureonData().signals,
+ * sourced from GET /signals/{symbol} (signal_type + a backend-computed
+ * RSI-distance confidence — see AssetsService._signal_confidence). Neither
+ * is inferred/guessed client-side. */
 
 const DirectionChip = ({d}) => {
     const m = {
@@ -53,8 +43,8 @@ const ConfidenceBar = ({v}) => (
 
 const SignalCard = ({s}) => {
     const [open, setOpen] = useState(false);
-    const dir = inferDirection(s);
-    const conf = sigConfidence(s);
+    const dir = s.direction ?? 'neutral';
+    const conf = s.confidence ?? 0;
     const sevColor = s.severity === 'high' ? 'var(--crimson-500)' : s.severity === 'med' ? 'var(--dusk-500)' : 'var(--ink-30)';
     return (
         <article style={{padding: '16px 18px', borderRadius: 12, background: 'rgba(255,255,255,0.025)', border: '1px solid rgba(255,255,255,0.06)'}}>
@@ -117,7 +107,7 @@ export default function SignalsTab() {
         let s = SIGNALS.slice();
         if (kind !== 'all') s = s.filter(x => x.kind === kind);
         if (sev  !== 'all') s = s.filter(x => x.severity === sev);
-        if (dir  !== 'all') s = s.filter(x => inferDirection(x) === dir);
+        if (dir  !== 'all') s = s.filter(x => (x.direction ?? 'neutral') === dir);
         if (search) s = s.filter(x => (x.asset + ' ' + x.text + ' ' + x.kind).toLowerCase().includes(search.toLowerCase()));
         return s;
     }, [SIGNALS, kind, sev, dir, search]);
@@ -145,13 +135,17 @@ export default function SignalsTab() {
                 <div>
                     <Eyebrow>Bullish · Bearish</Eyebrow>
                     <div style={{fontFamily: 'var(--font-mono)', fontSize: 22, fontWeight: 500, marginTop: 6}}>
-                        <span style={{color: 'var(--sage-500)'}}>{SIGNALS.filter(s => inferDirection(s) === 'bull').length}</span>
+                        <span style={{color: 'var(--sage-500)'}}>{SIGNALS.filter(s => s.direction === 'bull').length}</span>
                         <span style={{color: 'var(--ink-40)', margin: '0 6px'}}>·</span>
-                        <span style={{color: 'var(--crimson-500)'}}>{SIGNALS.filter(s => inferDirection(s) === 'bear').length}</span>
+                        <span style={{color: 'var(--crimson-500)'}}>{SIGNALS.filter(s => s.direction === 'bear').length}</span>
                     </div>
                 </div>
                 <div style={{flex: 1}}/>
                 <div style={{display: 'flex', gap: 8, flexWrap: 'wrap'}}>
+                    {/* TODO: 'sentiment'/'allocation'/'fundamentals'/'macro'/'news' have no
+                        backing data source yet — useAureonData().signals only ever produces
+                        'momentum'/'volatility' (from GET /signals/{symbol}, RSI-based). These
+                        filter options are permanently empty until those kinds are implemented. */}
                     <select value={kind} onChange={e => setKind(e.target.value)} style={selStyle}>
                         {['all', 'momentum', 'sentiment', 'allocation', 'volatility', 'fundamentals', 'macro', 'news'].map(k => <option key={k} value={k}>{k === 'all' ? 'All kinds' : k}</option>)}
                     </select>

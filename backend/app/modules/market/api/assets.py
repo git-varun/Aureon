@@ -13,6 +13,11 @@ router = APIRouter()
 def search_assets(search: str = Query(...), svc: AssetsService = Depends(get_assets_service)):
     return svc.search(search)
 
+@router.get("/assets/batch")
+def get_assets_batch(symbols: str = Query(..., description="Comma-separated symbols"), svc: AssetsService = Depends(get_assets_service)):
+    symbol_list = [s for s in symbols.split(",") if s.strip()]
+    return {"data": svc.get_batch(symbol_list)}
+
 @router.get("/assets/{symbol}/quote")
 def get_asset_quote(symbol: str, svc: AssetsService = Depends(get_assets_service)):
     try:
@@ -27,7 +32,7 @@ def get_asset_fundamentals(
     svc: AssetsService = Depends(get_assets_service)
 ):
     try:
-        return svc.get_fundamentals(symbol)
+        return svc.get_fundamentals(symbol, refresh=refresh)
     except NotFoundError as e:
         raise HTTPException(status_code=404, detail=str(e.message)) from e
 
@@ -43,7 +48,15 @@ def generate_signal_for_symbol(
     symbol: str,
     asset_type: str = Query("equity"),
 ):
-    return {"status": "success", "symbol": symbol, "signal": "BUY", "rationale": "Generated successfully"}
+    # BACKLOG: this used to return a hardcoded {"signal": "BUY"} for any symbol,
+    # regardless of any real analysis — a fabricated investment recommendation on
+    # a live, callable endpoint. Real per-symbol signal generation already exists
+    # (GET /signals/{symbol} -> AssetsService.get_signal, RSI-threshold-based) and
+    # separately AssetsService/runSingleAI-style on-demand AI analysis exists
+    # elsewhere — a real implementation of this specific endpoint should either
+    # delegate to one of those or be removed if nothing calls it (frontend does
+    # not call this today; see TechnicalTab.jsx). Not built in this pass.
+    raise HTTPException(status_code=501, detail="Signal generation via this endpoint is not implemented.")
 
 @router.get("/assets/{symbol}/chart")
 def get_asset_chart(

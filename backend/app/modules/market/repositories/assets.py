@@ -24,6 +24,27 @@ class AssetsRepository(BaseRepository):
     def get_asset(self, symbol: str) -> Optional[Asset]:
         return self.session.query(Asset).filter(Asset.symbol == symbol).first()
 
+    def get_assets_by_symbols(self, symbols: list[str]) -> dict[str, Asset]:
+        """Batch version of get_asset — one query for N symbols instead of N,
+        used by AssetsService.get_batch (frontend's useAureonData.js used to
+        issue one /assets search call per position)."""
+        if not symbols:
+            return {}
+        rows = self.session.query(Asset).filter(Asset.symbol.in_(symbols)).all()
+        return {a.symbol: a for a in rows}
+
+    def get_quotes_by_symbols(self, symbols: list[str]) -> dict[str, LatestQuote]:
+        if not symbols:
+            return {}
+        rows = self.session.query(LatestQuote).filter(LatestQuote.symbol.in_(symbols)).all()
+        return {q.symbol: q for q in rows}
+
+    def get_snapshots_by_asset_ids(self, asset_ids: list) -> dict:
+        if not asset_ids:
+            return {}
+        rows = self.session.query(AssetSnapshot).filter(AssetSnapshot.asset_id.in_(asset_ids)).all()
+        return {s.asset_id: s for s in rows}
+
     def get_snapshot(self, asset_id) -> Optional[AssetSnapshot]:
         if asset_id is None:
             return None

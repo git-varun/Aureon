@@ -265,6 +265,7 @@ export const apiService = {
     searchGlobalSymbol: (q) => handleRequest(API.get('/market/search', {params: {q}})),
     getMarketUniverse: (params = {}) => handleRequest(API.get('/market/universe', {params})),
     searchAssets: (query) => handleRequest(API.get('/assets', {params: {search: query}})),
+    getAssetsBatch: (symbols) => handleRequest(API.get('/assets/batch', {params: {symbols: symbols.join(',')}})),
     getAssetQuote: (symbol) => handleRequest(API.get(`/assets/${symbol}/quote`)),
     getAssetFundamentals: (symbol, refresh = false) => handleRequest(API.get(`/assets/${symbol}/fundamentals`, {params: {refresh}})),
     getAssetSignal: (symbol) => handleRequest(API.get(`/signals/${symbol}`)),
