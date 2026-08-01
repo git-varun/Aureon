@@ -7,8 +7,15 @@ import { Sk, RBtn, Cerr, Cmt, CS, Eyebrow } from '../ui';
 const toneCol = k =>
   k === 'pos' ? 'var(--sage-500)' : k === 'warn' ? 'var(--dusk-500)' : 'var(--crimson-500)';
 
+const checkOf = (raw, key, text) => ({
+  ok: raw[key] != null && raw[key] >= 60,
+  text,
+  detail: raw[key] != null ? `${Math.round(raw[key])}/100` : '—',
+});
+
 const transform = (raw) => {
-  if (!raw || (raw.position_count != null ? raw.position_count === 0 : raw.diversification_score === 0)) return null;
+  if (!raw || raw.investor_health_score == null) return null;
+  if (raw.position_count != null && raw.position_count === 0) return null;
   const score = Math.round(raw.investor_health_score);
   const toneKey = score >= 75 ? 'pos' : score >= 50 ? 'warn' : 'neg';
   const label = score >= 75 ? 'Healthy' : score >= 50 ? 'Moderate' : 'Needs attention';
@@ -17,10 +24,10 @@ const transform = (raw) => {
     toneKey,
     label,
     checks: [
-      { ok: raw.diversification_score >= 60, text: 'Diversification', detail: `${Math.round(raw.diversification_score)}/100` },
-      { ok: raw.allocation_discipline_score >= 60, text: 'Allocation discipline', detail: `${Math.round(raw.allocation_discipline_score)}/100` },
-      { ok: raw.recommendation_outcomes_score >= 60, text: 'Decision outcomes', detail: `${Math.round(raw.recommendation_outcomes_score)}/100` },
-      { ok: raw.activity_consistency_score >= 60, text: 'Activity consistency', detail: `${Math.round(raw.activity_consistency_score)}/100` },
+      checkOf(raw, 'diversification_score', 'Diversification'),
+      checkOf(raw, 'allocation_discipline_score', 'Allocation discipline'),
+      checkOf(raw, 'recommendation_outcomes_score', 'Decision outcomes'),
+      checkOf(raw, 'activity_consistency_score', 'Activity consistency'),
     ],
   };
 };

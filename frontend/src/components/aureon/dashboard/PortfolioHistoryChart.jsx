@@ -1,9 +1,12 @@
 // frontend/src/components/aureon/dashboard/PortfolioHistoryChart.jsx
-import React from 'react';
+import React, { useId } from 'react';
 
 const RANGE_DAYS = { '1W': 7, '1M': 30, '3M': 90, '1Y': 365, 'ALL': Infinity };
 
 export function PortfolioHistoryChart({ snapshots, range, height = 170 }) {
+  // useId() ids contain colons, which CSS's url(#...) fragment syntax can't
+  // reference without escaping — strip them rather than fight CSS escaping rules.
+  const gradId = 'phcGrad-' + useId().replace(/:/g, '');
   if (!snapshots?.length) return null;
 
   const days = RANGE_DAYS[range] || 90;
@@ -13,7 +16,7 @@ export function PortfolioHistoryChart({ snapshots, range, height = 170 }) {
   const up   = vals[vals.length - 1] >= vals[0];
   const hex  = up ? '#6FAE88' : '#D16B6B';
   const W = 800, H = height, pt = 6, pb = 22;
-  const xi = i => (i / (vis.length - 1)) * W;
+  const xi = i => (i / (vis.length - 1 || 1)) * W;
   const yv = v => pt + (1 - (v - mn) / r) * (H - pt - pb);
   const d  = vis.map((s, i) => (i ? 'L' : 'M') + xi(i).toFixed(1) + ' ' + yv(s.value).toFixed(1)).join(' ');
   const fd = dt => new Date(dt).toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
@@ -26,7 +29,7 @@ export function PortfolioHistoryChart({ snapshots, range, height = 170 }) {
       style={{ width: '100%', height, display: 'block' }}
     >
       <defs>
-        <linearGradient id="phcGrad" x1="0" y1="0" x2="0" y2="1">
+        <linearGradient id={gradId} x1="0" y1="0" x2="0" y2="1">
           <stop offset="0" stopColor={hex} stopOpacity="0.18" />
           <stop offset="1" stopColor={hex} stopOpacity="0" />
         </linearGradient>
@@ -36,7 +39,7 @@ export function PortfolioHistoryChart({ snapshots, range, height = 170 }) {
           y1={pt + t * (H - pt - pb)} y2={pt + t * (H - pt - pb)}
           stroke="rgba(255,255,255,0.04)" />
       ))}
-      <path d={d + ` L${xi(vis.length - 1)} ${H - pb} L0 ${H - pb} Z`} fill="url(#phcGrad)" />
+      <path d={d + ` L${xi(vis.length - 1)} ${H - pb} L0 ${H - pb} Z`} fill={`url(#${gradId})`} />
       <path d={d} fill="none" stroke={hex} strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" />
       {lx.map((idx, i) => (
         <text key={i}

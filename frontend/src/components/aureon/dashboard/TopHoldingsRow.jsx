@@ -6,7 +6,7 @@ import {useFmtMoney} from '../../../hooks/useFmtMoney';
 import {useV4} from '../../../contexts/V4Context';
 import s from './TopHoldingsRow.module.css';
 
-export const TopHoldingsRow = ({holdings}) => {
+export const TopHoldingsRow = ({holdings = []}) => {
     const navigate = useNavigate();
     const fmt = useFmtMoney();
     const {fxRates} = useV4();

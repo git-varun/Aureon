@@ -13,6 +13,9 @@ export function GoalProgress({ onNavigateSettings }) {
 
   if (!annualTarget && !monthlySaving) return null;
 
+  // TODO(feature): no backend source for realized YTD return or actual
+  // monthly-saving-this-month exists yet — both permanently null, so the
+  // status/actual UI below always shows "…"/"—". Not a loading state.
   const ytdReturn           = null;
   const monthlySavingActual = null;
   const pace        = annualTarget ? (annualTarget * elapsedMonths) / 12 : null;

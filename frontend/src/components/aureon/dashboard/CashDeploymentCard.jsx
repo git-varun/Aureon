@@ -52,7 +52,7 @@ export function CashDeploymentCard() {
 
       {status === 'error' && <Cerr msg={error?.message} retry={refetch} />}
 
-      {(status === 'empty' || (status === 'ready' && !data)) && (
+      {status === 'empty' && (
         <div style={{ fontSize: 12, color: 'var(--ink-40)', lineHeight: 1.55 }}>
           Cash deployment data not available — connect a provider to see uninvested cash position.
         </div>

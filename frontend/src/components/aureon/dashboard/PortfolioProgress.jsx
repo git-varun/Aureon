@@ -62,6 +62,7 @@ export function PortfolioProgress({ summData, summStatus }) {
         <div style={{ flex: 1 }} />
         <div style={{ display: 'flex', gap: 24, alignItems: 'baseline' }}>
           <SummaryStat label="90d Δ" value={deltaPct != null ? `${deltaPct >= 0 ? '+' : ''}${(deltaPct * 100).toFixed(1)}%` : '—'} tone={deltaPct != null ? (deltaPct >= 0 ? 'pos' : 'neg') : 'neu'} />
+          {/* TODO(feature): no benchmark-comparison or drift-vs-target data source exists yet — these are permanent placeholders, not loading states. See frontend audit finding "PortfolioProgress placeholder stats". */}
           <SummaryStat label="vs Bench" value="—" tone="neu" />
           <SummaryStat label="Drift" value="—" tone="neu" />
           {summStatus === 'loading'
@@ -111,6 +112,7 @@ export function PortfolioProgress({ summData, summStatus }) {
                 <ProgressStat label="Start"   value={startVal != null ? fmt(startVal, 'INR', { dp: 0 }) : '—'} sub="90d ago" />
                 <ProgressStat label="Current" value={endVal   != null ? fmt(endVal,   'INR', { dp: 0 }) : '—'} sub="today" highlight />
                 <ProgressStat label="Δ"       value={delta != null ? `${delta >= 0 ? '+' : '−'}${fmt(Math.abs(delta), 'INR', { dp: 0 })}` : '—'} sub={deltaPct != null ? `${deltaPct >= 0 ? '+' : ''}${(deltaPct * 100).toFixed(2)}%` : undefined} tone={delta != null ? (delta >= 0 ? 'pos' : 'neg') : 'neu'} />
+                {/* TODO(feature): no benchmark-comparison data source exists yet — permanent placeholder, not a loading state. */}
                 <ProgressStat label="vs Bench" value="—" sub="backend provides" tone="neu" />
               </div>
             </div>

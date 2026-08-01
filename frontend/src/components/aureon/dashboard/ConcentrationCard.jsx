@@ -46,7 +46,7 @@ export function ConcentrationCard() {
       )}
 
       {status === 'error' && <Cerr msg={error?.message} retry={refetch} />}
-      {(status === 'empty' || (status === 'ready' && !data)) && <Cmt msg="Concentration data unavailable" />}
+      {status === 'empty' && <Cmt msg="Concentration data unavailable" />}
 
       {status === 'ready' && data && (
         <>

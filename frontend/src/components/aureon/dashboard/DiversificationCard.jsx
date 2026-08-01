@@ -5,7 +5,8 @@ import { usePortfolio } from '@/contexts/PortfolioContext';
 import { Sk, RBtn, Cerr, Cmt, CS, Eyebrow } from '../ui';
 
 const transform = (raw) => {
-  if (!raw || (raw.position_count != null ? raw.position_count === 0 : raw.diversification_score === 0)) return null;
+  if (!raw || raw.diversification_score == null) return null;
+  if (raw.position_count != null ? raw.position_count === 0 : raw.diversification_score === 0) return null;
   const score = Math.round(raw.diversification_score);
   const label = score >= 75 ? 'Well diversified' : score >= 55 ? 'Moderate' : 'Concentrated';
   return {

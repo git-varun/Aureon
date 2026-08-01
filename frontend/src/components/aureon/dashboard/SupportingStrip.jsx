@@ -15,8 +15,7 @@ export function SupportingStrip({ onNavigate }) {
 
   const handleRefresh = () => {
     setRefreshing(true);
-    qc.invalidateQueries();
-    setTimeout(() => setRefreshing(false), 900);
+    qc.invalidateQueries().finally(() => setRefreshing(false));
   };
 
   const sigCount = status === 'loading' ? null : signals.length;
