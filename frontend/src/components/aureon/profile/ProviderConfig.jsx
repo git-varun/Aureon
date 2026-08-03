@@ -56,6 +56,38 @@ const parseKeyNames = (rawKeys) => {
     return rawKeys.split(',').map(s => s.trim()).filter(Boolean);
 };
 
+// Single source of truth for "is this provider actually connected", used by
+// both ProviderRow's status badge and ProviderSummaryChip's dot. Previously
+// each computed enabled + keys-present independently and neither looked at
+// provider.status (the backend's PLANNED/STUB/PARTIAL/ACTIVE/... lifecycle
+// state) — so a PLANNED provider with zero required keys (coinmarketcap,
+// newsapi, telegram, rss) showed a green "Connected" badge despite having no
+// real adapter implementation at all. provider.status now gates everything
+// else: an unimplemented or failing provider can never read as connected,
+// regardless of its enabled/keys state.
+const computeProviderStatus = (provider) => {
+    const keyNames = parseKeyNames(provider.key_names);
+    const keysStatus = provider.keys_status || {};
+    const allKeysSet = keyNames.length === 0 || keyNames.every(k => keysStatus[k]);
+
+    if (provider.status === 'PLANNED' || provider.status === 'STUB') {
+        return {label: 'Not built yet', color: 'var(--ink-40)', connected: false};
+    }
+    if (provider.status === 'FAILED') {
+        return {label: 'Failing', color: 'var(--crimson-500)', connected: false};
+    }
+    if (!provider.enabled) {
+        return {label: 'Disabled', color: 'var(--ink-40)', connected: false};
+    }
+    if (!allKeysSet) {
+        return {label: 'Keys missing', color: 'var(--dusk-500)', connected: false};
+    }
+    if (provider.status === 'PARTIAL') {
+        return {label: 'Partial', color: 'var(--dusk-500)', connected: false};
+    }
+    return {label: 'Connected', color: 'var(--sage-500)', connected: true};
+};
+
 // Condensed per-provider summary chip — folds in what the old standalone
 // ApiKeysSection (key-name dots) and ConnectionStatusSection (connected/
 // keys-missing status) showed, without their separate panels/headers.
@@ -63,9 +95,7 @@ function ProviderSummaryChip({provider}) {
     const keyNames = parseKeyNames(provider.key_names);
     const keysStatus = provider.keys_status || {};
     const setCount = keyNames.filter(k => keysStatus[k]).length;
-    const allSet = setCount === keyNames.length;
-    const statusColor = !provider.enabled ? 'var(--ink-40)'
-        : allSet ? 'var(--sage-500)' : setCount > 0 ? 'var(--dusk-500)' : 'var(--crimson-500)';
+    const statusColor = computeProviderStatus(provider).color;
 
     return (
         <div style={{display: 'flex', alignItems: 'center', gap: 7, padding: '5px 10px', borderRadius: 999, background: 'rgba(255,255,255,0.025)', border: '1px solid rgba(255,255,255,0.06)'}}>
@@ -178,14 +208,8 @@ function ProviderRow({provider, onToggle, onSetKey, onRemoveKey, onSaveConfig, h
     const keyNames = parseKeyNames(provider.key_names);
     const keysStatus = provider.keys_status || {};
     const keysHealth = provider.keys_health || {};
-    const allKeysSet = keyNames.length === 0 || keyNames.every(k => keysStatus[k]);
 
-    const statusColor = provider.enabled
-        ? (allKeysSet ? 'var(--sage-500)' : 'var(--dusk-500)')
-        : 'var(--ink-40)';
-    const statusLabel = provider.enabled
-        ? (allKeysSet ? 'Connected' : 'Keys missing')
-        : 'Disabled';
+    const {label: statusLabel, color: statusColor} = computeProviderStatus(provider);
 
     const handleToggle = async () => {
         setToggling(true);

@@ -2,8 +2,12 @@ import React, { useState } from 'react';
 import { toast } from 'react-hot-toast';
 import { apiService } from '../../../api/apiService';
 import { ModalShell } from '../ds';
+import { useV4 } from '../../../contexts/V4Context';
+import { CURRENCY_META } from '../../../pages/aureon/marketData';
 
 export function ManualAssetModal({ onClose, existing, defaultCls }) {
+  const { currency } = useV4();
+  const ccySymbol = (CURRENCY_META[currency] || CURRENCY_META.INR).symbol;
   const [submitting, setSubmitting] = useState(false);
   const [form, setForm] = useState({
     name:  existing?.name || '',
@@ -80,8 +84,8 @@ export function ManualAssetModal({ onClose, existing, defaultCls }) {
           </select>
         </div>
         <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:12 }}>
-          <div>{lbl('Current value')}{fld('value', '0', 'number', '$')}</div>
-          <div>{lbl('Cost basis')}{fld('cost', '0 (optional)', 'number', '$')}</div>
+          <div>{lbl('Current value')}{fld('value', '0', 'number', ccySymbol)}</div>
+          <div>{lbl('Cost basis')}{fld('cost', '0 (optional)', 'number', ccySymbol)}</div>
         </div>
         <div>{lbl('Valuation date')}{fld('date', '', 'date')}</div>
         <div>
@@ -93,7 +97,7 @@ export function ManualAssetModal({ onClose, existing, defaultCls }) {
           <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between', padding:'10px 14px', borderRadius:9, background:'rgba(201,168,106,0.06)', border:'1px solid rgba(201,168,106,0.16)' }}>
             <span style={{ fontSize:11.5, color:'var(--ink-30)' }}>Valuation</span>
             <span style={{ fontFamily:'var(--font-mono)', fontSize:15, fontWeight:500, color:'var(--ink-00)' }}>
-              ${parseFloat(form.value||0).toLocaleString('en-US', {maximumFractionDigits:0})}
+              {ccySymbol}{parseFloat(form.value||0).toLocaleString('en-US', {maximumFractionDigits:0})}
             </span>
           </div>
         )}
