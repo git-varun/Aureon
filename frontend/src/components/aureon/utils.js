@@ -12,18 +12,40 @@ export const CLASS_TARGET = {
 };
 
 // Single source of truth for allocation swatch colors, shared by AllocDonut
-// (ui.jsx) and the allocation bar list (PfAllocationSection.jsx) — previously
-// each maintained its own palette and AllocDonut's was missing every sector
-// key, so Sector-tab donut segments silently fell back to gray while the
-// bar list showed the real color for the same key.
+// (ui.jsx) and the allocation bar list (PfAllocationSection.jsx).
 export const ALLOC_PALETTE = {
     stocks: '#C9A86A', funds: '#D4B888', bonds: '#7AA8D4', crypto: '#D4A257',
     real_estate: '#6FAE88', retirement: '#8A909B', insurance: '#4B4F57', unclassified: '#6B6F76',
-    Tech: '#C9A86A', Healthcare: '#6FAE88', Financials: '#7AA8D4', 'Layer 1': '#D4A257',
-    Broad: '#D4B888', Intl: '#8A909B', Treasury: '#7AA8D4', Aggregate: '#8A909B',
-    Residential: '#6FAE88', 'Target 2045': '#969CA6', 'Self-managed': '#7AA8D4', 'Whole life': '#4B4F57',
-    Unclassified: '#6B6F76',
 };
+
+// Sector names (h.sector) are freeform strings from provider metadata, not a
+// fixed key set like asset classes — a hardcoded name->color map either misses
+// most of them (falls back to gray) or accidentally collides with a semantic
+// status color (e.g. a prior "Healthcare" entry happened to equal --sage-500,
+// the "positive/gain" color, for an unrelated category). So sector colors are
+// assigned by render position instead, from this fixed-order 8-hue set
+// (validated colorblind-safe against --canvas #0B0D10 — see dataviz skill).
+export const CATEGORICAL_PALETTE = [
+    '#3987e5', '#d95926', '#199e70', '#c98500', '#d55181', '#008300', '#9085e9', '#e66767',
+];
+const OTHER_COLOR = '#6B6F76';
+
+// Assigns a stable color per key for a set of allocation entries: known
+// asset-class keys keep their fixed ALLOC_PALETTE color; "Other"/"unclassified"
+// always render the neutral gray; everything else (sector names) gets the next
+// unused hue from CATEGORICAL_PALETTE in entries' render order, so the donut
+// and bar list — which render the same sorted entries — always agree.
+export function colorForAllocEntries(entries) {
+    const map = {};
+    let i = 0;
+    for (const [k] of entries) {
+        if (ALLOC_PALETTE[k]) { map[k] = ALLOC_PALETTE[k]; continue; }
+        if (k === 'Other' || k === 'unclassified' || k === 'Unclassified') { map[k] = OTHER_COLOR; continue; }
+        map[k] = CATEGORICAL_PALETTE[i % CATEGORICAL_PALETTE.length];
+        i++;
+    }
+    return map;
+}
 
 export const HIGH_IMPACT_USD = 10000;
 export const UNDO_WINDOW_MS = 20000;

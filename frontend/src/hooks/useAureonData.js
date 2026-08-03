@@ -139,7 +139,7 @@ export function useAureonData() {
             // source. assetData.price (from /assets search) disagrees per-asset.
             const price = pos.price ?? assetData.price ?? pos.avg_buy_price ?? null;
             return {
-                id: pos.symbol,
+                id: pos.id,
                 ticker: pos.symbol.toUpperCase().replace(/\.NS$/i, ''),
                 name: assetData.name || pos.symbol,
                 class: assetData.class || 'stocks',

@@ -1,12 +1,13 @@
 import React, { useState, useMemo } from 'react';
 import { AllocDonut } from '@/components/aureon/ui';
-import { CLASS_LABEL, ALLOC_PALETTE, valueOf } from '@/components/aureon/utils';
+import { CLASS_LABEL, colorForAllocEntries, valueOf } from '@/components/aureon/utils';
 
 function AllocationBars({ entries, classTarget, showTarget }) {
   if (!entries?.length) return (
     <div style={{ padding:'28px 16px', textAlign:'center', fontSize:13, color:'var(--ink-40)' }}>No allocation data</div>
   );
   const mx = Math.max(...entries.map(([,v]) => v), 0.01);
+  const colors = colorForAllocEntries(entries);
   return (
     <div style={{ display:'flex', flexDirection:'column', gap:9 }}>
       {entries.map(([k,v]) => {
@@ -15,11 +16,11 @@ function AllocationBars({ entries, classTarget, showTarget }) {
         return (
           <div key={k} style={{ display:'grid', gridTemplateColumns:'112px 1fr 56px', gap:10, alignItems:'center' }}>
             <div style={{ display:'flex', alignItems:'center', gap:6 }}>
-              <span style={{ width:7, height:7, borderRadius:2, flexShrink:0, background:ALLOC_PALETTE[k]||'var(--ink-50)' }}/>
+              <span style={{ width:7, height:7, borderRadius:2, flexShrink:0, background:colors[k]||'var(--ink-50)' }}/>
               <span style={{ fontSize:12, color:'var(--ink-20)', overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap' }}>{CLASS_LABEL[k]||k}</span>
             </div>
             <div style={{ position:'relative', height:6, borderRadius:999, background:'rgba(255,255,255,0.05)' }}>
-              <div style={{ width:`${(v/mx)*100}%`, height:'100%', borderRadius:'inherit', background:ALLOC_PALETTE[k]||'var(--ink-50)', opacity:0.85 }}/>
+              <div style={{ width:`${(v/mx)*100}%`, height:'100%', borderRadius:'inherit', background:colors[k]||'var(--ink-50)', opacity:0.85 }}/>
               {showTarget && tgt && (
                 <span style={{ position:'absolute', top:-3, bottom:-3, width:1, left:`${(tgt/mx)*100}%`, background:'rgba(255,255,255,0.5)' }}/>
               )}
@@ -46,11 +47,22 @@ export function PfAllocationSection({ holdings, allocByClass, classTarget, class
     Object.entries(allocByClass).sort((a,b) => b[1]-a[1]),
   [allocByClass]);
 
+  // CATEGORICAL_PALETTE (utils.js) has 8 colorblind-safe slots — beyond that,
+  // reused hues stop being visually distinct, so anything past the top 7
+  // named sectors folds into "Other" rather than repeating a color.
+  const MAX_SECTOR_SLOTS = 7;
   const sectorBars = useMemo(() => {
     const total = holdings.reduce((s,h) => s + valueOf(h), 0) || 1;
     const map = {};
     holdings.forEach(h => { const k = h.sector||'Other'; map[k]=(map[k]||0)+valueOf(h)/total; });
-    return Object.entries(map).sort((a,b) => b[1]-a[1]);
+    const sorted = Object.entries(map).sort((a,b) => b[1]-a[1]);
+    if (sorted.length <= MAX_SECTOR_SLOTS + 1) return sorted;
+    const top = sorted.slice(0, MAX_SECTOR_SLOTS);
+    const restTotal = sorted.slice(MAX_SECTOR_SLOTS).reduce((s,[,v]) => s+v, 0);
+    const otherIdx = top.findIndex(([k]) => k === 'Other');
+    if (otherIdx >= 0) top[otherIdx] = ['Other', top[otherIdx][1] + restTotal];
+    else top.push(['Other', restTotal]);
+    return top.sort((a,b) => b[1]-a[1]);
   }, [holdings]);
 
   const barData = tab==='class' ? classBars : sectorBars;
