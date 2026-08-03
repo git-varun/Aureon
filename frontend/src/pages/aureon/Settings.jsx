@@ -113,7 +113,11 @@ function ProfileSection() {
     const [dirty, setDirty] = useState(false);
 
     useEffect(() => {
-        if (profile && !form) {
+        // Re-sync from the store's profile whenever it changes (e.g. once the
+        // async /users/me fetch resolves with real data after this mounted
+        // with defaults) — but never while the user has unsaved edits, so a
+        // background refresh can't clobber in-progress input.
+        if (profile && !dirty) {
             // eslint-disable-next-line react-hooks/set-state-in-effect
             setForm({
                 first_name: profile.first || '',
@@ -127,7 +131,7 @@ function ProfileSection() {
                 swing_trading_enabled: profile.swingTrading || false,
             });
         }
-    }, [profile, form]);
+    }, [profile, dirty]);
 
     return <UserProfile form={form} setForm={setForm} isDirty={dirty} setIsDirty={setDirty}/>;
 }
@@ -356,7 +360,22 @@ function RestoreSection() {
         } catch { /* non-fatal: backend will give authoritative error */ }
         try {
             const res = await apiService.restoreBackupJSON(selectedFile, false);
-            setSummary(res.summary); setStep('preview');
+            // The dry-run endpoint returns flat `<name>_count` fields, not a
+            // nested `summary` object — map them to what the preview renders.
+            if (!res || res.status !== 'dry_run') {
+                setImportError('Unexpected response from the server while previewing this backup.');
+                setStep('error');
+                return;
+            }
+            setSummary({
+                transactions: res.transactions_count ?? 0,
+                portfolios: res.portfolios_count ?? 0,
+                watchlists: res.watchlists_count ?? 0,
+                ai_generations: res.ai_generations_count ?? 0,
+                recommendations: res.recommendations_count ?? 0,
+                market_themes: res.market_themes_count ?? 0,
+            });
+            setStep('preview');
         } catch (e) {
             setImportError(e?.response?.data?.detail || e.message || 'Invalid or corrupted backup file.');
             setStep('error');
@@ -429,7 +448,7 @@ function RestoreSection() {
                             {fileMeta?.exportedAt && <span style={{fontSize: 11, color: 'var(--ink-40)'}}> · {fmtDate(fileMeta.exportedAt)}</span>}
                         </div>
                         <div style={{display: 'grid', gridTemplateColumns: 'repeat(4,1fr)', gap: 10}}>
-                            {[['Assets', summary.assets], ['Transactions', summary.transactions], ['Valuations', summary.asset_valuations], ['Ledger', summary.accrual_ledger]].map(([label, count]) => (
+                            {[['Transactions', summary.transactions], ['Portfolios', summary.portfolios], ['Watchlists', summary.watchlists], ['Recommendations', summary.recommendations]].map(([label, count]) => (
                                 <div key={label} style={{padding: '12px 14px', borderRadius: 8, background: 'rgba(255,255,255,0.025)', border: '1px solid rgba(255,255,255,0.06)', textAlign: 'center'}}>
                                     <div style={{fontFamily: 'var(--font-mono)', fontSize: 22, fontWeight: 500, color: 'var(--ink-00)', marginBottom: 4}}>{count}</div>
                                     <div style={{fontSize: 10.5, letterSpacing: '0.10em', textTransform: 'uppercase', color: 'var(--ink-40)', fontWeight: 600}}>{label}</div>
@@ -437,8 +456,8 @@ function RestoreSection() {
                             ))}
                         </div>
                         <div style={{padding: '12px 14px', borderRadius: 8, background: 'rgba(209,107,107,0.08)', border: '1px solid rgba(209,107,107,0.22)', fontSize: 12.5, color: 'var(--crimson-300)', lineHeight: 1.55}}>
-                            <strong style={{display: 'block', marginBottom: 4, color: 'var(--crimson-500)'}}>This action cannot be undone.</strong>
-                            All current transactions, valuations, and accruals will be permanently replaced.
+                            <strong style={{display: 'block', marginBottom: 4, color: 'var(--crimson-500)'}}>This adds data — it doesn't replace anything.</strong>
+                            Your current transactions, valuations, and accruals are kept; the backup's records are added on top. There's no built-in undo, and restoring the same backup a second time may fail rather than complete cleanly — avoid running it twice.
                         </div>
                         <div style={{display: 'flex', gap: 10}}>
                             <button onClick={reset} className="du3-cta ghost" style={{flex: 1}}>Cancel</button>
@@ -449,11 +468,18 @@ function RestoreSection() {
                     </div>
                 )}
 
+                {step === 'preview' && !summary && (
+                    <div style={{padding: '10px 14px', borderRadius: 8, background: 'rgba(209,107,107,0.08)', border: '1px solid rgba(209,107,107,0.22)', fontSize: 12.5, color: 'var(--crimson-400)', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12}}>
+                        <span>⚠ Could not read the preview for this backup — please try again.</span>
+                        <button onClick={reset} className="du3-cta ghost" style={{height: 26, padding: '0 10px', fontSize: 11.5, flexShrink: 0}}>Start over</button>
+                    </div>
+                )}
+
                 {step === 'importing' && (
                     <div style={{display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 12, padding: '32px 0', textAlign: 'center'}}>
                         <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="var(--aurum-100)" strokeWidth="1.8" strokeLinecap="round" style={{animation: 'spin 1s linear infinite'}}><circle cx="12" cy="12" r="9" strokeDasharray="40 80"/></svg>
                         <div style={{fontSize: 15, fontWeight: 600, color: 'var(--ink-10)'}}>Restoring your portfolio…</div>
-                        <div style={{fontSize: 12, color: 'var(--ink-40)', maxWidth: 300, lineHeight: 1.6}}>Replacing transactions, valuations, and positions. Do not close this page.</div>
+                        <div style={{fontSize: 12, color: 'var(--ink-40)', maxWidth: 300, lineHeight: 1.6}}>Adding transactions, valuations, and positions from the backup. Do not close this page.</div>
                     </div>
                 )}
 
@@ -472,7 +498,7 @@ function RestoreSection() {
                         <div onClick={e => e.stopPropagation()} style={{width: 'min(400px,92vw)', borderRadius: 14, background: 'rgba(18,20,24,0.97)', border: '1px solid rgba(255,255,255,0.10)', padding: 24, boxShadow: '0 30px 80px rgba(0,0,0,0.55)'}}>
                             <div style={{fontFamily: 'var(--font-heading)', fontSize: 17, fontWeight: 600, color: 'var(--ink-00)', marginBottom: 8}}>Restore from backup?</div>
                             <div style={{fontSize: 13, color: 'var(--ink-30)', marginBottom: 16, lineHeight: 1.5}}>
-                                Type <span style={{fontFamily: 'var(--font-mono)', color: 'var(--crimson-500)'}}>RESTORE</span> to confirm. All current data will be replaced.
+                                Type <span style={{fontFamily: 'var(--font-mono)', color: 'var(--crimson-500)'}}>RESTORE</span> to confirm. This adds the backup's data on top of what you have now — it won't replace or delete anything. Avoid restoring the same file twice.
                             </div>
                             <input value={confirmText} onChange={e => setConfirmText(e.target.value)} placeholder="Type RESTORE" style={{...settingInputStyle, marginBottom: 14}}/>
                             <div style={{display: 'flex', gap: 8}}>
