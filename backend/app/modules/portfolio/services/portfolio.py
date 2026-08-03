@@ -230,7 +230,11 @@ def resolve_position_price(session: Session, pos: Position) -> PositionPrice:
     if asset and asset.asset_class == "epf":
         return _estimate_epf_price(session, pos)
 
-    currency = infer_currency(asset.asset_class if asset else None, pos.symbol)
+    currency = infer_currency(
+        asset.asset_class if asset else None,
+        pos.symbol,
+        asset.metadata_payload if asset else None,
+    )
 
     quote = session.scalar(select(LatestQuote).filter_by(symbol=pos.symbol))
     if quote and quote.price is not None:
@@ -791,6 +795,7 @@ class PortfolioService(BaseService):
 
         assets = self.session.query(Asset).filter(Asset.symbol.in_(symbols)).all()
         asset_class_by_symbol = {a.symbol: a.asset_class for a in assets}
+        asset_metadata_by_symbol = {a.symbol: a.metadata_payload for a in assets}
 
         price_rows = (
             self.session.query(PriceHistory)
@@ -850,7 +855,9 @@ class PortfolioService(BaseService):
                 price = price_as_of(symbol, day)
                 if price is None:
                     continue
-                currency = infer_currency(asset_class_by_symbol.get(symbol), symbol)
+                currency = infer_currency(
+                    asset_class_by_symbol.get(symbol), symbol, asset_metadata_by_symbol.get(symbol)
+                )
                 value += to_inr(qty * price, currency)
                 contributed = True
             if contributed:

@@ -1,6 +1,6 @@
 from datetime import datetime, timedelta, timezone
 from decimal import Decimal
-from typing import List
+from typing import Any, List
 
 from app.core.config import settings
 from app.core.exceptions import ConfigurationError, ProviderError
@@ -93,6 +93,42 @@ class FinnhubAdapter(MarketDataProvider):
             raise
         except Exception as e:
             raise ProviderError(f"Finnhub get_news failed for {symbol}: {e}") from e
+
+    def get_fundamentals(self, symbol: str) -> dict[str, Any]:
+        """stock/profile2 — confirmed live on the free tier (unlike candle/
+        historical OHLCV, which is paid-only, see get_price_history below).
+        Only company-profile fields, no valuation ratios (P/E, ROE, etc.) —
+        finnhubIndustry is the closest thing to a sector field this endpoint
+        offers."""
+        api_key = self._resolved_key()
+        if not api_key or api_key == "your_finnhub_api_key" or api_key.lower() == "none":
+            raise ConfigurationError("Finnhub API key is not configured")
+        try:
+            res = http_client.get(
+                "Finnhub", "https://finnhub.io/api/v1/stock/profile2",
+                params={"symbol": symbol, "token": api_key},
+                timeout=10
+            )
+            res.raise_for_status()
+            data = res.json()
+            if not data:
+                raise ProviderError(f"No fundamentals returned from Finnhub for symbol {symbol}")
+            return {
+                "market_cap": data.get("marketCapitalization"),
+                "sector": data.get("finnhubIndustry"),
+                "industry": data.get("finnhubIndustry"),
+            }
+        except ProviderError:
+            raise
+        except Exception as e:
+            raise ProviderError(f"Finnhub get_fundamentals failed for {symbol}: {e}") from e
+
+    # get_price_history is deliberately not implemented: stock/candle (the
+    # only historical-OHLCV endpoint Finnhub offers) returned
+    # {"error":"You don't have access to this resource."} live on this
+    # free-tier key — it's paid-tier only, confirmed 2026-08-01, not assumed
+    # from docs. The base MarketDataProvider.get_price_history's
+    # NotImplementedError is the honest behavior here.
 
     def health_check(self) -> bool:
         api_key = self._resolved_key()

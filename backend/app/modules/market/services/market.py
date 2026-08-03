@@ -161,15 +161,49 @@ def infer_exchange_region(symbol: str) -> tuple[str, str]:
     return "NASDAQ", "US"
 
 
-def infer_currency(asset_class: Optional[str], symbol: str) -> str:
+# Exchange suffix -> currency for the single-currency exchanges added in
+# Phase D (Japan/HK/Europe) — live-confirmed real currency per market
+# (7203.T=JPY, 0700.HK=HKD, ASML.AS/SAP.DE/MC.PA=EUR, etc.). London (.L) is
+# deliberately excluded: live-tested to NOT be a reliable single currency
+# (ordinary equities quote in GBp/pence, some ETFs in GBP, others in USD —
+# see Phase D investigation) — so .L has no suffix-based entry here and
+# always needs the real per-symbol resolution below.
+_SUFFIX_CURRENCY: dict[str, str] = {
+    ".T": "JPY", ".HK": "HKD",
+    ".DE": "EUR", ".PA": "EUR", ".AS": "EUR", ".MI": "EUR", ".MC": "EUR",
+    ".BR": "EUR", ".LS": "EUR", ".VI": "EUR", ".HE": "EUR",
+    ".ST": "SEK", ".CO": "DKK", ".OL": "NOK", ".SW": "CHF",
+}
+
+
+def infer_currency(asset_class: Optional[str], symbol: str, metadata: Optional[dict[str, Any]] = None) -> str:
     """EPF/NPS/mutual_fund symbols (EPF-<uan>, NPS-<pran>-<letter>-T<tier>,
     <isin>_MF) carry no currency-bearing suffix the way equities (.NS/.BO) or
     crypto (-USD) do, so asset_class must be checked before falling back to
-    infer_exchange_region's suffix rules."""
+    infer_exchange_region's suffix rules.
+
+    `metadata` is the asset's Asset.metadata_payload, when the caller has it
+    loaded — a real provider-resolved currency there (persisted by
+    IngestionRepository.update_asset_currency on quote ingestion) always wins
+    over the suffix heuristic below, since a suffix alone cannot reliably
+    determine currency for exchanges like LSE (.L) that mix GBp/GBP/USD
+    per-symbol (see Phase D investigation). The heuristic is only a fallback
+    for assets that haven't had a quote ingested yet."""
+    if metadata and metadata.get("currency"):
+        return metadata["currency"]
     if asset_class in ("epf", "nps", "mutual_fund"):
         return "INR"
     if symbol.endswith(".NS") or symbol.endswith(".BO"):
         return "INR"
+    for suffix, currency in _SUFFIX_CURRENCY.items():
+        if symbol.endswith(suffix):
+            return currency
+    if symbol.endswith(".L"):
+        # Best-effort pre-metadata default (majority case, live-confirmed) —
+        # corrected to the real resolved currency (GBP/USD/...) as soon as
+        # this symbol's first quote is ingested. Never guessed once metadata
+        # is present (see the metadata check above).
+        return "GBP"
     return "USD"
 
 
@@ -599,6 +633,19 @@ class MarketService(BaseService):
     def search(self, q: str) -> list[dict[str, Any]]:
         q_clean = q.upper().strip()
         assets = self.repo.search_assets(q_clean, q, limit=10)
+
+        if not assets:
+            # Phase D lazy on-demand tracking: no DB match, but the query
+            # might be a real, not-yet-seen symbol — resolve it in the
+            # background (see resolve_and_track_symbol's docstring for why
+            # this must stay async: a live provider call measured 0.3-8s here
+            # would block the search response the user is already looking
+            # at). Dispatched from the service layer, not the API route,
+            # since both /market/search and /assets ultimately call this same
+            # method and shouldn't duplicate the check.
+            from app.workers.ingestion.tasks import looks_like_symbol, resolve_and_track_symbol
+            if looks_like_symbol(q_clean):
+                resolve_and_track_symbol.delay(q_clean)
 
         results = []
         for a in assets:

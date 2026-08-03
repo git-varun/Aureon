@@ -554,6 +554,29 @@ def release_reset_lock(token: str) -> None:
         client.delete(RESET_LOCK_KEY)
 
 
+def get_provider_budget_key(provider_name: str, window_seconds: int) -> str:
+    import time
+    bucket = int(time.time() // window_seconds)
+    return f"provider_budget:{provider_name}:{window_seconds}:{bucket}"
+
+
+def try_consume_provider_budget(provider_name: str, limit: int, window_seconds: int) -> bool:
+    """Fixed-window call counter for rate-limit-constrained market data providers
+    (twelvedata's 8 calls/minute, alphavantage's 25 calls/day — see their
+    adapters' _check_budget). INCR+EXPIRE is a fixed window, not a sliding one —
+    good enough for "stay under X calls per window", not exact-to-the-second.
+    No error swallowing: a Redis outage should surface the same way
+    try_acquire_job_lock's does, so the adapter treats it like any other
+    provider-unavailable failure rather than silently letting every call
+    through unmetered."""
+    client = get_redis_client()
+    key = get_provider_budget_key(provider_name, window_seconds)
+    count = client.incr(key)
+    if count == 1:
+        client.expire(key, window_seconds)
+    return count <= limit
+
+
 def get_backup_receipt_key() -> str:
     return "backup:receipt"
 

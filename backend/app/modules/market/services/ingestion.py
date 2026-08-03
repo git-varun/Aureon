@@ -16,6 +16,7 @@ class QuoteIngestionService(BaseService):
 
         asset = self.repo.get_or_create_asset(quote.symbol)
         self.repo.upsert_quote(quote, asset.id)
+        self.repo.update_asset_currency(asset.id, quote.currency)
         self.repo.session.commit()
 
         try:

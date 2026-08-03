@@ -1,4 +1,5 @@
 import functools
+import re
 
 from celery import shared_task
 
@@ -10,7 +11,7 @@ from app.core.redis import cache_quote
 # Provider names ingest_quote accepts — resolution itself always goes through
 # ProviderFactory -> ProviderRegistry -> ProviderProtocol (see ingest_quote below);
 # this set only preserves the original "unknown provider" validation surface.
-_MARKET_DATA_PROVIDERS = {"finnhub", "polygon", "yahoo", "binance_price"}
+_MARKET_DATA_PROVIDERS = {"finnhub", "polygon", "yahoo", "binance_price", "nse_direct", "twelvedata", "alphavantage", "coingecko"}
 
 # Asset classes with no ISIN/ticker coverage on Yahoo — routing them through the
 # generic ingest_all_quotes fan-out just generates an hourly ProviderError per
@@ -22,6 +23,18 @@ _NO_YAHOO_COVERAGE_ASSET_CLASSES = {"mutual_fund", "nps", "epf"}
 # create_manual_asset) use a free-text asset_class, so they're excluded by
 # symbol prefix below rather than added to the class set above.
 
+
+def _skip_quote_ingestion(symbol: str, asset_class: str | None) -> bool:
+    """Single source of truth for "should this (symbol, asset_class) be
+    skipped before ever reaching resolve_quote_provider" — shared by every
+    quote-ingestion dispatch loop (ingest_all_quotes, refresh_tracked_universe_task)
+    so a class/prefix excluded from one is excluded from all of them. Routing
+    a mutual_fund/nps/epf/MANUAL- symbol into resolve_quote_provider's `else`
+    branch would guaranteed-fail against finnhub every cycle — see
+    _NO_YAHOO_COVERAGE_ASSET_CLASSES above for why these have no real-time
+    quote source at all (NAV/statement-import paths handle them instead)."""
+    return asset_class in _NO_YAHOO_COVERAGE_ASSET_CLASSES or symbol.startswith("MANUAL-")
+
 # Ordered fallback candidates per primary provider, tried on a ProviderError
 # from the one before it (see get_fallback_chain usage in ingest_quote below).
 # Yahoo covers global equity/crypto-spot symbols; Finnhub/Polygon are US-quote
@@ -30,9 +43,88 @@ _NO_YAHOO_COVERAGE_ASSET_CLASSES = {"mutual_fund", "nps", "epf"}
 # strict improvement over "no fallback at all" for those. binance_price has no
 # listed fallback: crypto-futures symbols (e.g. BTCUSDT-USDM) don't resolve on
 # any other registered provider, so there's nothing sensible to fall through to.
+# nse_direct falls back to yahoo (still needed for fundamentals/sector either
+# way, and covers .NS symbols too) rather than finnhub/polygon, which have no
+# Indian-equity coverage at all.
+# finnhub is primary for global (non-.NS/.BO) equities as of Phase B, with
+# twelvedata/alphavantage/yahoo as fallbacks in that order — live-tested free-
+# tier budgets (finnhub 60/min, twelvedata 8/min, alphavantage 25/day) drove
+# the ordering, not alphabetical/arbitrary placement. yahoo stays last (not
+# removed) as the unlimited, always-available final fallback.
+# coingecko falls back to yahoo (yfinance genuinely serves BTC-USD-style
+# tickers) rather than finnhub/twelvedata/alphavantage, which are equity-only
+# and were confirmed live to return a zero/garbage price for crypto symbols.
 _QUOTE_FALLBACK_CANDIDATES: dict[str, list[str]] = {
     "yahoo": ["finnhub", "polygon"],
+    "nse_direct": ["yahoo"],
+    "finnhub": ["twelvedata", "alphavantage", "yahoo"],
+    "coingecko": ["yahoo"],
 }
+
+# Japan/Hong Kong/Europe exchange suffixes — live-tested (Phase D investigation,
+# 207/207 correctly-formatted symbols resolved across these exact suffixes) to
+# have real, reliable yahoo coverage, while finnhub/twelvedata/alphavantage are
+# all confirmed free-tier-US-only (see twelvedata/provider.py's _reject_india-
+# adjacent comment for the same finding on that adapter). Routing these straight
+# to yahoo avoids burning three guaranteed ProviderErrors (plus twelvedata's
+# 8/min budget) per symbol before reaching the provider that actually works —
+# the same class of waste the crypto/finnhub fix above addressed.
+_JP_HK_EUROPE_SUFFIXES = (
+    ".T", ".HK", ".DE", ".PA", ".AS", ".MI", ".MC", ".ST", ".CO", ".HE",
+    ".BR", ".LS", ".VI", ".OL", ".SW", ".L",
+)
+
+
+# Cheap local gate before spending a live provider call on a search query —
+# deliberately permissive (real tickers/suffixes are short, alnum, at most one
+# hyphen segment and one dot-suffix) rather than trying to enumerate every
+# valid exchange suffix; a query that fails this never reaches a provider,
+# one that passes still has to resolve for real (see resolve_and_track_symbol)
+# before anything is created/tracked.
+_PLAUSIBLE_SYMBOL_RE = re.compile(r"^[A-Z0-9]{1,12}(-[A-Z0-9]{1,10})?(\.[A-Z]{1,4})?$")
+
+
+def looks_like_symbol(query: str) -> bool:
+    return bool(_PLAUSIBLE_SYMBOL_RE.match(query))
+
+
+def resolve_quote_provider(symbol: str, asset_class: str | None) -> str:
+    """Single source of truth for "which provider should ingest this symbol's
+    quote" — used by both ingest_all_quotes (the hourly held/watchlisted
+    refresh) and the tracked-universe seed/refresh tasks, so the two can never
+    drift the way a duplicated if/elif chain eventually would (see Phase C's
+    crypto/finnhub fix, which was exactly this class of bug)."""
+    if asset_class == "crypto_futures":
+        return "binance_price"
+    if asset_class in ("crypto", "stablecoin"):
+        # Spot crypto/stablecoin ({ASSET}-USD, Binance spot/earn sync) —
+        # previously fell into the equity `else` bucket below and got
+        # routed to finnhub, which returns a zero price for crypto
+        # symbols (confirmed live) and wastefully cascaded through the
+        # whole equity fallback chain before landing on yahoo.
+        return "coingecko"
+    if symbol.endswith(".NS"):
+        return "nse_direct"
+    if symbol.endswith(".BO"):
+        # BSE-only listings: no coverage on nse_direct (NSE-only) or on
+        # finnhub/twelvedata/alphavantage (all live-tested as US-listed-
+        # only on their free tiers) — yahoo remains the only real source.
+        return "yahoo"
+    if symbol.endswith(_JP_HK_EUROPE_SUFFIXES):
+        return "yahoo"
+    return "finnhub"
+
+
+def _yahoo_can_serve_crypto_symbol(symbol: str) -> bool:
+    """True only for curated-ticker crypto symbols (e.g. BTC-USD) that Yahoo
+    Finance actually recognizes. Non-curated tracked-universe coins are
+    stored under their raw CoinGecko id (e.g. leo-token-USD, hash-2-USD, see
+    coingecko/provider.py's _coin_id) — Yahoo has no notion of these ids and
+    404s on them deterministically, so they're never a valid yahoo fallback
+    target."""
+    from app.modules.market.providers.market_data.coingecko.provider import SYMBOL_TO_COINGECKO_ID
+    raw = symbol.removesuffix("-USD")
+    return raw.upper() in SYMBOL_TO_COINGECKO_ID
 
 
 @with_retry()
@@ -90,8 +182,16 @@ def ingest_quote(provider_name: str, symbol: str) -> bool:
     db = SessionLocal()
     try:
         ingestion_svc = QuoteIngestionService(IngestionRepository(db))
+        last_attempted_provider = provider_name
         try:
             candidate_names = [provider_name] + _QUOTE_FALLBACK_CANDIDATES.get(provider_name, [])
+            if provider_name == "coingecko" and not _yahoo_can_serve_crypto_symbol(symbol):
+                # Aureon stores non-curated crypto assets under their raw
+                # CoinGecko id (e.g. "leo-token-USD", "hash-2-USD") — Yahoo has
+                # no notion of these ids and 404s on them deterministically, so
+                # falling back to it here isn't a real fallback, just a doomed
+                # retry that masks a genuine coingecko-only outage as "handled".
+                candidate_names = [c for c in candidate_names if c != "yahoo"]
             chain = ProviderFactory(ConfigService(ConfigRepository(db))).get_fallback_chain(candidate_names)
             if not chain:
                 raise ProviderError(f"No available provider for '{provider_name}' or its fallbacks")
@@ -100,6 +200,7 @@ def ingest_quote(provider_name: str, symbol: str) -> bool:
             used_provider = provider_name
             last_error: Exception | None = None
             for adapter in chain:
+                last_attempted_provider = adapter.provider_name
                 try:
                     quote = _get_quote_with_retry(adapter, symbol)
                     used_provider = adapter.provider_name
@@ -131,7 +232,12 @@ def ingest_quote(provider_name: str, symbol: str) -> bool:
 
         except Exception as e:
             db.rollback()
-            ingestion_svc.record_failure(provider_name, symbol, str(e))
+            # Record whichever adapter actually produced the failure (the last
+            # one attempted), not the originally-requested provider_name — a
+            # coingecko request that fails over to yahoo and fails there too
+            # must not be logged as a coingecko failure carrying yahoo's error
+            # text, which would mislead any future debugging off this table.
+            ingestion_svc.record_failure(last_attempted_provider, symbol, str(e))
             raise
     finally:
         db.close()
@@ -151,9 +257,9 @@ def ingest_all_quotes() -> None:
         logger.info("ingest_all_quotes: nothing held or watchlisted yet, skipping")
         return
     for symbol, asset_class in assets:
-        if asset_class in _NO_YAHOO_COVERAGE_ASSET_CLASSES or symbol.startswith("MANUAL-"):
+        if _skip_quote_ingestion(symbol, asset_class):
             continue
-        provider_name = "binance_price" if asset_class == "crypto_futures" else "yahoo"
+        provider_name = resolve_quote_provider(symbol, asset_class)
         ingest_quote.delay(provider_name, symbol)
 
 
@@ -511,6 +617,100 @@ def seed_price_history_task(log_id: int | None = None, **kwargs) -> None:
     _wrap_job_execution("seed_price_history", log_id, _run)
 
 
+@shared_task(name="app.workers.ingestion.tasks.seed_tracked_universes_task")
+@_skip_if_disabled("seed_tracked_universes")
+def seed_tracked_universes_task(log_id: int | None = None, **kwargs) -> None:
+    """Rare/manual "Run Now" job (see _DEFAULT_JOBS — enabled=False by default,
+    not on celery_app.py's beat_schedule) that seeds the 6 curated index-based
+    tracked universes (Phase D) — deliberately not automatic, since it's a
+    one-time (or occasional) bulk operation, unlike every other JobConfig
+    entry here."""
+    def _run():
+        from app.modules.ai.services.data_maintenance import IndexUniverseSeedService
+        from app.modules.market.repositories.ingestion import IngestionRepository
+        from app.modules.market.repositories.market import MarketRepository
+
+        db = SessionLocal()
+        try:
+            IndexUniverseSeedService(IngestionRepository(db), MarketRepository(db)).seed_tracked_universes()
+        finally:
+            db.close()
+    _wrap_job_execution("seed_tracked_universes", log_id, _run)
+
+
+@shared_task(name="app.workers.ingestion.tasks.refresh_tracked_universe_task")
+@_skip_if_disabled("refresh_tracked_universe")
+def refresh_tracked_universe_task(log_id: int | None = None, **kwargs) -> None:
+    """Daily refresh for is_tracked assets NOT already covered by the hourly
+    held/watchlisted refresh (ingest_all_quotes) — kept on its own, much
+    slower cadence specifically so a ~500-asset tracked universe never adds
+    hourly load to that hot path (see list_tracked_symbols_for_refresh)."""
+    def _run():
+        from app.modules.market.repositories.ingestion import IngestionRepository
+
+        db = SessionLocal()
+        try:
+            assets = IngestionRepository(db).list_tracked_symbols_for_refresh()
+        finally:
+            db.close()
+
+        if not assets:
+            logger.info("refresh_tracked_universe: nothing tracked yet, skipping")
+            return
+        for symbol, asset_class in assets:
+            if _skip_quote_ingestion(symbol, asset_class):
+                continue
+            provider_name = resolve_quote_provider(symbol, asset_class)
+            ingest_quote.delay(provider_name, symbol)
+    _wrap_job_execution("refresh_tracked_universe", log_id, _run)
+
+
+@shared_task(name="app.workers.ingestion.tasks.resolve_and_track_symbol")
+def resolve_and_track_symbol(query: str) -> None:
+    """Phase D lazy on-demand tracking: dispatched fire-and-forget by
+    MarketService.search() when a search query has no DB match and passes
+    looks_like_symbol's plausibility gate. Runs async specifically so a live
+    provider call (measured 0.3-8s for yahoo alone) never blocks the search
+    response the user is already looking at — the symbol becomes trackable on
+    a later search, not this one.
+
+    Only creates/tracks the Asset on a real successful quote (via the same
+    ingest_quote/resolve_quote_provider path everything else uses) — a query
+    that doesn't resolve on any provider is never tracked, no-fake-data:
+    a failed lookup surfaces as "no results", not a placeholder asset."""
+    symbol = query.upper().strip()
+    if not looks_like_symbol(symbol):
+        return
+
+    provider_name = "coingecko" if symbol.endswith("-USD") else resolve_quote_provider(symbol, None)
+
+    try:
+        ingest_quote(provider_name, symbol)
+    except Exception as e:
+        logger.info(f"resolve_and_track_symbol: {symbol} did not resolve via {provider_name}, not tracked: {e}")
+        return
+
+    db = SessionLocal()
+    try:
+        from app.modules.market.entities.market import Asset
+        from app.modules.market.repositories.ingestion import IngestionRepository
+        from app.modules.market.repositories.market import MarketRepository
+        from app.modules.ai.services.data_maintenance import IndexUniverseSeedService
+
+        asset = db.query(Asset).filter_by(symbol=symbol).first()
+        if not asset:
+            logger.warning(f"resolve_and_track_symbol: {symbol} quoted OK but no Asset row found")
+            return
+        asset.is_tracked = True
+        db.commit()
+
+        seed_svc = IndexUniverseSeedService(IngestionRepository(db), MarketRepository(db))
+        rows = seed_svc.backfill_history(asset, symbol, provider_name)
+        logger.info(f"resolve_and_track_symbol: tracked {symbol} via {provider_name}, {rows} history rows backfilled")
+    finally:
+        db.close()
+
+
 @shared_task(name="app.workers.ingestion.tasks.admin_reprocess_all_assets")
 def admin_reprocess_all_assets(log_id: int | None = None, **kwargs) -> None:
     def _run():
@@ -586,6 +786,13 @@ def refresh_fundamentals_task(log_id: int | None = None, **kwargs) -> None:
                 adapter = ProviderFactory(ConfigService(ConfigRepository(db))).get("yahoo")
                 fundamentals = adapter.get_fundamentals(symbol)
                 AssetFundamentalsRepository(db).upsert(asset_id, fundamentals)
+                # sector/industry ride along on the same ticker.info call this task
+                # already makes — persisted into Asset.metadata so get_sector_detail
+                # (market.py) has something real to query instead of its old
+                # hardcoded, never-matching fallback map.
+                IngestionRepository(db).update_asset_sector(
+                    asset_id, fundamentals.get("sector"), fundamentals.get("industry")
+                )
                 db.commit()
             except ProviderError as e:
                 # Isolated per-symbol failure (e.g. yfinance has no fundamentals
@@ -644,15 +851,24 @@ def refresh_mutual_fund_navs_task(log_id: int | None = None, **kwargs) -> None:
                 if nav is None:
                     unmatched.append(symbol)
                     continue
+                nav_timestamp = datetime.now(timezone.utc)
                 repo.upsert_quote(
                     NormalizedQuote(
                         symbol=symbol,
                         provider="mfapi",
-                        timestamp=datetime.now(timezone.utc),
+                        timestamp=nav_timestamp,
                         price=nav,
                     ),
                     asset_id,
                 )
+                # Forward-only: latest_quotes always held today's real NAV, but
+                # price_history was never appended, so day-over-day change/charts/
+                # theme NAV compositing were permanently empty for every mutual
+                # fund. No historical backfill is possible — AMFI's daily NAV feed
+                # was never captured before this line existed, so there's nothing
+                # to reconstruct; price_history for MFs starts accumulating from
+                # whenever this fix first runs.
+                repo.record_price_history(asset_id, symbol, nav, nav_timestamp)
                 matched += 1
             db.commit()
         finally:

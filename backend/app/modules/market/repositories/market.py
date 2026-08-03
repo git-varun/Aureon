@@ -42,6 +42,7 @@ class MarketRepository(BaseRepository):
         return (
             self.session.query(Asset)
             .filter(or_(Asset.symbol.contains(q_clean), Asset.name.contains(q_raw)))
+            .order_by(Asset.symbol != q_clean)
             .limit(limit)
             .all()
         )

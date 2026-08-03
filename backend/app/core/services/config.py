@@ -116,13 +116,23 @@ _DEFAULT_PROVIDERS = [
     {"provider_name": "finnhub", "provider_type": "news", "key_names": '["api_key"]', "status": "ACTIVE", "capabilities": '["PRICE","NEWS","FUNDAMENTALS"]', "priority": 20},
     {"provider_name": "polygon", "provider_type": "price", "key_names": '["api_key"]', "status": "ACTIVE", "capabilities": '["PRICE","OHLC","CORPORATE_ACTIONS"]', "priority": 25},
     {"provider_name": "newsapi", "provider_type": "news", "key_names": '["api_key"]', "status": "PLANNED", "capabilities": "[]"},
-    {"provider_name": "alphavantage", "provider_type": "news", "key_names": '["api_key"]', "status": "PLANNED", "capabilities": "[]"},
+    # Global-equity price providers (Phase B) — same fallback-chain shape as
+    # nse_direct in Phase A. Priority order reflects live-tested free-tier
+    # budgets: finnhub's 60/min dwarfs twelvedata's 8/min and alphavantage's
+    # 25/day, so finnhub is primary and the other two are held in reserve.
+    {"provider_name": "twelvedata", "provider_type": "price", "key_names": '["api_key"]', "status": "ACTIVE", "capabilities": '["PRICE","OHLC","FUNDAMENTALS"]', "priority": 21},
+    {"provider_name": "alphavantage", "provider_type": "price", "key_names": '["api_key"]', "status": "ACTIVE", "capabilities": '["PRICE","OHLC","FUNDAMENTALS"]', "priority": 22},
     {"provider_name": "binance_price", "provider_type": "price", "key_names": '[]', "status": "ACTIVE", "capabilities": '["PRICE","OHLC"]', "priority": 15},
+    # Primary price source for India-classified (.NS) equities — see
+    # NseDirectAdapter docstring for why prices are unadjusted-going-forward.
+    {"provider_name": "nse_direct", "provider_type": "price", "key_names": '[]', "status": "ACTIVE", "capabilities": '["PRICE"]', "priority": 5},
     # Was seeded as "yfinance" — renamed to "yahoo" to match YahooAdapter.provider_name
     # (the registry key every other lookup uses). See migration a3f1c9d02b4e's follow-up
     # data fix and docs/architecture/provider-registry.md breaking-change notes.
     {"provider_name": "yahoo", "provider_type": "price", "key_names": '[]', "status": "ACTIVE", "capabilities": '["PRICE","NEWS","SEARCH"]', "priority": 30},
-    {"provider_name": "coingecko", "provider_type": "price", "key_names": '["api_key"]', "status": "PLANNED", "capabilities": "[]"},
+    # Primary price/fundamentals-equivalent source for spot crypto/stablecoin
+    # assets (Phase C) — no key required for the anonymous free tier used here.
+    {"provider_name": "coingecko", "provider_type": "price", "key_names": '[]', "status": "ACTIVE", "capabilities": '["PRICE","OHLC","FUNDAMENTALS"]', "priority": 16},
     {"provider_name": "coinmarketcap", "provider_type": "price", "key_names": '["api_key"]', "status": "PLANNED", "capabilities": "[]"},
     {"provider_name": "mfapi", "provider_type": "price", "key_names": '[]', "status": "ACTIVE", "capabilities": '["PRICE"]', "priority": 40},
     {"provider_name": "telegram", "provider_type": "notification", "key_names": '["bot_token","chat_id"]', "status": "PLANNED", "capabilities": "[]"},
@@ -166,6 +176,10 @@ _DEFAULT_JOBS = [
     {"job_name": "monthly_briefing", "enabled": True, "job_tier": "user"},
     {"job_name": "seed_price_history", "enabled": True, "job_tier": "user"},
     {"job_name": "validate_data_quality", "enabled": True, "job_tier": "system"},
+    # Rare/manual bulk operation — off by default, no beat_schedule entry
+    # (see celery_app.py); the user runs it deliberately via "Run Now".
+    {"job_name": "seed_tracked_universes", "enabled": False, "job_tier": "user"},
+    {"job_name": "refresh_tracked_universe", "enabled": True, "job_tier": "user"},
 ]
 
 
@@ -447,6 +461,8 @@ class ConfigService(BaseService):
         "monthly_briefing": "app.workers.ingestion.tasks.monthly_briefing_task",
         "seed_price_history": "app.workers.ingestion.tasks.seed_price_history_task",
         "validate_data_quality": "app.workers.ingestion.tasks.validate_data_quality_task",
+        "seed_tracked_universes": "app.workers.ingestion.tasks.seed_tracked_universes_task",
+        "refresh_tracked_universe": "app.workers.ingestion.tasks.refresh_tracked_universe_task",
         "admin_reprocess_all": "app.workers.ingestion.tasks.admin_reprocess_all_assets",
         "admin_repair": "app.workers.ingestion.tasks.admin_repair_jobs",
     }

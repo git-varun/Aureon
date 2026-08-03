@@ -6,7 +6,7 @@ from app.core.binance import WALLET_SUFFIXES
 from app.core.exceptions import NotFoundError, ProviderError
 from app.core.redis import get_cached_quote
 from app.core.services.base import BaseService
-from app.modules.market.services.market import MarketService, classify
+from app.modules.market.services.market import MarketService, classify, infer_currency
 from app.modules.market.repositories.assets import AssetsRepository
 from app.modules.market.repositories.asset_fundamentals import AssetFundamentalsRepository
 
@@ -361,4 +361,5 @@ class AssetsService(BaseService):
             "class": classify(asset_class, ticker),
             "sector": sector,
             "spark": spark,
+            "currency": infer_currency(asset_class, ticker, metadata),
         }

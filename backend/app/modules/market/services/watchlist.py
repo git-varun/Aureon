@@ -62,7 +62,9 @@ def _fetch_asset_info(session: Session, symbols: set[str]) -> dict[str, dict]:
             "currentPrice": price,
             "previousClose": _previous_close(history),
             "assetType": asset.asset_class if asset else "equity",
-            "currency": infer_currency(asset.asset_class if asset else None, sym),
+            "currency": infer_currency(
+                asset.asset_class if asset else None, sym, asset.metadata_payload if asset else None
+            ),
             "spark": spark,
         }
     return result

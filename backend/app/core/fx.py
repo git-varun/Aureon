@@ -19,6 +19,14 @@ FX_TO_INR = {
     "GBP": 105.4,
     "AED": 22.65,
     "JPY": 1 / 1.78,
+    # Added for Phase D (Japan/HK/Europe tracked universes) — fallback
+    # constants only, same as the rest of this dict; the live fetch below
+    # supersedes these whenever open.er-api.com is reachable.
+    "HKD": 10.65,
+    "CHF": 103.9,
+    "SEK": 8.8,
+    "DKK": 12.15,
+    "NOK": 8.2,
 }
 
 

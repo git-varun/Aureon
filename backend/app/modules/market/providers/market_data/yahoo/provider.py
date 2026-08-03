@@ -34,6 +34,26 @@ def _calculate_macd(series: pd.Series, fast: int = 12, slow: int = 26, signal: i
     return macd_line, signal_line, macd_line - signal_line
 
 
+# LSE (and a handful of other UK-linked listings) quote in pence, not pounds —
+# confirmed live: 20/20 sampled ordinary .L equities (SHEL, AZN, HSBA, VOD,
+# BARC, LLOY, ...) return currency "GBp"/"GBX" with price in pence, but some
+# LSE-listed ETFs (VWRL.L, VUSA.L) are already GBP, and others (CSPX.L) are
+# USD outright — the ".L" suffix alone does not determine the unit, so this
+# must be resolved from the real per-symbol currency Yahoo returns, never
+# assumed from the exchange suffix (see Phase D investigation).
+_PENCE_CURRENCIES = {"GBp", "GBX"}
+
+
+def _normalize_pence(price: float, currency: str | None) -> tuple[float, str | None]:
+    """Returns (price, currency) with pence-denominated quotes converted to
+    pounds — otherwise a portfolio value computed from a raw GBp price would
+    be silently wrong by 100x. Any other currency (or an unresolved one) is
+    passed through unchanged."""
+    if currency in _PENCE_CURRENCIES:
+        return price / 100, "GBP"
+    return price, currency
+
+
 def _parse_yahoo_news_item(item: dict, provider_name: str) -> NormalizedNews | None:
     # Support both current format (item["content"]) and legacy flat format
     content = item.get("content") or item
@@ -98,13 +118,15 @@ class YahooAdapter(MarketDataProvider):
             )
             if not price:
                 raise ProviderError(f"No price returned by Yahoo Finance for symbol {symbol}")
+            price, currency = _normalize_pence(price, info.get("currency"))
             volume = info.get("regularMarketVolume") or info.get("volume") or 0
             return NormalizedQuote(
                 symbol=symbol,
                 provider=self.provider_name,
                 timestamp=datetime.now(timezone.utc),
                 price=Decimal(str(price)),
-                volume=Decimal(str(volume)) if volume else None
+                volume=Decimal(str(volume)) if volume else None,
+                currency=currency,
             )
         except ProviderError:
             raise
@@ -202,6 +224,11 @@ class YahooAdapter(MarketDataProvider):
         try:
             ticker = yf.Ticker(symbol)
             info = ticker.info
+            # Note: info["marketCap"] is confirmed live to already be in true
+            # currency units (GBP) even for GBp/pence-quoted symbols like
+            # SHEL.L/AZN.L (shares outstanding * pence-price / 100 matches it
+            # almost exactly) — unlike currentPrice/regularMarketPrice, which
+            # genuinely are in pence. Do not apply _normalize_pence() here.
             return {
                 "trailing_pe": info.get("trailingPE"),
                 "forward_pe": info.get("forwardPE"),
@@ -224,12 +251,18 @@ class YahooAdapter(MarketDataProvider):
         try:
             ticker = yf.Ticker(symbol)
             hist = ticker.history(period=period, interval=interval)
+            # Cheap metadata-only call (no historical data refetch) — needed to
+            # normalize GBp/GBX-denominated history the same way get_quote()
+            # normalizes the live price, so a chart/day-change calc never mixes
+            # a pence-scale historical close against a pounds-scale live quote.
+            currency = ticker.fast_info.get("currency")
         except Exception as e:
             raise ProviderError(f"Yahoo get_price_history failed for {symbol}: {e}") from e
 
         if hist.empty:
             return []
 
+        divisor = 100 if currency in _PENCE_CURRENCIES else 1
         rows = []
         for ts, row in hist.iterrows():
             close_price = row.get("Close")
@@ -238,7 +271,7 @@ class YahooAdapter(MarketDataProvider):
             volume = row.get("Volume")
             rows.append({
                 "timestamp": ts.to_pydatetime(),
-                "close": float(close_price),
+                "close": float(close_price) / divisor,
                 "volume": float(volume) if volume else None,
             })
         return rows

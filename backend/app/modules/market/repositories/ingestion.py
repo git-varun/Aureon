@@ -4,7 +4,7 @@ from datetime import datetime, timezone
 from sqlalchemy import or_, select
 from sqlalchemy.dialects.postgresql import insert
 
-from app.modules.market.entities.market import Asset, LatestQuote
+from app.modules.market.entities.market import Asset, AssetSnapshot, LatestQuote, PriceHistory
 from app.modules.market.entities.watchlist import WatchlistSymbol
 from app.modules.portfolio.entities.portfolio import Position
 from app.core.entities.system import FailedIngestion, Provider, ProviderUsage
@@ -75,12 +75,100 @@ class IngestionRepository(BaseRepository):
         )
         self.session.execute(stmt)
 
+    def record_price_history(self, asset_id: uuid.UUID, symbol: str, price, timestamp: datetime) -> None:
+        """Deterministic id (symbol + date), same pattern as MarketSeedService.seed_price_history
+        (app/modules/ai/services/data_maintenance.py) — on_conflict_do_nothing means calling this
+        more than once for the same symbol+day is safe (no duplicate rows)."""
+        stmt = insert(PriceHistory).values(
+            id=uuid.uuid5(uuid.NAMESPACE_DNS, f"{symbol}-{timestamp.date()}"),
+            asset_id=asset_id,
+            symbol=symbol,
+            price=price,
+            timestamp=timestamp,
+        )
+        stmt = stmt.on_conflict_do_nothing(index_elements=["id"])
+        self.session.execute(stmt)
+
+    def update_asset_currency(self, asset_id: uuid.UUID, currency: str | None) -> None:
+        """Merges a provider-resolved real currency into Asset.metadata_payload
+        (same merge pattern as update_asset_sector) — only written when the
+        provider actually resolved one (e.g. yahoo's per-symbol GBp/GBP/USD
+        resolution for LSE-listed symbols; see Phase D investigation), never a
+        suffix-based guess. infer_currency() prefers this once present."""
+        if currency is None:
+            return
+        asset = self.session.get(Asset, asset_id)
+        if not asset:
+            return
+        payload = dict(asset.metadata_payload or {})
+        payload["currency"] = currency
+        asset.metadata_payload = payload
+
+    def update_asset_sector(self, asset_id: uuid.UUID, sector: str | None, industry: str | None) -> None:
+        """Merges sector/industry into Asset.metadata_payload (JSON column named
+        'metadata') without clobbering any other keys already there. Only writes
+        when the provider actually returned something real for at least one of
+        the two — never writes a placeholder key, since callers (get_sector_detail)
+        distinguish "key present" from "asset genuinely has no sector data"."""
+        if sector is None and industry is None:
+            return
+        asset = self.session.get(Asset, asset_id)
+        if not asset:
+            return
+        payload = dict(asset.metadata_payload or {})
+        if sector is not None:
+            payload["sector"] = sector
+        if industry is not None:
+            payload["industry"] = industry
+        asset.metadata_payload = payload
+
     def record_failure(self, provider_name: str, symbol: str, error: str) -> None:
         self.session.add(FailedIngestion(
             provider=provider_name,
             payload={"symbol": symbol},
             error=error
         ))
+
+    def ensure_tracked_asset(self, symbol: str, name: str, asset_class: str) -> Asset:
+        """Creates the Asset if missing, or flips is_tracked True on an already-
+        existing one (e.g. a symbol already held/watchlisted, or created by an
+        earlier manual test) — a plain create-if-missing would silently skip
+        real, currently-untracked rows, leaving them out of
+        refresh_tracked_universe_task's scope even though the seed job just
+        "seeded" them. Used by the tracked-universe seed job and the lazy
+        on-demand tracking path (Phase D)."""
+        asset = self.session.scalar(select(Asset).filter_by(symbol=symbol))
+        if asset:
+            if not asset.is_tracked:
+                asset.is_tracked = True
+            return asset
+        asset = Asset(
+            id=uuid.uuid5(uuid.NAMESPACE_DNS, symbol),
+            symbol=symbol,
+            name=name,
+            asset_class=asset_class,
+            is_tracked=True,
+        )
+        self.session.add(asset)
+        self.session.flush()
+        return asset
+
+    def list_tracked_symbols_for_refresh(self) -> list[tuple[str, str]]:
+        """(symbol, asset_class) for is_tracked assets NOT already covered by
+        list_symbols_for_quote_ingestion's held/watchlisted hot path — kept as
+        a disjoint scope on purpose (see refresh_tracked_universe_task) so a
+        large tracked universe never adds load to the hourly held/watchlisted
+        refresh or the daily fundamentals refresh (which is gated on
+        LatestQuote existing, not on held/watchlisted)."""
+        held = select(Position.symbol).distinct()
+        watchlisted = select(WatchlistSymbol.symbol).distinct()
+        excluded = {r[0] for r in self.session.execute(held).all()} | {
+            r[0] for r in self.session.execute(watchlisted).all()
+        }
+        query = self.session.query(Asset.symbol, Asset.asset_class).filter(Asset.is_tracked.is_(True))
+        if excluded:
+            query = query.filter(Asset.symbol.notin_(excluded))
+        return [(r[0], r[1]) for r in query.distinct().all()]
 
     def create_asset_if_missing(self, symbol: str, name: str, asset_class: str) -> bool:
         """Returns True if a new Asset row was created."""
@@ -171,11 +259,15 @@ class IngestionRepository(BaseRepository):
     def list_equity_assets_with_quotes(self) -> list[tuple[uuid.UUID, str]]:
         """(asset_id, symbol) for every quoted equity — used by the daily
         fundamentals task, scoped to asset_class == 'equity' per
-        FUNDAMENTALS_SCORING_SCOPE.md §2 (crypto/funds/NPS/EPF stay unavailable)."""
+        FUNDAMENTALS_SCORING_SCOPE.md §2 (crypto/funds/NPS/EPF stay unavailable).
+        Inner-joined against asset_snapshot: asset_fundamentals.asset_id has an
+        FK to asset_snapshot, and a quote can exist before the snapshot job has
+        ever run for that asset."""
         return [
             (r[0], r[1])
             for r in self.session.query(LatestQuote.asset_id, LatestQuote.symbol)
             .join(Asset, Asset.id == LatestQuote.asset_id)
+            .join(AssetSnapshot, AssetSnapshot.asset_id == LatestQuote.asset_id)
             .filter(Asset.asset_class == "equity")
             .distinct()
             .all()

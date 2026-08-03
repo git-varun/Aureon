@@ -38,6 +38,8 @@ class Settings(BaseSettings):
 
     FINNHUB_API_KEY: str | None = None
     POLYGON_API_KEY: str | None = None
+    TWELVEDATA_API_KEY: str | None = None
+    ALPHAVANTAGE_API_KEY: str | None = None
     GEMINI_API_KEY: str | None = None
     GROQ_API_KEY: str | None = None
 

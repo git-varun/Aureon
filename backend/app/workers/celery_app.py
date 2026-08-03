@@ -60,6 +60,14 @@ celery_app.conf.beat_schedule = {
         "task": "app.workers.ingestion.tasks.refresh_fundamentals_task",
         "schedule": crontab(hour=6, minute=0),
     },
+    # Deliberately not "seed-tracked-universes" here — seeding the 6 tracked
+    # universes is a rare/manual bulk operation (JobConfig entry, "Run Now"
+    # only), not a recurring job. This is only the low-frequency ongoing
+    # refresh for whatever's already been seeded/lazily tracked.
+    "refresh-tracked-universe": {
+        "task": "app.workers.ingestion.tasks.refresh_tracked_universe_task",
+        "schedule": crontab(hour=4, minute=0),
+    },
     "refresh-mutual-fund-navs": {
         "task": "app.workers.ingestion.tasks.refresh_mutual_fund_navs_task",
         "schedule": crontab(hour=23, minute=0),

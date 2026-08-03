@@ -95,6 +95,15 @@ class Asset(Base):
     # would otherwise tie for "never fetched" forever and starve rotation for
     # every other symbol behind it. See CRYPTO_SENTIMENT_GAP §1.
     last_news_fetch_at: Mapped[datetime | None] = mapped_column(nullable=True)
+    # True for assets seeded into one of the curated index-based tracked
+    # universes (Nifty 100/S&P 100/TOPIX 100/STOXX Europe 100/Hang Seng/
+    # CoinGecko top 100) or lazily tracked after a search resolved a real,
+    # not-yet-seen symbol (Phase D) — kept refreshed on its own low-frequency
+    # cadence, deliberately separate from list_symbols_for_quote_ingestion's
+    # held/watchlisted scope (see refresh_tracked_universe_task) so a large
+    # tracked universe never amplifies the hourly held/watchlisted refresh or
+    # the daily fundamentals refresh.
+    is_tracked: Mapped[bool] = mapped_column(nullable=False, default=False, server_default="false")
     metadata_payload: Mapped[dict[str, Any] | None] = mapped_column(JSON().with_variant(JSONB, "postgresql"), name="metadata", nullable=True)
     classification: Mapped[dict[str, Any] | None] = mapped_column(JSON().with_variant(JSONB, "postgresql"), nullable=True)
     created_at: Mapped[datetime] = mapped_column(nullable=False, default=lambda: datetime.now(timezone.utc))

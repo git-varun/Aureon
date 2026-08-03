@@ -783,6 +783,13 @@ class FinancialIntelligenceService(BaseService):
             asset_id = pos["asset_id"]
             price = None
             if asset_id and asset_id in price_history_by_asset:
+                # BACKLOG: shared by get_portfolio_health_trend/get_diversification_trend/
+                # get_goal_progress_trend, all of which read total_value day-over-day as an
+                # implicit return. For .NS assets, market.price_history spans the NSE-direct
+                # cutover (yfinance-adjusted before, NSE-direct raw/unadjusted after — see
+                # NseDirectAdapter) — a future split on a held Indian equity will show a real,
+                # correct price drop here that these trends can't tell apart from a genuine
+                # portfolio-value crash. Not fixed in Phase A/B — flagged at the lookup point.
                 price = self._closest_price(price_history_by_asset[asset_id], dt)
 
             if price is None:
