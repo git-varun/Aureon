@@ -47,11 +47,18 @@ def update_me(
         db.add(pref)
 
     pref_fields = payload.model_dump(
-        include={"bio", "risk_profile", "working_area", "target_profit_pct", "monthly_saving", "swing_trading_enabled"},
+        include={"bio", "risk_profile", "working_area", "swing_trading_enabled"},
         exclude_none=True,
     )
     for field, value in pref_fields.items():
         setattr(pref, field, value)
+
+    # The frontend always sends these two explicitly, including `null` to
+    # intentionally clear a target — unlike exclude_none above, an explicit
+    # null here must be applied, not silently dropped as "field not sent".
+    for field in ("target_profit_pct", "monthly_saving"):
+        if field in payload.model_fields_set:
+            setattr(pref, field, getattr(payload, field))
 
     db.commit()
     return serialize_user_profile(current_user, db)

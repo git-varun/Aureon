@@ -47,7 +47,6 @@ SYSTEM_THEMES = {
         "symbols": ["SGOV", "HDFCBANK.NS", "ICICIBANK.NS", "SBIN.NS"],
         "weights": {"SGOV": 0.25, "HDFCBANK.NS": 0.25, "ICICIBANK.NS": 0.25, "SBIN.NS": 0.25},
         "inception_date": "2024-01-01",
-        "ret1m": 0.034,
         "count": 4
     },
     "capex": {
@@ -57,7 +56,6 @@ SYSTEM_THEMES = {
         "symbols": ["LT.NS", "BHEL.NS", "SIEMENS.NS", "ABB.NS"],
         "weights": {"LT.NS": 0.25, "BHEL.NS": 0.25, "SIEMENS.NS": 0.25, "ABB.NS": 0.25},
         "inception_date": "2024-01-01",
-        "ret1m": 0.062,
         "count": 4
     },
     "ai-india": {
@@ -67,7 +65,6 @@ SYSTEM_THEMES = {
         "symbols": ["TCS.NS", "INFY.NS", "WIPRO.NS", "HCLTECH.NS"],
         "weights": {"TCS.NS": 0.25, "INFY.NS": 0.25, "WIPRO.NS": 0.25, "HCLTECH.NS": 0.25},
         "inception_date": "2024-01-01",
-        "ret1m": 0.084,
         "count": 4
     },
     "green-energy": {
@@ -77,7 +74,6 @@ SYSTEM_THEMES = {
         "symbols": ["ADANIGREEN.NS", "TATAPOWER.NS", "SUZLON.NS"],
         "weights": {"ADANIGREEN.NS": 0.3333, "TATAPOWER.NS": 0.3333, "SUZLON.NS": 0.3334},
         "inception_date": "2024-01-01",
-        "ret1m": 0.042,
         "count": 3
     },
     "el-nino": {
@@ -87,7 +83,6 @@ SYSTEM_THEMES = {
         "symbols": ["HINDUNILVR.NS", "ITC.NS", "DABUR.NS", "MARICO.NS"],
         "weights": {"HINDUNILVR.NS": 0.25, "ITC.NS": 0.25, "DABUR.NS": 0.25, "MARICO.NS": 0.25},
         "inception_date": "2024-01-01",
-        "ret1m": 0.018,
         "count": 4
     },
     "small-cap": {
@@ -97,7 +92,6 @@ SYSTEM_THEMES = {
         "symbols": [],
         "weights": {},
         "inception_date": "2024-01-01",
-        "ret1m": 0.028,
         "count": 0
     }
 }
@@ -367,6 +361,28 @@ class MarketService(BaseService):
             return SYSTEM_THEMES[theme_id]
         return custom_themes.get(theme_id)
 
+    def _compute_ret1m(self, theme_id: str, custom_themes: dict[str, Any]) -> Optional[float]:
+        """Real 1-month time-weighted return from get_theme_nav's price-history
+        composite — replaces the old hardcoded SYSTEM_THEMES ret1m constant.
+        None (not 0.0) when constituents have no price history yet, so the
+        frontend can render "Unavailable" instead of a fake flat return.
+
+        get_theme_nav's series starts at whichever constituent's earliest real
+        sample is most recent, not necessarily `days` ago — a theme where every
+        constituent was only just seeded would otherwise get a real but much
+        shorter-than-1-month return mislabeled "1M return". Require the series
+        to actually span most of the 30-day window (24+ days, allowing for
+        weekends/non-trading days) before calling it a 1-month figure."""
+        try:
+            nav_result = self.get_theme_nav(theme_id, 30, custom_themes)
+        except NotFoundError:
+            return None
+        nav = nav_result.get("nav") or []
+        if len(nav) < 2 or (nav_result.get("span_days") or 0) < 24:
+            return None
+        base = nav_result.get("base") or 100
+        return round((nav[-1] / base) - 1, 4)
+
     def list_themes(self, custom_themes: dict[str, Any], user_id: uuid.UUID) -> dict[str, Any]:
         mine_list = []
         for row in custom_themes.values():
@@ -374,7 +390,7 @@ class MarketService(BaseService):
                 "id": row["id"],
                 "name": row["name"],
                 "desc": row["desc"],
-                "ret1m": row.get("ret1m", 0.0),
+                "ret1m": self._compute_ret1m(row["id"], custom_themes),
                 "count": len(row.get("symbols", [])),
                 "inception_date": row.get("inception_date"),
                 "owner_id": str(user_id),
@@ -387,7 +403,7 @@ class MarketService(BaseService):
                 "id": row["id"],
                 "name": row["name"],
                 "desc": row["desc"],
-                "ret1m": row["ret1m"],
+                "ret1m": self._compute_ret1m(row["id"], custom_themes),
                 "count": row["count"],
                 "inception_date": row["inception_date"],
                 "owner_id": None
@@ -429,7 +445,7 @@ class MarketService(BaseService):
             "symbols": theme["symbols"],
             "weights": theme["weights"],
             "inception_date": theme["inception_date"],
-            "ret1m": theme["ret1m"],
+            "ret1m": self._compute_ret1m(theme_id, custom_themes),
             "constituents": constituents
         }
 
@@ -450,10 +466,19 @@ class MarketService(BaseService):
         trend = "Bullish" if avg_rsi > 55 else "Bearish" if avg_rsi < 45 else "Neutral"
         conf = min(90, max(50, int(50 + abs(avg_rsi - 50))))
 
+        # BACKLOG: macd/adx are not computed — they used to be hardcoded constants
+        # (0.05 / 24.5) returned for every theme regardless of real data, which is
+        # a no-fake-data violation. Real MACD/ADX are buildable now from existing
+        # market.price_history (both are standard price-series indicators; RSI is
+        # already computed off a price series elsewhere in this codebase — see
+        # _calculate_rsi in app/modules/market/providers/market_data/yahoo/provider.py
+        # — as a reference implementation for the pandas-based approach). Not built
+        # in this pass; returning None so the frontend can render "Unavailable"
+        # instead of a fabricated number.
         return {
             "rsi": round(avg_rsi, 1),
-            "macd": 0.05,
-            "adx": 24.5,
+            "macd": None,
+            "adx": None,
             "conf": conf,
             "trend": trend
         }
@@ -502,6 +527,15 @@ class MarketService(BaseService):
                 filled[date] = last
             filled_series[sym] = filled
 
+        # BACKLOG: this ratio (filled_series[sym][date] / base_price[sym]) is a
+        # return computed off market.price_history, which for .NS symbols spans
+        # the NSE-direct cutover date (see NseDirectAdapter) — history before
+        # that date is yfinance-adjusted, history after is NSE-direct raw/
+        # unadjusted. A future split/bonus on an actively-tracked constituent
+        # will show a real, correct price drop in the raw post-cutover data
+        # that this ratio can't distinguish from an actual crash, since nothing
+        # here accounts for corporate actions. Not fixed in Phase A/B — flagged
+        # so a "theme NAV suddenly halved" report is diagnosed here first.
         base_price = {sym: series[date_axis[0]] for sym, series in filled_series.items()}
         nav = []
         for date in date_axis:
@@ -511,8 +545,11 @@ class MarketService(BaseService):
             )
             nav.append(round(composite * 100, 4))
 
+        span_days = (datetime.strptime(date_axis[-1], "%Y-%m-%d") - datetime.strptime(date_axis[0], "%Y-%m-%d")).days
+
         return {
             "theme_id": theme_id,
+            "span_days": span_days,
             "nav": nav,
             "base": 100,
             "data_points": len(nav)
@@ -530,7 +567,7 @@ class MarketService(BaseService):
             name=new_name,
             desc=f"Forked from {theme['name']}",
             symbols=list(theme["symbols"]),
-            ret1m=theme["ret1m"],
+            ret1m=self._compute_ret1m(theme_id, custom_themes) or 0.0,
             owner_id=user.id,
             forked_from=theme_id,
             inception_date=datetime.now(timezone.utc).strftime("%Y-%m-%d"),
@@ -593,36 +630,33 @@ class MarketService(BaseService):
         return matched
 
     def get_sector_detail(self, name: str) -> dict[str, Any]:
+        # BACKLOG: this matches against the real Asset.metadata['sector'] values
+        # persisted by refresh_fundamentals_task (yfinance's info.get("sector"),
+        # e.g. "Technology", "Financial Services", "Consumer Defensive"). The
+        # /market/sectors card list a user clicks into this from still comes from
+        # the older, separate SYMBOL_SECTOR_MAP hand-curated below (get_sectors()),
+        # whose labels ("IT", "Financials", "FMCG") mostly don't match the real
+        # yfinance names — so most sector cards will currently land here and find
+        # zero matches (correct, honest empty state — not a bug in this method),
+        # not because there's no real data, but because the two sector-naming
+        # sources haven't been reconciled. That reconciliation (rename
+        # SYMBOL_SECTOR_MAP's labels to the real ones, or drop it in favor of
+        # aggregating get_sectors() off Asset.metadata too) is a separate decision
+        # not made in this pass.
         assets = self.repo.list_all_assets()
         matched = []
         for asset in assets:
             sector = (asset.metadata_payload or {}).get("sector") if isinstance(asset.metadata_payload, dict) else None
-            if sector and sector.lower() == name.lower():
-                quote = self.repo.get_quote_by_symbol(asset.symbol)
-                price = float(quote.price) if quote else 100.0
-                matched.append({
-                    "symbol": asset.symbol,
-                    "name": asset.name,
-                    "price": price,
-                    "dayPct": 0.005
-                })
-
-        if not matched:
-            fallback_map = {
-                "IT": ["TCS", "INFY"],
-                "Financials": ["HDFCBANK", "ICICIBANK", "SBIN"],
-                "Energy": ["RELIANCE"],
-                "FMCG": ["ITC", "HINDUNILVR"]
-            }
-            for sym in fallback_map.get(name, []):
-                quote = self.repo.get_quote_by_symbol(sym)
-                price = float(quote.price) if quote else 100.0
-                matched.append({
-                    "symbol": sym,
-                    "name": sym,
-                    "price": price,
-                    "dayPct": 0.002
-                })
+            if not sector or sector.lower() != name.lower():
+                continue
+            quote = self.repo.get_quote_by_symbol(asset.symbol)
+            price = float(quote.price) if quote and quote.price is not None and quote.price != 0 else None
+            matched.append({
+                "symbol": asset.symbol,
+                "name": asset.name,
+                "price": price,
+                "dayPct": self._compute_day_pct(quote.asset_id) if quote else None,
+            })
 
         return {
             "sector": name,

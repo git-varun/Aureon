@@ -17,6 +17,7 @@ from app.modules.market.services.assets import AssetsService
 from app.modules.ai.services.evaluation import EvaluationService
 from app.modules.market.services.market import MarketService
 from app.core.services.monitoring import MonitoringService
+from app.modules.market.repositories.asset_fundamentals import AssetFundamentalsRepository
 from app.modules.market.repositories.asset_health import AssetHealthRepository
 from app.modules.market.repositories.asset_scores import AssetScoresRepository
 from app.modules.market.repositories.assets import AssetsRepository
@@ -113,11 +114,15 @@ def get_market_service(repo: MarketRepository = Depends(get_market_repo)) -> Mar
 def get_assets_repo(db: Session = Depends(get_db)) -> AssetsRepository:
     return AssetsRepository(db)
 
+def get_asset_fundamentals_repo(db: Session = Depends(get_db)) -> AssetFundamentalsRepository:
+    return AssetFundamentalsRepository(db)
+
 def get_assets_service(
     repo: AssetsRepository = Depends(get_assets_repo),
     market_svc: MarketService = Depends(get_market_service),
+    fundamentals_repo: AssetFundamentalsRepository = Depends(get_asset_fundamentals_repo),
 ) -> AssetsService:
-    return AssetsService(repo, market_svc)
+    return AssetsService(repo, market_svc, fundamentals_repo)
 
 def get_monitoring_repo(db: Session = Depends(get_db)) -> MonitoringRepository:
     return MonitoringRepository(db)

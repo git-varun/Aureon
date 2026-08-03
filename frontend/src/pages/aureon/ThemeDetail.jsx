@@ -61,7 +61,7 @@ function normalizeTheme(raw, isSector) {
     }));
     return {
         id:           raw.id || raw.theme_id || raw.sector_id || '',
-        name:         raw.name || raw.sector_name || raw.theme_name || '',
+        name:         raw.name || raw.sector || raw.sector_name || raw.theme_name || '',
         desc:         raw.description || raw.desc || '',
         count:        raw.constituent_count ?? raw.instrument_count ?? constituents.length,
         ret1m:        raw.ret_1m ?? raw.ret1m ?? raw.return_1m ?? null,

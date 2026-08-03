@@ -189,6 +189,12 @@ function QuoteSection({ticker, price}) {
     );
 }
 
+// Fields with no backing source anywhere in Aureon today — see the BACKLOG
+// comment on get_fundamentals (backend/app/modules/market/services/assets.py)
+// for what each would need. Always rendered as "Unavailable", never a value,
+// regardless of what the API response contains for them.
+const FUNDAMENTALS_UNSUPPORTED = new Set(['eps', 'beta', 'vol_30d', 'high_52w', 'low_52w', 'graham_number']);
+
 /* ── FundamentalsSection ─────────────────────────────────────── */
 function FundamentalsSection({ticker}) {
     const [state, setState] = useState(mkL());
@@ -202,7 +208,7 @@ function FundamentalsSection({ticker}) {
 
     const retry = useCallback(() => setAttempt(a => a + 1), []);
     const d = state.data;
-    const hasData = d && [d.pe_ratio, d.market_cap, d.rsi, d.momentum_score].some(v => v != null);
+    const hasData = d && [d.pe_ratio, d.market_cap, d.rsi, d.momentum_score, d.pb_ratio, d.roe, d.de_ratio, d.dividend_yield].some(v => v != null);
     const status = state.loading ? 'loading' : state.error ? 'error' : !hasData ? 'empty' : 'ok';
 
     const fmcap = (n) => {
@@ -214,9 +220,20 @@ function FundamentalsSection({ticker}) {
     };
     const fpct = (n) => n != null ? (n * 100).toFixed(1) + '%' : '—';
     const fn2  = (n) => n != null ? n.toFixed(2) : '—';
+    const val  = (key, formatted) => FUNDAMENTALS_UNSUPPORTED.has(key) ? 'Unavailable' : formatted;
 
     const cells = [
         ['P/E ratio',    d?.pe_ratio != null ? d.pe_ratio.toFixed(1) : '—'],
+        ['P/B ratio',    fn2(d?.pb_ratio)],
+        ['ROE',          fpct(d?.roe)],
+        ['D/E ratio',    fn2(d?.de_ratio)],
+        ['EPS',          val('eps', fn2(d?.eps))],
+        ['Div yield',    fpct(d?.dividend_yield)],
+        ['Beta',         val('beta', fn2(d?.beta))],
+        ['Vol 30d (ann.)', val('vol_30d', d?.vol_30d != null ? `${d.vol_30d}%` : '—')],
+        ['52W high',     val('high_52w', fn2(d?.high_52w))],
+        ['52W low',      val('low_52w', fn2(d?.low_52w))],
+        ['Graham #',     val('graham_number', fn2(d?.graham_number))],
         ['Market cap',   fmcap(d?.market_cap)],
         ['RSI · 14d',    d?.rsi != null ? d.rsi.toFixed(1) : '—'],
         ['Momentum',     fpct(d?.momentum_score)],
@@ -559,7 +576,6 @@ export default function AssetDetail() {
     const [generating, setGenerating] = useState(false);
 
     const h = holdings.find(x => x.ticker === ticker);
-    const currency = h?.currency || 'USD';
 
     /* Load main asset data */
     useEffect(() => {
@@ -567,6 +583,8 @@ export default function AssetDetail() {
             .then(d => setAssetState(d ? mkD(d) : mkE('Asset not found')))
             .catch(e => setAssetState(mkE(e)));
     }, [ticker]);
+
+    const currency = h?.currency || assetState.data?.currency || 'USD';
 
     /* Load chart data */
     useEffect(() => {

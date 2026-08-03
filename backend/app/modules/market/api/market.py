@@ -143,8 +143,15 @@ def delete_theme(
 def trigger_backfill(
     symbol: str,
     user: User = Depends(get_current_user),
+    svc: MarketService = Depends(get_market_service),
 ):
-    return {"status": "success", "symbol": symbol, "message": "Backfill completed"}
+    from app.workers.ingestion.tasks import admin_backfill_assets
+
+    asset = svc.repo.get_asset_by_symbol(symbol.upper().strip())
+    if not asset:
+        raise HTTPException(status_code=404, detail="Asset not found")
+    task = admin_backfill_assets.delay([str(asset.id)])
+    return {"status": "queued", "symbol": symbol, "task_id": task.id}
 
 @router.get("/themes-for/{symbol}")
 def get_themes_for_symbol(
@@ -175,4 +182,7 @@ def get_market_universe(
 
 @router.post("/refresh")
 def refresh_market():
-    return {"status": "success", "message": "Market refresh queued"}
+    from app.workers.ingestion.tasks import refresh_prices_task
+
+    task = refresh_prices_task.delay()
+    return {"status": "queued", "task_id": task.id}

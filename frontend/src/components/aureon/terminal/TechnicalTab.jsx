@@ -98,7 +98,8 @@ export function TechnicalTab({signal, sym, onGenerateSignal}) {
                     }}>Generate signal</button>
                 ) : (
                     <div style={{fontSize: 12, color: 'var(--ink-40)'}}>
-                        Trigger <span style={{fontFamily: 'var(--font-mono)'}}>POST /api/signals/generate/{sym}</span> or run the pipeline.
+                        Signal generation for this symbol hasn't run yet — it's produced by the
+                        scheduled evaluation pipeline, not on demand from this screen.
                     </div>
                 )}
             </div>
