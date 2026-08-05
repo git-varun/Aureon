@@ -71,21 +71,21 @@ const computeProviderStatus = (provider) => {
     const allKeysSet = keyNames.length === 0 || keyNames.every(k => keysStatus[k]);
 
     if (provider.status === 'PLANNED' || provider.status === 'STUB') {
-        return {label: 'Not built yet', color: 'var(--ink-40)', connected: false};
+        return {label: 'Not built yet', color: 'var(--ink-40)', connected: false, title: `Lifecycle status: ${provider.status} — no real adapter implemented yet, regardless of keys/enabled state`};
     }
     if (provider.status === 'FAILED') {
-        return {label: 'Failing', color: 'var(--crimson-500)', connected: false};
+        return {label: 'Failing', color: 'var(--crimson-500)', connected: false, title: 'Lifecycle status: FAILED — adapter exists but is currently erroring'};
     }
     if (!provider.enabled) {
-        return {label: 'Disabled', color: 'var(--ink-40)', connected: false};
+        return {label: 'Disabled', color: 'var(--ink-40)', connected: false, title: 'Disabled by you — toggle Enable to use it'};
     }
     if (!allKeysSet) {
-        return {label: 'Keys missing', color: 'var(--dusk-500)', connected: false};
+        return {label: 'Keys missing', color: 'var(--dusk-500)', connected: false, title: 'Enabled, but one or more required credentials are not set'};
     }
     if (provider.status === 'PARTIAL') {
-        return {label: 'Partial', color: 'var(--dusk-500)', connected: false};
+        return {label: 'Partial', color: 'var(--dusk-500)', connected: false, title: 'Lifecycle status: PARTIAL — adapter is implemented but only covers some functionality/endpoints'};
     }
-    return {label: 'Connected', color: 'var(--sage-500)', connected: true};
+    return {label: 'Connected', color: 'var(--sage-500)', connected: true, title: 'Lifecycle status: ACTIVE — fully implemented, enabled, and credentialed'};
 };
 
 // Condensed per-provider summary chip — folds in what the old standalone
@@ -209,7 +209,7 @@ function ProviderRow({provider, onToggle, onSetKey, onRemoveKey, onSaveConfig, h
     const keysStatus = provider.keys_status || {};
     const keysHealth = provider.keys_health || {};
 
-    const {label: statusLabel, color: statusColor} = computeProviderStatus(provider);
+    const {label: statusLabel, color: statusColor, title: statusTitle} = computeProviderStatus(provider);
 
     const handleToggle = async () => {
         setToggling(true);
@@ -280,7 +280,7 @@ function ProviderRow({provider, onToggle, onSetKey, onRemoveKey, onSaveConfig, h
                         </div>
                     )}
                 </div>
-                <span style={{display: 'inline-flex', alignItems: 'center', gap: 6, fontSize: 11.5, color: statusColor}}>
+                <span title={statusTitle} style={{display: 'inline-flex', alignItems: 'center', gap: 6, fontSize: 11.5, color: statusColor, cursor: 'help'}}>
                     <span style={{width: 6, height: 6, borderRadius: 999, background: statusColor}}/> {statusLabel}
                 </span>
                 <div style={{display: 'flex', alignItems: 'center', gap: 8, minWidth: 96}}>
@@ -375,6 +375,46 @@ function relativeTime(iso) {
     return `${Math.floor(h / 24)}d ago`;
 }
 
+// Short, layout-safe summary for a raw sync error — the backend surfaces
+// live exception text verbatim (e.g. requests' full connection-pool dump,
+// URL and all, including a signed request's HMAC signature), which breaks
+// the single-line status row and is unreadable to a non-engineer. Same
+// truncate-behind-a-toggle pattern as JobErrorDetail (JobConfig.jsx) uses
+// for job logs — full text is still reachable, just not inline by default.
+function friendlySyncErrorSummary(provider, error) {
+    if (!error) return 'Sync error';
+    if (/NameResolutionError|Failed to resolve|getaddrinfo/i.test(error)) return `Could not reach ${provider} — DNS/network lookup failed`;
+    if (/timed? ?out/i.test(error)) return `${provider} request timed out`;
+    if (/Max retries exceeded/i.test(error)) return `${provider} connection failed after retries`;
+    return error.length > 100 ? `${error.slice(0, 100)}…` : error;
+}
+
+// Full raw error text, collapsed behind a toggle by default — mirrors
+// JobErrorDetail's truncate/expand behavior (JobConfig.jsx) rather than
+// dropping any information, just keeping it out of the inline status row.
+function SyncErrorDetail({message}) {
+    const [expanded, setExpanded] = useState(false);
+    if (!message) return null;
+    return (
+        <div style={{padding: '0 18px 8px', marginTop: -4}}>
+            {expanded && (
+                <div style={{
+                    fontFamily: 'var(--font-mono)', fontSize: 10.5, color: 'var(--crimson-400)',
+                    lineHeight: 1.6, whiteSpace: 'pre-wrap', wordBreak: 'break-word', marginBottom: 4,
+                }}>
+                    {message}
+                </div>
+            )}
+            <button onClick={() => setExpanded(v => !v)} style={{
+                background: 'transparent', border: 'none', cursor: 'pointer',
+                color: 'var(--ink-40)', fontSize: 10.5, padding: 0, textDecoration: 'underline',
+            }}>
+                {expanded ? 'Hide details' : 'Show full error'}
+            </button>
+        </div>
+    );
+}
+
 function SyncStatusRow({syncEntry, onSync, onConnect, onGoToImport}) {
     const [syncing, setSyncing] = useState(false);
     const [connecting, setConnecting] = useState(false);
@@ -409,7 +449,7 @@ function SyncStatusRow({syncEntry, onSync, onConnect, onGoToImport}) {
         : 'var(--aurum-100)';
     const text = status === 'ok'
         ? `Last synced ${relativeTime(last_synced_at)} · ${positions_count} positions`
-        : status === 'error' ? (error || 'Sync error')
+        : status === 'error' ? friendlySyncErrorSummary(provider, error)
         : authRequired ? (error ? 'Access expired — reconnect' : `Connect ${provider} to sync`)
         : 'Never synced — click Sync to connect';
 
@@ -426,30 +466,33 @@ function SyncStatusRow({syncEntry, onSync, onConnect, onGoToImport}) {
     };
 
     return (
-        <div style={{
-            display: 'flex', alignItems: 'center', gap: 10,
-            padding: '6px 18px 10px', fontSize: 11.5,
-        }}>
-            <span style={{display: 'inline-flex', alignItems: 'center', gap: 5, color: dot}}>
-                <span style={{width: 6, height: 6, borderRadius: 999, background: dot, flexShrink: 0}}/>
-                {text}
-            </span>
-            {authRequired ? (
-                <button
-                    onClick={handleConnect} disabled={connecting}
-                    className="du3-cta ghost"
-                    style={{marginLeft: 'auto', height: 24, padding: '0 10px', fontSize: 11}}>
-                    {connecting ? '…' : (error ? 'Reconnect' : 'Connect')}
-                </button>
-            ) : (
-                <button
-                    onClick={handleSync} disabled={syncing}
-                    className="du3-cta ghost"
-                    style={{marginLeft: 'auto', height: 24, padding: '0 10px', fontSize: 11}}>
-                    {syncing ? '…' : 'Sync now'}
-                </button>
-            )}
-        </div>
+        <>
+            <div style={{
+                display: 'flex', alignItems: 'center', gap: 10,
+                padding: '6px 18px 10px', fontSize: 11.5,
+            }}>
+                <span style={{display: 'inline-flex', alignItems: 'center', gap: 5, color: dot, minWidth: 0}}>
+                    <span style={{width: 6, height: 6, borderRadius: 999, background: dot, flexShrink: 0}}/>
+                    <span style={{overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap'}}>{text}</span>
+                </span>
+                {authRequired ? (
+                    <button
+                        onClick={handleConnect} disabled={connecting}
+                        className="du3-cta ghost"
+                        style={{marginLeft: 'auto', height: 24, padding: '0 10px', fontSize: 11, flexShrink: 0}}>
+                        {connecting ? '…' : (error ? 'Reconnect' : 'Connect')}
+                    </button>
+                ) : (
+                    <button
+                        onClick={handleSync} disabled={syncing}
+                        className="du3-cta ghost"
+                        style={{marginLeft: 'auto', height: 24, padding: '0 10px', fontSize: 11, flexShrink: 0}}>
+                        {syncing ? '…' : 'Sync now'}
+                    </button>
+                )}
+            </div>
+            {status === 'error' && <SyncErrorDetail message={error}/>}
+        </>
     );
 }
 
@@ -676,7 +719,7 @@ export default function ProviderConfig({onNavigate}) {
     }, {});
     Object.values(grouped).forEach(list => list.sort((a, b) => actionableRank(a, health[a.provider_name]) - actionableRank(b, health[b.provider_name])));
 
-    const connected = providers.filter(p => p.enabled).length;
+    const connected = providers.filter(p => computeProviderStatus(p).connected).length;
     const withKeys = providers.filter(p => parseKeyNames(p.key_names).length > 0);
 
     return (
@@ -689,6 +732,9 @@ export default function ProviderConfig({onNavigate}) {
                         </div>
                         <div style={{fontSize: 11.5, color: 'var(--ink-30)', marginTop: 2}}>
                             API keys are encrypted at rest. {connected} of {providers.length} active.
+                        </div>
+                        <div style={{fontSize: 10.5, color: 'var(--ink-50)', marginTop: 4}} title="PLANNED/STUB: no real adapter built yet · PARTIAL: adapter covers only some functionality · ACTIVE: fully implemented (still needs enabling + keys to actually connect)">
+                            Status badges reflect real build state, not just enabled/keys — hover a badge for details
                         </div>
                     </div>
                     <button onClick={load} className="du3-cta ghost">Refresh</button>

@@ -34,7 +34,7 @@ class ConfigRepository(BaseRepository):
         return self.session.execute(stmt).scalar_one_or_none()
 
     def list_all_jobs(self) -> list[JobConfig]:
-        stmt = select(JobConfig)
+        stmt = select(JobConfig).order_by(JobConfig.id)
         return list(self.session.execute(stmt).scalars().all())
 
     # Allocation Targets
@@ -90,3 +90,10 @@ class ConfigRepository(BaseRepository):
         if job_name:
             stmt = stmt.where(JobLog.job_name == job_name)
         return self.session.execute(stmt).scalar_one()
+
+    def list_stale_running_job_logs(self, cutoff) -> list[JobLog]:
+        """RUNNING rows started before `cutoff` — a worker crash/kill leaves
+        these permanently RUNNING since nothing ever calls log_job_end (see
+        sweep_stale_running_jobs)."""
+        stmt = select(JobLog).where(JobLog.status == JobStatus.RUNNING, JobLog.started_at < cutoff)
+        return list(self.session.execute(stmt).scalars().all())

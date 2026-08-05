@@ -6,15 +6,40 @@ const API = axios.create({baseURL: '/api/v1', timeout: 60000});
 // Helper to retrieve the active portfolio context synchronously
 const getPortfolioId = () => localStorage.getItem('active_portfolio_id');
 
+// FastAPI 422s send `detail` as an array of {msg, loc, type} objects, not a
+// string — flatten it so callers (and anything that renders it directly,
+// e.g. a toast) always get a plain string instead of crashing on raw objects.
+const flattenErrorDetail = (detail) => {
+    if (typeof detail === 'string') return detail;
+    if (Array.isArray(detail)) {
+        return detail.map(d => (typeof d === 'string' ? d : d?.msg || JSON.stringify(d))).join('; ') || null;
+    }
+    if (detail && typeof detail === 'object') return detail.msg || JSON.stringify(detail);
+    return null;
+};
+
+// Collapses concurrent identical GETs (e.g. React StrictMode's dev-only
+// double effect invocation firing the same load() twice back to back) into
+// a single network request — not a cache: the map entry is cleared as soon
+// as the request settles, so the next call always fires fresh.
+const inFlightGET = new Map();
+const dedupedGet = (url) => {
+    if (!inFlightGET.has(url)) {
+        inFlightGET.set(url, API.get(url).finally(() => inFlightGET.delete(url)));
+    }
+    return inFlightGET.get(url);
+};
+
 // Centralized error extractor
 const handleRequest = async (promise) => {
     try {
         const res = await promise;
         return res.data;
     } catch (err) {
-        const detail = err.response?.data?.detail || err.response?.data?.message || err.message || 'Request failed';
+        const detail = flattenErrorDetail(err.response?.data?.detail) || err.response?.data?.message || err.message || 'Request failed';
         const wrapped = new Error(detail);
         wrapped.response = err.response;
+        if (wrapped.response?.data) wrapped.response.data.detail = detail;
         throw wrapped;
     }
 };
@@ -374,13 +399,13 @@ export const apiService = {
     getZerodhaLoginUrl: () => handleRequest(API.get('/config/providers/zerodha/oauth/login-url')),
 
     // Jobs configuration
-    getJobs: () => handleRequest(API.get('/config/jobs')),
+    getJobs: () => handleRequest(dedupedGet('/config/jobs')),
     updateJob: (jobName, payload) => handleRequest(API.put(`/config/jobs/${jobName}`, payload)),
     runJob: (jobName) => handleRequest(API.post(`/config/jobs/${jobName}/run`)),
     getJobLogs: (jobName, limit = 20) => handleRequest(API.get(`/config/jobs/${jobName}/logs?limit=${limit}`)),
     getAllJobLogs: (limit = 50, offset = 0) => handleRequest(API.get(`/config/jobs/logs?limit=${limit}&offset=${offset}`)),
     getAllocationTargets: () => handleRequest(API.get('/config/allocation_targets')),
-    getAllocationTargetsDetail: () => handleRequest(API.get('/config/allocation_targets?detail=true')),
+    getAllocationTargetsDetail: () => handleRequest(dedupedGet('/config/allocation_targets?detail=true')),
     upsertAllocationTarget: (assetClass, payload) => handleRequest(API.put(`/config/allocation_targets/${encodeURIComponent(assetClass)}`, payload)),
 
     fetchBriefingHistory: (limit = 30) =>

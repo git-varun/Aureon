@@ -32,6 +32,14 @@ export function PfImportCenter({ initialTab = 'csv' } = {}) {
 
   const MAX_IMPORT_BYTES = 10 * 1024 * 1024;
 
+  // A 23-byte test file previously showed "0.0 KB" — toFixed(1) on bytes/1024
+  // rounds anything under ~50 bytes to 0.0 regardless of its real size.
+  const formatFileSize = (bytes) => {
+    if (bytes < 1024) return `${bytes} B`;
+    if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
+    return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
+  };
+
   const handleCsvFile = async (file) => {
     if (!file) return;
     if (file.size > MAX_IMPORT_BYTES) {
@@ -49,6 +57,21 @@ export function PfImportCenter({ initialTab = 'csv' } = {}) {
       setCsvErr(err?.response?.data?.detail || err.message || 'Import failed');
       setCsvSt('error');
     }
+  };
+
+  // CSV had client-side size guidance (line above); CAS/NPS/EPF didn't — a
+  // large CAS PDF used to upload fully before the backend rejected it.
+  const casSelect = (f) => {
+    if (f.size > MAX_IMPORT_BYTES) { setCasErr(`File is ${formatFileSize(f.size)} — max is 10MB`); setCasSt('error'); return; }
+    setCasFile(f); setCasSt('idle');
+  };
+  const npsSelect = (f) => {
+    if (f.size > MAX_IMPORT_BYTES) { setNpsErr(`File is ${formatFileSize(f.size)} — max is 10MB`); setNpsSt('error'); return; }
+    setNpsFile(f); setNpsSt('idle');
+  };
+  const epfSelect = (f) => {
+    if (f.size > MAX_IMPORT_BYTES) { setEpfErr(`File is ${formatFileSize(f.size)} — max is 10MB`); setEpfSt('error'); return; }
+    setEpfFile(f); setEpfSt('idle');
   };
 
   const handleCasImport = async () => {
@@ -170,13 +193,13 @@ export function PfImportCenter({ initialTab = 'csv' } = {}) {
               </p>
               <div
                 onDragOver={e => e.preventDefault()}
-                onDrop={e => { e.preventDefault(); const f = e.dataTransfer.files[0]; if (f) { setCasFile(f); setCasSt('idle'); } }}
+                onDrop={e => { e.preventDefault(); const f = e.dataTransfer.files[0]; if (f) casSelect(f); }}
                 onClick={() => casInputRef.current?.click()}
                 style={{ border:'2px dashed rgba(255,255,255,0.12)', borderRadius:10, padding:'28px 20px', textAlign:'center', cursor:'pointer', background:'rgba(255,255,255,0.01)', transition:'all 160ms' }}>
-                <input ref={casInputRef} type="file" accept=".pdf" style={{ display:'none' }} onChange={e => { const f = e.target.files[0]; if (f) { setCasFile(f); setCasSt('idle'); e.target.value = ''; } }}/>
+                <input ref={casInputRef} type="file" accept=".pdf" style={{ display:'none' }} onChange={e => { const f = e.target.files[0]; if (f) casSelect(f); e.target.value = ''; }}/>
                 {casFile
-                  ? <><div style={{ fontSize:13, color:'var(--ink-20)', fontWeight:500, marginBottom:4 }}>{casFile.name}</div><div style={{ fontSize:11.5, color:'var(--ink-50)' }}>{(casFile.size / 1024).toFixed(1)} KB — click to replace</div></>
-                  : <><div style={{ fontSize:13, color:'var(--ink-20)', marginBottom:4 }}>Drag &amp; drop PDF or click to browse</div><div style={{ fontSize:11.5, color:'var(--ink-50)' }}>CDSL / NSDL CAS statement (.pdf)</div></>
+                  ? <><div style={{ fontSize:13, color:'var(--ink-20)', fontWeight:500, marginBottom:4 }}>{casFile.name}</div><div style={{ fontSize:11.5, color:'var(--ink-50)' }}>{formatFileSize(casFile.size)} — click to replace</div></>
+                  : <><div style={{ fontSize:13, color:'var(--ink-20)', marginBottom:4 }}>Drag &amp; drop PDF or click to browse</div><div style={{ fontSize:11.5, color:'var(--ink-50)' }}>CDSL / NSDL CAS statement (.pdf) — max 10MB</div></>
                 }
               </div>
               {casState === 'done' && <div style={{ fontSize:13, color:'var(--sage-500)', fontWeight:500 }}>✓ Imported — {casResult?.imported_holdings ?? 0} holdings processed</div>}
@@ -211,13 +234,13 @@ export function PfImportCenter({ initialTab = 'csv' } = {}) {
               </p>
               <div
                 onDragOver={e => e.preventDefault()}
-                onDrop={e => { e.preventDefault(); const f = e.dataTransfer.files[0]; if (f) { setNpsFile(f); setNpsSt('idle'); } }}
+                onDrop={e => { e.preventDefault(); const f = e.dataTransfer.files[0]; if (f) npsSelect(f); }}
                 onClick={() => npsInputRef.current?.click()}
                 style={{ border:'2px dashed rgba(255,255,255,0.12)', borderRadius:10, padding:'28px 20px', textAlign:'center', cursor:'pointer', background:'rgba(255,255,255,0.01)', transition:'all 160ms' }}>
-                <input ref={npsInputRef} type="file" accept=".csv,.xlsx,.xls,.pdf" style={{ display:'none' }} onChange={e => { const f = e.target.files[0]; if (f) { setNpsFile(f); setNpsSt('idle'); e.target.value = ''; } }}/>
+                <input ref={npsInputRef} type="file" accept=".csv,.xlsx,.xls,.pdf" style={{ display:'none' }} onChange={e => { const f = e.target.files[0]; if (f) npsSelect(f); e.target.value = ''; }}/>
                 {npsFile
-                  ? <><div style={{ fontSize:13, color:'var(--ink-20)', fontWeight:500, marginBottom:4 }}>{npsFile.name}</div><div style={{ fontSize:11.5, color:'var(--ink-50)' }}>{(npsFile.size / 1024).toFixed(1)} KB — click to replace</div></>
-                  : <><div style={{ fontSize:13, color:'var(--ink-20)', marginBottom:4 }}>Drag &amp; drop or click to browse</div><div style={{ fontSize:11.5, color:'var(--ink-50)' }}>NPS statement (.csv, .xlsx, .xls, .pdf)</div></>
+                  ? <><div style={{ fontSize:13, color:'var(--ink-20)', fontWeight:500, marginBottom:4 }}>{npsFile.name}</div><div style={{ fontSize:11.5, color:'var(--ink-50)' }}>{formatFileSize(npsFile.size)} — click to replace</div></>
+                  : <><div style={{ fontSize:13, color:'var(--ink-20)', marginBottom:4 }}>Drag &amp; drop or click to browse</div><div style={{ fontSize:11.5, color:'var(--ink-50)' }}>NPS statement (.csv, .xlsx, .xls, .pdf) — max 10MB</div></>
                 }
               </div>
               {npsState === 'done' && <div style={{ fontSize:13, color:'var(--sage-500)', fontWeight:500 }}>✓ Imported — {npsResult?.holdings_imported ?? 0} holdings processed</div>}
@@ -241,13 +264,13 @@ export function PfImportCenter({ initialTab = 'csv' } = {}) {
               </p>
               <div
                 onDragOver={e => e.preventDefault()}
-                onDrop={e => { e.preventDefault(); const f = e.dataTransfer.files[0]; if (f) { setEpfFile(f); setEpfSt('idle'); } }}
+                onDrop={e => { e.preventDefault(); const f = e.dataTransfer.files[0]; if (f) epfSelect(f); }}
                 onClick={() => epfInputRef.current?.click()}
                 style={{ border:'2px dashed rgba(255,255,255,0.12)', borderRadius:10, padding:'28px 20px', textAlign:'center', cursor:'pointer', background:'rgba(255,255,255,0.01)', transition:'all 160ms' }}>
-                <input ref={epfInputRef} type="file" accept=".pdf" style={{ display:'none' }} onChange={e => { const f = e.target.files[0]; if (f) { setEpfFile(f); setEpfSt('idle'); e.target.value = ''; } }}/>
+                <input ref={epfInputRef} type="file" accept=".pdf" style={{ display:'none' }} onChange={e => { const f = e.target.files[0]; if (f) epfSelect(f); e.target.value = ''; }}/>
                 {epfFile
-                  ? <><div style={{ fontSize:13, color:'var(--ink-20)', fontWeight:500, marginBottom:4 }}>{epfFile.name}</div><div style={{ fontSize:11.5, color:'var(--ink-50)' }}>{(epfFile.size / 1024).toFixed(1)} KB — click to replace</div></>
-                  : <><div style={{ fontSize:13, color:'var(--ink-20)', marginBottom:4 }}>Drag &amp; drop PDF or click to browse</div><div style={{ fontSize:11.5, color:'var(--ink-50)' }}>EPF passbook statement (.pdf)</div></>
+                  ? <><div style={{ fontSize:13, color:'var(--ink-20)', fontWeight:500, marginBottom:4 }}>{epfFile.name}</div><div style={{ fontSize:11.5, color:'var(--ink-50)' }}>{formatFileSize(epfFile.size)} — click to replace</div></>
+                  : <><div style={{ fontSize:13, color:'var(--ink-20)', marginBottom:4 }}>Drag &amp; drop PDF or click to browse</div><div style={{ fontSize:11.5, color:'var(--ink-50)' }}>EPF passbook statement (.pdf) — max 10MB</div></>
                 }
               </div>
               {epfState === 'done' && <div style={{ fontSize:13, color:'var(--sage-500)', fontWeight:500 }}>✓ Imported — {epfResult?.holdings_imported ?? 0} holdings processed</div>}

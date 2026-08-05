@@ -4,7 +4,7 @@ import {toast} from 'react-hot-toast';
 import {apiService} from '@/api/apiService';
 import {BinanceBackfillRow} from '@/components/aureon/profile/ProviderConfig';
 
-// Covers all 14 backend job_configs rows (see ConfigService._TASK_MAPPING) —
+// Covers all 18 backend job_configs rows (see ConfigService._TASK_MAPPING) —
 // every job must resolve to a real label here, never fall back to raw
 // snake_case in the UI.
 export const JOB_LABELS = {
@@ -22,13 +22,26 @@ export const JOB_LABELS = {
     monthly_briefing: {label: 'Monthly Briefing', desc: 'Generate the monthly AI alpha briefing'},
     seed_price_history: {label: 'Price History Seed', desc: 'Backfill 1-year OHLCV price history'},
     validate_data_quality: {label: 'Data Quality Check', desc: 'Validate data integrity across the pipeline'},
+    seed_tracked_universes: {label: 'Tracked Universe Seed', desc: 'One-time/manual bulk seed of the curated index-based tracked universes — not scheduled, run only when needed'},
+    refresh_tracked_universe: {label: 'Tracked Universe Refresh', desc: 'Daily refresh of tracked (non-portfolio) assets not already covered by the hourly holdings/watchlist refresh'},
+    sweep_stale_job_logs: {label: 'Stale Job Log Sweep', desc: 'Marks job runs stuck in RUNNING past the timeout as FAILED — internal housekeeping, no external provider'},
+    seed_market_universe: {label: 'Seed Market Universe (Legacy)', desc: 'Orphaned row from a prior schema, replaced by Tracked Universe Seed — has no backing task and will fail if run; safe to disable'},
 };
 
 // Requires a portfolio_id the generic "Run" button here can't supply (there
 // is no portfolio-scoped UI for it yet — see POST
 // /portfolios/{id}/sync/binance/backfill). The enable/disable toggle still
 // works as a kill switch for that endpoint.
-const NOT_MANUALLY_RUNNABLE = new Set(['backfill_binance_spot']);
+//
+// seed_market_universe is a legacy job_configs row left over from a rename
+// (see JOB_LABELS) — it has no entry in ConfigService._TASK_MAPPING, so
+// dispatch_job raises "Unknown job" if triggered. Excluded from Run for the
+// same reason as backfill_binance_spot: the generic Run button can't do
+// anything useful with it.
+const NOT_MANUALLY_RUNNABLE = new Map([
+    ['backfill_binance_spot', 'Trigger from the asset page instead'],
+    ['seed_market_universe', 'Legacy row — no backing task, cannot be run'],
+]);
 
 // Grouped single-trigger buttons — fire every member job and report each
 // job's real outcome independently (see JobGroupCard). Zerodha is
@@ -242,7 +255,7 @@ function JobRow({job, onUpdate, onRun, note}) {
                 </span>
                 <button
                     onClick={handleRun} disabled={!enabled || running || NOT_MANUALLY_RUNNABLE.has(job.job_name)}
-                    className="du3-cta" title={NOT_MANUALLY_RUNNABLE.has(job.job_name) ? 'Trigger from the asset page instead' : 'Run now'}
+                    className="du3-cta" title={NOT_MANUALLY_RUNNABLE.get(job.job_name) || 'Run now'}
                 >
                     {running ? '…' : (
                         <svg width="11" height="11" viewBox="0 0 24 24" fill="currentColor"><polygon points="6,4 20,12 6,20"/></svg>

@@ -9,7 +9,6 @@ import { apiService } from '@/api/apiService';
 import { LogTradeModal } from '@/components/aureon/portfolio';
 import { PortfolioHealthCard } from '@/components/aureon/dashboard/PortfolioHealthCard';
 import { DiversificationCard } from '@/components/aureon/dashboard/DiversificationCard';
-import { AllocationDriftCard } from '@/components/aureon/dashboard/AllocationDriftCard';
 import { PfFreshnessBar }      from '@/components/aureon/portfolio/PfFreshnessBar';
 import { PfSummaryHero }       from '@/components/aureon/portfolio/PfSummaryHero';
 import { PfPerformanceChart }  from '@/components/aureon/portfolio/PfPerformanceChart';
@@ -107,12 +106,14 @@ export default function Portfolio() {
         <PfActivityFeed txns={activity} onViewAll={() => navigate('/transactions')} />
       </PfSection>
 
-      {/* 7 · Health section — 3-card grid matching prototype */}
+      {/* 7 · Health section — Allocation Drift dropped here: it's the same
+          per-class drift already shown above in Breakdown > Allocation, and
+          its "Rebalance →" link would just navigate to this same page. Still
+          used standalone on Dashboard, where both are real value-adds. */}
       <PfSection eyebrow="Intelligence" title="Portfolio Health">
-        <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr 1fr', gap:14 }}>
+        <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:14 }}>
           <PortfolioHealthCard />
           <DiversificationCard />
-          <AllocationDriftCard onNavigatePortfolio={() => navigate('/portfolio')} />
         </div>
       </PfSection>
 
