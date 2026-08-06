@@ -30,11 +30,7 @@ export function PfActivityFeed({ txns, onViewAll }) {
         const s = TXN_STYLE[txnType] || TXN_STYLE.BUY;
         const gross = t.amount != null ? t.amount : ((t.quantity || t.qty || 0) * (t.price || 0));
         const inflow = txnType === 'SELL' || txnType === 'DIVIDEND';
-        // TODO(data-gap): Transaction has no currency column backend-side, so
-        // there's no real per-transaction currency to convert from — 'USD' is
-        // an assumption, not a known fact. At least this respects the user's
-        // selected display currency instead of hardcoding a '$' glyph outright.
-        const fmtGross = fmt(gross, 'USD', { compact: true });
+        const fmtGross = fmt(gross, t.currency || 'INR', { compact: true });
         const ticker = t.symbol || t.ticker || '—';
         const name   = t.name || t.notes || ticker;
         const broker = t.broker || t.source || '—';

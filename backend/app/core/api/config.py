@@ -58,6 +58,7 @@ class JobLogResponse(BaseModel):
     started_at: Optional[datetime] = None
     ended_at: Optional[datetime] = None
     duration_ms: Optional[int] = None
+    result_summary: Optional[Dict[str, Any]] = None
 
     model_config = ConfigDict(from_attributes=True)
 

@@ -305,9 +305,17 @@ class MarketService(BaseService):
         return results
 
     def get_sectors(self) -> list[dict[str, Any]]:
+        # Reads the same real Asset.metadata['sector'] values (yfinance's
+        # info.get("sector"), persisted by refresh_fundamentals_task) that
+        # get_sector_detail matches against, so a card here always links to a
+        # populated detail page — see get_sector_detail's docstring for the
+        # SYMBOL_SECTOR_MAP naming mismatch this replaces.
         sector_entries: dict[str, list[tuple[float, float]]] = {}
-        for symbol, sector in SYMBOL_SECTOR_MAP.items():
-            quote = self.repo.get_quote_by_symbol(symbol)
+        for asset in self.repo.list_all_assets():
+            sector = (asset.metadata_payload or {}).get("sector") if isinstance(asset.metadata_payload, dict) else None
+            if not sector:
+                continue
+            quote = self.repo.get_quote_by_symbol(asset.symbol)
             if not quote:
                 continue
             sector_entries.setdefault(sector, []).append(
@@ -630,19 +638,11 @@ class MarketService(BaseService):
         return matched
 
     def get_sector_detail(self, name: str) -> dict[str, Any]:
-        # BACKLOG: this matches against the real Asset.metadata['sector'] values
-        # persisted by refresh_fundamentals_task (yfinance's info.get("sector"),
-        # e.g. "Technology", "Financial Services", "Consumer Defensive"). The
-        # /market/sectors card list a user clicks into this from still comes from
-        # the older, separate SYMBOL_SECTOR_MAP hand-curated below (get_sectors()),
-        # whose labels ("IT", "Financials", "FMCG") mostly don't match the real
-        # yfinance names — so most sector cards will currently land here and find
-        # zero matches (correct, honest empty state — not a bug in this method),
-        # not because there's no real data, but because the two sector-naming
-        # sources haven't been reconciled. That reconciliation (rename
-        # SYMBOL_SECTOR_MAP's labels to the real ones, or drop it in favor of
-        # aggregating get_sectors() off Asset.metadata too) is a separate decision
-        # not made in this pass.
+        # Matches against the real Asset.metadata['sector'] values persisted by
+        # refresh_fundamentals_task (yfinance's info.get("sector"), e.g.
+        # "Technology", "Financial Services", "Consumer Defensive") — the same
+        # source get_sectors() now aggregates off, so a sector card here always
+        # finds its constituents.
         assets = self.repo.list_all_assets()
         matched = []
         for asset in assets:

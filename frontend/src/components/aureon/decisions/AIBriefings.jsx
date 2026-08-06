@@ -92,9 +92,23 @@ function BriefingFeedback({ generationId }) {
     );
 }
 
+const RISK_TONE = {
+    LOW: { color: 'var(--ink-30)', bg: 'rgba(255,255,255,0.05)', border: 'rgba(255,255,255,0.12)' },
+    MEDIUM: { color: 'var(--aurum-100)', bg: 'rgba(201,168,106,0.10)', border: 'rgba(201,168,106,0.28)' },
+    HIGH: { color: 'var(--crimson-500)', bg: 'rgba(201,82,82,0.10)', border: 'rgba(201,82,82,0.28)' },
+    EXTREME: { color: 'var(--crimson-500)', bg: 'rgba(201,82,82,0.16)', border: 'rgba(201,82,82,0.40)' },
+};
+
 function BriefingCard({ b, expanded, onToggle }) {
-    const trend = b.short_term_trend;
+    // The AI prompt schema returns the trend/risk read here under
+    // future_projections, not top-level short_term_trend/recommended_action
+    // (those fields don't exist in the response) — reading the wrong fields
+    // meant this badge silently fell back to "Neutral" no matter what the
+    // briefing actually assessed, masking real high-risk calls.
+    const trend = b.future_projections?.estimated_30d_trend;
     const toneMap = BRIEFING_TREND[trend] || BRIEFING_TREND.Neutral;
+    const riskLevel = b.future_projections?.portfolio_risk_level?.toUpperCase();
+    const riskTone = RISK_TONE[riskLevel];
     const actionKey = b.recommended_action?.toUpperCase();
     const actionColor = ACTION_COLOR[actionKey] || 'var(--ink-30)';
     const confPct = b.confidence != null ? Math.round(b.confidence * 100) : null;
@@ -119,6 +133,14 @@ function BriefingCard({ b, expanded, onToggle }) {
                     }}>
                         {toneMap.label}
                     </span>
+                    {riskLevel && riskTone && (riskLevel === 'HIGH' || riskLevel === 'EXTREME') && (
+                        <span style={{
+                            fontSize: 11, padding: '2px 8px', borderRadius: 5, fontWeight: 500,
+                            color: riskTone.color, background: riskTone.bg, border: `1px solid ${riskTone.border}`,
+                        }}>
+                            {riskLevel} RISK
+                        </span>
+                    )}
                     {actionKey && (
                         <span style={{
                             fontSize: 11, padding: '2px 8px', borderRadius: 5, fontWeight: 500,

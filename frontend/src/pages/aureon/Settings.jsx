@@ -338,6 +338,7 @@ function RestoreSection() {
     const [dragOver, setDragOver] = useState(false);
     const [confirmOpen, setConfirmOpen] = useState(false);
     const [confirmText, setConfirmText] = useState('');
+    const [confirmAck, setConfirmAck] = useState(false);
     const fileInputRef = useRef(null);
 
     const reset = useCallback(() => {
@@ -374,6 +375,8 @@ function RestoreSection() {
                 ai_generations: res.ai_generations_count ?? 0,
                 recommendations: res.recommendations_count ?? 0,
                 market_themes: res.market_themes_count ?? 0,
+                portfoliosToReplace: res.portfolios_to_replace ?? [],
+                existingTransactionsToDelete: res.existing_transactions_to_delete ?? 0,
             });
             setStep('preview');
         } catch (e) {
@@ -384,7 +387,7 @@ function RestoreSection() {
 
     const handleRestore = async () => {
         if (!file) return;
-        setConfirmOpen(false); setConfirmText(''); setStep('importing');
+        setConfirmOpen(false); setConfirmText(''); setConfirmAck(false); setStep('importing');
         try {
             await apiService.restoreBackupJSON(file, true);
             setStep('success');
@@ -456,8 +459,19 @@ function RestoreSection() {
                             ))}
                         </div>
                         <div style={{padding: '12px 14px', borderRadius: 8, background: 'rgba(209,107,107,0.08)', border: '1px solid rgba(209,107,107,0.22)', fontSize: 12.5, color: 'var(--crimson-300)', lineHeight: 1.55}}>
-                            <strong style={{display: 'block', marginBottom: 4, color: 'var(--crimson-500)'}}>This adds data — it doesn't replace anything.</strong>
-                            Your current transactions, valuations, and accruals are kept; the backup's records are added on top. There's no built-in undo, and restoring the same backup a second time may fail rather than complete cleanly — avoid running it twice.
+                            <strong style={{display: 'block', marginBottom: 4, color: 'var(--crimson-500)'}}>
+                                {summary.existingTransactionsToDelete > 0
+                                    ? `This replaces transactions & positions for ${summary.portfoliosToReplace.length} portfolio${summary.portfoliosToReplace.length === 1 ? '' : 's'}.`
+                                    : 'This adds transactions & positions — no existing ones will be deleted.'}
+                            </strong>
+                            {summary.existingTransactionsToDelete > 0 ? (
+                                <>
+                                    {summary.existingTransactionsToDelete} existing transaction{summary.existingTransactionsToDelete === 1 ? '' : 's'} will be deleted and replaced with {summary.transactions} from this file, across: {summary.portfoliosToReplace.map(p => p.name || 'current portfolio').join(', ')}. This can't be undone.
+                                </>
+                            ) : (
+                                <>{summary.transactions} transaction{summary.transactions === 1 ? '' : 's'} will be inserted for {summary.portfoliosToReplace.map(p => p.name || 'current portfolio').join(', ')}.</>
+                            )}
+                            {' '}Recommendations, AI history, watchlists, and theme data are always added to what you have — restoring the same file twice won't duplicate those.
                         </div>
                         <div style={{display: 'flex', gap: 10}}>
                             <button onClick={reset} className="du3-cta ghost" style={{flex: 1}}>Cancel</button>
@@ -479,7 +493,7 @@ function RestoreSection() {
                     <div style={{display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 12, padding: '32px 0', textAlign: 'center'}}>
                         <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="var(--aurum-100)" strokeWidth="1.8" strokeLinecap="round" style={{animation: 'spin 1s linear infinite'}}><circle cx="12" cy="12" r="9" strokeDasharray="40 80"/></svg>
                         <div style={{fontSize: 15, fontWeight: 600, color: 'var(--ink-10)'}}>Restoring your portfolio…</div>
-                        <div style={{fontSize: 12, color: 'var(--ink-40)', maxWidth: 300, lineHeight: 1.6}}>Adding transactions, valuations, and positions from the backup. Do not close this page.</div>
+                        <div style={{fontSize: 12, color: 'var(--ink-40)', maxWidth: 300, lineHeight: 1.6}}>Replacing transactions & positions and adding AI/recommendation/watchlist history from the backup. Do not close this page.</div>
                     </div>
                 )}
 
@@ -493,23 +507,43 @@ function RestoreSection() {
                     </div>
                 )}
 
-                {confirmOpen && (
-                    <div onClick={() => { setConfirmOpen(false); setConfirmText(''); }} style={{position: 'fixed', inset: 0, zIndex: 900, background: 'rgba(0,0,0,0.55)', backdropFilter: 'blur(6px)', display: 'flex', alignItems: 'center', justifyContent: 'center'}}>
-                        <div onClick={e => e.stopPropagation()} style={{width: 'min(400px,92vw)', borderRadius: 14, background: 'rgba(18,20,24,0.97)', border: '1px solid rgba(255,255,255,0.10)', padding: 24, boxShadow: '0 30px 80px rgba(0,0,0,0.55)'}}>
-                            <div style={{fontFamily: 'var(--font-heading)', fontSize: 17, fontWeight: 600, color: 'var(--ink-00)', marginBottom: 8}}>Restore from backup?</div>
-                            <div style={{fontSize: 13, color: 'var(--ink-30)', marginBottom: 16, lineHeight: 1.5}}>
-                                Type <span style={{fontFamily: 'var(--font-mono)', color: 'var(--crimson-500)'}}>RESTORE</span> to confirm. This adds the backup's data on top of what you have now — it won't replace or delete anything. Avoid restoring the same file twice.
-                            </div>
-                            <input value={confirmText} onChange={e => setConfirmText(e.target.value)} placeholder="Type RESTORE" style={{...settingInputStyle, marginBottom: 14}}/>
-                            <div style={{display: 'flex', gap: 8}}>
-                                <button onClick={() => { setConfirmOpen(false); setConfirmText(''); }} className="du3-cta ghost" style={{flex: 1}}>Cancel</button>
-                                <button onClick={handleRestore} disabled={confirmText !== 'RESTORE'} style={{flex: 1, height: 34, borderRadius: 7, cursor: confirmText === 'RESTORE' ? 'pointer' : 'not-allowed', background: 'rgba(212,162,87,0.12)', border: '1px solid rgba(212,162,87,0.35)', color: 'var(--dusk-500)', fontSize: 13, fontFamily: 'var(--font-ui)', opacity: confirmText === 'RESTORE' ? 1 : 0.5}}>
-                                    Restore now
-                                </button>
+                {confirmOpen && summary && (() => {
+                    const names = summary.portfoliosToReplace.map(p => p.name || 'CURRENT PORTFOLIO');
+                    const required = summary.existingTransactionsToDelete > 0
+                        ? 'REPLACE ' + names.join(', ').toUpperCase()
+                        : 'RESTORE';
+                    const valid = confirmText === required && confirmAck;
+                    const closeModal = () => { setConfirmOpen(false); setConfirmText(''); setConfirmAck(false); };
+                    return (
+                        <div onClick={closeModal} style={{position: 'fixed', inset: 0, zIndex: 900, background: 'rgba(0,0,0,0.55)', backdropFilter: 'blur(6px)', display: 'flex', alignItems: 'center', justifyContent: 'center'}}>
+                            <div onClick={e => e.stopPropagation()} style={{width: 'min(420px,92vw)', borderRadius: 14, background: 'rgba(18,20,24,0.97)', border: '1px solid rgba(255,255,255,0.10)', padding: 24, boxShadow: '0 30px 80px rgba(0,0,0,0.55)'}}>
+                                <div style={{fontFamily: 'var(--font-heading)', fontSize: 17, fontWeight: 600, color: 'var(--ink-00)', marginBottom: 8}}>Restore from backup?</div>
+                                <div style={{fontSize: 13, color: 'var(--ink-30)', marginBottom: 16, lineHeight: 1.5}}>
+                                    {summary.existingTransactionsToDelete > 0
+                                        ? `Transactions & positions for ${names.join(', ')} will be permanently replaced with this file's data. Recommendations, AI history, watchlists, and theme data will be added on top, not replaced.`
+                                        : `Transactions & positions from this file will be added. Recommendations, AI history, watchlists, and theme data will be added on top too.`}
+                                    {' '}Type <span style={{fontFamily: 'var(--font-mono)', color: 'var(--crimson-500)'}}>{required}</span> to confirm.
+                                </div>
+                                <input value={confirmText} onChange={e => setConfirmText(e.target.value)} placeholder={required}
+                                    style={{...settingInputStyle, marginBottom: 12, fontFamily: 'var(--font-mono)'}}/>
+                                <label style={{display: 'flex', alignItems: 'flex-start', gap: 9, marginBottom: 16, cursor: 'pointer'}}>
+                                    <input type="checkbox" checked={confirmAck} onChange={e => setConfirmAck(e.target.checked)} style={{marginTop: 2, accentColor: 'var(--crimson-500)'}}/>
+                                    <span style={{fontSize: 12.5, color: 'var(--ink-20)', lineHeight: 1.5}}>
+                                        {summary.existingTransactionsToDelete > 0
+                                            ? 'I understand the replaced transactions & positions cannot be recovered without a separate backup of the current data.'
+                                            : 'I understand this will import the file\'s data into my portfolio.'}
+                                    </span>
+                                </label>
+                                <div style={{display: 'flex', gap: 8}}>
+                                    <button onClick={closeModal} className="du3-cta ghost" style={{flex: 1}}>Cancel</button>
+                                    <button onClick={handleRestore} disabled={!valid} style={{flex: 1, height: 34, borderRadius: 7, cursor: valid ? 'pointer' : 'not-allowed', background: 'rgba(212,162,87,0.12)', border: '1px solid rgba(212,162,87,0.35)', color: 'var(--dusk-500)', fontSize: 13, fontFamily: 'var(--font-ui)', opacity: valid ? 1 : 0.5}}>
+                                        Restore now
+                                    </button>
+                                </div>
                             </div>
                         </div>
-                    </div>
-                )}
+                    );
+                })()}
             </div>
         </section>
     );
@@ -1146,6 +1180,7 @@ function PortfolioManagementSection() {
 const ASSET_CLASS_LABEL = {
     stocks: 'Stocks', crypto: 'Crypto', funds: 'Funds', bonds: 'Bonds',
     real_estate: 'Real estate', retirement: 'Retirement', insurance: 'Insurance',
+    stablecoin: 'Stablecoin',
 };
 
 // Optional starting points — pre-fill the form, nothing is saved until the

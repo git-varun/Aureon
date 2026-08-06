@@ -63,6 +63,7 @@ class TransactionResponse(BaseModel):
     kind: str
     recommendation_id: Optional[uuid.UUID] = None
     created_at: datetime
+    currency: Optional[str] = None
 
 class PositionResponse(BaseModel):
     model_config = ConfigDict(from_attributes=True)

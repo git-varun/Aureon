@@ -577,6 +577,23 @@ def try_consume_provider_budget(provider_name: str, limit: int, window_seconds: 
     return count <= limit
 
 
+def get_provider_cooldown_key(provider_name: str) -> str:
+    return f"provider_cooldown:{provider_name}"
+
+
+def set_provider_cooldown(provider_name: str, seconds: int) -> None:
+    """Explicit cooldown set from a real 429's Retry-After header — honors
+    the provider's actual relative cooldown, unlike try_consume_provider_budget's
+    fixed wall-clock window (see coingecko/provider.py's _get)."""
+    client = get_redis_client()
+    client.set(get_provider_cooldown_key(provider_name), "1", ex=max(seconds, 1))
+
+
+def is_provider_cooling_down(provider_name: str) -> bool:
+    client = get_redis_client()
+    return bool(client.exists(get_provider_cooldown_key(provider_name)))
+
+
 def get_backup_receipt_key() -> str:
     return "backup:receipt"
 

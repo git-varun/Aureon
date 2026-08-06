@@ -84,6 +84,10 @@ celery_app.conf.beat_schedule = {
         "task": "app.workers.ingestion.tasks.monthly_briefing_task",
         "schedule": crontab(hour=9, minute=0, day_of_month=1),
     },
+    "sweep-stale-job-logs": {
+        "task": "app.workers.ingestion.tasks.sweep_stale_job_logs_task",
+        "schedule": crontab(minute="*/30"),
+    },
 }
 
 

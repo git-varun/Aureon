@@ -3,10 +3,10 @@ import { toast } from 'react-hot-toast';
 import { apiService } from '../../../api/apiService';
 import { ModalShell } from '../ds';
 import { useV4 } from '../../../contexts/V4Context';
-import { CURRENCY_META } from '../../../pages/aureon/marketData';
+import { CURRENCY_META, convert } from '../../../pages/aureon/marketData';
 
 export function ManualAssetModal({ onClose, existing, defaultCls }) {
-  const { currency } = useV4();
+  const { currency, fxRates } = useV4();
   const ccySymbol = (CURRENCY_META[currency] || CURRENCY_META.INR).symbol;
   const [submitting, setSubmitting] = useState(false);
   const [form, setForm] = useState({
@@ -24,14 +24,19 @@ export function ManualAssetModal({ onClose, existing, defaultCls }) {
     if (!valid || submitting) return;
     setSubmitting(true);
     try {
+      // The backend always stores/interprets manual-asset values as INR — convert
+      // from the currently displayed currency before sending, since the modal
+      // shows/collects the value in `currency`, not INR.
+      const valueInr = convert(parseFloat(form.value), currency, 'INR', fxRates);
+      const costInr = form.cost ? convert(parseFloat(form.cost), currency, 'INR', fxRates) : null;
       if (existing) {
-        await apiService.updateManualValuation(existing.symbol, parseFloat(form.value), form.notes || null);
+        await apiService.updateManualValuation(existing.symbol, valueInr, form.notes || null);
       } else {
         await apiService.createManualAsset({
           name: form.name,
           asset_class: form.cls,
-          current_value: parseFloat(form.value),
-          cost_basis: form.cost ? parseFloat(form.cost) : null,
+          current_value: valueInr,
+          cost_basis: costInr,
           valuation_date: form.date,
           notes: form.notes || null,
         });

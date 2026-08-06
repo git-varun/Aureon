@@ -8,7 +8,7 @@ from app.core.providers.capabilities import Capability
 from app.core.providers.interfaces import MarketDataProvider
 from app.core.providers.registry import registry
 from app.core.providers.models import NormalizedNews, NormalizedQuote
-from app.core.redis import try_consume_provider_budget
+from app.core.redis import is_provider_cooling_down, set_provider_cooldown, try_consume_provider_budget
 
 _BASE_URL = "https://api.coingecko.com/api/v3"
 
@@ -30,6 +30,21 @@ _BASE_URL = "https://api.coingecko.com/api/v3"
 # 429 over maximizing throughput.
 _BUDGET_LIMIT = 2
 _BUDGET_WINDOW_SECONDS = 60
+
+# /coins/markets accepts a comma-separated `ids` list in one call — used by
+# get_quotes_by_ids to refresh many tracked coins per budget-guarded call
+# instead of one call per coin (see get_quotes_by_ids docstring). Kept well
+# under CoinGecko's practical per-call id-list ceiling (URL-length driven,
+# not officially documented) rather than relying on a single request for an
+# arbitrarily large tracked universe.
+_BULK_IDS_PER_CALL = 200
+
+# CoinGecko's real cooldown after a 429 is relative to the moment it was
+# drawn (its own Retry-After header), not aligned to _check_budget's fixed
+# wall-clock window — a request right after a fresh window boundary can
+# slip through the local budget counter while the real API is still
+# rejecting it. Fallback used only if a 429 response omits Retry-After.
+_DEFAULT_RETRY_AFTER_SECONDS = 60
 
 _PERIOD_TO_DAYS = {"1mo": 30, "3mo": 90, "6mo": 180, "1y": 365, "2y": 730, "5y": 1825}
 
@@ -99,22 +114,34 @@ class CoinGeckoAdapter(MarketDataProvider):
         return [Capability.PRICE, Capability.OHLC, Capability.FUNDAMENTALS]
 
     def _check_budget(self) -> None:
+        if is_provider_cooling_down(self.provider_name):
+            raise ProviderError(
+                f"{self.provider_name}: cooling down after a real 429, skipping rather than draw another"
+            )
         if not try_consume_provider_budget(self.provider_name, _BUDGET_LIMIT, _BUDGET_WINDOW_SECONDS):
             raise ProviderError(
                 f"{self.provider_name}: local call budget ({_BUDGET_LIMIT}/{_BUDGET_WINDOW_SECONDS}s) "
                 "exhausted for this window, skipping rather than draw a real 429"
             )
 
+    def _get(self, path: str, params: dict[str, Any]):
+        res = http_client.get("CoinGecko", f"{_BASE_URL}{path}", params=params, timeout=15)
+        if res.status_code == 429:
+            retry_after = res.headers.get("Retry-After")
+            try:
+                seconds = int(retry_after) if retry_after is not None else _DEFAULT_RETRY_AFTER_SECONDS
+            except ValueError:
+                seconds = _DEFAULT_RETRY_AFTER_SECONDS
+            set_provider_cooldown(self.provider_name, seconds)
+            raise ProviderError(f"{self.provider_name}: 429 rate limited, cooling down for {seconds}s")
+        res.raise_for_status()
+        return res
+
     def get_quote(self, symbol: str) -> NormalizedQuote:
         coin_id = _coin_id(self.provider_name, symbol)
         self._check_budget()
         try:
-            res = http_client.get(
-                "CoinGecko", f"{_BASE_URL}/coins/markets",
-                params={"vs_currency": "usd", "ids": coin_id},
-                timeout=15
-            )
-            res.raise_for_status()
+            res = self._get("/coins/markets", {"vs_currency": "usd", "ids": coin_id})
             data = res.json()
             if not data:
                 raise ProviderError(f"No price returned by CoinGecko for symbol {symbol}")
@@ -142,12 +169,7 @@ class CoinGeckoAdapter(MarketDataProvider):
         coin_id = _coin_id(self.provider_name, symbol)
         self._check_budget()
         try:
-            res = http_client.get(
-                "CoinGecko", f"{_BASE_URL}/coins/markets",
-                params={"vs_currency": "usd", "ids": coin_id},
-                timeout=15
-            )
-            res.raise_for_status()
+            res = self._get("/coins/markets", {"vs_currency": "usd", "ids": coin_id})
             data = res.json()
             if not data:
                 raise ProviderError(f"No fundamentals returned by CoinGecko for symbol {symbol}")
@@ -172,12 +194,7 @@ class CoinGeckoAdapter(MarketDataProvider):
         days = _PERIOD_TO_DAYS.get(period, 90)
         self._check_budget()
         try:
-            res = http_client.get(
-                "CoinGecko", f"{_BASE_URL}/coins/{coin_id}/market_chart",
-                params={"vs_currency": "usd", "days": days, "interval": "daily"},
-                timeout=15
-            )
-            res.raise_for_status()
+            res = self._get(f"/coins/{coin_id}/market_chart", {"vs_currency": "usd", "days": days, "interval": "daily"})
             data = res.json()
             rows = []
             for ts_ms, price in data.get("prices", []):
@@ -192,6 +209,39 @@ class CoinGeckoAdapter(MarketDataProvider):
         except Exception as e:
             raise ProviderError(f"CoinGecko get_price_history failed for {symbol}: {e}") from e
 
+    def get_quotes_by_ids(self, coin_ids: list[str]) -> dict[str, dict[str, Any]]:
+        """Bulk quote refresh for many CoinGecko ids, spending one budget-
+        guarded call per _BULK_IDS_PER_CALL ids instead of one call per coin
+        — used by refresh_tracked_universe_task's crypto batch, which was
+        previously firing one get_quote() (and one _check_budget() draw) per
+        tracked symbol, so only ~_BUDGET_LIMIT of a ~100-coin batch ever won
+        the shared per-minute budget and the rest silently failed every
+        cycle (confirmed live, see investigation notes). Returns
+        {coin_id: {"price": ..., "volume": ...}} only for ids CoinGecko
+        actually priced this call — a missing id means "no quote this
+        cycle" to the caller, not a hard error for the whole batch."""
+        if not coin_ids:
+            return {}
+        results: dict[str, dict[str, Any]] = {}
+        for i in range(0, len(coin_ids), _BULK_IDS_PER_CALL):
+            batch = coin_ids[i:i + _BULK_IDS_PER_CALL]
+            self._check_budget()
+            try:
+                res = self._get(
+                    "/coins/markets",
+                    {"vs_currency": "usd", "ids": ",".join(batch), "per_page": len(batch), "page": 1},
+                )
+                for coin in res.json():
+                    price = coin.get("current_price")
+                    if price is None:
+                        continue
+                    results[coin["id"]] = {"price": price, "volume": coin.get("total_volume")}
+            except ProviderError:
+                raise
+            except Exception as e:
+                raise ProviderError(f"CoinGecko get_quotes_by_ids failed: {e}") from e
+        return results
+
     def get_top_market_cap_coins(self, limit: int = 100) -> list[dict[str, Any]]:
         """Live top-`limit`-by-market-cap coins — one /coins/markets call
         (confirmed live: a single page=1&per_page=100 call returns the full
@@ -205,12 +255,7 @@ class CoinGeckoAdapter(MarketDataProvider):
         SYMBOL_TO_COINGECKO_ID's module docstring on ticker collisions)."""
         self._check_budget()
         try:
-            res = http_client.get(
-                "CoinGecko", f"{_BASE_URL}/coins/markets",
-                params={"vs_currency": "usd", "order": "market_cap_desc", "per_page": limit, "page": 1},
-                timeout=15
-            )
-            res.raise_for_status()
+            res = self._get("/coins/markets", {"vs_currency": "usd", "order": "market_cap_desc", "per_page": limit, "page": 1})
             data = res.json()
             return [
                 {

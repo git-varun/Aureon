@@ -1,7 +1,9 @@
 import enum
 from datetime import datetime
+from typing import Any
 
-from sqlalchemy import Boolean, DateTime, Enum, Integer, String, Text
+from sqlalchemy import Boolean, DateTime, Enum, Integer, JSON, String, Text
+from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.orm import Mapped, mapped_column
 from sqlalchemy.sql import func
 
@@ -78,3 +80,4 @@ class JobLog(Base):
     started_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
     ended_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     duration_ms: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    result_summary: Mapped[dict[str, Any] | None] = mapped_column(JSON().with_variant(JSONB, "postgresql"), nullable=True)

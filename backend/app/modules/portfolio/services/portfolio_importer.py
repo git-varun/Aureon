@@ -122,6 +122,16 @@ def _mf_symbol(name: str) -> str:
     slug = re.sub(r"[^A-Z0-9]+", "_", name.upper().strip())
     return slug[:40].rstrip("_") + "_MF"
 
+def _mf_symbol_for(name: str, isin: str = "") -> str:
+    """Same ISIN-preferred/name-slug-fallback pattern as parse_cdsl_cas below —
+    an ISIN-keyed symbol lets refresh_mutual_fund_navs_task match this Asset
+    against AMFI's daily NAV feed; a name-slug symbol never can, so it's only
+    a fallback for rows with no parseable ISIN."""
+    clean_isin = _clean_isin(isin) if isin else ""
+    if clean_isin.startswith("INF"):
+        return f"{clean_isin}_MF"
+    return _mf_symbol(name)
+
 def _normalise_binance_symbol(pair: str) -> str:
     from app.core.binance import split_quote_asset
 
@@ -213,7 +223,7 @@ def _rows_from_records(records: List[Dict[str, Any]], broker: Optional[str] = No
             if status and status not in ("executed", "allotted", "redeemed", "completed", "successful", "success"):
                 continue
             if not normalised.get("symbol") and extras.get("_name"):
-                normalised["symbol"] = _mf_symbol(extras["_name"])
+                normalised["symbol"] = _mf_symbol_for(extras["_name"], extras.get("_isin", ""))
 
         if broker == "groww" and extras.get("_status", "").strip().lower() != "executed":
             if extras.get("_status"):
@@ -228,7 +238,7 @@ def _rows_from_records(records: List[Dict[str, Any]], broker: Optional[str] = No
         if is_mf_segment and normalised.get("symbol"):
             if not extras.get("_name"):
                 extras["_name"] = normalised["symbol"]
-            normalised["symbol"] = _mf_symbol(normalised["symbol"])
+            normalised["symbol"] = _mf_symbol_for(extras["_name"], extras.get("_isin", ""))
 
         if (
             broker in ("zerodha", "groww")
@@ -541,7 +551,7 @@ def parse_cdsl_cas(content: bytes, password: Optional[str] = None) -> Tuple[List
         if isinstance(exc, PDFPasswordIncorrect) or isinstance(cause, PDFPasswordIncorrect):
             marker = "PDF_PASSWORD_INCORRECT" if password else "PDF_PASSWORD_REQUIRED"
             raise ValueError(marker) from exc
-        raise ValueError(f"Cannot open PDF: {exc}") from exc
+        raise ValueError("This file doesn't appear to be a valid PDF — please check the file and try again.") from exc
 
     mf_folios = []
     demat_mf = []
@@ -1094,7 +1104,7 @@ def parse_epf_statement(content: bytes, password: Optional[str] = None) -> Tuple
         if isinstance(exc, PDFPasswordIncorrect) or isinstance(cause, PDFPasswordIncorrect):
             marker = "PDF_PASSWORD_INCORRECT" if password else "PDF_PASSWORD_REQUIRED"
             raise ValueError(marker) from exc
-        raise ValueError(f"Cannot open PDF: {exc}") from exc
+        raise ValueError("This file doesn't appear to be a valid PDF — please check the file and try again.") from exc
 
     opening: Optional[Dict[str, Any]] = None
     closing: Optional[Dict[str, Any]] = None

@@ -103,6 +103,18 @@ def resolve_quote_provider(symbol: str, asset_class: str | None) -> str:
         # symbols (confirmed live) and wastefully cascaded through the
         # whole equity fallback chain before landing on yahoo.
         return "coingecko"
+    if asset_class is None and symbol.endswith("-USD"):
+        # asset_class is unknown before an Asset row exists (e.g. a raw
+        # search query in resolve_and_track_symbol) — the -USD suffix is
+        # the same crypto/stablecoin signal the asset_class branch above
+        # uses, just read off the symbol instead of a DB column.
+        return "coingecko"
+    if asset_class == "index":
+        # "^"-prefixed tickers (^NSEI, ^GSPC, ...) are Yahoo Finance's own
+        # index-ticker convention — Finnhub's free-tier /quote endpoint
+        # doesn't recognise this format, so falling through to the finnhub
+        # default below would guaranteed-fail every cycle.
+        return "yahoo"
     if symbol.endswith(".NS"):
         return "nse_direct"
     if symbol.endswith(".BO"):
@@ -113,6 +125,15 @@ def resolve_quote_provider(symbol: str, asset_class: str | None) -> str:
     if symbol.endswith(_JP_HK_EUROPE_SUFFIXES):
         return "yahoo"
     return "finnhub"
+
+
+def _is_non_us_exchange_symbol(symbol: str) -> bool:
+    """True for symbols resolve_quote_provider already knows Finnhub can
+    never serve (NSE/.BO plus the JP/HK/Europe suffixes) — reused by
+    ingest_quote to keep Finnhub out of the yahoo fallback chain for these,
+    since a real Finnhub attempt there is a guaranteed 403 (confirmed live:
+    see investigation notes), not a genuine fallback."""
+    return symbol.endswith((".NS", ".BO") + _JP_HK_EUROPE_SUFFIXES)
 
 
 def _yahoo_can_serve_crypto_symbol(symbol: str) -> bool:
@@ -130,6 +151,16 @@ def _yahoo_can_serve_crypto_symbol(symbol: str) -> bool:
 @with_retry()
 def _get_quote_with_retry(adapter, symbol: str):
     return adapter.get_quote(symbol)
+
+
+@with_retry()
+def _get_fundamentals_with_retry(adapter, symbol: str):
+    return adapter.get_fundamentals(symbol)
+
+
+@with_retry()
+def _get_all_navs_with_retry(adapter):
+    return adapter.get_all_navs()
 
 
 def _skip_if_disabled(job_name: str):
@@ -192,6 +223,12 @@ def ingest_quote(provider_name: str, symbol: str) -> bool:
                 # falling back to it here isn't a real fallback, just a doomed
                 # retry that masks a genuine coingecko-only outage as "handled".
                 candidate_names = [c for c in candidate_names if c != "yahoo"]
+            if _is_non_us_exchange_symbol(symbol):
+                # Finnhub's free tier 403s on every non-US exchange, not just
+                # candle/history (confirmed live) — trying it as a yahoo
+                # fallback for e.g. TITAN.NS or 1928.HK is a guaranteed
+                # failure, not a real fallback.
+                candidate_names = [c for c in candidate_names if c != "finnhub"]
             chain = ProviderFactory(ConfigService(ConfigRepository(db))).get_fallback_chain(candidate_names)
             if not chain:
                 raise ProviderError(f"No available provider for '{provider_name}' or its fallbacks")
@@ -291,8 +328,8 @@ def _wrap_job_execution(job_name: str, log_id: int | None, fn, *args, **kwargs) 
         cfg_svc.mark_job_ran(job_name)
 
         try:
-            fn(*args, **kwargs)
-            cfg_svc.log_job_end(log_id, JobStatus.SUCCESS)
+            result = fn(*args, **kwargs)
+            cfg_svc.log_job_end(log_id, JobStatus.SUCCESS, result=result if isinstance(result, dict) else None)
         except Exception as e:
             cfg_svc.log_job_end(log_id, JobStatus.FAILED, error=str(e))
             logger.error(f"Job {job_name} failed (log_id={log_id}): {e}", exc_info=True)
@@ -611,7 +648,8 @@ def seed_price_history_task(log_id: int | None = None, **kwargs) -> None:
 
         db = SessionLocal()
         try:
-            MarketSeedService(IngestionRepository(db), MarketRepository(db)).seed_price_history()
+            total_rows = MarketSeedService(IngestionRepository(db), MarketRepository(db)).seed_price_history()
+            return {"total_rows": total_rows}
         finally:
             db.close()
     _wrap_job_execution("seed_price_history", log_id, _run)
@@ -632,10 +670,89 @@ def seed_tracked_universes_task(log_id: int | None = None, **kwargs) -> None:
 
         db = SessionLocal()
         try:
-            IndexUniverseSeedService(IngestionRepository(db), MarketRepository(db)).seed_tracked_universes()
+            return IndexUniverseSeedService(IngestionRepository(db), MarketRepository(db)).seed_tracked_universes()
         finally:
             db.close()
     _wrap_job_execution("seed_tracked_universes", log_id, _run)
+
+
+def _refresh_tracked_crypto_bulk(symbols: list[str]) -> None:
+    """Refreshes tracked-only (not held/watchlisted — see
+    list_tracked_symbols_for_refresh) crypto/stablecoin quotes via one-or-few
+    CoinGecko bulk calls instead of one Celery-dispatched ingest_quote per
+    symbol. The per-symbol path shared a single 2-calls/60s local budget
+    across the whole batch, so for a ~100-coin tracked universe only ~2 won
+    the budget race each cycle and the rest failed with no retry — silently
+    starving most of the tracked crypto universe of price updates every day
+    (confirmed live: lighter-USD/morpho-USD/etc, see investigation notes).
+    Runs inline rather than via .delay() since it's now a small, fixed
+    number of calls, not one per symbol."""
+    from datetime import datetime, timezone
+    from decimal import Decimal
+
+    from app.core.exceptions import ProviderError
+    from app.core.providers.factory import ProviderFactory
+    from app.core.providers.models import NormalizedQuote
+    from app.core.repositories.config import ConfigRepository
+    from app.core.services.config import ConfigService
+    from app.modules.market.providers.market_data.coingecko.provider import _coin_id
+    from app.modules.market.repositories.ingestion import IngestionRepository
+    from app.modules.market.services.ingestion import QuoteIngestionService
+    from app.workers.monitoring.watchlist_alerts import evaluate_watchlist_alerts
+
+    db = SessionLocal()
+    try:
+        coingecko = ProviderFactory(ConfigService(ConfigRepository(db))).get("coingecko", required=False)
+        if coingecko is None:
+            logger.warning("refresh_tracked_universe: coingecko unavailable, skipping crypto batch")
+            return
+
+        ingestion_svc = QuoteIngestionService(IngestionRepository(db))
+        repo = IngestionRepository(db)
+
+        symbol_to_id: dict[str, str] = {}
+        for symbol in symbols:
+            try:
+                symbol_to_id[symbol] = _coin_id("coingecko", symbol)
+            except ProviderError as e:
+                ingestion_svc.record_failure("coingecko", symbol, str(e))
+
+        if not symbol_to_id:
+            return
+
+        try:
+            quotes_by_id = coingecko.get_quotes_by_ids(sorted(set(symbol_to_id.values())))
+        except ProviderError as e:
+            logger.warning(f"refresh_tracked_universe: crypto bulk refresh failed: {e}")
+            for symbol in symbol_to_id:
+                ingestion_svc.record_failure("coingecko", symbol, str(e))
+            return
+
+        now = datetime.now(timezone.utc)
+        quoted, failed = 0, 0
+        for symbol, coin_id in symbol_to_id.items():
+            data = quotes_by_id.get(coin_id)
+            if data is None:
+                failed += 1
+                ingestion_svc.record_failure(
+                    "coingecko", symbol, f"no quote returned by CoinGecko bulk refresh for id {coin_id}"
+                )
+                continue
+            quote = NormalizedQuote(
+                symbol=symbol, provider="coingecko", timestamp=now,
+                price=Decimal(str(data["price"])),
+                volume=Decimal(str(data["volume"])) if data.get("volume") else None,
+            )
+            asset_id = ingestion_svc.save_quote("coingecko", quote)
+            repo.record_price_history(asset_id, symbol, quote.price, now)
+            db.commit()
+            cache_quote(symbol, quote.model_dump())
+            evaluate_watchlist_alerts.delay(symbol)
+            quoted += 1
+
+        logger.info(f"refresh_tracked_universe: crypto bulk — quoted={quoted} failed={failed} of {len(symbol_to_id)}")
+    finally:
+        db.close()
 
 
 @shared_task(name="app.workers.ingestion.tasks.refresh_tracked_universe_task")
@@ -644,7 +761,10 @@ def refresh_tracked_universe_task(log_id: int | None = None, **kwargs) -> None:
     """Daily refresh for is_tracked assets NOT already covered by the hourly
     held/watchlisted refresh (ingest_all_quotes) — kept on its own, much
     slower cadence specifically so a ~500-asset tracked universe never adds
-    hourly load to that hot path (see list_tracked_symbols_for_refresh)."""
+    hourly load to that hot path (see list_tracked_symbols_for_refresh).
+    Crypto/stablecoin symbols are refreshed via a bulk CoinGecko call
+    (_refresh_tracked_crypto_bulk); everything else keeps the existing
+    per-symbol ingest_quote.delay() dispatch."""
     def _run():
         from app.modules.market.repositories.ingestion import IngestionRepository
 
@@ -657,7 +777,17 @@ def refresh_tracked_universe_task(log_id: int | None = None, **kwargs) -> None:
         if not assets:
             logger.info("refresh_tracked_universe: nothing tracked yet, skipping")
             return
+
+        crypto_symbols = [
+            symbol for symbol, asset_class in assets
+            if asset_class in ("crypto", "stablecoin") and not _skip_quote_ingestion(symbol, asset_class)
+        ]
+        if crypto_symbols:
+            _refresh_tracked_crypto_bulk(crypto_symbols)
+
         for symbol, asset_class in assets:
+            if asset_class in ("crypto", "stablecoin"):
+                continue
             if _skip_quote_ingestion(symbol, asset_class):
                 continue
             provider_name = resolve_quote_provider(symbol, asset_class)
@@ -682,7 +812,7 @@ def resolve_and_track_symbol(query: str) -> None:
     if not looks_like_symbol(symbol):
         return
 
-    provider_name = "coingecko" if symbol.endswith("-USD") else resolve_quote_provider(symbol, None)
+    provider_name = resolve_quote_provider(symbol, None)
 
     try:
         ingest_quote(provider_name, symbol)
@@ -784,7 +914,7 @@ def refresh_fundamentals_task(log_id: int | None = None, **kwargs) -> None:
             db = SessionLocal()
             try:
                 adapter = ProviderFactory(ConfigService(ConfigRepository(db))).get("yahoo")
-                fundamentals = adapter.get_fundamentals(symbol)
+                fundamentals = _get_fundamentals_with_retry(adapter, symbol)
                 AssetFundamentalsRepository(db).upsert(asset_id, fundamentals)
                 # sector/industry ride along on the same ticker.info call this task
                 # already makes — persisted into Asset.metadata so get_sector_detail
@@ -836,7 +966,7 @@ def refresh_mutual_fund_navs_task(log_id: int | None = None, **kwargs) -> None:
         db = SessionLocal()
         try:
             adapter = ProviderFactory(ConfigService(ConfigRepository(db))).get("mfapi")
-            isin_to_nav = adapter.get_all_navs()
+            isin_to_nav = _get_all_navs_with_retry(adapter)
         finally:
             db.close()
 
@@ -904,5 +1034,28 @@ def validate_data_quality_task(log_id: int | None = None, **kwargs) -> None:
         else:
             logger.info("Data Quality Validation completed successfully. No issues found.")
     _wrap_job_execution("validate_data_quality", log_id, _run)
+
+
+# Generous enough to outlast the slowest real job (seed_tracked_universes'
+# crypto-top100 backfill, ~35min worst case with its 21s CoinGecko pacing) with
+# comfortable margin, so this never marks a merely-slow job as crashed.
+_STALE_JOB_TIMEOUT_SECONDS = 2 * 60 * 60
+
+
+@shared_task(name="app.workers.ingestion.tasks.sweep_stale_job_logs_task")
+def sweep_stale_job_logs_task(log_id: int | None = None, **kwargs) -> None:
+    def _run():
+        from app.core.services.config import ConfigService
+        from app.core.repositories.config import ConfigRepository
+
+        db = SessionLocal()
+        try:
+            swept = ConfigService(ConfigRepository(db)).sweep_stale_running_jobs(_STALE_JOB_TIMEOUT_SECONDS)
+            if swept:
+                logger.warning(f"sweep_stale_job_logs: marked {swept} stale RUNNING job_logs row(s) as FAILED")
+            return {"swept": swept}
+        finally:
+            db.close()
+    _wrap_job_execution("sweep_stale_job_logs", log_id, _run)
 
 

@@ -55,7 +55,7 @@ export const apiService = {
 
     // ── Portfolios & Transactions (V1) ────────────────────────────────────────
     listPortfolios: (includeArchived = false) =>
-        handleRequest(API.get('/portfolio/portfolios', {params: includeArchived ? {include_archived: true} : {}})),
+        handleRequest(dedupedGet(`/portfolio/portfolios${includeArchived ? '?include_archived=true' : ''}`)),
 
     createPortfolio: (name) =>
         handleRequest(API.post('/portfolio/portfolios', {name})),

@@ -7,6 +7,7 @@ from typing import Any, Dict, List, Optional
 from fastapi import APIRouter, Depends, File, Form, HTTPException, Query, UploadFile, status
 from fastapi.responses import StreamingResponse
 from pydantic import BaseModel, model_validator
+from sqlalchemy import delete
 from sqlalchemy.orm import Session
 
 from app.api.dependencies import (
@@ -38,8 +39,15 @@ from app.core.redis import (
 )
 from app.core.entities.system import User
 from app.core.services.config import ConfigService
-from app.modules.portfolio.services.portfolio import PortfolioService
-from app.modules.portfolio.entities.portfolio import Portfolio, Transaction
+from app.modules.portfolio.services.portfolio import PortfolioService, resolve_positions_price_map
+from app.modules.portfolio.entities.portfolio import (
+    BinanceBackfillProgress,
+    ImportRun,
+    Portfolio,
+    PortfolioSnapshot,
+    Position,
+    Transaction,
+)
 from app.modules.market.repositories.watchlist import WatchlistsRepository
 from app.modules.market.entities.watchlist import Watchlist, WatchlistSymbol
 from app.modules.market.entities.market import MarketTheme, ThemeWeight
@@ -451,8 +459,9 @@ def get_positions(
     # Ensure portfolio exists
     service.get_portfolio(portfolio_id)
     positions = service.positions_repo.get_by_portfolio(portfolio_id)
+    prices = resolve_positions_price_map(service.session, positions)
     for pos in positions:
-        pos.price, pos.price_source, pos.quote_age_status, pos.quote_updated_at, pos.epf_estimate_basis, pos.currency = service.get_position_price(pos)
+        pos.price, pos.price_source, pos.quote_age_status, pos.quote_updated_at, pos.epf_estimate_basis, pos.currency = prices[pos.id]
     return positions
 
 @router.get("/portfolios/{portfolio_id}/snapshot", response_model=SnapshotResponse)
@@ -664,11 +673,13 @@ def get_import_run_transactions(
 # silently target whichever Portfolio row happened to be first regardless of which
 # one the frontend's PortfolioContext/Sidebar switcher had active.
 
-# Asset classes that represent a tradeable unit with a per-unit price (a ticker/ISIN
-# you hold N of). Everything else (real estate, EPF/PPF/NPS, insurance, etc.) is
-# valued as a single lump sum and has no meaningful quantity/price split.
-_TRADEABLE_ASSET_CLASSES = {"stock", "stocks", "equity", "mutual_fund", "etf", "crypto"}
-
+# A manual asset is either entered as a tradeable unit with a per-unit price
+# (symbol/quantity/price — a ticker/ISIN you hold N of) or as a single lump-sum
+# valuation (current_value — real estate, EPF/PPF/NPS, insurance, unlisted stock/
+# crypto, etc). Which one applies is determined by which fields the caller
+# actually supplied, not by asset_class: asset_class is just the UI bucket label
+# (e.g. "stocks"/"crypto" cover both listed-with-a-ticker and unlisted/private
+# holdings, and the manual-assets UI only ever collects current_value).
 class CreateManualAssetRequest(BaseModel):
     name: str
     asset_class: str
@@ -683,16 +694,9 @@ class CreateManualAssetRequest(BaseModel):
 
     @model_validator(mode="after")
     def _validate_fields_for_asset_class(self):
-        if self.asset_class in _TRADEABLE_ASSET_CLASSES:
-            missing = [f for f in ("symbol", "quantity", "price") if getattr(self, f) is None]
-            if missing:
-                raise ValueError(
-                    f"{', '.join(missing)} required for tradeable asset_class={self.asset_class!r}"
-                )
-        elif self.current_value is None:
-            raise ValueError(
-                f"current_value required for manually-valued asset_class={self.asset_class!r}"
-            )
+        has_tradeable_fields = self.symbol is not None and self.quantity is not None and self.price is not None
+        if not has_tradeable_fields and self.current_value is None:
+            raise ValueError("current_value (or symbol, quantity, and price) is required")
         return self
 
 @router.post("/portfolios/{portfolio_id}/manual-assets")
@@ -706,7 +710,7 @@ def create_manual_asset(
         service.get_portfolio(portfolio_id)
     except NotFoundError as e:
         raise HTTPException(status_code=404, detail=str(e))
-    is_tradeable = body.asset_class in _TRADEABLE_ASSET_CLASSES
+    is_tradeable = body.symbol is not None and body.quantity is not None and body.price is not None
     transaction_date = None
     if body.valuation_date:
         try:
@@ -723,6 +727,14 @@ def create_manual_asset(
         transaction_date=transaction_date,
         notes=body.notes,
         tier=body.tier,
+        # Value-based manual entries (current_value) are always pre-converted to
+        # INR by the caller (see ManualAssetModal.jsx) before being sent here, so
+        # infer_currency() must be told INR explicitly — its symbol-suffix
+        # heuristics have no rule for auto-generated MANUAL-xxxx symbols and would
+        # otherwise default to USD, double-converting on every downstream INR
+        # aggregation and currency-display read. Tradeable entries (real
+        # symbol/quantity/price) keep the normal suffix-based inference.
+        currency=None if is_tradeable else "INR",
     )
     return {"status": "success", "symbol": symbol}
 
@@ -971,10 +983,32 @@ def restore_backup(
         portfolio_entries = [{"name": None, "transactions": data.get("transactions", [])}]
 
     if not confirm:
+        # Per-portfolio existing-transaction counts so the confirm step can state
+        # "this will delete N existing transactions across portfolios X, Y and
+        # replace them with M from the file" — informed consent, not just a
+        # rate-limiter, now that this portion of restore is destructive.
+        portfolios_to_replace = []
+        for entry in portfolio_entries:
+            name = entry.get("name")
+            existing_count = 0
+            if name:
+                portfolio = db.query(Portfolio).filter(Portfolio.name == name).first()
+                if portfolio:
+                    existing_count = (
+                        db.query(Transaction).filter(Transaction.portfolio_id == portfolio.id).count()
+                    )
+            portfolios_to_replace.append({
+                "name": name,
+                "existing_transactions_count": existing_count,
+                "incoming_transactions_count": len(entry.get("transactions", [])),
+            })
+
         return {
             "status": "dry_run",
             "transactions_count": sum(len(p.get("transactions", [])) for p in portfolio_entries),
             "portfolios_count": len(portfolio_entries),
+            "portfolios_to_replace": portfolios_to_replace,
+            "existing_transactions_to_delete": sum(p["existing_transactions_count"] for p in portfolios_to_replace),
             "watchlists_count": len(data.get("watchlists", [])),
             "ai_generations_count": len(data.get("ai_generations", [])),
             "ai_evaluations_count": len(data.get("ai_evaluations", [])),
@@ -994,35 +1028,55 @@ def restore_backup(
     # per symbol (uuid5), so it lands on the same row without depending on
     # market reference data having been exported (it's out of reset scope).
 
+    # Recommendations and everything below are additive/idempotent, not
+    # destructive: none of these entities have a portfolio_id (see restore
+    # redesign investigation), so there's no way to scope a delete to "this
+    # restore" without wiping unrelated portfolios' history too. Instead, each
+    # is upserted on its real primary key (present in every backup written by
+    # export_backup) so re-running the same backup twice updates existing rows
+    # in place rather than crashing on a PK conflict or duplicating data.
     for r in data.get("recommendations", []):
-        rec = Recommendation(
-            id=uuid.UUID(r["id"]) if r.get("id") else uuid.uuid4(),
-            asset_id=uuid.UUID(r["asset_id"]),
-            recommendation_state=r["recommendation_state"],
-            confidence_score=r["confidence_score"],
-            status=r.get("status", "active"),
-            version=r.get("version", "v2.0.0"),
-        )
+        rec_id = uuid.UUID(r["id"]) if r.get("id") else uuid.uuid4()
+        rec = db.get(Recommendation, rec_id)
+        if rec is None:
+            rec = Recommendation(id=rec_id)
+            db.add(rec)
+        rec.asset_id = uuid.UUID(r["asset_id"])
+        rec.recommendation_state = r["recommendation_state"]
+        rec.confidence_score = r["confidence_score"]
+        rec.status = r.get("status", "active")
+        rec.version = r.get("version", "v2.0.0")
         if r.get("created_at"):
             rec.created_at = datetime.fromisoformat(r["created_at"])
         if r.get("updated_at"):
             rec.updated_at = datetime.fromisoformat(r["updated_at"])
-        db.add(rec)
     db.flush()
 
     for e in data.get("recommendation_explanations", []):
-        db.add(RecommendationExplanation(
-            recommendation_id=uuid.UUID(e["recommendation_id"]),
-            rules_matched=e["rules_matched"],
-            reasoning=e["reasoning"],
-            confidence_factors=e["confidence_factors"],
-        ))
+        explanation_id = uuid.UUID(e["recommendation_id"])
+        explanation = db.get(RecommendationExplanation, explanation_id)
+        if explanation is None:
+            explanation = RecommendationExplanation(recommendation_id=explanation_id)
+            db.add(explanation)
+        explanation.rules_matched = e["rules_matched"]
+        explanation.reasoning = e["reasoning"]
+        explanation.confidence_factors = e["confidence_factors"]
 
     # Restored per-portfolio, matched by name — not the single get_user_context()
     # row — since the schema (and this install) supports more than one Portfolio,
     # and a restore that flattens every portfolio's transactions into whichever
     # one happens to resolve first would silently merge or misattribute ledgers.
+    #
+    # Transactions/positions are now genuinely destructive: for each matched
+    # portfolio, existing Position/Transaction/PortfolioSnapshot/ImportRun/
+    # BinanceBackfillProgress rows are deleted before the backup's transactions
+    # are inserted, so restoring the same file twice reproduces the backup
+    # exactly instead of duplicating or PK-conflicting. The Portfolio row itself
+    # is never deleted/recreated — the backup only carries {name, transactions},
+    # so recreating the row would silently drop portfolio-level fields (e.g.
+    # is_archived) that aren't in the backup at all.
     txn_count = 0
+    deleted_txn_count = 0
     portfolios_count = 0
     portfolio_ids_touched: set[uuid.UUID] = set()
     for entry in portfolio_entries:
@@ -1038,6 +1092,23 @@ def restore_backup(
             portfolio_id = get_user_context(db, user)
         portfolios_count += 1
         portfolio_ids_touched.add(portfolio_id)
+
+        # NOTE: do not add a db.commit() here (or anywhere before the single
+        # db.commit() at the end of this function). Atomicity for this whole
+        # delete-then-insert operation comes entirely from get_db()'s
+        # rollback-on-exception + this function's existing single-commit-at-
+        # the-end structure — an intermediate commit here would silently
+        # reintroduce a window where a mid-restore failure leaves the DB with
+        # deleted data and no replacement.
+        deleted_txn_count += (
+            db.query(Transaction).filter(Transaction.portfolio_id == portfolio_id).count()
+        )
+        db.execute(delete(Position).where(Position.portfolio_id == portfolio_id))
+        db.execute(delete(Transaction).where(Transaction.portfolio_id == portfolio_id))
+        db.execute(delete(PortfolioSnapshot).where(PortfolioSnapshot.portfolio_id == portfolio_id))
+        db.execute(delete(ImportRun).where(ImportRun.portfolio_id == portfolio_id))
+        db.execute(delete(BinanceBackfillProgress).where(BinanceBackfillProgress.portfolio_id == portfolio_id))
+        db.flush()
 
         symbols_touched: set[str] = set()
         for t in entry.get("transactions", []):
@@ -1080,20 +1151,22 @@ def restore_backup(
             service._apply_trade_cost_basis(portfolio_id, symbol)
 
     for o in data.get("recommendation_outcomes", []):
-        db.add(RecommendationOutcome(
-            recommendation_id=uuid.UUID(o["recommendation_id"]),
-            status=o["status"],
-            action_taken_at=(
-                datetime.fromisoformat(o["action_taken_at"])
-                if o.get("action_taken_at") else datetime.now(timezone.utc)
-            ),
-            dismiss_reason=o.get("dismiss_reason"),
-            ledger_transaction_id=(
-                uuid.UUID(o["ledger_transaction_id"]) if o.get("ledger_transaction_id") else None
-            ),
-            predicted_impact=o.get("predicted_impact"),
-            realized_impact=o.get("realized_impact"),
-        ))
+        outcome_id = uuid.UUID(o["recommendation_id"])
+        outcome = db.get(RecommendationOutcome, outcome_id)
+        if outcome is None:
+            outcome = RecommendationOutcome(recommendation_id=outcome_id)
+            db.add(outcome)
+        outcome.status = o["status"]
+        outcome.action_taken_at = (
+            datetime.fromisoformat(o["action_taken_at"])
+            if o.get("action_taken_at") else datetime.now(timezone.utc)
+        )
+        outcome.dismiss_reason = o.get("dismiss_reason")
+        outcome.ledger_transaction_id = (
+            uuid.UUID(o["ledger_transaction_id"]) if o.get("ledger_transaction_id") else None
+        )
+        outcome.predicted_impact = o.get("predicted_impact")
+        outcome.realized_impact = o.get("realized_impact")
 
     watchlists_count = 0
     for w in data.get("watchlists", []):
@@ -1121,91 +1194,106 @@ def restore_backup(
     db.flush()
 
     for g in data.get("ai_generations", []):
-        gen = AIGeneration(
-            id=uuid.UUID(g["id"]) if g.get("id") else uuid.uuid4(),
-            user_id=uuid.UUID(g["user_id"]) if g.get("user_id") else None,
-            feature_name=g["feature_name"],
-            provider=g["provider"],
-            model=g["model"],
-            prompt_version=g.get("prompt_version"),
-            prompt_text=g["prompt_text"],
-            context_payload=g.get("context_payload"),
-            retrieval_metadata=g.get("retrieval_metadata"),
-            response_text=g["response_text"],
-            prompt_tokens=g.get("prompt_tokens"),
-            completion_tokens=g.get("completion_tokens"),
-            total_tokens=g.get("total_tokens"),
-            latency_ms=g.get("latency_ms"),
-            execution_trace=g.get("execution_trace"),
-            error_message=g.get("error_message"),
-            generation_parameters=g.get("generation_parameters") or {},
-            prompt_sha256=g.get("prompt_sha256"),
-            data_classification=g.get("data_classification"),
-            payload_retention_state=g.get("payload_retention_state", "full"),
-        )
+        gen_id = uuid.UUID(g["id"]) if g.get("id") else uuid.uuid4()
+        gen = db.get(AIGeneration, gen_id)
+        if gen is None:
+            gen = AIGeneration(id=gen_id)
+            db.add(gen)
+        gen.user_id = uuid.UUID(g["user_id"]) if g.get("user_id") else None
+        gen.feature_name = g["feature_name"]
+        gen.provider = g["provider"]
+        gen.model = g["model"]
+        gen.prompt_version = g.get("prompt_version")
+        gen.prompt_text = g["prompt_text"]
+        gen.context_payload = g.get("context_payload")
+        gen.retrieval_metadata = g.get("retrieval_metadata")
+        gen.response_text = g["response_text"]
+        gen.prompt_tokens = g.get("prompt_tokens")
+        gen.completion_tokens = g.get("completion_tokens")
+        gen.total_tokens = g.get("total_tokens")
+        gen.latency_ms = g.get("latency_ms")
+        gen.execution_trace = g.get("execution_trace")
+        gen.error_message = g.get("error_message")
+        gen.generation_parameters = g.get("generation_parameters") or {}
+        gen.prompt_sha256 = g.get("prompt_sha256")
+        gen.data_classification = g.get("data_classification")
+        gen.payload_retention_state = g.get("payload_retention_state", "full")
         if g.get("created_at"):
             gen.created_at = datetime.fromisoformat(g["created_at"])
         if g.get("updated_at"):
             gen.updated_at = datetime.fromisoformat(g["updated_at"])
-        db.add(gen)
     db.flush()
 
     for e in data.get("ai_evaluations", []):
-        db.add(AIEvaluation(
-            id=uuid.UUID(e["id"]) if e.get("id") else uuid.uuid4(),
-            generation_id=uuid.UUID(e["generation_id"]),
-            faithfulness_score=e.get("faithfulness_score"),
-            relevance_score=e.get("relevance_score"),
-            data_reference_validated=e.get("data_reference_validated", True),
-            validation_details=e.get("validation_details"),
-        ))
+        eval_id = uuid.UUID(e["id"]) if e.get("id") else uuid.uuid4()
+        evaluation = db.get(AIEvaluation, eval_id)
+        if evaluation is None:
+            evaluation = AIEvaluation(id=eval_id)
+            db.add(evaluation)
+        evaluation.generation_id = uuid.UUID(e["generation_id"])
+        evaluation.faithfulness_score = e.get("faithfulness_score")
+        evaluation.relevance_score = e.get("relevance_score")
+        evaluation.data_reference_validated = e.get("data_reference_validated", True)
+        evaluation.validation_details = e.get("validation_details")
 
     for f in data.get("ai_feedback", []):
-        db.add(AIFeedback(
-            id=uuid.UUID(f["id"]) if f.get("id") else uuid.uuid4(),
-            generation_id=uuid.UUID(f["generation_id"]),
-            user_id=uuid.UUID(f["user_id"]) if f.get("user_id") else None,
-            rating=f["rating"],
-            comment=f.get("comment"),
-        ))
+        feedback_id = uuid.UUID(f["id"]) if f.get("id") else uuid.uuid4()
+        feedback = db.get(AIFeedback, feedback_id)
+        if feedback is None:
+            feedback = AIFeedback(id=feedback_id)
+            db.add(feedback)
+        feedback.generation_id = uuid.UUID(f["generation_id"])
+        feedback.user_id = uuid.UUID(f["user_id"]) if f.get("user_id") else None
+        feedback.rating = f["rating"]
+        feedback.comment = f.get("comment")
 
     for b in data.get("ai_briefings", []):
-        briefing = AIBriefing(
-            id=uuid.UUID(b["id"]) if b.get("id") else uuid.uuid4(),
-            briefing_type=b["briefing_type"],
-            symbol=b.get("symbol"),
-            content=b["content"],
-            model_used=b["model_used"],
-            prompt_tokens=b.get("prompt_tokens"),
-        )
+        briefing_id = uuid.UUID(b["id"]) if b.get("id") else uuid.uuid4()
+        briefing = db.get(AIBriefing, briefing_id)
+        if briefing is None:
+            briefing = AIBriefing(id=briefing_id)
+            db.add(briefing)
+        briefing.briefing_type = b["briefing_type"]
+        briefing.symbol = b.get("symbol")
+        briefing.content = b["content"]
+        briefing.model_used = b["model_used"]
+        briefing.prompt_tokens = b.get("prompt_tokens")
         if b.get("created_at"):
             briefing.created_at = datetime.fromisoformat(b["created_at"])
-        db.add(briefing)
 
+    # theme_id (not id) is the natural key here — it's the business identifier
+    # ThemeWeight rows reference by string (see below), and it's a real unique
+    # constraint on the table, unlike id which only identifies "this backup's
+    # copy of the row."
     for t in data.get("market_themes", []):
-        db.add(MarketTheme(
-            id=uuid.UUID(t["id"]) if t.get("id") else uuid.uuid4(),
-            theme_id=t["theme_id"],
-            name=t["name"],
-            desc=t["desc"],
-            symbols=t.get("symbols", []),
-            ret1m=t.get("ret1m", 0.0),
-            owner_id=user.id,
-            forked_from=t.get("forked_from"),
-            inception_date=t.get("inception_date"),
-            is_public=t.get("is_public", False),
-        ))
+        theme = db.query(MarketTheme).filter(MarketTheme.theme_id == t["theme_id"]).first()
+        if theme is None:
+            theme = MarketTheme(
+                id=uuid.UUID(t["id"]) if t.get("id") else uuid.uuid4(),
+                theme_id=t["theme_id"],
+            )
+            db.add(theme)
+        theme.name = t["name"]
+        theme.desc = t["desc"]
+        theme.symbols = t.get("symbols", [])
+        theme.ret1m = t.get("ret1m", 0.0)
+        theme.owner_id = user.id
+        theme.forked_from = t.get("forked_from")
+        theme.inception_date = t.get("inception_date")
+        theme.is_public = t.get("is_public", False)
     db.flush()
 
     for w in data.get("theme_weights", []):
-        db.add(ThemeWeight(
-            id=uuid.UUID(w["id"]) if w.get("id") else uuid.uuid4(),
-            theme_id=w["theme_id"],
-            symbol=w["symbol"],
-            weight=w["weight"],
-            effective_date=w["effective_date"],
-            mcap_at_set=w.get("mcap_at_set"),
-        ))
+        weight_id = uuid.UUID(w["id"]) if w.get("id") else uuid.uuid4()
+        weight = db.get(ThemeWeight, weight_id)
+        if weight is None:
+            weight = ThemeWeight(id=weight_id)
+            db.add(weight)
+        weight.theme_id = w["theme_id"]
+        weight.symbol = w["symbol"]
+        weight.weight = w["weight"]
+        weight.effective_date = w["effective_date"]
+        weight.mcap_at_set = w.get("mcap_at_set")
 
     db.commit()
     for pid in portfolio_ids_touched:
@@ -1216,6 +1304,7 @@ def restore_backup(
     return {
         "status": "success",
         "imported_transactions": txn_count,
+        "deleted_transactions": deleted_txn_count,
         "imported_portfolios": portfolios_count,
         "imported_watchlists": watchlists_count,
         "imported_ai_generations": len(data.get("ai_generations", [])),

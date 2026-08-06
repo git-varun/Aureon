@@ -2,7 +2,7 @@ from app.core.services.base import BaseService
 import base64
 import json
 import uuid
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from typing import Any, Optional
 
 from cryptography.fernet import Fernet
@@ -159,6 +159,10 @@ _DEFAULT_ALLOCATION_TARGETS = [
     {"asset_class": "real_estate", "target_pct": 1000},
     {"asset_class": "retirement", "target_pct": 900},
     {"asset_class": "insurance", "target_pct": 200},
+    # classify() (market.py) buckets stablecoin holdings separately from
+    # "crypto" — without a target row here, that bucket can never be
+    # configured and always shows full drift.
+    {"asset_class": "stablecoin", "target_pct": 200},
 ]
 
 _DEFAULT_JOBS = [
@@ -180,6 +184,7 @@ _DEFAULT_JOBS = [
     # (see celery_app.py); the user runs it deliberately via "Run Now".
     {"job_name": "seed_tracked_universes", "enabled": False, "job_tier": "user"},
     {"job_name": "refresh_tracked_universe", "enabled": True, "job_tier": "user"},
+    {"job_name": "sweep_stale_job_logs", "enabled": True, "job_tier": "system"},
 ]
 
 
@@ -465,6 +470,7 @@ class ConfigService(BaseService):
         "refresh_tracked_universe": "app.workers.ingestion.tasks.refresh_tracked_universe_task",
         "admin_reprocess_all": "app.workers.ingestion.tasks.admin_reprocess_all_assets",
         "admin_repair": "app.workers.ingestion.tasks.admin_repair_jobs",
+        "sweep_stale_job_logs": "app.workers.ingestion.tasks.sweep_stale_job_logs_task",
     }
 
     @classmethod
@@ -551,11 +557,12 @@ class ConfigService(BaseService):
             log.task_id = task_id
             self.repo.session.commit()
 
-    def log_job_end(self, log_id: int, status: JobStatus, error: Optional[str] = None, task_id: Optional[str] = None) -> Optional[JobLog]:
+    def log_job_end(self, log_id: int, status: JobStatus, error: Optional[str] = None, task_id: Optional[str] = None, result: Optional[dict] = None) -> Optional[JobLog]:
         log = self.repo.get_job_log(log_id)
         if log:
             log.status = status
             log.error_message = error
+            log.result_summary = result
             log.ended_at = datetime.now(timezone.utc)
             if task_id:
                 log.task_id = task_id
@@ -586,6 +593,32 @@ class ConfigService(BaseService):
             return True
         return False
 
+    def sweep_stale_running_jobs(self, timeout_seconds: int) -> int:
+        """Marks RUNNING job_logs rows older than timeout_seconds as FAILED —
+        a worker crash/kill (e.g. `docker restart`, OOM) mid-task never reaches
+        log_job_end's finally block, so the row is otherwise stuck RUNNING
+        forever (see refresh_stale_job_logs_task, dispatched on a beat
+        schedule generous enough to outlast the slowest real job).
+        Returns the number of rows marked."""
+        cutoff = datetime.now(timezone.utc) - timedelta(seconds=timeout_seconds)
+        stale = self.repo.list_stale_running_job_logs(cutoff)
+        now = datetime.now(timezone.utc)
+        for log in stale:
+            log.status = JobStatus.FAILED
+            log.error_message = (
+                f"Marked FAILED by stale-job sweep — still RUNNING after {timeout_seconds}s "
+                "with no completion (worker likely crashed or was restarted mid-task)"
+            )
+            log.ended_at = now
+            started = log.started_at
+            if started and started.tzinfo is None:
+                started = started.replace(tzinfo=timezone.utc)
+            if started:
+                log.duration_ms = int((now - started).total_seconds() * 1000)
+        if stale:
+            self.repo.session.commit()
+        return len(stale)
+
     def get_job_logs(self, job_name: Optional[str] = None, limit: int = 50, offset: int = 0) -> list[dict[str, Any]]:
         logs = self.repo.list_job_logs(job_name, limit, offset)
         return [
@@ -598,6 +631,7 @@ class ConfigService(BaseService):
                 "started_at": log_run.started_at.isoformat() if log_run.started_at else None,
                 "ended_at": log_run.ended_at.isoformat() if log_run.ended_at else None,
                 "duration_ms": log_run.duration_ms,
+                "result_summary": log_run.result_summary,
             }
             for log_run in logs
         ]

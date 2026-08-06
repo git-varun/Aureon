@@ -50,15 +50,23 @@ _NAV_LIVE_SECONDS = 24 * 60 * 60
 _NAV_FRESH_SECONDS = 48 * 60 * 60
 
 
-def _naive_to_utc(session: Session, dt: datetime) -> datetime:
+def _naive_to_utc(session: Session, dt: datetime, tz_name: str | None = None) -> datetime:
     """Transaction.transaction_date / LatestQuote.updated_at are TIMESTAMP WITHOUT
     TIME ZONE columns. psycopg converts a tz-aware write value to the session's
     TimeZone GUC before dropping tzinfo, so a naive read is off by that GUC's
     offset from UTC unless reversed the same way (see
     TransactionsRepository.get_last_real_transaction_dates_by_broker, which
-    reverses it in SQL). No-op if already tz-aware or if the GUC is UTC."""
+    reverses it in SQL). No-op if already tz-aware or if the GUC is UTC.
+
+    tz_name lets a caller looping over many rows (resolve_positions_price_map)
+    pass the session's TimeZone GUC once instead of paying a SQL round-trip
+    per row — the conversion itself is pure Python once the zone name is
+    known, since the GUC can't change mid-session."""
     if dt.tzinfo is not None:
         return dt
+    if tz_name is not None:
+        from zoneinfo import ZoneInfo
+        return dt.replace(tzinfo=ZoneInfo(tz_name)).astimezone(timezone.utc)
     return session.execute(select(func.timezone(func.current_setting("TimeZone"), dt))).scalar()
 
 
@@ -210,11 +218,15 @@ def resolve_position_price(session: Session, pos: Position) -> PositionPrice:
     Falls back to avg_buy_price when no live quote exists — a newly-added
     position with no ingested quote yet must still value at something, but
     callers need price_source to tell a real market price from that fallback.
-    A LatestQuote row for a manually-created asset (see create_manual_asset /
-    update_manual_valuation) holds a user-entered value, not an ingested
-    quote, so it's labeled "manual" rather than "market" and never carries a
-    staleness status (a user-entered value doesn't go stale the way a market
-    quote does). quote_age_status/quote_updated_at are only populated for
+    An asset created via create_manual_asset (metadata_payload.sector ==
+    "Manual") is always labeled "manual" rather than "market" or "cost_basis"
+    — whether or not update_manual_valuation has ever run to give it a
+    LatestQuote row — since callers (tier classification, "Manual" badge,
+    Trade vs Update-val. action) key off price_source == "manual" to mean
+    "no live Trade action, user-entered value", which is equally true before
+    the first valuation update. It never carries a staleness status (a
+    user-entered value doesn't go stale the way a market quote does).
+    quote_age_status/quote_updated_at are only populated for
     price_source == "market" — quote_updated_at is the raw LatestQuote
     timestamp, exposed so callers (e.g. the dashboard's Prices freshness
     tile, see Fix M) can find the oldest real market quote across a set of
@@ -230,26 +242,77 @@ def resolve_position_price(session: Session, pos: Position) -> PositionPrice:
     if asset and asset.asset_class == "epf":
         return _estimate_epf_price(session, pos)
 
+    quote = session.scalar(select(LatestQuote).filter_by(symbol=pos.symbol))
+    return _position_price_from_data(session, pos, asset, quote)
+
+
+def _position_price_from_data(
+    session: Session, pos: Position, asset, quote: LatestQuote | None, tz_name: str | None = None
+) -> PositionPrice:
+    """Core of resolve_position_price, given an already-fetched Asset/LatestQuote
+    (or None) — split out so resolve_positions_price_map can preload both in two
+    bulk queries across a whole position list instead of 2 queries per position
+    (see that function's docstring). tz_name, if given, avoids _naive_to_utc's
+    own per-call SQL round-trip too."""
     currency = infer_currency(
         asset.asset_class if asset else None,
         pos.symbol,
         asset.metadata_payload if asset else None,
     )
 
-    quote = session.scalar(select(LatestQuote).filter_by(symbol=pos.symbol))
+    is_manual = bool(
+        asset and isinstance(asset.metadata_payload, dict)
+        and asset.metadata_payload.get("sector") == "Manual"
+    )
+
     if quote and quote.price is not None:
-        is_manual = bool(
-            asset and isinstance(asset.metadata_payload, dict)
-            and asset.metadata_payload.get("sector") == "Manual"
-        )
         if is_manual:
             return PositionPrice(float(quote.price), "manual", None, None, None, currency)
         if quote.price == 0:
             return PositionPrice(None, "unavailable", None, None, None, currency)
-        updated_at = _naive_to_utc(session, quote.updated_at)
+        updated_at = _naive_to_utc(session, quote.updated_at, tz_name)
         asset_class = asset.asset_class if asset else None
         return PositionPrice(float(quote.price), "market", _quote_age_status(updated_at, asset_class), updated_at, None, currency)
+    # A manually-created asset with no valuation update yet (create_manual_asset
+    # never inserts a LatestQuote — only update_manual_valuation does) still
+    # needs "manual" here, not "cost_basis": cost_basis is meant for a real
+    # market position awaiting its first quote ingestion, and callers (tier
+    # classification, "Manual" badge, Trade vs Update-val. action) key off
+    # price_source == "manual" to mean "no live Trade action, user-entered
+    # value" — that's equally true before the first valuation update as after.
+    if is_manual:
+        return PositionPrice(float(pos.avg_buy_price), "manual", None, None, None, currency)
     return PositionPrice(float(pos.avg_buy_price), "cost_basis", None, None, None, currency)
+
+
+def resolve_positions_price_map(session: Session, positions: list[Position]) -> dict[uuid.UUID, PositionPrice]:
+    """Bulk equivalent of resolve_position_price for a whole position list —
+    preloads every distinct Asset and LatestQuote in one query each (plus one
+    query for the session's TimeZone GUC, see _naive_to_utc) instead of
+    resolve_position_price's per-position queries (the ~2N+1 /positions
+    N+1 this replaces). EPF positions still fall back to the single-position
+    path (_estimate_epf_price does its own statement-derived query and is rare
+    enough not to be worth bulk-loading)."""
+    asset_ids = {pos.asset_id for pos in positions if pos.asset_id}
+    assets_by_id = {
+        a.id: a for a in session.execute(select(Asset).where(Asset.id.in_(asset_ids))).scalars()
+    } if asset_ids else {}
+
+    symbols = {pos.symbol for pos in positions}
+    quotes_by_symbol = {
+        q.symbol: q for q in session.execute(select(LatestQuote).where(LatestQuote.symbol.in_(symbols))).scalars()
+    } if symbols else {}
+
+    tz_name = session.execute(select(func.current_setting("TimeZone"))).scalar()
+
+    result: dict[uuid.UUID, PositionPrice] = {}
+    for pos in positions:
+        asset = assets_by_id.get(pos.asset_id) if pos.asset_id else None
+        if asset and asset.asset_class == "epf":
+            result[pos.id] = _estimate_epf_price(session, pos)
+            continue
+        result[pos.id] = _position_price_from_data(session, pos, asset, quotes_by_symbol.get(pos.symbol), tz_name)
+    return result
 
 
 class PortfolioService(BaseService):
@@ -517,7 +580,21 @@ class PortfolioService(BaseService):
 
     def list_transactions(self, portfolio_id: uuid.UUID) -> List[Transaction]:
         self.get_portfolio(portfolio_id)
-        return self.transactions_repo.get_by_portfolio(portfolio_id)
+        txns = self.transactions_repo.get_by_portfolio(portfolio_id)
+        asset_ids = {t.asset_id for t in txns if t.asset_id}
+        assets_by_id = {}
+        if asset_ids:
+            assets_by_id = {
+                a.id: a for a in self.session.scalars(select(Asset).where(Asset.id.in_(asset_ids)))
+            }
+        for t in txns:
+            asset = assets_by_id.get(t.asset_id)
+            t.currency = infer_currency(
+                asset.asset_class if asset else None,
+                t.symbol,
+                asset.metadata_payload if asset else None,
+            )
+        return txns
 
     def update_transaction(
         self,
@@ -888,7 +965,7 @@ class PortfolioService(BaseService):
             if not rows:
                 raise ValidationError(
                     "No transactions found in file — check that the file format/columns match "
-                    "a recognised broker export (see PROVIDERS.md)."
+                    "a recognised broker export (Zerodha, Groww, or Binance)."
                 )
 
             committed = 0
@@ -2006,19 +2083,23 @@ class PortfolioService(BaseService):
         transaction_date: Optional[datetime] = None,
         notes: Optional[str] = None,
         tier: Optional[int] = None,
+        currency: Optional[str] = None,
     ) -> str:
         from app.modules.market.entities.market import Asset
 
         symbol_clean = symbol.upper().strip()
         asset = self.session.scalar(select(Asset).filter_by(symbol=symbol_clean))
         if not asset:
+            metadata_payload = {"sector": "Manual"}
+            if currency:
+                metadata_payload["currency"] = currency
             asset = Asset(
                 id=uuid.uuid5(uuid.NAMESPACE_DNS, symbol_clean),
                 symbol=symbol_clean,
                 name=name,
                 asset_class=asset_class,
                 tier=tier,
-                metadata_payload={"sector": "Manual"}
+                metadata_payload=metadata_payload
             )
             self.session.add(asset)
             self.session.flush()

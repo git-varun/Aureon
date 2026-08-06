@@ -20,6 +20,7 @@ from app.modules.market.entities.evaluation import AssetScore
 from app.modules.market.entities.market import AssetFeatures, AssetSnapshot, LatestQuote
 from app.modules.news.entities.news import News
 from app.modules.portfolio.entities.portfolio import Portfolio, Position, Transaction
+from app.modules.portfolio.services.portfolio import resolve_position_price
 from app.modules.ai.entities.recommendation import Recommendation, RecommendationExplanation
 from app.core.services.config import ConfigService
 from app.core.repositories.config import ConfigRepository
@@ -287,16 +288,24 @@ class PortfolioContextBuilder:
         for pos in positions:
             symbol = pos.symbol
             symbols.append(symbol)
-            
-            # Find latest quote
-            quote = session.query(LatestQuote).filter(LatestQuote.symbol == symbol).first()
-            asset_id = quote.asset_id if quote else None
-            
+
+            asset_id = pos.asset_id
+
             avg_cost = float(pos.avg_buy_price) if pos.avg_buy_price is not None else 0.0
             qty = float(pos.quantity) if pos.quantity is not None else 0.0
-            live_price = float(quote.price) if quote else 0.0
+
+            # Reuse the same price-resolution logic the /positions API uses
+            # (resolve_position_price) instead of a bare LatestQuote lookup —
+            # manual/cost-basis assets (real estate, ESOP, etc.) never have a
+            # LatestQuote row, and treating that as "price 0" told the AI
+            # every manual asset was down 100%, fabricating liquidation
+            # advice. price_source == "unavailable" (e.g. an unpriced NAV)
+            # also has no real price, so it falls back to cost too rather
+            # than reporting a fake loss.
+            position_price = resolve_position_price(session, pos)
+            live_price = position_price.price if position_price.price is not None else avg_cost
             pnl_pct = ((live_price - avg_cost) / avg_cost * 100.0) if avg_cost > 0.0 else 0.0
-            
+
             # Features & scores
             rsi, macd, val_score, qual_score = "N/A", "N/A", "N/A", "N/A"
             if asset_id:
@@ -306,14 +315,14 @@ class PortfolioContextBuilder:
                     rsi = f"{snap.rsi:.2f}" if snap.rsi is not None else "N/A"
                     if snap.payload and isinstance(snap.payload, dict):
                         macd = f"{snap.payload.get('macd'):.2f}" if snap.payload.get('macd') is not None else "N/A"
-                
+
                 score = session.query(AssetScore).filter(AssetScore.asset_id == asset_id).order_by(AssetScore.generated_at.desc()).first()
                 if score:
                     val_score = f"{score.valuation_score:.2f}" if score.valuation_score is not None else "N/A"
                     qual_score = f"{score.quality_score:.2f}" if score.quality_score is not None else "N/A"
-                    
+
             lines.append(
-                f"Asset: {symbol} | Qty Owned: {qty} | Avg Cost: {avg_cost:.2f} | Current Price: {live_price:.2f} | PnL: {pnl_pct:.2f}% | "
+                f"Asset: {symbol} | Qty Owned: {qty} | Avg Cost: {avg_cost:.2f} | Current Price: {live_price:.2f} ({position_price.price_source}) | PnL: {pnl_pct:.2f}% | "
                 f"RSI: {rsi} | MACD: {macd} | Valuation Score: {val_score} | Quality Score: {qual_score}"
             )
             
@@ -711,12 +720,14 @@ class AIService(BaseService):
         # into get_briefing_history's read path too.
         parsed["generation_id"] = str(generation_id)
 
+        gen_log = self.session.query(AIGeneration).filter(AIGeneration.id == generation_id).first()
+
         # Save briefing instance
         briefing = AIBriefing(
             id=uuid.uuid4(),
             briefing_type=briefing_type,
             content=parsed,
-            model_used="multiple-fallback"
+            model_used=gen_log.model if gen_log else "unknown"
         )
         self.session.add(briefing)
         self.session.flush()
@@ -893,7 +904,7 @@ class AIService(BaseService):
             .limit(limit)
             .all()
         )
-        return [b.content for b in briefs]
+        return [{**b.content, "id": str(b.id)} for b in briefs]
 
     def get_single_asset_take(self, symbol: str, user_id: Optional[uuid.UUID] = None) -> dict[str, Any]:
         symbol = symbol.upper().strip()
