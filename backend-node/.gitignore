@@ -1,0 +1,9 @@
+node_modules/
+dist/
+.env
+src/generated/prisma/
+
+# Root .gitignore's bare `lib/` rule (meant for Python venvs) would otherwise
+# swallow this directory too, since unanchored patterns match at any depth.
+!src/lib/
+!src/lib/**

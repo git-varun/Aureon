@@ -1,0 +1,731 @@
+generator client {
+  provider        = "prisma-client-js"
+  output          = "../src/generated/prisma"
+  previewFeatures = ["multiSchema"]
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+  schemas  = ["ai", "config", "evaluation", "market", "news", "notification", "portfolio", "public", "recommendation", "system", "watchlist"]
+}
+
+model ai_briefings {
+  briefing_type String   @db.VarChar(30)
+  symbol        String?  @db.VarChar(30)
+  content       Json
+  model_used    String   @db.VarChar(100)
+  prompt_tokens Int?
+  id            String   @id(map: "pk_ai_briefings") @db.Uuid
+  created_at    DateTime @db.Timestamp(6)
+  updated_at    DateTime @db.Timestamp(6)
+
+  @@index([briefing_type], map: "idx_ai_briefings_type")
+  @@schema("ai")
+}
+
+model ai_evaluations {
+  generation_id            String         @db.Uuid
+  faithfulness_score       Decimal?       @db.Decimal
+  relevance_score          Decimal?       @db.Decimal
+  data_reference_validated Boolean
+  validation_details       Json?
+  id                       String         @id(map: "pk_ai_evaluations") @db.Uuid
+  created_at               DateTime       @db.Timestamp(6)
+  updated_at               DateTime       @db.Timestamp(6)
+  ai_generations           ai_generations @relation(fields: [generation_id], references: [id], onDelete: Cascade, onUpdate: NoAction, map: "fk_ai_evaluations_generation_id")
+
+  @@schema("ai")
+}
+
+model ai_feedback {
+  generation_id  String         @db.Uuid
+  user_id        String?        @db.Uuid
+  rating         Int
+  comment        String?
+  id             String         @id(map: "pk_ai_feedback") @db.Uuid
+  created_at     DateTime       @db.Timestamp(6)
+  updated_at     DateTime       @db.Timestamp(6)
+  ai_generations ai_generations @relation(fields: [generation_id], references: [id], onDelete: Cascade, onUpdate: NoAction, map: "fk_ai_feedback_generation_id")
+  user           User?          @relation(fields: [user_id], references: [id], onUpdate: NoAction, map: "fk_ai_feedback_user_id")
+
+  @@schema("ai")
+}
+
+model ai_generations {
+  user_id                 String?          @db.Uuid
+  feature_name            String           @db.VarChar(64)
+  provider                String           @db.VarChar(64)
+  model                   String           @db.VarChar(128)
+  prompt_version          String?          @db.VarChar(32)
+  prompt_text             String
+  context_payload         Json?
+  retrieval_metadata      Json?
+  response_text           String
+  prompt_tokens           Int?
+  completion_tokens       Int?
+  total_tokens            Int?
+  latency_ms              Int?
+  execution_trace         Json?
+  error_message           String?
+  generation_parameters   Json
+  prompt_sha256           String?          @db.VarChar(64)
+  data_classification     String?          @db.VarChar(32)
+  payload_retention_state String           @db.VarChar(32)
+  id                      String           @id(map: "pk_ai_generations") @db.Uuid
+  created_at              DateTime         @db.Timestamp(6)
+  updated_at              DateTime         @db.Timestamp(6)
+  ai_evaluations          ai_evaluations[]
+  ai_feedback             ai_feedback[]
+  user                    User?            @relation(fields: [user_id], references: [id], onUpdate: NoAction, map: "fk_ai_generations_user_id")
+
+  @@index([user_id, feature_name], map: "idx_ai_generations_user_feature")
+  @@schema("ai")
+}
+
+model allocation_targets {
+  id            Int       @id(map: "pk_allocation_targets") @default(autoincrement())
+  asset_class   String    @unique(map: "ix_config_allocation_targets_asset_class") @db.VarChar(40)
+  target_pct    Int
+  band_low_pct  Int?
+  band_high_pct Int?
+  notes         String?
+  created_at    DateTime  @default(now()) @db.Timestamptz(6)
+  updated_at    DateTime? @db.Timestamptz(6)
+
+  @@index([id], map: "ix_config_allocation_targets_id")
+  @@schema("config")
+}
+
+model JobConfig {
+  id        Int       @id(map: "pk_job_configs") @default(autoincrement())
+  jobName   String    @unique(map: "ix_config_job_configs_job_name") @db.VarChar(64) @map("job_name")
+  enabled   Boolean
+  lastRunAt DateTime? @db.Timestamptz(6) @map("last_run_at")
+  jobTier   String    @db.VarChar(16) @map("job_tier")
+  createdAt DateTime  @default(now()) @db.Timestamptz(6) @map("created_at")
+  updatedAt DateTime? @db.Timestamptz(6) @map("updated_at")
+
+  @@index([id], map: "ix_config_job_configs_id")
+  @@map("job_configs")
+  @@schema("config")
+}
+
+model JobLog {
+  id            Int       @id(map: "pk_job_logs") @default(autoincrement())
+  jobName       String    @db.VarChar(64) @map("job_name")
+  status        jobstatus
+  taskId        String?   @db.VarChar(512) @map("task_id")
+  errorMessage  String?   @map("error_message")
+  startedAt     DateTime  @default(now()) @db.Timestamptz(6) @map("started_at")
+  endedAt       DateTime? @db.Timestamptz(6) @map("ended_at")
+  durationMs    Int?      @map("duration_ms")
+  resultSummary Json?     @map("result_summary")
+
+  @@index([id], map: "ix_config_job_logs_id")
+  @@index([jobName], map: "ix_config_job_logs_job_name")
+  @@map("job_logs")
+  @@schema("config")
+}
+
+/// This table contains check constraints and requires additional setup for migrations. Visit https://pris.ly/d/check-constraints for more info.
+model ProviderConfig {
+  id               Int       @id(map: "pk_provider_configs") @default(autoincrement())
+  providerName     String    @unique(map: "ix_config_provider_configs_provider_name") @db.VarChar(64) @map("provider_name")
+  providerType     String    @db.VarChar(32) @map("provider_type")
+  enabled          Boolean
+  keyNames         String    @map("key_names")
+  encryptedKeys    String    @map("encrypted_keys")
+  config           String
+  status           String    @db.VarChar(16)
+  capabilities     String
+  priority         Int
+  health           String
+  rateLimit        String?   @db.VarChar(64) @map("rate_limit")
+  timeoutSeconds   Int       @map("timeout_seconds")
+  retryPolicy      String    @map("retry_policy")
+  cacheTtlSeconds  Int?      @map("cache_ttl_seconds")
+  createdAt        DateTime  @default(now()) @db.Timestamptz(6) @map("created_at")
+  updatedAt        DateTime? @db.Timestamptz(6) @map("updated_at")
+
+  @@index([id], map: "ix_config_provider_configs_id")
+  @@map("provider_configs")
+  @@schema("config")
+}
+
+model AssetScore {
+  assetId              String         @db.Uuid @map("asset_id")
+  modelVersion         String         @db.VarChar @map("model_version")
+  recommendationScore  Decimal?       @db.Decimal @map("recommendation_score")
+  qualityScore         Decimal?       @db.Decimal @map("quality_score")
+  valuationScore       Decimal?       @db.Decimal @map("valuation_score")
+  generatedAt          DateTime       @db.Timestamp(6) @map("generated_at")
+  unavailableInputs    Json           @map("unavailable_inputs")
+  assetSnapshot        AssetSnapshot  @relation(fields: [assetId], references: [assetId], onDelete: Cascade, onUpdate: NoAction, map: "fk_asset_scores_asset_id")
+
+  @@id([assetId, modelVersion], map: "pk_asset_scores")
+  @@index([assetId, generatedAt(sort: Desc)], map: "idx_asset_scores_asset_generated_at")
+  @@map("asset_scores")
+  @@schema("evaluation")
+}
+
+model feature_snapshots {
+  id                     String        @id(map: "pk_feature_snapshots") @db.Uuid
+  asset_id               String        @db.Uuid
+  snapshot_at            DateTime      @db.Timestamp(6)
+  model_version          String        @db.VarChar
+  feature_schema_version String        @db.VarChar
+  features               Json
+  assetSnapshot          AssetSnapshot @relation(fields: [asset_id], references: [assetId], onDelete: Cascade, onUpdate: NoAction, map: "fk_feature_snapshots_asset_id")
+
+  @@index([asset_id, snapshot_at(sort: Desc)], map: "idx_feature_snapshots_asset_snapshot_at")
+  @@schema("evaluation")
+}
+
+model asset_features {
+  asset_id         String        @id(map: "pk_asset_features") @db.Uuid
+  price            Decimal?      @db.Decimal
+  market_cap       Decimal?      @db.Decimal
+  momentum_score   Decimal?      @db.Decimal
+  volatility_score Decimal?      @db.Decimal
+  sentiment_score  Decimal?      @db.Decimal
+  created_at       DateTime      @db.Timestamp(6)
+  updated_at       DateTime      @db.Timestamp(6)
+  assetSnapshot    AssetSnapshot @relation(fields: [asset_id], references: [assetId], onDelete: Cascade, onUpdate: NoAction, map: "fk_asset_features_asset_id")
+
+  @@schema("market")
+}
+
+model AssetFundamentals {
+  assetId        String        @id(map: "pk_asset_fundamentals") @db.Uuid @map("asset_id")
+  trailingPe     Decimal?      @db.Decimal @map("trailing_pe")
+  priceToBook    Decimal?      @db.Decimal @map("price_to_book")
+  roe            Decimal?      @db.Decimal
+  debtToEquity   Decimal?      @db.Decimal @map("debt_to_equity")
+  profitMargin   Decimal?      @db.Decimal @map("profit_margin")
+  revenueGrowth  Decimal?      @db.Decimal @map("revenue_growth")
+  dividendYield  Decimal?      @db.Decimal @map("dividend_yield")
+  createdAt      DateTime      @db.Timestamp(6) @map("created_at")
+  updatedAt      DateTime      @db.Timestamp(6) @map("updated_at")
+  assetSnapshot  AssetSnapshot @relation(fields: [assetId], references: [assetId], onDelete: Cascade, onUpdate: NoAction, map: "fk_asset_fundamentals_asset_id")
+
+  @@map("asset_fundamentals")
+  @@schema("market")
+}
+
+model asset_health {
+  asset_id                  String        @db.Uuid
+  provider_name             String        @db.VarChar
+  last_successful_ingestion DateTime?     @db.Timestamp(6)
+  quote_age_seconds         Int?
+  fundamentals_age_seconds  Int?
+  signal_age_seconds        Int?
+  news_age_seconds          Int?
+  status                    String        @db.VarChar
+  created_at                DateTime      @db.Timestamp(6)
+  updated_at                DateTime      @db.Timestamp(6)
+  assetSnapshot             AssetSnapshot @relation(fields: [asset_id], references: [assetId], onDelete: Cascade, onUpdate: NoAction, map: "fk_asset_health_asset_id")
+
+  @@id([asset_id, provider_name], map: "pk_asset_health")
+  @@index([status], map: "idx_asset_health_status")
+  @@index([updated_at(sort: Desc)], map: "idx_asset_health_updated_at")
+  @@schema("market")
+}
+
+model AssetSnapshot {
+  assetId            String               @id(map: "pk_asset_snapshot") @db.Uuid @map("asset_id")
+  price              Decimal?             @db.Decimal
+  marketCap          Decimal?             @db.Decimal @map("market_cap")
+  peRatio            Decimal?             @db.Decimal @map("pe_ratio")
+  rsi                Decimal?             @db.Decimal
+  momentumScore      Decimal?             @db.Decimal @map("momentum_score")
+  volatilityScore    Decimal?             @db.Decimal @map("volatility_score")
+  sentimentScore     Decimal?             @db.Decimal @map("sentiment_score")
+  payload            Json?
+  createdAt          DateTime             @db.Timestamp(6) @map("created_at")
+  updatedAt          DateTime             @db.Timestamp(6) @map("updated_at")
+  assetScores        AssetScore[]
+  featureSnapshots   feature_snapshots[]
+  assetFeatures      asset_features?
+  assetFundamentals  AssetFundamentals?
+  assetHealth        asset_health[]
+  positions          Position[]
+  transactions       Transaction[]
+  recommendations    recommendations[]
+
+  @@map("asset_snapshot")
+  @@schema("market")
+}
+
+model Asset {
+  id                        String                      @id(map: "pk_assets") @db.Uuid
+  symbol                    String                      @unique(map: "idx_assets_symbol") @db.VarChar
+  name                      String                      @db.VarChar
+  assetClass                String                      @db.VarChar @map("asset_class")
+  metadata                  Json?
+  classification            Json?
+  createdAt                 DateTime                    @db.Timestamp(6) @map("created_at")
+  updatedAt                 DateTime                    @db.Timestamp(6) @map("updated_at")
+  tier                      Int?
+  lastNewsFetchAt           DateTime?                   @db.Timestamp(6) @map("last_news_fetch_at")
+  isTracked                 Boolean                     @default(false) @map("is_tracked")
+  priceHistory              PriceHistory[]
+  asset_sentiment_snapshots asset_sentiment_snapshots[]
+  news_assets               news_assets[]
+
+  @@map("assets")
+  @@schema("market")
+}
+
+model LatestQuote {
+  symbol    String   @id(map: "pk_latest_quotes") @db.VarChar
+  assetId   String?  @unique(map: "ix_market_latest_quotes_asset_id") @db.Uuid @map("asset_id")
+  price     Decimal  @db.Decimal
+  volume    Decimal? @db.Decimal
+  createdAt DateTime @db.Timestamp(6) @map("created_at")
+  updatedAt DateTime @db.Timestamp(6) @map("updated_at")
+  provider  String?  @db.VarChar
+
+  @@map("latest_quotes")
+  @@schema("market")
+}
+
+model market_themes {
+  id             String  @id(map: "pk_market_themes") @db.Uuid
+  theme_id       String  @unique(map: "ix_market_market_themes_theme_id") @db.VarChar(40)
+  name           String  @db.VarChar(80)
+  desc           String  @db.VarChar
+  symbols        Json
+  ret1m          Decimal @db.Decimal
+  owner_id       String? @db.Uuid
+  forked_from    String? @db.VarChar(40)
+  inception_date String? @db.VarChar(20)
+  is_public      Boolean
+  created_at     DateTime @db.Timestamp(6)
+  updated_at     DateTime @db.Timestamp(6)
+  user           User?   @relation(fields: [owner_id], references: [id], onDelete: Cascade, onUpdate: NoAction, map: "fk_market_themes_owner_id")
+
+  @@index([owner_id], map: "ix_market_market_themes_owner_id")
+  @@schema("market")
+}
+
+model PriceHistory {
+  id        String   @id(map: "pk_price_history") @db.Uuid
+  assetId   String   @db.Uuid @map("asset_id")
+  symbol    String   @db.VarChar
+  price     Decimal  @db.Decimal
+  volume    Decimal? @db.Decimal
+  timestamp DateTime @db.Timestamp(6)
+  asset     Asset    @relation(fields: [assetId], references: [id], onDelete: Cascade, onUpdate: NoAction, map: "fk_price_history_asset_id")
+
+  @@index([assetId, timestamp], map: "idx_price_history_asset_time")
+  @@map("price_history")
+  @@schema("market")
+}
+
+model theme_weights {
+  id             String   @id(map: "pk_theme_weights") @db.Uuid
+  theme_id       String   @db.VarChar(40)
+  symbol         String   @db.VarChar(40)
+  weight         Decimal  @db.Decimal
+  effective_date String   @db.VarChar(20)
+  mcap_at_set    Decimal? @db.Decimal
+  created_at     DateTime @db.Timestamp(6)
+
+  @@index([theme_id, effective_date], map: "idx_theme_weight_theme_date")
+  @@index([theme_id], map: "ix_market_theme_weights_theme_id")
+  @@schema("market")
+}
+
+model asset_sentiment_snapshots {
+  id                Int      @id(map: "pk_asset_sentiment_snapshots") @default(autoincrement())
+  asset_id          String   @db.Uuid
+  snapshot_date     DateTime @db.Timestamp(6)
+  avg_sentiment_7d  Float?
+  avg_sentiment_30d Float?
+  article_count_7d  Int?
+  trend             String?  @db.VarChar(20)
+  computed_at       DateTime @default(now()) @db.Timestamptz(6)
+  asset             Asset    @relation(fields: [asset_id], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "fk_asset_sentiment_snapshots_asset_id")
+
+  @@unique([asset_id, snapshot_date], map: "uq_sentiment_asset_date")
+  @@schema("news")
+}
+
+model news {
+  id              Int           @id(map: "pk_news") @default(autoincrement())
+  title           String        @db.VarChar
+  content         String?
+  summary         String?
+  source          String        @db.VarChar
+  url             String?       @unique(map: "uq_news_url") @db.VarChar
+  published_at    DateTime?     @db.Timestamptz(6)
+  sentiment_score Float?
+  relevance_score Float?
+  symbols         String?       @db.VarChar
+  created_at      DateTime      @default(now()) @db.Timestamptz(6)
+  news_assets     news_assets[]
+
+  @@index([id], map: "ix_news_news_id")
+  @@schema("news")
+}
+
+model news_assets {
+  news_id  Int
+  asset_id String @db.Uuid
+  asset    Asset  @relation(fields: [asset_id], references: [id], onDelete: Cascade, onUpdate: NoAction, map: "fk_news_assets_asset_id")
+  news     news   @relation(fields: [news_id], references: [id], onDelete: Cascade, onUpdate: NoAction, map: "fk_news_assets_news_id")
+
+  @@id([news_id, asset_id], map: "pk_news_assets")
+  @@index([asset_id], map: "idx_news_assets_asset")
+  @@schema("news")
+}
+
+model web_notifications {
+  user_id    String?  @db.Uuid
+  title      String   @db.VarChar
+  message    String
+  type       String   @db.VarChar
+  read       Boolean
+  id         String   @id(map: "pk_web_notifications") @db.Uuid
+  created_at DateTime @db.Timestamp(6)
+  updated_at DateTime @db.Timestamp(6)
+  user       User?    @relation(fields: [user_id], references: [id], onDelete: Cascade, onUpdate: NoAction, map: "fk_web_notifications_user_id")
+
+  @@index([user_id], map: "ix_notification_web_notifications_user_id")
+  @@schema("notification")
+}
+
+model binance_backfill_progress {
+  portfolio_id    String    @db.Uuid
+  symbol          String    @db.VarChar
+  last_from_id    BigInt?
+  trades_fetched  Int
+  trades_imported Int
+  done            Boolean
+  id              String    @id(map: "pk_binance_backfill_progress") @db.Uuid
+  created_at      DateTime  @db.Timestamp(6)
+  updated_at      DateTime  @db.Timestamp(6)
+  portfolio       Portfolio @relation(fields: [portfolio_id], references: [id], onDelete: Cascade, onUpdate: NoAction, map: "fk_binance_backfill_progress_portfolio_id")
+
+  @@unique([portfolio_id, symbol], map: "uq_binance_backfill_progress_portfolio_symbol")
+  @@schema("portfolio")
+}
+
+model import_runs {
+  portfolio_id   String        @db.Uuid
+  source         String        @db.VarChar
+  filename       String        @db.VarChar
+  status         String        @db.VarChar
+  rows_committed Int
+  rows_skipped   Int
+  error_summary  String?
+  started_at     DateTime      @db.Timestamp(6)
+  duration_ms    Int
+  id             String        @id(map: "pk_import_runs") @db.Uuid
+  created_at     DateTime      @db.Timestamp(6)
+  updated_at     DateTime      @db.Timestamp(6)
+  portfolio      Portfolio     @relation(fields: [portfolio_id], references: [id], onDelete: Cascade, onUpdate: NoAction, map: "fk_import_runs_portfolio_id")
+  transactions   Transaction[]
+
+  @@index([portfolio_id], map: "ix_portfolio_import_runs_portfolio_id")
+  @@schema("portfolio")
+}
+
+model Portfolio {
+  name                      String                      @db.VarChar
+  id                        String                      @id(map: "pk_portfolios") @db.Uuid
+  createdAt                 DateTime                    @db.Timestamp(6) @map("created_at")
+  updatedAt                 DateTime                    @db.Timestamp(6) @map("updated_at")
+  isArchived                Boolean                     @default(false) @map("is_archived")
+  binance_backfill_progress binance_backfill_progress[]
+  import_runs               import_runs[]
+  positions                 Position[]
+  snapshot                  snapshots?
+  transactions              Transaction[]
+
+  @@map("portfolios")
+  @@schema("portfolio")
+}
+
+model Position {
+  portfolioId      String         @db.Uuid @map("portfolio_id")
+  symbol           String         @db.VarChar
+  assetId          String?        @db.Uuid @map("asset_id")
+  quantity         Decimal        @db.Decimal
+  avgBuyPrice      Decimal        @db.Decimal @map("avg_buy_price")
+  wallet           String         @db.VarChar
+  leverage         Decimal?       @db.Decimal
+  liquidationPrice Decimal?       @db.Decimal @map("liquidation_price")
+  unrealizedPnl    Decimal?       @db.Decimal @map("unrealized_pnl")
+  side             String?        @db.VarChar
+  id               String         @id(map: "pk_positions") @db.Uuid
+  createdAt        DateTime       @db.Timestamp(6) @map("created_at")
+  updatedAt        DateTime       @db.Timestamp(6) @map("updated_at")
+  marginUsd        Decimal?       @db.Decimal @map("margin_usd")
+  assetSnapshot    AssetSnapshot? @relation(fields: [assetId], references: [assetId], onUpdate: NoAction, map: "fk_positions_asset_id")
+  portfolio        Portfolio      @relation(fields: [portfolioId], references: [id], onDelete: Cascade, onUpdate: NoAction, map: "fk_positions_portfolio_id")
+
+  @@unique([portfolioId, symbol, wallet], map: "idx_positions_portfolio_symbol")
+  @@map("positions")
+  @@schema("portfolio")
+}
+
+model snapshots {
+  portfolio_id String    @id(map: "pk_snapshots") @db.Uuid
+  market_value Decimal?  @db.Decimal
+  cash_balance Decimal?  @db.Decimal
+  daily_return Decimal?  @db.Decimal
+  total_return Decimal?  @db.Decimal
+  created_at   DateTime  @db.Timestamp(6)
+  updated_at   DateTime  @db.Timestamp(6)
+  portfolio    Portfolio @relation(fields: [portfolio_id], references: [id], onDelete: Cascade, onUpdate: NoAction, map: "fk_snapshots_portfolio_id")
+
+  @@schema("portfolio")
+}
+
+model Transaction {
+  portfolioId            String                    @db.Uuid @map("portfolio_id")
+  symbol                  String                    @db.VarChar
+  assetId                 String?                   @db.Uuid @map("asset_id")
+  transactionType         String                    @db.VarChar @map("transaction_type")
+  quantity                Decimal                   @db.Decimal
+  price                   Decimal                   @db.Decimal
+  transactionDate         DateTime                  @db.Timestamp(6) @map("transaction_date")
+  fees                    Decimal                   @db.Decimal
+  taxes                   Decimal                   @db.Decimal
+  notes                   String?                   @db.VarChar
+  broker                  String?                   @db.VarChar
+  brokerReference         String?                   @db.VarChar @map("broker_reference")
+  kind                    String                    @db.VarChar
+  id                      String                    @id(map: "pk_transactions") @db.Uuid
+  createdAt               DateTime                  @db.Timestamp(6) @map("created_at")
+  updatedAt               DateTime                  @db.Timestamp(6) @map("updated_at")
+  recommendationId        String?                   @db.Uuid @map("recommendation_id")
+  wallet                  String                    @default("spot") @db.VarChar
+  importRunId             String?                   @db.Uuid @map("import_run_id")
+  assetSnapshot           AssetSnapshot?            @relation(fields: [assetId], references: [assetId], onUpdate: NoAction, map: "fk_transactions_asset_id")
+  importRun               import_runs?              @relation(fields: [importRunId], references: [id], onUpdate: NoAction, map: "fk_transactions_import_run_id")
+  portfolio               Portfolio                 @relation(fields: [portfolioId], references: [id], onDelete: Cascade, onUpdate: NoAction, map: "fk_transactions_portfolio_id")
+  recommendation          recommendations?          @relation(fields: [recommendationId], references: [id], onUpdate: NoAction, map: "fk_transactions_recommendation_id")
+  recommendation_outcomes recommendation_outcomes[]
+
+  @@index([importRunId], map: "ix_portfolio_transactions_import_run_id")
+  @@index([symbol], map: "ix_portfolio_transactions_symbol")
+  @@index([transactionDate], map: "ix_portfolio_transactions_transaction_date")
+  @@map("transactions")
+  @@schema("portfolio")
+}
+
+model alembic_version {
+  version_num String @id(map: "alembic_version_pkc") @db.VarChar(32)
+
+  @@schema("public")
+}
+
+model recommendation_explanations {
+  recommendation_id  String          @id(map: "pk_recommendation_explanations") @db.Uuid
+  rules_matched      Json
+  reasoning          String          @db.VarChar
+  confidence_factors Json
+  recommendations    recommendations @relation(fields: [recommendation_id], references: [id], onDelete: Cascade, onUpdate: NoAction, map: "fk_recommendation_explanations_recommendation_id")
+
+  @@schema("recommendation")
+}
+
+model recommendation_outcomes {
+  recommendation_id     String           @id(map: "pk_recommendation_outcomes") @db.Uuid
+  status                String           @db.VarChar(20)
+  action_taken_at       DateTime         @db.Timestamp(6)
+  dismiss_reason        String?          @db.VarChar
+  ledger_transaction_id String?          @db.Uuid
+  predicted_impact      Decimal?         @db.Decimal
+  realized_impact       Decimal?         @db.Decimal
+  ledgerTransaction     Transaction?     @relation(fields: [ledger_transaction_id], references: [id], onUpdate: NoAction, map: "fk_recommendation_outcomes_ledger_transaction_id")
+  recommendations       recommendations  @relation(fields: [recommendation_id], references: [id], onDelete: Cascade, onUpdate: NoAction, map: "fk_recommendation_outcomes_recommendation_id")
+
+  @@schema("recommendation")
+}
+
+model recommendations {
+  asset_id                    String                       @db.Uuid
+  recommendation_state        String                       @db.VarChar(20)
+  confidence_score             Decimal                     @db.Decimal
+  status                       String                       @db.VarChar(20)
+  version                      String                       @db.VarChar(20)
+  id                           String                       @id(map: "pk_recommendations") @db.Uuid
+  created_at                   DateTime                     @db.Timestamp(6)
+  updated_at                   DateTime                     @db.Timestamp(6)
+  transactions                 Transaction[]
+  recommendation_explanations  recommendation_explanations?
+  recommendation_outcomes      recommendation_outcomes?
+  assetSnapshot                AssetSnapshot                @relation(fields: [asset_id], references: [assetId], onDelete: Cascade, onUpdate: NoAction, map: "fk_recommendations_asset_id")
+
+  @@index([asset_id], map: "idx_recommendations_asset")
+  @@index([status], map: "idx_recommendations_status")
+  @@schema("recommendation")
+}
+
+model AuditLog {
+  id         String   @id(map: "pk_audit_logs") @db.Uuid
+  actorId    String?  @db.Uuid @map("actor_id")
+  action     String   @db.VarChar
+  entityType String   @db.VarChar @map("entity_type")
+  entityId   String?  @db.VarChar @map("entity_id")
+  details    Json?
+  createdAt  DateTime @db.Timestamp(6) @map("created_at")
+  user       User?    @relation(fields: [actorId], references: [id], onUpdate: NoAction, map: "fk_audit_logs_actor_id")
+
+  @@index([action, createdAt(sort: Desc)], map: "idx_audit_logs_action_time")
+  @@map("audit_logs")
+  @@schema("system")
+}
+
+model FailedIngestion {
+  provider    String   @db.VarChar
+  payload     Json
+  error       String   @db.VarChar
+  attempts    Int
+  isExhausted Boolean  @map("is_exhausted")
+  id          String   @id(map: "pk_failed_ingestions") @db.Uuid
+  createdAt   DateTime @db.Timestamp(6) @map("created_at")
+  updatedAt   DateTime @db.Timestamp(6) @map("updated_at")
+
+  @@index([createdAt(sort: Desc)], map: "idx_failed_ingestions_created_at_desc")
+  @@index([isExhausted], map: "idx_failed_ingestions_is_exhausted")
+  @@map("failed_ingestions")
+  @@schema("system")
+}
+
+model ProviderUsage {
+  providerId    String    @db.Uuid @map("provider_id")
+  endpoint      String    @db.VarChar
+  requestCount  Int       @map("request_count")
+  costEstimate  Decimal   @db.Decimal @map("cost_estimate")
+  recordedAt    DateTime? @db.Timestamp(6) @map("recorded_at")
+  id            String    @id(map: "pk_provider_usage") @db.Uuid
+  createdAt     DateTime  @db.Timestamp(6) @map("created_at")
+  updatedAt     DateTime  @db.Timestamp(6) @map("updated_at")
+  provider      Provider  @relation(fields: [providerId], references: [id], onDelete: Cascade, onUpdate: NoAction, map: "fk_provider_usage_provider_id")
+
+  @@index([providerId, recordedAt(sort: Desc)], map: "idx_provider_usage_provider_recorded_at")
+  @@map("provider_usage")
+  @@schema("system")
+}
+
+model Provider {
+  name          String          @unique(map: "uq_providers_name") @db.VarChar
+  priority      Int?
+  isEnabled     Boolean         @map("is_enabled")
+  healthStatus  String?         @db.VarChar @map("health_status")
+  lastSuccessAt DateTime?       @db.Timestamp(6) @map("last_success_at")
+  id            String          @id(map: "pk_providers") @db.Uuid
+  createdAt     DateTime        @db.Timestamp(6) @map("created_at")
+  updatedAt     DateTime        @db.Timestamp(6) @map("updated_at")
+  providerUsage ProviderUsage[]
+
+  @@map("providers")
+  @@schema("system")
+}
+
+model task_runs {
+  task_name     String        @db.VarChar
+  task_id       String        @db.VarChar
+  asset_id      String?       @db.VarChar
+  status        taskrunstatus
+  error_message String?       @db.VarChar
+  duration_ms   Int?
+  started_at    DateTime      @db.Timestamptz(6)
+  ended_at      DateTime?     @db.Timestamptz(6)
+  id            String        @id(map: "pk_task_runs") @db.Uuid
+
+  @@index([started_at(sort: Desc)], map: "idx_task_runs_started_at_desc")
+  @@index([task_name, asset_id], map: "idx_task_runs_task_name_asset_id")
+  @@index([task_id], map: "ix_system_task_runs_task_id")
+  @@schema("system")
+}
+
+model user_preferences {
+  user_id               String   @unique(map: "ix_system_user_preferences_user_id") @db.Uuid
+  risk_profile          String?  @db.VarChar
+  target_profit_pct     Decimal? @db.Decimal
+  monthly_saving        Decimal? @db.Decimal
+  working_area          String?  @db.VarChar
+  swing_trading_enabled Boolean
+  bio                   String?  @db.VarChar
+  id                    String   @id(map: "pk_user_preferences") @db.Uuid
+  created_at            DateTime @db.Timestamp(6)
+  updated_at            DateTime @db.Timestamp(6)
+  user                  User     @relation(fields: [user_id], references: [id], onDelete: Cascade, onUpdate: NoAction, map: "fk_user_preferences_user_id")
+
+  @@schema("system")
+}
+
+model User {
+  email             String              @unique(map: "ix_system_users_email") @db.VarChar
+  firstName         String?             @db.VarChar @map("first_name")
+  lastName          String?             @db.VarChar @map("last_name")
+  phone             String?             @db.VarChar
+  isActive          Boolean             @map("is_active")
+  profilePicture    String?             @db.VarChar @map("profile_picture")
+  id                String              @id(map: "pk_users") @db.Uuid
+  createdAt         DateTime            @db.Timestamp(6) @map("created_at")
+  updatedAt         DateTime            @db.Timestamp(6) @map("updated_at")
+  ai_feedback       ai_feedback[]
+  ai_generations    ai_generations[]
+  market_themes     market_themes[]
+  web_notifications web_notifications[]
+  auditLogs         AuditLog[]
+  user_preferences  user_preferences?
+  watchlists        watchlists[]
+
+  @@index([phone], map: "ix_system_users_phone")
+  @@map("users")
+  @@schema("system")
+}
+
+model WatchlistSymbol {
+  watchlistId    String     @db.Uuid @map("watchlist_id")
+  symbol         String     @db.VarChar(60)
+  alertPrice     Decimal?   @db.Decimal @map("alert_price")
+  createdAt      DateTime   @db.Timestamp(6) @map("created_at")
+  id             String     @id(map: "pk_watchlist_symbols") @db.Uuid
+  alertDirection String?    @db.VarChar(3) @map("alert_direction")
+  alertTriggered Boolean    @default(false) @map("alert_triggered")
+  watchlist      watchlists @relation(fields: [watchlistId], references: [id], onDelete: Cascade, onUpdate: NoAction, map: "fk_watchlist_symbols_watchlist_id")
+
+  @@unique([watchlistId, symbol], map: "uq_watchlist_symbol")
+  @@map("watchlist_symbols")
+  @@schema("watchlist")
+}
+
+model watchlists {
+  user_id           String              @db.Uuid
+  name              String              @db.VarChar(120)
+  id                String              @id(map: "pk_watchlists") @db.Uuid
+  created_at        DateTime            @db.Timestamp(6)
+  updated_at        DateTime            @db.Timestamp(6)
+  watchlistSymbols  WatchlistSymbol[]
+  user              User                @relation(fields: [user_id], references: [id], onDelete: Cascade, onUpdate: NoAction, map: "fk_watchlists_user_id")
+
+  @@unique([user_id, name], map: "uq_watchlist_user_name")
+  @@index([user_id], map: "ix_watchlist_watchlists_user_id")
+  @@schema("watchlist")
+}
+
+enum jobstatus {
+  PENDING
+  RUNNING
+  SUCCESS
+  FAILED
+
+  @@schema("public")
+}
+
+enum taskrunstatus {
+  STARTED
+  SUCCESS
+  FAILED
+
+  @@schema("public")
+}

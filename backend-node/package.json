@@ -1,0 +1,41 @@
+{
+  "name": "backend-node",
+  "version": "1.0.0",
+  "description": "",
+  "main": "index.js",
+  "scripts": {
+    "postinstall": "prisma generate",
+    "dev": "tsx watch src/index.ts",
+    "build": "tsc",
+    "start": "node dist/index.js",
+    "lint": "eslint src scripts",
+    "test": "vitest run",
+    "worker": "tsx scripts/startWorker.ts",
+    "trigger:refresh-prices": "tsx scripts/triggerRefreshPrices.ts"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "type": "commonjs",
+  "dependencies": {
+    "@prisma/client": "^6.19.3",
+    "bullmq": "^6.0.9",
+    "dotenv": "^17.4.2",
+    "express": "^5.2.1",
+    "ioredis": "^6.0.0",
+    "uuid": "^14.0.1",
+    "yahoo-finance2": "^4.0.0"
+  },
+  "devDependencies": {
+    "@eslint/js": "^10.0.1",
+    "@types/express": "^5.0.6",
+    "@types/node": "^26.1.2",
+    "@types/uuid": "^10.0.0",
+    "eslint": "^10.8.0",
+    "prisma": "^6.19.3",
+    "tsx": "^4.23.10",
+    "typescript": "^6.0.3",
+    "typescript-eslint": "^8.66.0",
+    "vitest": "^4.1.10"
+  }
+}
