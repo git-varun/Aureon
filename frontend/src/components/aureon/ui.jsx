@@ -1,6 +1,7 @@
 /* Aureon — Shared UI primitives (ported from app/ui.jsx). */
 import React, {useRef, useState} from 'react';
 import {createPortal} from 'react-dom';
+import {Link} from 'react-router-dom';
 import {colorForAllocEntries} from '@/components/aureon/utils';
 
 export const Sparkline = ({data, w = 80, h = 22, color, fill = true}) => {
@@ -141,6 +142,27 @@ export const EpfEstimateBadge = ({basis}) => {
         </span>
     );
 };
+
+/* ── EpfRateMissingHint ─────────────────────────────────────── */
+/* An EPF position's price_source lands on "unavailable" (see
+   _estimate_epf_price) either because there's no broker_snapshot to project
+   from yet, or because a financial year the projection spans has no
+   configured interest rate — the latter is the one the user can fix
+   themselves, right now, in Settings. Points there directly instead of
+   leaving a bare "—" for the user to puzzle over. */
+export const EpfRateMissingHint = () => (
+    <Link
+        to="/settings#provider-list"
+        onClick={(e) => e.stopPropagation()}
+        title="No EPF interest rate configured for this period — set one in Settings → Providers"
+        style={{
+            display: 'inline-flex', alignItems: 'center', height: 18, padding: '0 7px', borderRadius: 999,
+            fontSize: 9.5, fontWeight: 600, letterSpacing: '0.10em', textTransform: 'uppercase',
+            background: 'rgba(209,107,107,0.08)', color: 'var(--crimson-500)',
+            border: '1px dashed rgba(209,107,107,0.35)', textDecoration: 'none', fontFamily: 'var(--font-ui)',
+        }}
+    >Rate missing</Link>
+);
 
 export const Eyebrow = ({children, color}) => (
     <div style={{

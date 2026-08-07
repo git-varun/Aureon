@@ -1032,14 +1032,32 @@ _EPF_UAN_RE = re.compile(r"\bUAN\s*[:|]?\s*(\d+)")
 _EPF_FY_RE = re.compile(r"Financial\s+Year\s*-\s*(\d{4}-\d{4})")
 _EPF_DATE_RE = re.compile(r"(\d{2}/\d{2}/\d{4})")
 
+# Long establishment legal names sometimes wrap onto the next extract_text()
+# line (no reflow signal survives the PDF→text conversion) — e.g. "... /
+# COGNIZANT\nTECHNOLOGY SOLUTIONS INDIA PRIVATE LIMITED". Keep appending
+# lines to the establishment name until one looks like the next header field.
+_EPF_NEXT_LABEL_RE = re.compile(r"Member\s+ID/Name|Date\s+of\s+Birth|UAN\s*[:|]|EPF\s+Passbook")
+
 
 def _epf_header_fields(text: str) -> Dict[str, Optional[str]]:
     estab = _EPF_ESTAB_RE.search(text)
     member = _EPF_MEMBER_RE.search(text)
     uan = _EPF_UAN_RE.search(text)
     fy = _EPF_FY_RE.search(text)
+
+    establishment_name = estab.group(2).strip() if estab else None
+    if establishment_name:
+        lines = text.splitlines()
+        for i, line in enumerate(lines):
+            if _EPF_ESTAB_RE.search(line):
+                for cont in lines[i + 1:]:
+                    if not cont.strip() or _EPF_NEXT_LABEL_RE.search(cont):
+                        break
+                    establishment_name = f"{establishment_name} {cont.strip()}"
+                break
+
     return {
-        "establishment_name": estab.group(2).strip() if estab else None,
+        "establishment_name": establishment_name,
         "member_name": member.group(2).strip() if member else None,
         "uan": uan.group(1).strip() if uan else None,
         "financial_year": fy.group(1).strip() if fy else None,

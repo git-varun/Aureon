@@ -86,6 +86,7 @@ class PositionResponse(BaseModel):
     quote_updated_at: Optional[datetime] = None
     epf_estimate_basis: Optional[dict[str, Any]] = None
     currency: Optional[str] = None
+    unavailable_reason: Optional[str] = None
 
 class ImportRunResponse(BaseModel):
     model_config = ConfigDict(from_attributes=True)

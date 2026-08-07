@@ -461,7 +461,7 @@ def get_positions(
     positions = service.positions_repo.get_by_portfolio(portfolio_id)
     prices = resolve_positions_price_map(service.session, positions)
     for pos in positions:
-        pos.price, pos.price_source, pos.quote_age_status, pos.quote_updated_at, pos.epf_estimate_basis, pos.currency = prices[pos.id]
+        pos.price, pos.price_source, pos.quote_age_status, pos.quote_updated_at, pos.epf_estimate_basis, pos.currency, pos.unavailable_reason = prices[pos.id]
     return positions
 
 @router.get("/portfolios/{portfolio_id}/snapshot", response_model=SnapshotResponse)

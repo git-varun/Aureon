@@ -137,7 +137,11 @@ export function useAureonData() {
             // snapshot.market_value (netWorth) is built from — using it here keeps
             // allocByClass's numerator and netWorth's denominator on one price
             // source. assetData.price (from /assets search) disagrees per-asset.
-            const price = pos.price ?? assetData.price ?? pos.avg_buy_price ?? null;
+            // price_source === 'unavailable' means the backend explicitly has no
+            // usable value (e.g. an EPF estimate with no FY rate configured) —
+            // falling through to avg_buy_price here would relabel that cost basis
+            // as a live price and mask the "unavailable" state from the UI.
+            const price = pos.price_source === 'unavailable' ? null : (pos.price ?? assetData.price ?? pos.avg_buy_price ?? null);
             return {
                 id: pos.id,
                 ticker: pos.symbol.toUpperCase().replace(/\.NS$/i, ''),
@@ -162,6 +166,7 @@ export function useAureonData() {
                 side: pos.side,
                 priceSource: pos.price_source,
                 epfEstimateBasis: pos.epf_estimate_basis,
+                unavailableReason: pos.unavailable_reason,
                 currency: pos.currency || 'USD',
             };
         });

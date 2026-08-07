@@ -150,6 +150,7 @@ def test_epf_estimate_unavailable_when_fy_rate_missing(db_session):
             result = resolve_position_price(db_session, position)
 
         assert result.price_source == "unavailable"
+        assert result.price is None
         assert result.epf_estimate_basis is None
     finally:
         _cleanup(db_session, portfolio, asset)
@@ -164,6 +165,7 @@ def test_epf_estimate_unavailable_when_no_snapshot(db_session):
     try:
         result = resolve_position_price(db_session, position)
         assert result.price_source == "unavailable"
+        assert result.price is None
     finally:
         _cleanup(db_session, portfolio, asset)
 

@@ -1,6 +1,6 @@
 import React from 'react';
 import {useNavigate} from 'react-router-dom';
-import {Sparkline, TierChip, EpfEstimateBadge} from '../ui';
+import {Sparkline, TierChip, EpfEstimateBadge, EpfRateMissingHint} from '../ui';
 import {valueOf, plPctOf, isFutures} from '../utils';
 import {useFmtMoney} from '../../../hooks/useFmtMoney';
 import s from './HoldingSubRow.module.css';
@@ -9,7 +9,7 @@ export const HoldingSubRow = ({h}) => {
     const navigate = useNavigate();
     const fmt = useFmtMoney();
     const plPct = plPctOf(h);
-    const hasCost = h.cost > 0;
+    const hasCost = h.cost > 0 && h.price != null;
     const futures = isFutures(h);
     return (
         <button onClick={() => navigate('/assets/' + h.ticker)} className={s.row}>
@@ -17,6 +17,7 @@ export const HoldingSubRow = ({h}) => {
                 <div className={s.ticker} style={{display: 'flex', alignItems: 'center', gap: 6}}>
                     {h.ticker}
                     {h.priceSource === 'epf_estimated' && <EpfEstimateBadge basis={h.epfEstimateBasis}/>}
+                    {h.unavailableReason === 'epf_rate_missing' && <EpfRateMissingHint/>}
                 </div>
                 <div className={s.fullName}>{h.name}</div>
             </div>
@@ -42,7 +43,7 @@ export const HoldingSubRow = ({h}) => {
                     {h.dayPct === 0 ? '—' : (h.dayPct >= 0 ? '▲' : '▼') + ' ' + (Math.abs(h.dayPct) * 100).toFixed(2) + '%'}
                 </span>
             )}
-            <span className={s.value}>{fmt(valueOf(h), h.currency || 'USD', {dp: 0})}</span>
+            <span className={s.value}>{h.price == null ? '—' : fmt(valueOf(h), h.currency || 'USD', {dp: 0})}</span>
             <span style={{
                 display: 'inline-flex', alignItems: 'center',
                 padding: '1px 6px', borderRadius: 4,

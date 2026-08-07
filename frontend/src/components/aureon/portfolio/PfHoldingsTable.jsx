@@ -1,5 +1,5 @@
 import React, { useState, useMemo } from 'react';
-import { TierChip, Sk, EpfEstimateBadge } from '@/components/aureon/ui';
+import { TierChip, Sk, EpfEstimateBadge, EpfRateMissingHint } from '@/components/aureon/ui';
 import { valueOf, valueOfBase, plOf, plPctOf, isFutures } from '@/components/aureon/utils';
 import { useV4 } from '@/contexts/V4Context';
 
@@ -87,9 +87,10 @@ export function PfHoldingsTable({ holdings, loading, fmt, onLogTrade, onAddManua
       ) : filtered.map(h => {
         const isManual = h.tier === 'passive';
         const isEstimated = h.priceSource === 'epf_estimated';
+        const isRateMissing = h.unavailableReason === 'epf_rate_missing';
         const futures = isFutures(h);
         const pl = plOf(h);
-        const plp = h.cost > 0 ? plPctOf(h) : null;
+        const plp = h.cost > 0 && h.price != null ? plPctOf(h) : null;
         const hCcy = h.currency || 'USD';
         const fmtVal = v => fmt ? fmt(v, hCcy, {dp:0}) : `$${Math.round(v).toLocaleString()}`;
         const fmtPrice = v => fmt ? fmt(v, hCcy, {dp:2}) : `$${v?.toFixed(2)}`;
@@ -102,6 +103,7 @@ export function PfHoldingsTable({ holdings, loading, fmt, onLogTrade, onAddManua
                 <span style={{ fontFamily:'var(--font-mono)', fontSize:13, fontWeight:600, color:'var(--ink-00)', letterSpacing:'0.03em' }}>{h.ticker}</span>
                 {isManual && <span style={{ fontSize:9, padding:'1px 5px', borderRadius:3, background:'rgba(122,168,212,0.12)', color:'#7AA8D4', border:'1px solid rgba(122,168,212,0.22)', letterSpacing:'0.08em', textTransform:'uppercase', fontWeight:600 }}>Manual</span>}
                 {isEstimated && <EpfEstimateBadge basis={h.epfEstimateBasis}/>}
+                {isRateMissing && <EpfRateMissingHint/>}
               </div>
               <div style={{ fontSize:11.5, color:'var(--ink-40)', marginTop:1, overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap', maxWidth:200 }}>{h.name}</div>
             </div>

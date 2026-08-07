@@ -157,6 +157,34 @@ def test_parse_epf_statement_real_pipe_delimited_header(mock_open):
     assert summary["zero_transaction_year"] is True
 
 
+_WRAPPED_HEADER_TEXT = (
+    "स्थापना आईडी/नाम | Establishment ID/Name | TNMAS0031309000 / "
+    "COGNIZANT\n"
+    "TECHNOLOGY SOLUTIONS INDIA PRIVATE LIMITED\n"
+    "सदस्य आईडी/नाम | Member ID/Name | TNMAS00313090001849637 / VARUN UPADHYAY\n"
+    "जन्म तिथि | Date of Birth | 14-07-1997\n"
+    "यू ए न | UAN | 101656562831\n"
+    "ईपीएफ पासबुक [ वित्तीय वर्ष - 2023-2024 ] / EPF Passbook [ Financial Year - 2023-2024 ]\n"
+)
+
+
+@patch("pdfplumber.open")
+def test_parse_epf_statement_wrapped_establishment_name(mock_open):
+    """Regression test: a long establishment legal name can wrap onto the next
+    extract_text() line with no reflow signal — the old (.+) regex silently
+    truncated it to just "COGNIZANT". Uses the real pipe-delimited bilingual
+    header format (see test_parse_epf_statement_real_pipe_delimited_header),
+    not the synthetic colon format, since that's what a real export wraps in."""
+    mock_open.return_value = _build_fake_pdf(
+        _zero_txn_page1_tables(), _zero_txn_page2_tables(), header_text=_WRAPPED_HEADER_TEXT
+    )
+
+    holdings, transactions, summary = parse_epf_statement(b"fake-pdf-bytes")
+
+    h = holdings[0]
+    assert h["establishment_name"] == "COGNIZANT TECHNOLOGY SOLUTIONS INDIA PRIVATE LIMITED"
+
+
 @patch("pdfplumber.open")
 def test_parse_epf_statement_populated_month_row(mock_open):
     """Synthetic row following the documented column layout — NOT validated against

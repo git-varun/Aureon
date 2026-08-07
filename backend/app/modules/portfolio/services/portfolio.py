@@ -91,6 +91,11 @@ class PositionPrice(NamedTuple):
     quote_updated_at: Optional[datetime]
     epf_estimate_basis: Optional[Dict[str, Any]] = None
     currency: str = "USD"
+    # Set only for price_source == "unavailable" cases that a user can act on
+    # directly — currently just "epf_rate_missing" (see _estimate_epf_price),
+    # distinguishing it from other "unavailable" causes (e.g. no snapshot yet)
+    # that have no equivalent one-click fix.
+    unavailable_reason: Optional[str] = None
 
 
 _EPF_RATE_PROVIDER_NAME = "epf_interest_rates"
@@ -134,7 +139,7 @@ def _estimate_epf_price(session: Session, pos: Position) -> PositionPrice:
         )
     )
     if not snapshot:
-        return PositionPrice(0.0, "unavailable", None, None, None, "INR")
+        return PositionPrice(None, "unavailable", None, None, None, "INR")
 
     from app.core.entities.config import ProviderConfig
     provider = session.scalar(select(ProviderConfig).filter_by(provider_name=_EPF_RATE_PROVIDER_NAME))
@@ -181,7 +186,7 @@ def _estimate_epf_price(session: Session, pos: Position) -> PositionPrice:
     while month <= last_month:
         fy = _fy_label(month)
         if fy not in rates:
-            return PositionPrice(0.0, "unavailable", None, None, None, "INR")
+            return PositionPrice(None, "unavailable", None, None, None, "INR", "epf_rate_missing")
         rate = float(rates[fy])
         applied_rates[fy] = rate
         interest = principal * rate / 100.0 / 12.0
