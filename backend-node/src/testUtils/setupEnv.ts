@@ -11,3 +11,10 @@
 // database.
 process.env.DATABASE_URL =
   process.env.TEST_DATABASE_URL ?? "postgresql://postgres:postgres@localhost:5432/aureon_test?options=-c%20timezone%3Dutc";
+
+// Fallback SECRET_KEY for tests that exercise Fernet-encrypting code paths
+// (e.g. provider credential storage) without passing a secret explicitly —
+// matches backend-node/.env.example's placeholder value. Never overrides an
+// already-set SECRET_KEY (e.g. from a real .env loaded via dotenv).
+process.env.SECRET_KEY =
+  process.env.SECRET_KEY ?? "a7ab7603b94dfe3dd6c0fa505548081fc5cda3bc340ac80e0f37aaf2f05623fa";
