@@ -14,7 +14,9 @@ process.env.DATABASE_URL =
 
 // Fallback SECRET_KEY for tests that exercise Fernet-encrypting code paths
 // (e.g. provider credential storage) without passing a secret explicitly —
-// matches backend-node/.env.example's placeholder value. Never overrides an
-// already-set SECRET_KEY (e.g. from a real .env loaded via dotenv).
+// matches Python's DEFAULT_DEV_SECRET (backend/app/core/config.py), the real
+// default both backends fall back to whenever SECRET_KEY isn't set in .env.
+// Never overrides an already-set SECRET_KEY (e.g. from a real .env loaded
+// via dotenv).
 process.env.SECRET_KEY =
   process.env.SECRET_KEY ?? "a7ab7603b94dfe3dd6c0fa505548081fc5cda3bc340ac80e0f37aaf2f05623fa";
