@@ -6,6 +6,7 @@ import { requireUuidParam } from "../../lib/validation";
 import { ensureAssetExists } from "../../lib/assets";
 import { recalculatePosition } from "../../lib/positions";
 import { inferCurrency } from "../../lib/currency";
+import { invalidatePortfolioCaches } from "../../lib/portfolioCache";
 import type { Transaction } from "../../generated/prisma";
 
 export const transactionsRouter = Router();
@@ -100,6 +101,7 @@ transactionsRouter.post("/:id/transactions", async (req, res) => {
     await recalculatePosition(tx, portfolio.id, symbol);
     return created;
   });
+  await invalidatePortfolioCaches(portfolio.id);
 
   res.status(201).json(serializeTransaction(txn, null));
 });

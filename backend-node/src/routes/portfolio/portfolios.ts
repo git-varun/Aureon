@@ -5,6 +5,7 @@ import { NotFoundError, ConflictError, RequestValidationError } from "../../lib/
 import { requireUuidParam } from "../../lib/validation";
 import { logAuditAction } from "../../lib/audit";
 import { getCurrentUser } from "../../lib/users";
+import { invalidatePortfolioCaches } from "../../lib/portfolioCache";
 import type { Portfolio } from "../../generated/prisma";
 
 export const portfoliosRouter = Router();
@@ -97,6 +98,7 @@ portfoliosRouter.post("/:id/archive", async (req, res) => {
     await logAuditAction(tx, "portfolio_archive", "portfolio", user.id, existing.id, { name: existing.name });
     return updated;
   });
+  await invalidatePortfolioCaches(portfolio.id);
   res.json(serializePortfolio(portfolio));
 });
 
@@ -111,6 +113,7 @@ portfoliosRouter.post("/:id/unarchive", async (req, res) => {
     await logAuditAction(tx, "portfolio_unarchive", "portfolio", user.id, existing.id, { name: existing.name });
     return updated;
   });
+  await invalidatePortfolioCaches(portfolio.id);
   res.json(serializePortfolio(portfolio));
 });
 
@@ -131,5 +134,6 @@ portfoliosRouter.delete("/:id", async (req, res) => {
     await logAuditAction(tx, "portfolio_delete", "portfolio", user.id, existing.id, { name: existing.name });
     return true;
   });
+  if (deleted) await invalidatePortfolioCaches(req.params.id);
   res.json({ success: deleted });
 });
