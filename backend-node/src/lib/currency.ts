@@ -45,3 +45,14 @@ export function inferCurrency(
   }
   return "USD";
 }
+
+// Port of app/modules/market/services/market.py infer_exchange_region.
+export function inferExchangeRegion(symbol: string): { exchange: string; region: string } {
+  if (symbol.endsWith(".NS")) return { exchange: "NSE", region: "IN" };
+  if (symbol.endsWith(".BO")) return { exchange: "BSE", region: "IN" };
+  if (symbol.endsWith("-USD") || symbol.endsWith("-USDM") || symbol.endsWith("-COINM")) {
+    return { exchange: "CRYPTO", region: "GLOBAL" };
+  }
+  if (symbol.startsWith("^")) return { exchange: "INDEX", region: "GLOBAL" };
+  return { exchange: "NASDAQ", region: "US" };
+}

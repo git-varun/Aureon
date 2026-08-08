@@ -2,6 +2,7 @@ import { prisma } from "../prisma";
 import { ProviderError } from "../lib/errors";
 import { QUOTE_FALLBACK_CANDIDATES, isNonUsExchangeSymbol, yahooCanServeCryptoSymbol } from "../lib/marketProviders/routing";
 import { cacheQuote } from "../lib/marketProviders/redisRateLimit";
+import { watchlistAlertsQueue } from "../lib/jobs/queues";
 import { getOrCreateProvider, recordFailure, saveQuote, markProviderDegraded } from "../lib/jobs/ingestionRepo";
 import type { NormalizedQuote } from "../lib/marketProviders/types";
 import * as yahoo from "../lib/marketProviders/yahoo";
@@ -10,12 +11,10 @@ import * as twelvedata from "../lib/marketProviders/twelvedata";
 import * as alphavantage from "../lib/marketProviders/alphavantage";
 import * as coingecko from "../lib/marketProviders/coingecko";
 import * as nseDirect from "../lib/marketProviders/nseDirect";
+import * as binancePrice from "../lib/marketProviders/binancePrice";
+import * as polygon from "../lib/marketProviders/polygon";
 
 // Port of _MARKET_DATA_PROVIDERS — the full provider-name validation surface.
-// Only the six below actually have an adapter ported in this repo; binance_price
-// and polygon are real primary/fallback candidates in Python's routing but have
-// no Node adapter yet (out of scope for this phase — flagged explicitly below,
-// not silently skipped).
 const MARKET_DATA_PROVIDERS = new Set([
   "finnhub", "polygon", "yahoo", "binance_price", "nse_direct", "twelvedata", "alphavantage", "coingecko",
 ]);
@@ -27,6 +26,8 @@ const ADAPTERS: Record<string, { getQuote(symbol: string): Promise<NormalizedQuo
   alphavantage,
   coingecko,
   nse_direct: nseDirect,
+  binance_price: binancePrice,
+  polygon,
 };
 
 async function getQuoteFor(providerName: string, symbol: string): Promise<NormalizedQuote> {
@@ -69,9 +70,10 @@ async function isProviderAvailable(providerName: string): Promise<boolean> {
  * primary provider + its fallback candidates, minus the coingecko/non-
  * curated-crypto strip and the non-US-exchange/finnhub strip, tried in
  * order until one succeeds. Does NOT trigger the downstream asset-
- * evaluation chain (process_asset_snapshot/features/signals/scores) or
- * evaluate_watchlist_alerts — both are separate Celery task chains outside
- * this phase's stated scope. */
+ * evaluation chain (process_asset_snapshot/features/signals/scores) — that
+ * remains a separate Celery task chain outside this phase's stated scope.
+ * Does dispatch evaluate_watchlist_alerts (Phase 5), mirroring Python's
+ * evaluate_watchlist_alerts.delay(symbol) call right after cache_quote. */
 export async function ingestQuote(providerName: string, symbol: string): Promise<boolean> {
   if (!MARKET_DATA_PROVIDERS.has(providerName)) {
     throw new ProviderError(`Unknown provider ${providerName}`);
@@ -110,6 +112,8 @@ export async function ingestQuote(providerName: string, symbol: string): Promise
     await saveQuote(usedProvider, quote);
 
     await cacheQuote(symbol, quote as unknown as Record<string, unknown>);
+
+    await watchlistAlertsQueue.add("evaluateWatchlistAlerts", { symbol });
 
     return true;
   } catch (e) {

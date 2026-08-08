@@ -4,7 +4,7 @@ import { skipQuoteIngestion, resolveQuoteProvider } from "../lib/marketProviders
 import { getQuotesByIds, SYMBOL_TO_COINGECKO_ID } from "../lib/marketProviders/coingecko";
 import { cacheQuote } from "../lib/marketProviders/redisRateLimit";
 import { listTrackedSymbolsForRefresh, saveQuote, recordPriceHistory, recordFailure, getOrCreateProvider } from "../lib/jobs/ingestionRepo";
-import { quotesQueue } from "../queue";
+import { quotesQueue, watchlistAlertsQueue } from "../lib/jobs/queues";
 import { wrapJobExecution, skipIfDisabled } from "../lib/jobs/wrapJobExecution";
 import type { NormalizedQuote } from "../lib/marketProviders/types";
 
@@ -29,8 +29,8 @@ function coinId(symbol: string): string {
  * universe of price updates every day. Runs inline rather than via the
  * queue since it's now a small, fixed number of calls, not one per symbol.
  *
- * Does not dispatch evaluate_watchlist_alerts — that Celery task chain is
- * outside this phase's scope, same as ingestQuote.ts's port of ingest_quote. */
+ * Dispatches evaluate_watchlist_alerts per symbol after cache_quote (Phase 5),
+ * mirroring Python's _refresh_tracked_crypto_bulk. */
 async function refreshTrackedCryptoBulk(symbols: string[]): Promise<void> {
   const symbolToId = new Map<string, string>();
   for (const symbol of symbols) {
@@ -69,6 +69,7 @@ async function refreshTrackedCryptoBulk(symbols: string[]): Promise<void> {
     const assetId = await saveQuote("coingecko", quote);
     await prisma.$transaction((tx) => recordPriceHistory(tx, assetId, symbol, data.price, now));
     await cacheQuote(symbol, quote as unknown as Record<string, unknown>);
+    await watchlistAlertsQueue.add("evaluateWatchlistAlerts", { symbol });
     quoted += 1;
   }
 
