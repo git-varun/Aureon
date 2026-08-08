@@ -1,5 +1,5 @@
 import { ConfigurationError, ProviderError } from "../errors";
-import type { NormalizedQuote } from "./types";
+import type { NormalizedQuote, NormalizedNews } from "./types";
 
 const PROVIDER_NAME = "finnhub";
 
@@ -65,6 +65,43 @@ export async function getFundamentals(symbol: string): Promise<Record<string, un
   } catch (e) {
     if (e instanceof ProviderError) throw e;
     throw new ProviderError(`Finnhub get_fundamentals failed for ${symbol}: ${(e as Error).message}`);
+  }
+}
+
+/** Port of FinnhubAdapter.get_news — company-news, last 30 days, capped at
+ * 20 items (matching Python's data[:20] slice). Returns [] rather than
+ * throwing when unconfigured (unlike getQuote/getFundamentals's requireKey),
+ * matching Python's own get_news early-return. */
+export async function getNews(symbol: string): Promise<NormalizedNews[]> {
+  const apiKey = resolvedKey();
+  if (!apiKey || apiKey === "your_finnhub_api_key" || apiKey.toLowerCase() === "none") return [];
+
+  try {
+    const toDate = new Date().toISOString().slice(0, 10);
+    const fromDate = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString().slice(0, 10);
+    const url = new URL("https://finnhub.io/api/v1/company-news");
+    url.searchParams.set("symbol", symbol);
+    url.searchParams.set("from", fromDate);
+    url.searchParams.set("to", toDate);
+    url.searchParams.set("token", apiKey);
+    const res = await fetch(url, { signal: AbortSignal.timeout(10_000) });
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    const data = (await res.json()) as Array<{ headline?: string; url?: string; datetime?: number }>;
+    const results: NormalizedNews[] = [];
+    for (const item of data.slice(0, 20)) {
+      if (item.headline && item.url) {
+        results.push({
+          provider: PROVIDER_NAME,
+          title: item.headline,
+          url: item.url,
+          publishedAt: item.datetime ? new Date(item.datetime * 1000) : new Date(),
+        });
+      }
+    }
+    return results;
+  } catch (e) {
+    if (e instanceof ProviderError) throw e;
+    throw new ProviderError(`Finnhub get_news failed for ${symbol}: ${(e as Error).message}`);
   }
 }
 

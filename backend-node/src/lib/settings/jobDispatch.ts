@@ -8,6 +8,7 @@ import { refreshMutualFundNavsTask } from "../../jobs/refreshMutualFundNavs";
 import { seedPriceHistoryTask } from "../../jobs/seedPriceHistory";
 import { refreshTrackedUniverseTask } from "../../jobs/refreshTrackedUniverse";
 import { sweepStaleJobLogsTask } from "../../jobs/sweepStaleJobLogs";
+import { fetchNewsTask } from "../../jobs/fetchNews";
 
 const redis = new Redis(process.env.REDIS_URL!);
 
@@ -21,6 +22,7 @@ const JOB_RUNNERS: Record<string, (logId: number) => Promise<void>> = {
   seed_price_history: seedPriceHistoryTask,
   refresh_tracked_universe: refreshTrackedUniverseTask,
   sweep_stale_job_logs: sweepStaleJobLogsTask,
+  fetch_news: fetchNewsTask,
 };
 
 // Port of ConfigService._PROVIDER_REQUIRED_JOBS — none of these jobs have a

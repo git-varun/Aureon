@@ -1,6 +1,17 @@
 import YahooFinance from "yahoo-finance2";
 import { ProviderError } from "../errors";
-import type { NormalizedQuote } from "./types";
+import type { NormalizedQuote, NormalizedNews } from "./types";
+
+// Narrowed shape of yahoo-finance2's SearchNews item — just the fields
+// filterYahooSearchNews reads, defined locally so it can be exercised with
+// synthetic fixtures in tests without importing the library's internal
+// module path.
+export interface YahooSearchNewsItem {
+  title?: string;
+  link?: string;
+  providerPublishTime?: Date;
+  relatedTickers?: string[];
+}
 
 const yf = new YahooFinance({ suppressNotices: ["yahooSurvey"] });
 
@@ -124,6 +135,49 @@ export async function getPriceHistory(symbol: string, period: string = "3mo", in
     return rows;
   } catch (e) {
     throw new ProviderError(`Yahoo get_price_history failed for ${symbol}: ${(e as Error).message}`);
+  }
+}
+
+/** Port of YahooAdapter.get_news / _parse_yahoo_news_item. yahoo-finance2's
+ * search() news array only ever matches yfinance's legacy flat item shape
+ * (title/link/providerPublishTime as a real Date, already parsed) — there is
+ * no equivalent of yfinance's newer item["content"]/canonicalUrl branch to
+ * port, since search() is a different Yahoo endpoint than yfinance's
+ * Ticker.news and returns its own consistent shape.
+ *
+ * Unlike yfinance's Ticker.news (already symbol-scoped), search() ranks by
+ * query relevance and returns adjacent stories about other tickers entirely
+ * (confirmed live: a search("AAPL") call returned a Nvidia-only article) —
+ * so relatedTickers is used to keep only items actually about this symbol,
+ * dropping anything with no relatedTickers at all rather than risk
+ * mis-attributing an off-topic story into news_assets/sentiment for this
+ * symbol. */
+/** Pure item filter/mapper, split out from getNews so the relatedTickers
+ * judgment call above can be exercised with synthetic fixtures — this
+ * codebase has no live-network test precedent for provider adapters (see
+ * routing.test.ts's split of pure logic from the live-only getQuote calls). */
+export function filterYahooSearchNews(items: YahooSearchNewsItem[], symbol: string): NormalizedNews[] {
+  const parsed: NormalizedNews[] = [];
+  for (const item of items) {
+    if (!item.title || !item.link) continue;
+    const related = item.relatedTickers ?? [];
+    if (!related.some((t) => t.toUpperCase() === symbol.toUpperCase())) continue;
+    parsed.push({
+      provider: PROVIDER_NAME,
+      title: item.title,
+      url: item.link,
+      publishedAt: item.providerPublishTime ?? new Date(),
+    });
+  }
+  return parsed;
+}
+
+export async function getNews(symbol: string): Promise<NormalizedNews[]> {
+  try {
+    const result = await yf.search(symbol);
+    return filterYahooSearchNews(result.news ?? [], symbol);
+  } catch (e) {
+    throw new ProviderError(`Yahoo get_news failed for ${symbol}: ${(e as Error).message}`);
   }
 }
 

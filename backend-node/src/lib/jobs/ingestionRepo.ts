@@ -1,6 +1,7 @@
 import { v4 as uuidv4, v5 as uuidv5 } from "uuid";
 import { prisma } from "../../prisma";
-import type { Prisma, Provider, Asset } from "../../generated/prisma";
+import { Prisma } from "../../generated/prisma";
+import type { Provider, Asset } from "../../generated/prisma";
 import type { NormalizedQuote } from "../marketProviders/types";
 
 export interface PriceHistoryRow {
@@ -190,4 +191,42 @@ export async function listAllAssets(): Promise<Asset[]> {
 export async function bulkInsertPriceHistory(rows: PriceHistoryRow[]): Promise<void> {
   if (rows.length === 0) return;
   await prisma.priceHistory.createMany({ data: rows, skipDuplicates: true });
+}
+
+/** Port of IngestionRepository.list_quoted_symbols — up to `limit` symbols
+ * for fetchNewsTask to fetch this cycle, prioritized by staleness
+ * (never-attempted symbols first, via a NULLS-FIRST ascending sort on
+ * Asset.last_news_fetch_at). `crypto_quota` reserves that many slots for
+ * asset_class == 'crypto' so it isn't starved by the larger equity pool. Raw
+ * SQL: LatestQuote has no Prisma relation object to Asset (assetId is a bare
+ * scalar FK), so a NULLS-FIRST order on the joined table isn't expressible
+ * through the fluent query API. */
+export async function listQuotedSymbols(limit: number, cryptoQuota = 4): Promise<string[]> {
+  const pick = async (classFilter: Prisma.Sql, n: number): Promise<string[]> => {
+    if (n <= 0) return [];
+    const rows = await prisma.$queryRaw<Array<{ symbol: string }>>(Prisma.sql`
+      SELECT lq.symbol
+      FROM market.latest_quotes lq
+      LEFT JOIN market.assets a ON a.id = lq.asset_id
+      WHERE ${classFilter}
+      ORDER BY a.last_news_fetch_at ASC NULLS FIRST
+      LIMIT ${n}
+    `);
+    return rows.map((r) => r.symbol);
+  };
+
+  const cryptoSymbols = await pick(Prisma.sql`a.asset_class = 'crypto'`, cryptoQuota);
+  const otherSymbols = await pick(
+    Prisma.sql`(a.asset_class != 'crypto' OR a.asset_class IS NULL)`,
+    limit - cryptoSymbols.length,
+  );
+  return [...cryptoSymbols, ...otherSymbols];
+}
+
+/** Port of IngestionRepository.mark_news_fetch_attempted — stamped
+ * regardless of fetch outcome (including zero articles found) so
+ * listQuotedSymbols' staleness ordering treats "we tried and found nothing"
+ * as attempted, not permanently "never fetched" (see CRYPTO_SENTIMENT_GAP §1). */
+export async function markNewsFetchAttempted(symbol: string): Promise<void> {
+  await prisma.asset.updateMany({ where: { symbol }, data: { lastNewsFetchAt: new Date() } });
 }
