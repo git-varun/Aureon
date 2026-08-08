@@ -36,10 +36,22 @@ export const DEFAULT_JOBS: DefaultJob[] = [
 // seedDefaultProviders in providers.ts).
 export async function seedDefaultJobs(): Promise<void> {
   const { prisma } = await import("../../prisma");
+  const { Prisma } = await import("../../generated/prisma");
   for (const j of DEFAULT_JOBS) {
-    const exists = await prisma.jobConfig.findUnique({ where: { jobName: j.jobName } });
-    if (!exists) {
-      await prisma.jobConfig.create({ data: { jobName: j.jobName, enabled: j.enabled, jobTier: j.jobTier } });
+    try {
+      const exists = await prisma.jobConfig.findUnique({ where: { jobName: j.jobName } });
+      if (!exists) {
+        await prisma.jobConfig.create({ data: { jobName: j.jobName, enabled: j.enabled, jobTier: j.jobTier } });
+      }
+    } catch (e) {
+      // Matches Python's per-block `except IntegrityError: db.rollback()` in
+      // seed_defaults — a unique-constraint collision on one row must not
+      // abort the rest of the seed loop.
+      if (e instanceof Prisma.PrismaClientKnownRequestError && e.code === "P2002") {
+        console.warn(`seed_default_jobs_collision job_name=${j.jobName}`);
+        continue;
+      }
+      throw e;
     }
   }
 }

@@ -25,8 +25,12 @@ app.use("/api/v1/config", jobsRouter);
 app.use("/api/v1", resetRouter);
 app.use(errorHandler);
 
-app.listen(port, async () => {
+async function start() {
   await seedDefaultProviders();
   await seedDefaultJobs();
-  console.log(`backend-node listening on port ${port}`);
-});
+  app.listen(port, () => {
+    console.log(`backend-node listening on port ${port}`);
+  });
+}
+
+start();

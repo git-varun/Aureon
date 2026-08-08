@@ -3,6 +3,7 @@ import { NotFoundError, ValidationError } from "../errors";
 import { logAuditAction } from "../audit";
 import { encryptFernet, decryptFernet, decryptFernetHealth } from "../crypto/fernet";
 import { DEFAULT_PROVIDERS } from "./providerDefaults";
+import { Prisma } from "../../generated/prisma";
 import type { ProviderConfig } from "../../generated/prisma";
 
 const secret = (): string => process.env.SECRET_KEY!;
@@ -20,29 +21,41 @@ function safeJsonLoad<T>(data: string | null | undefined, fallback: T): T {
 // Idempotent, safe to call on every process start (see routes/index wiring).
 export async function seedDefaultProviders(): Promise<void> {
   for (const p of DEFAULT_PROVIDERS) {
-    const exists = await prisma.providerConfig.findUnique({ where: { providerName: p.providerName } });
-    if (!exists) {
-      await prisma.providerConfig.create({
-        data: {
-          providerName: p.providerName,
-          providerType: p.providerType,
-          enabled: true,
-          keyNames: p.keyNames,
-          encryptedKeys: "{}",
-          config: p.config ?? "{}",
-          status: p.status,
-          capabilities: p.capabilities,
-          priority: p.priority ?? 100,
-          health: "{}",
-          timeoutSeconds: 10,
-          retryPolicy: "{}",
-        },
-      });
-    } else if (exists.status === "PLANNED" && p.status !== "PLANNED") {
-      await prisma.providerConfig.update({
-        where: { providerName: p.providerName },
-        data: { status: p.status, capabilities: p.capabilities, priority: p.priority ?? exists.priority },
-      });
+    try {
+      const exists = await prisma.providerConfig.findUnique({ where: { providerName: p.providerName } });
+      if (!exists) {
+        await prisma.providerConfig.create({
+          data: {
+            providerName: p.providerName,
+            providerType: p.providerType,
+            enabled: true,
+            keyNames: p.keyNames,
+            encryptedKeys: "{}",
+            config: p.config ?? "{}",
+            status: p.status,
+            capabilities: p.capabilities,
+            priority: p.priority ?? 100,
+            health: "{}",
+            timeoutSeconds: 10,
+            retryPolicy: "{}",
+          },
+        });
+      } else if (exists.status === "PLANNED" && p.status !== "PLANNED") {
+        await prisma.providerConfig.update({
+          where: { providerName: p.providerName },
+          data: { status: p.status, capabilities: p.capabilities, priority: p.priority ?? exists.priority },
+        });
+      }
+    } catch (e) {
+      // Matches Python's per-block `except IntegrityError: db.rollback()` in
+      // seed_defaults — a unique-constraint collision on one row (e.g. a
+      // concurrent process seeding the same provider) must not abort the
+      // rest of the seed loop.
+      if (e instanceof Prisma.PrismaClientKnownRequestError && e.code === "P2002") {
+        console.warn(`seed_default_providers_collision provider_name=${p.providerName}`);
+        continue;
+      }
+      throw e;
     }
   }
 }
