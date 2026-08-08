@@ -276,7 +276,7 @@ const DATE_FORMATS: DateFormat[] = [
   },
 ];
 
-function parseDate(raw: string): Date | null {
+export function parseDate(raw: string): Date | null {
   const trimmed = raw.trim();
   for (const fmt of DATE_FORMATS) {
     const d = fmt(trimmed);
