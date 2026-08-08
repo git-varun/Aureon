@@ -108,12 +108,72 @@ services:
       start_period: 20s
       retries: 3
 
+  backend-node:
+    image: node:22-alpine
+    container_name: aureon_backend_node
+    working_dir: /app
+    environment:
+      DATABASE_URL: postgresql://${POSTGRES_USER}:${POSTGRES_PASSWORD}@aureon-db:5432/${POSTGRES_DB:-aureon}?options=-c%20timezone%3Dutc
+      REDIS_URL: redis://redis:6379/0
+      PORT: "8010"
+    volumes:
+      - ./backend-node:/app
+      - /app/node_modules
+    ports:
+      - "${BACKEND_NODE_PORT:-8010}:8010"
+    depends_on:
+      aureon-db:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    networks:
+      - aureon_network
+    command: sh -c "npm install && npm run dev"
+    restart: unless-stopped
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+  # BullMQ worker for backend-node's jobs (currently: q_ingestion,
+  # q_watchlist_alerts). No repeatable schedule is registered on either
+  # queue yet — see backend-node/scripts/startWorker.ts — so this process
+  # only consumes jobs enqueued by backend-node's own manual trigger
+  # scripts or by backend-node's own ingestQuote/refreshTrackedUniverse
+  # paths, not by the Python celery_worker/celery_beat services above.
+  backend-node-worker:
+    image: node:22-alpine
+    container_name: aureon_backend_node_worker
+    working_dir: /app
+    environment:
+      DATABASE_URL: postgresql://${POSTGRES_USER}:${POSTGRES_PASSWORD}@aureon-db:5432/${POSTGRES_DB:-aureon}?options=-c%20timezone%3Dutc
+      REDIS_URL: redis://redis:6379/0
+    volumes:
+      - ./backend-node:/app
+      - /app/node_modules
+    depends_on:
+      aureon-db:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    networks:
+      - aureon_network
+    command: sh -c "npm install && npm run worker"
+    restart: unless-stopped
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
+
   frontend:
     image: node:22-alpine
     container_name: aureon_frontend
     working_dir: /app
     environment:
       VITE_API_PROXY_TARGET: http://api:8002
+      VITE_API_NODE_PROXY_TARGET: http://backend-node:8010
       FRONTEND_PORT: ${FRONTEND_PORT:-3000}
       RUNNING_IN_DOCKER: "true"
     volumes:
@@ -123,6 +183,8 @@ services:
     depends_on:
       api:
         condition: service_healthy
+      backend-node:
+        condition: service_started
     networks:
       - aureon_network
     command: sh -c "npm install && npm run dev"
