@@ -29,6 +29,31 @@ function getIntelligenceOutcomesKey(portfolioId: string): string {
   return `intelligence:outcomes:${portfolioId}`;
 }
 
+/** Port of app/core/redis.py cache_portfolio_snapshot. Same key/900s TTL as
+ * Python so a Node-written entry can be read by Python (and vice versa)
+ * during a partial rollout or rollback. */
+export async function cachePortfolioSnapshot(portfolioId: string, snapshotData: Record<string, unknown>): Promise<void> {
+  try {
+    await redis.setex(getPortfolioSnapshotKey(portfolioId), 900, JSON.stringify(snapshotData));
+  } catch (e) {
+    console.warn(`redis_operation_failed operation=cache_portfolio_snapshot portfolio_id=${portfolioId} error=${(e as Error).message}`);
+  }
+}
+
+/** Port of app/core/redis.py get_cached_portfolio_snapshot. */
+export async function getCachedPortfolioSnapshot(portfolioId: string): Promise<Record<string, unknown> | null> {
+  try {
+    const data = await redis.get(getPortfolioSnapshotKey(portfolioId));
+    if (data) {
+      const result = JSON.parse(data);
+      if (result && typeof result === "object") return result as Record<string, unknown>;
+    }
+  } catch (e) {
+    console.warn(`redis_operation_failed operation=get_cached_portfolio_snapshot portfolio_id=${portfolioId} error=${(e as Error).message}`);
+  }
+  return null;
+}
+
 /** Port of PortfolioService._invalidate_portfolio_caches. Swallows Redis
  * errors (matching Python's redis.RedisError catch-and-warn) — a cache
  * invalidation failure must never fail a write that already committed to

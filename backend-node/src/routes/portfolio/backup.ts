@@ -1,7 +1,7 @@
 import { Router } from "express";
 import { v4 as uuidv4 } from "uuid";
 import { prisma } from "../../prisma";
-import { getCurrentUser } from "../../lib/users";
+import { getCurrentUser, getUserContext } from "../../lib/users";
 import { storeBackupReceipt } from "../../lib/settings/resetRedis";
 import { RequestValidationError } from "../../lib/errors";
 import { upload } from "../../lib/uploadMiddleware";
@@ -273,17 +273,8 @@ backupRouter.post("/restore", upload.single("file"), async (req, res) => {
         }
         portfolioId = portfolio.id;
       } else {
-        // Port of app/api/dependencies.py get_user_context (:171-182):
-        // `db.query(Portfolio).first()` with no ordering, creating one named
-        // exactly "Default Portfolio" if none exists. Only reachable for the
-        // legacy flat-transactions backup shape.
-        let portfolio = await tx.portfolio.findFirst();
-        if (!portfolio) {
-          portfolio = await tx.portfolio.create({
-            data: { id: uuidv4(), name: "Default Portfolio", isArchived: false, createdAt: new Date(), updatedAt: new Date() },
-          });
-        }
-        portfolioId = portfolio.id;
+        // Only reachable for the legacy flat-transactions backup shape.
+        portfolioId = await getUserContext(tx);
       }
       portfoliosCount += 1;
       portfolioIdsTouched.add(portfolioId);

@@ -2,7 +2,7 @@ import { v4 as uuidv4, v5 as uuidv5 } from "uuid";
 import type { Prisma } from "../../generated/prisma";
 import { ensureAssetExists } from "../assets";
 import { recalculatePosition } from "../positions";
-import { RequestValidationError } from "../errors";
+import { RequestValidationError, NotFoundError } from "../errors";
 
 type Tx = Prisma.TransactionClient;
 
@@ -92,4 +92,57 @@ export async function createManualAsset(
   await recalculatePosition(tx, portfolioId, symbol);
 
   return { symbol };
+}
+
+/** Port of PortfolioService.update_manual_valuation. Deliberately does NOT
+ * call recalculatePosition — it writes the new unit price straight to
+ * LatestQuote (read by resolvePositionPrice's isManualAsset branch) and
+ * records a VALUATION-kind transaction, which recalculatePosition's replay
+ * treats as a no-op for net_qty/avg_buy_price (see positions.ts). */
+export async function updateManualValuation(
+  tx: Tx,
+  portfolioId: string,
+  symbolRaw: string,
+  newValue: number,
+  notes?: string,
+): Promise<number> {
+  const symbol = symbolRaw.toUpperCase().trim();
+
+  const pos = await tx.position.findFirst({ where: { portfolioId, symbol } });
+  if (!pos) throw new NotFoundError("Manual position not found");
+
+  const qty = Number(pos.quantity);
+  const newUnitPrice = qty > 0 ? newValue / qty : newValue;
+
+  const quote = await tx.latestQuote.findUnique({ where: { symbol } });
+  if (quote) {
+    await tx.latestQuote.update({ where: { symbol }, data: { price: newUnitPrice, updatedAt: new Date() } });
+  } else {
+    await tx.latestQuote.create({
+      data: { symbol, assetId: pos.assetId, price: newUnitPrice, volume: null, createdAt: new Date(), updatedAt: new Date() },
+    });
+  }
+
+  await tx.transaction.create({
+    data: {
+      id: uuidv4(),
+      portfolioId,
+      symbol,
+      assetId: pos.assetId,
+      transactionType: "VALUATION",
+      quantity: qty,
+      price: newUnitPrice,
+      transactionDate: new Date(),
+      fees: 0,
+      taxes: 0,
+      notes: notes ?? `Valuation update: ${newValue}`,
+      broker: "manual",
+      kind: "trade",
+      wallet: "spot", // Python's Transaction() ctor omits wallet here too — defaults to "spot", not pos.wallet
+      createdAt: new Date(),
+      updatedAt: new Date(),
+    },
+  });
+
+  return newUnitPrice;
 }

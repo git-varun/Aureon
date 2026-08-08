@@ -1,10 +1,21 @@
 import { describe, it, expect, beforeAll, afterAll, beforeEach, afterEach } from "vitest";
 import type { Server } from "http";
 import express from "express";
+import ExcelJS from "exceljs";
 import { v4 as uuidv4 } from "uuid";
 import { testPrisma } from "../../testUtils/testPrisma";
 import { errorHandler } from "../../lib/errorHandler";
 import { importsRouter } from "./imports";
+
+async function xlsxFile(rows: unknown[][], filename: string): Promise<FormData> {
+  const wb = new ExcelJS.Workbook();
+  const ws = wb.addWorksheet("Sheet1");
+  for (const row of rows) ws.addRow(row);
+  const buf = (await wb.xlsx.writeBuffer()) as unknown as ArrayBuffer;
+  const fd = new FormData();
+  fd.append("file", new Blob([buf], { type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" }), filename);
+  return fd;
+}
 
 // No supertest in this repo's devDependencies (checked: none of the existing
 // route files use HTTP-level tests, only direct-function DB integration
@@ -168,5 +179,128 @@ describe("GET /:id/import/history", () => {
     const txns = (await txnsRes.json()) as Array<{ symbol: string }>;
     expect(txns.length).toBe(1);
     expect(txns[0].symbol).toBe("RELIANCE.NS");
+  });
+});
+
+describe("PUT /:id/manual-assets/:symbol/valuation", () => {
+  it("creates the manual asset then revalues it — LatestQuote and a VALUATION txn are updated, quantity is untouched", async () => {
+    const createRes = await fetch(`${baseUrl}/${portfolioId}/manual-assets`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ name: "My House", asset_class: "real_estate", current_value: 5000000 }),
+    });
+    expect(createRes.status).toBe(200);
+    const { symbol } = (await createRes.json()) as { symbol: string };
+
+    const res = await fetch(`${baseUrl}/${portfolioId}/manual-assets/${symbol}/valuation`, {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ new_value: 5500000, notes: "annual revaluation" }),
+    });
+    expect(res.status).toBe(200);
+    const body = (await res.json()) as { status: string; new_price: number };
+    expect(body.status).toBe("success");
+    // quantity is always 1.0 for lump-sum manual assets, so new_price == new_value.
+    expect(body.new_price).toBe(5500000);
+
+    const pos = await testPrisma.position.findFirst({ where: { portfolioId, symbol } });
+    expect(Number(pos!.quantity)).toBe(1); // untouched — VALUATION never affects qty
+
+    const quote = await testPrisma.latestQuote.findUnique({ where: { symbol } });
+    expect(Number(quote!.price)).toBe(5500000);
+
+    const valuationTxn = await testPrisma.transaction.findFirst({ where: { portfolioId, symbol, transactionType: "VALUATION" } });
+    expect(valuationTxn).not.toBeNull();
+    expect(valuationTxn!.notes).toBe("annual revaluation");
+  });
+
+  it("404s for a symbol with no position in this portfolio", async () => {
+    const res = await fetch(`${baseUrl}/${portfolioId}/manual-assets/NOPE/valuation`, {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ new_value: 100 }),
+    });
+    expect(res.status).toBe(404);
+  });
+});
+
+describe("POST /:id/import/groww/holdings", () => {
+  it("commits a broker_snapshot position, an import_runs record, and current_price to LatestQuote", async () => {
+    const form = await xlsxFile(
+      [
+        ["Groww Stocks Holdings Statement"],
+        ["Stock Name", "ISIN", "Quantity", "Average buy price", "Closing price"],
+        ["Reliance Industries", "INE002A01018", 10, 2500.5, 2600],
+      ],
+      "groww_holdings.xlsx",
+    );
+    const res = await fetch(`${baseUrl}/${portfolioId}/import/groww/holdings`, { method: "POST", body: form });
+    expect(res.status).toBe(200);
+    const body = (await res.json()) as { status: string; imported_holdings: number };
+    expect(body.status).toBe("success");
+    expect(body.imported_holdings).toBe(1);
+
+    const pos = await testPrisma.position.findFirst({ where: { portfolioId, symbol: "INE002A01018_HOLDING" } });
+    expect(pos).not.toBeNull();
+    expect(Number(pos!.quantity)).toBe(10);
+    expect(Number(pos!.avgBuyPrice)).toBe(2500.5);
+
+    const quote = await testPrisma.latestQuote.findUnique({ where: { symbol: "INE002A01018_HOLDING" } });
+    expect(Number(quote!.price)).toBe(2600);
+
+    const runs = await testPrisma.import_runs.findMany({ where: { portfolio_id: portfolioId, source: "groww_holdings" } });
+    expect(runs).toHaveLength(1);
+    expect(runs[0].status).toBe("SUCCESS");
+  });
+
+  it("re-import updates the same broker_snapshot row rather than duplicating it", async () => {
+    const form1 = await xlsxFile(
+      [["Stock Name", "ISIN", "Quantity", "Average buy price"], ["Reliance Industries", "INE002A01018", 10, 2500]],
+      "groww_holdings.xlsx",
+    );
+    await fetch(`${baseUrl}/${portfolioId}/import/groww/holdings`, { method: "POST", body: form1 });
+
+    const form2 = await xlsxFile(
+      [["Stock Name", "ISIN", "Quantity", "Average buy price"], ["Reliance Industries", "INE002A01018", 15, 2600]],
+      "groww_holdings.xlsx",
+    );
+    await fetch(`${baseUrl}/${portfolioId}/import/groww/holdings`, { method: "POST", body: form2 });
+
+    const positions = await testPrisma.position.findMany({ where: { portfolioId, symbol: "INE002A01018_HOLDING" } });
+    expect(positions).toHaveLength(1);
+    expect(Number(positions[0].quantity)).toBe(15);
+
+    const snapshots = await testPrisma.transaction.findMany({
+      where: { portfolioId, symbol: "INE002A01018_HOLDING", kind: "broker_snapshot" },
+    });
+    expect(snapshots).toHaveLength(1); // updated in place, not duplicated
+  });
+
+  it("400s (via ImportParseError) when the file has no recognisable holdings header", async () => {
+    const form = await xlsxFile([["Not", "A", "Holdings", "File"]], "bad.xlsx");
+    const res = await fetch(`${baseUrl}/${portfolioId}/import/groww/holdings`, { method: "POST", body: form });
+    expect(res.status).toBe(400);
+  });
+});
+
+describe("POST /:id/import/groww/mf-holdings", () => {
+  it("commits a broker_snapshot MF position with NAV derived from invested/current value", async () => {
+    const form = await xlsxFile(
+      [
+        ["HOLDING SUMMARY"],
+        ["Scheme Name", "Folio No.", "Units", "Invested Value", "Current Value"],
+        ["Parag Parikh Flexi Cap Fund", "12345", 100, 5000, 6000],
+      ],
+      "groww_mf_holdings.xlsx",
+    );
+    const res = await fetch(`${baseUrl}/${portfolioId}/import/groww/mf-holdings`, { method: "POST", body: form });
+    expect(res.status).toBe(200);
+    const body = (await res.json()) as { status: string; imported_holdings: number };
+    expect(body.imported_holdings).toBe(1);
+
+    const pos = await testPrisma.position.findFirst({ where: { portfolioId, symbol: "PARAG_PARIKH_FLEXI_CAP_FUND_MF" } });
+    expect(pos).not.toBeNull();
+    expect(Number(pos!.quantity)).toBe(100);
+    expect(Number(pos!.avgBuyPrice)).toBe(50);
   });
 });

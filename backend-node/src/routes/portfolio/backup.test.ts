@@ -206,6 +206,30 @@ describe("POST /portfolio/restore", () => {
     expect(txns).toHaveLength(1); // old deleted, new inserted — not accumulated to 2
   });
 
+  it("legacy flat-transactions shape (no portfolios key) creates a Default Portfolio via getUserContext, on a fresh/empty DB", async () => {
+    expect(await testPrisma.portfolio.count()).toBe(0); // fresh/empty state per Step 0's live-verify requirement
+
+    const legacyBackup = {
+      version: "2.0.0", exported_at: new Date().toISOString(), user_id: "x",
+      transactions: [
+        { symbol: "AAPL", type: "BUY", qty: 5, price: 50, date: new Date().toISOString(), fees: 0, taxes: 0, kind: "trade" },
+      ],
+      watchlists: [], ai_generations: [], ai_evaluations: [], ai_feedback: [], ai_briefings: [],
+      recommendations: [], recommendation_explanations: [], recommendation_outcomes: [],
+      market_themes: [], theme_weights: [],
+    };
+    const form = new FormData();
+    form.append("file", new Blob([JSON.stringify(legacyBackup)], { type: "application/json" }), "backup.json");
+    const res = await fetch(`${baseUrl}/restore?confirm=true`, { method: "POST", body: form });
+    expect(res.status).toBe(200);
+
+    const portfolio = await testPrisma.portfolio.findFirst();
+    expect(portfolio).not.toBeNull();
+    expect(portfolio!.name).toBe("Default Portfolio"); // matches Python's get_user_context default name
+    const txn = await testPrisma.transaction.findFirst({ where: { portfolioId: portfolio!.id, symbol: "AAPL" } });
+    expect(txn).not.toBeNull();
+  });
+
   it("a mid-restore failure rolls back fully — no partial delete-without-replace", async () => {
     const p = await testPrisma.portfolio.create({ data: { id: uuidv4(), name: "RollbackTest", createdAt: new Date(), updatedAt: new Date() } });
     await testPrisma.transaction.create({

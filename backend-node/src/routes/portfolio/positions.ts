@@ -1,8 +1,10 @@
 import { Router } from "express";
 import { prisma } from "../../prisma";
-import { NotFoundError } from "../../lib/errors";
+import { NotFoundError, RequestValidationError, ConfigurationError } from "../../lib/errors";
 import { requireUuidParam } from "../../lib/validation";
 import { resolvePositionsPriceMap } from "../../lib/prices";
+import { generatePortfolioSnapshot, serializeSnapshotForCache, getPortfolioHistory } from "../../lib/snapshot";
+import { cachePortfolioSnapshot, getCachedPortfolioSnapshot } from "../../lib/portfolioCache";
 import type { Position } from "../../generated/prisma";
 import type { PositionPrice } from "../../lib/prices";
 
@@ -41,4 +43,119 @@ positionsRouter.get("/:id/positions", async (req, res) => {
   const positionsList = await prisma.position.findMany({ where: { portfolioId: portfolio.id } });
   const prices = await resolvePositionsPriceMap(positionsList);
   res.json(positionsList.map((p) => serializePosition(p, prices.get(p.id)!)));
+});
+
+function serializeSnapshotResponse(s: { portfolio_id: string; market_value: number | null; cash_balance: number | null; daily_return: number | null; total_return: number | null; updated_at: string }) {
+  return {
+    portfolio_id: s.portfolio_id,
+    market_value: s.market_value,
+    cash_balance: s.cash_balance,
+    daily_return: s.daily_return,
+    total_return: s.total_return,
+    updated_at: s.updated_at,
+  };
+}
+
+// Port of GET /portfolios/{portfolio_id}/snapshot. Cache-first (900s TTL,
+// same key Python reads/writes); on a miss, regenerates fresh rather than
+// trusting a possibly-stale persisted snapshots row — see Python's comment.
+positionsRouter.get("/:id/snapshot", async (req, res) => {
+  requireUuidParam(req.params.id, "portfolio_id");
+  const portfolio = await prisma.portfolio.findUnique({ where: { id: req.params.id } });
+  if (!portfolio) throw new NotFoundError("Portfolio not found");
+
+  const cached = await getCachedPortfolioSnapshot(portfolio.id);
+  if (cached) {
+    res.json(serializeSnapshotResponse(cached as unknown as Parameters<typeof serializeSnapshotResponse>[0]));
+    return;
+  }
+
+  const snapshot = await generatePortfolioSnapshot(portfolio.id);
+  await cachePortfolioSnapshot(portfolio.id, serializeSnapshotForCache(snapshot));
+  res.json(serializeSnapshotResponse(snapshot));
+});
+
+// Port of POST /portfolios/{portfolio_id}/snapshot — always regenerates.
+positionsRouter.post("/:id/snapshot", async (req, res) => {
+  requireUuidParam(req.params.id, "portfolio_id");
+  const portfolio = await prisma.portfolio.findUnique({ where: { id: req.params.id } });
+  if (!portfolio) throw new NotFoundError("Portfolio not found");
+
+  const snapshot = await generatePortfolioSnapshot(portfolio.id);
+  await cachePortfolioSnapshot(portfolio.id, serializeSnapshotForCache(snapshot));
+  res.json(serializeSnapshotResponse(snapshot));
+});
+
+// Port of GET /portfolios/{portfolio_id}/history.
+positionsRouter.get("/:id/history", async (req, res) => {
+  requireUuidParam(req.params.id, "portfolio_id");
+  const portfolio = await prisma.portfolio.findUnique({ where: { id: req.params.id } });
+  if (!portfolio) throw new NotFoundError("Portfolio not found");
+
+  const daysRaw = req.query.days;
+  let days = 90;
+  if (daysRaw !== undefined) {
+    const parsed = Number(daysRaw);
+    if (!Number.isInteger(parsed) || parsed < 1 || parsed > 1825) {
+      throw new RequestValidationError("days must be an integer between 1 and 1825");
+    }
+    days = parsed;
+  }
+
+  res.json(await getPortfolioHistory(portfolio.id, days));
+});
+
+// Port of POST /portfolios/{portfolio_id}/sync/binance/backfill. Unlike every
+// other endpoint in this file, the actual backfill worker (authenticated
+// paginated walk of Binance's spot trade history, credential decryption,
+// resumable per-symbol checkpointing) has no Node port — Node's own
+// dispatchJob() already hard-codes this job as portfolio-scoped-only with no
+// registered runner (see lib/settings/jobDispatch.ts's REQUIRES_PORTFOLIO_ID/
+// JOB_RUNNERS). Rather than return a fake "queued" response for work that
+// will never run — this project's standing no-fake-data policy — this fails
+// loudly and says so.
+positionsRouter.post("/:id/sync/binance/backfill", async (req) => {
+  requireUuidParam(req.params.id, "portfolio_id");
+  const portfolio = await prisma.portfolio.findUnique({ where: { id: req.params.id } });
+  if (!portfolio) throw new NotFoundError("Portfolio not found");
+
+  throw new ConfigurationError(
+    "Binance Spot backfill has no runner in the Node backend yet — trigger this from the Python backend (POST /api/v1/portfolio/portfolios/{id}/sync/binance/backfill) until it's ported.",
+  );
+});
+
+interface BinanceBackfillProgressRow {
+  symbol: string;
+  done: boolean;
+  trades_fetched: number;
+  trades_imported: number;
+}
+
+// Port of GET /portfolios/{portfolio_id}/sync/binance/backfill/status —
+// PortfolioService.get_binance_backfill_status. Read-only, sourced straight
+// from the binance_backfill_progress checkpoint table — correct whether a
+// backfill is mid-run, finished, or (as in Node today, see the POST route
+// above) never started at all.
+positionsRouter.get("/:id/sync/binance/backfill/status", async (req, res) => {
+  requireUuidParam(req.params.id, "portfolio_id");
+  const portfolio = await prisma.portfolio.findUnique({ where: { id: req.params.id } });
+  if (!portfolio) throw new NotFoundError("Portfolio not found");
+
+  const rows = await prisma.binance_backfill_progress.findMany({ where: { portfolio_id: portfolio.id } });
+  const symbols: BinanceBackfillProgressRow[] = rows.map((r) => ({
+    symbol: r.symbol,
+    done: r.done,
+    trades_fetched: r.trades_fetched,
+    trades_imported: r.trades_imported,
+  }));
+
+  res.json({
+    symbols_total: rows.length,
+    symbols_done: rows.filter((r) => r.done).length,
+    trades_fetched: rows.reduce((sum, r) => sum + r.trades_fetched, 0),
+    trades_imported: rows.reduce((sum, r) => sum + r.trades_imported, 0),
+    symbols,
+    scope: "spot_only",
+    note: "Covers Binance Spot only — Futures trade history is not backfilled (Binance API limitation).",
+  });
 });

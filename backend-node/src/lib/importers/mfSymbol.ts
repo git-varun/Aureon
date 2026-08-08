@@ -11,7 +11,10 @@ export function cleanIsin(raw: string): string {
   return raw.toUpperCase().replace(/[^A-Z0-9]/g, "");
 }
 
-function mfSymbol(name: string): string {
+/** Port of _mf_symbol — plain name-slug MF symbol, no ISIN check. Exported
+ * for parse_groww_mf_holdings, which has no ISIN column at all (see
+ * growwHoldings.ts). */
+export function mfSymbol(name: string): string {
   const slug = name.toUpperCase().trim().replace(/[^A-Z0-9]+/g, "_");
   return slug.slice(0, 40).replace(/_+$/, "") + "_MF";
 }
@@ -23,8 +26,9 @@ export function mfSymbolFor(name: string, isin = ""): string {
   return mfSymbol(name);
 }
 
-/** Port of _slug. */
-function slug(s: string): string {
+/** Port of _slug. Exported for parse_groww_stocks_holdings' ISIN-less symbol
+ * fallback (growwHoldings.ts), which uppercases the result unlike casSymbolFor. */
+export function slug(s: string): string {
   return s
     .toLowerCase()
     .replace(/[^a-z0-9]+/g, "_")

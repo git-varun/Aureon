@@ -7,11 +7,12 @@ import { ensureAssetExists } from "../../lib/assets";
 import { recalculatePosition } from "../../lib/positions";
 import { invalidatePortfolioCaches } from "../../lib/portfolioCache";
 import { upload } from "../../lib/uploadMiddleware";
-import { createManualAsset } from "../../lib/importers/manualAsset";
+import { createManualAsset, updateManualValuation } from "../../lib/importers/manualAsset";
 import { parseTransactionFile } from "../../lib/importers/csvImport";
 import { parseCdslCas } from "../../lib/importers/casImport";
 import { parseNpsStatement } from "../../lib/importers/npsImport";
 import { parseEpfStatement } from "../../lib/importers/epfImport";
+import { parseGrowwStocksHoldings, parseGrowwMfHoldings, type GrowwHoldingPayload } from "../../lib/importers/growwHoldings";
 import type { Prisma, Transaction } from "../../generated/prisma";
 
 export const importsRouter = Router();
@@ -129,6 +130,37 @@ async function upsertBrokerSnapshot(
       },
     });
   }
+}
+
+/** Port of PortfolioService._import_groww_holdings_payloads — shared
+ * broker_snapshot upsert for both Groww holdings-snapshot parsers, same
+ * pattern as upsertBrokerSnapshot above but also opportunistically writes
+ * current_price into LatestQuote when the export includes a closing/current
+ * value column. Returns the count of payloads processed. */
+async function importGrowwHoldingsPayloads(
+  tx: Tx,
+  portfolioId: string,
+  payloads: GrowwHoldingPayload[],
+  broker: string,
+  runId: string,
+): Promise<number> {
+  const symbolsToRecalc = new Set<string>();
+  for (const p of payloads) {
+    const assetId = await ensureAssetExists(tx, p.symbol, p.name, p.asset_type);
+    await upsertBrokerSnapshot(tx, portfolioId, runId, broker, p.symbol, p.quantity, p.avg_buy_price, new Date());
+
+    if (p.current_price) {
+      await tx.latestQuote.upsert({
+        where: { symbol: p.symbol },
+        create: { symbol: p.symbol, assetId, price: p.current_price, volume: null, provider: `${broker}_import`, createdAt: new Date(), updatedAt: new Date() },
+        update: { price: p.current_price, provider: `${broker}_import`, updatedAt: new Date() },
+      });
+    }
+
+    symbolsToRecalc.add(p.symbol);
+  }
+  for (const sym of symbolsToRecalc) await recalculatePosition(tx, portfolioId, sym);
+  return payloads.length;
 }
 
 async function existingBrokerReferences(tx: Tx, portfolioId: string, broker: string, refs: string[]): Promise<Set<string>> {
@@ -254,6 +286,42 @@ importsRouter.post("/:id/import/cdsl", upload.single("file"), async (req: Reques
       rowsSkipped: 0,
       result: { status: "success", imported_holdings: holdings.length, summary },
     };
+  });
+
+  res.json(result);
+});
+
+// ── POST /:id/import/groww/holdings (Groww Stocks Holdings Statement XLSX) ─
+importsRouter.post("/:id/import/groww/holdings", upload.single("file"), async (req: Request<{ id: string }>, res) => {
+  requireUuidParam(req.params.id, "portfolio_id");
+  const portfolio = await findPortfolioOrThrow(req.params.id);
+  if (!req.file) throw new RequestValidationError("file is required");
+  const filename = req.file.originalname || "groww_holdings.xlsx";
+
+  const result = await trackImportRun(portfolio.id, "groww_holdings", filename, async (runId) => {
+    const { payloads, summary } = await parseGrowwStocksHoldings(req.file!.buffer);
+    const imported = await prisma.$transaction((tx) => importGrowwHoldingsPayloads(tx, portfolio.id, payloads, "groww_holdings", runId));
+
+    await invalidatePortfolioCaches(portfolio.id);
+    return { rowsCommitted: imported, rowsSkipped: 0, result: { status: "success", imported_holdings: imported, summary } };
+  });
+
+  res.json(result);
+});
+
+// ── POST /:id/import/groww/mf-holdings (Groww Mutual Funds holdings XLSX) ──
+importsRouter.post("/:id/import/groww/mf-holdings", upload.single("file"), async (req: Request<{ id: string }>, res) => {
+  requireUuidParam(req.params.id, "portfolio_id");
+  const portfolio = await findPortfolioOrThrow(req.params.id);
+  if (!req.file) throw new RequestValidationError("file is required");
+  const filename = req.file.originalname || "groww_mf_holdings.xlsx";
+
+  const result = await trackImportRun(portfolio.id, "groww_mf_holdings", filename, async (runId) => {
+    const { payloads, summary } = await parseGrowwMfHoldings(req.file!.buffer);
+    const imported = await prisma.$transaction((tx) => importGrowwHoldingsPayloads(tx, portfolio.id, payloads, "groww_mf_holdings", runId));
+
+    await invalidatePortfolioCaches(portfolio.id);
+    return { rowsCommitted: imported, rowsSkipped: 0, result: { status: "success", imported_holdings: imported, summary } };
   });
 
   res.json(result);
@@ -456,6 +524,25 @@ importsRouter.post("/:id/manual-assets", async (req, res) => {
 
   await invalidatePortfolioCaches(portfolio.id);
   res.json({ status: "success", symbol });
+});
+
+// ── PUT /:id/manual-assets/:symbol/valuation ────────────────────────────
+interface UpdateManualValuationBody {
+  new_value?: unknown;
+  notes?: unknown;
+}
+
+importsRouter.put("/:id/manual-assets/:symbol/valuation", async (req, res) => {
+  requireUuidParam(req.params.id, "portfolio_id");
+  const portfolio = await findPortfolioOrThrow(req.params.id);
+  const body = req.body as UpdateManualValuationBody;
+  if (typeof body.new_value !== "number") throw new RequestValidationError("new_value must be a number");
+
+  const newPrice = await prisma.$transaction((tx) =>
+    updateManualValuation(tx, portfolio.id, req.params.symbol, body.new_value as number, typeof body.notes === "string" ? body.notes : undefined),
+  );
+  await invalidatePortfolioCaches(portfolio.id);
+  res.json({ status: "success", new_price: newPrice });
 });
 
 // ── Import history ─────────────────────────────────────────────────────

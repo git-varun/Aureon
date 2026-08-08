@@ -82,6 +82,27 @@ export default defineConfig({
                 target: apiNodeProxyTarget,
                 changeOrigin: true,
             },
+            // Phase 10 wave 3: Portfolio/Positions/Transactions CRUD. Scoped
+            // to '/api/v1/portfolio/portfolios' specifically, NOT the whole
+            // '/api/v1/portfolio' module — '/api/v1/portfolio/sync',
+            // '/api/v1/portfolio/sync/status', '/api/v1/portfolio/backup',
+            // and '/api/v1/portfolio/restore' are siblings of 'portfolios'
+            // (not sub-paths of it, so no prefix-collision risk either way)
+            // and deliberately stay on Python this wave — broker-sync/backup/
+            // restore are a different scope, still verified only for reads
+            // during this cutover, not live-tested for this wave's write
+            // path. Every real Python route under '/portfolios/**' (CRUD,
+            // transactions incl. get/update/delete/broker-coverage,
+            // positions, snapshot, history, all import/*, manual-assets incl.
+            // valuation update, and the binance-backfill status GET) now has
+            // a Node port — see backend-node/src/routes/portfolio/{portfolios,
+            // positions,transactions,imports}.ts. binance-backfill's POST
+            // fails loudly (400, no fake "queued" response) since Node has no
+            // backfill runner yet — see positions.ts's comment there.
+            '/api/v1/portfolio/portfolios': {
+                target: apiNodeProxyTarget,
+                changeOrigin: true,
+            },
             '/api': {
                 target: apiProxyTarget,
                 changeOrigin: true,
