@@ -70,3 +70,25 @@ export async function sweepStaleRunningJobs(timeoutSeconds: number): Promise<num
   );
   return stale.length;
 }
+
+/** Port of ConfigService.get_job_logs. job_name=null queries across all jobs
+ * (backs GET /config/jobs/logs — must stay registered before the
+ * /jobs/:job_name dynamic route, see routes/settings/jobs.ts). */
+export async function getJobLogs(jobName: string | null, limit: number, offset: number): Promise<JobLog[]> {
+  return prisma.jobLog.findMany({
+    where: jobName ? { jobName } : {},
+    orderBy: { startedAt: "desc" },
+    take: limit,
+    skip: offset,
+  });
+}
+
+/** Port of ConfigService.get_job_logs' total count. */
+export async function countJobLogs(jobName: string | null): Promise<number> {
+  return prisma.jobLog.count({ where: jobName ? { jobName } : {} });
+}
+
+/** Port of ConfigService.update_job. */
+export async function updateJob(jobName: string, enabled: boolean): Promise<void> {
+  await prisma.jobConfig.updateMany({ where: { jobName }, data: { enabled } });
+}
