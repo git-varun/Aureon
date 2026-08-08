@@ -7,6 +7,9 @@ import { usersRouter } from "./routes/users/users";
 import { providersRouter } from "./routes/settings/providers";
 import { jobsRouter } from "./routes/settings/jobs";
 import { resetRouter } from "./routes/settings/reset";
+import { aiRouter } from "./routes/ai/ai";
+import { intelligenceRouter } from "./routes/ai/intelligence";
+import { recommendationRouter } from "./routes/ai/recommendations";
 import { seedDefaultProviders } from "./lib/settings/providers";
 import { seedDefaultJobs } from "./lib/settings/jobDefaults";
 import { errorHandler } from "./lib/errorHandler";
@@ -23,6 +26,9 @@ app.use("/api/v1/users", usersRouter);
 app.use("/api/v1/config", providersRouter);
 app.use("/api/v1/config", jobsRouter);
 app.use("/api/v1", resetRouter);
+app.use("/api/v1", aiRouter);
+app.use("/api/v1/intelligence", intelligenceRouter);
+app.use("/api/v1/recommendation", recommendationRouter);
 app.use(errorHandler);
 
 async function start() {

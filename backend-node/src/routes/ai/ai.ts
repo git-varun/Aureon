@@ -1,0 +1,83 @@
+import { Router } from "express";
+import { getCurrentUser } from "../../lib/users";
+import { requireUuidParam } from "../../lib/validation";
+import { RequestValidationError } from "../../lib/errors";
+import { generateBriefing, askAureon, explainRecommendation, submitFeedback, getBriefingHistory } from "../../lib/ai/aiService";
+
+// Port of app/modules/ai/api/ai.py — the briefing/Q&A/feedback/explain
+// surface, plus the briefing-history analytics endpoint. get_single_asset_take
+// and get_usage_summary are deliberately deferred (see Phase 8 handoff).
+export const aiRouter = Router();
+
+aiRouter.post("/ai/global", async (req, res, next) => {
+  try {
+    const user = await getCurrentUser();
+    res.json(await generateBriefing("global", user.id));
+  } catch (e) {
+    next(e);
+  }
+});
+
+aiRouter.post("/ai/weekly", async (req, res, next) => {
+  try {
+    const user = await getCurrentUser();
+    res.json(await generateBriefing("weekly", user.id));
+  } catch (e) {
+    next(e);
+  }
+});
+
+aiRouter.post("/ai/monthly", async (req, res, next) => {
+  try {
+    const user = await getCurrentUser();
+    res.json(await generateBriefing("monthly", user.id));
+  } catch (e) {
+    next(e);
+  }
+});
+
+aiRouter.post("/ai/qa", async (req, res, next) => {
+  try {
+    const { context_type: contextType, context_id: contextId, question } = req.body ?? {};
+    if (typeof contextType !== "string" || typeof contextId !== "string" || typeof question !== "string") {
+      throw new RequestValidationError("context_type, context_id, and question are required");
+    }
+    requireUuidParam(contextId, "context_id");
+    const user = await getCurrentUser();
+    const { response, generationId } = await askAureon(contextType, contextId, question, user.id);
+    res.json({ response, generation_id: generationId });
+  } catch (e) {
+    next(e);
+  }
+});
+
+aiRouter.post("/ai/feedback", async (req, res, next) => {
+  try {
+    const { generation_id: generationId, rating, comment } = req.body ?? {};
+    requireUuidParam(generationId, "generation_id");
+    const user = await getCurrentUser();
+    const feedback = await submitFeedback(generationId, Number(rating), comment ?? null, user.id);
+    res.json(feedback);
+  } catch (e) {
+    next(e);
+  }
+});
+
+aiRouter.post("/ai/recommendations/:id/explain", async (req, res, next) => {
+  try {
+    requireUuidParam(req.params.id, "recommendation_id");
+    const user = await getCurrentUser();
+    res.json(await explainRecommendation(req.params.id, user.id));
+  } catch (e) {
+    next(e);
+  }
+});
+
+aiRouter.get("/analytics/ai/briefings", async (req, res, next) => {
+  try {
+    const limit = req.query.limit ? Number(req.query.limit) : 30;
+    res.json(await getBriefingHistory(limit));
+  } catch (e) {
+    next(e);
+  }
+});
