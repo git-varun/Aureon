@@ -57,4 +57,34 @@ describe("reset routes", () => {
     });
     expect(res2.status).toBe(200);
   });
+
+  it("an empty scopes array is rejected with 400 BEFORE the receipt is consumed", async () => {
+    await storeBackupReceipt("real-receipt-2");
+    const res = await fetch(`${baseUrl}/reset`, {
+      method: "POST", headers: { "content-type": "application/json" },
+      body: JSON.stringify({ scopes: [], backup_receipt: "real-receipt-2" }),
+    });
+    expect(res.status).toBe(400);
+    // The receipt must still be valid — a subsequent real request should succeed in consuming it.
+    const res2 = await fetch(`${baseUrl}/reset`, {
+      method: "POST", headers: { "content-type": "application/json" },
+      body: JSON.stringify({ scopes: ["watchlists"], backup_receipt: "real-receipt-2" }),
+    });
+    expect(res2.status).toBe(200);
+  });
+
+  it("a missing scopes key is rejected with 400 (not 500) BEFORE the receipt is consumed", async () => {
+    await storeBackupReceipt("real-receipt-3");
+    const res = await fetch(`${baseUrl}/reset`, {
+      method: "POST", headers: { "content-type": "application/json" },
+      body: JSON.stringify({ backup_receipt: "real-receipt-3" }),
+    });
+    expect(res.status).toBe(400);
+    // The receipt must still be valid — a subsequent real request should succeed in consuming it.
+    const res2 = await fetch(`${baseUrl}/reset`, {
+      method: "POST", headers: { "content-type": "application/json" },
+      body: JSON.stringify({ scopes: ["watchlists"], backup_receipt: "real-receipt-3" }),
+    });
+    expect(res2.status).toBe(200);
+  });
 });
