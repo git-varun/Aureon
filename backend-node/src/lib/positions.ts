@@ -138,6 +138,6 @@ export async function applyTradeCostBasis(tx: Tx, portfolioId: string, symbolRaw
   }
 
   if (runningAvg > 0) {
-    await tx.position.update({ where: { id: pos.id }, data: { avgBuyPrice: runningAvg } });
+    await tx.position.update({ where: { id: pos.id }, data: { avgBuyPrice: runningAvg, updatedAt: new Date() } });
   }
 }
