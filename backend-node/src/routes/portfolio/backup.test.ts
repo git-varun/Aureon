@@ -151,6 +151,45 @@ describe("POST /portfolio/restore", () => {
     expect(txn!.transactionDate.getTime()).toBe(Date.UTC(2026, 7, 8, 16, 13, 44, 123));
   });
 
+  it("wipes ALL five per-portfolio entities, not just positions and transactions", async () => {
+    // Position/Transaction deletion is already covered by the restore and
+    // rollback cases. The other three destructive deletes each use a
+    // different scoping field name (`portfolio_id`, not `portfolioId`) and
+    // would silently no-op if mis-scoped — seed one row of each so a
+    // regression there actually fails something.
+    const p = await testPrisma.portfolio.create({
+      data: { id: uuidv4(), name: "RestoreTest", createdAt: new Date(), updatedAt: new Date() },
+    });
+    await testPrisma.snapshots.create({
+      data: { portfolio_id: p.id, market_value: 1000, cash_balance: 50, created_at: new Date(), updated_at: new Date() },
+    });
+    await testPrisma.import_runs.create({
+      data: {
+        id: uuidv4(), portfolio_id: p.id, source: "csv", filename: "old.csv", status: "SUCCESS",
+        rows_committed: 3, rows_skipped: 0, started_at: new Date(), duration_ms: 12,
+        created_at: new Date(), updated_at: new Date(),
+      },
+    });
+    await testPrisma.binance_backfill_progress.create({
+      data: {
+        id: uuidv4(), portfolio_id: p.id, symbol: "BTC", trades_fetched: 10, trades_imported: 10,
+        done: true, created_at: new Date(), updated_at: new Date(),
+      },
+    });
+
+    const form = new FormData();
+    form.append("file", backupFile(), "backup.json"); // targets "RestoreTest" by name
+    const res = await fetch(`${baseUrl}/restore?confirm=true`, { method: "POST", body: form });
+    expect(res.status).toBe(200);
+
+    // Same portfolio row reused (never deleted/recreated), so these counts are
+    // scoped to the id we seeded against.
+    expect(await testPrisma.portfolio.count({ where: { name: "RestoreTest" } })).toBe(1);
+    expect(await testPrisma.snapshots.count({ where: { portfolio_id: p.id } })).toBe(0);
+    expect(await testPrisma.import_runs.count({ where: { portfolio_id: p.id } })).toBe(0);
+    expect(await testPrisma.binance_backfill_progress.count({ where: { portfolio_id: p.id } })).toBe(0);
+  });
+
   it("double-restore of the same file is idempotent — no duplication, no crash", async () => {
     const form1 = new FormData();
     form1.append("file", backupFile(), "backup.json");
