@@ -1,18 +1,31 @@
 import { v5 as uuidv5 } from "uuid";
 import { skipQuoteIngestion } from "../lib/marketProviders/routing";
-import { getPriceHistory } from "../lib/marketProviders/yahoo";
+import { getPriceHistory as getYahooPriceHistory, type PriceHistoryRow as YahooPriceHistoryRow } from "../lib/marketProviders/yahoo";
+import { getPriceHistory as getNsePriceHistory } from "../lib/marketProviders/nseDirect";
 import { listAllAssets, bulkInsertPriceHistory, type PriceHistoryRow } from "../lib/jobs/ingestionRepo";
 import { wrapJobExecution, skipIfDisabled } from "../lib/jobs/wrapJobExecution";
 
 const UUID_NAMESPACE_DNS = "6ba7b810-9dad-11d1-80b4-00c04fd430c8";
 
+/** Port of MarketSeedService.seed_price_history's nse_chain loop —
+ * India-classified (.NS) equities prefer nse_direct, falling back to yahoo
+ * on failure (ported behavior, not cleaned up: if nse_direct throws, yahoo
+ * is tried; if both fail, this returns []). */
+async function getHistoryForAsset(symbol: string): Promise<YahooPriceHistoryRow[]> {
+  if (symbol.endsWith(".NS")) {
+    try {
+      return await getNsePriceHistory(symbol, "3mo", "1d");
+    } catch (e) {
+      console.warn(`seed_price_history: nse_direct failed for ${symbol}, trying next: ${(e as Error).message}`);
+    }
+  }
+  return getYahooPriceHistory(symbol, "3mo", "1d");
+}
+
 /** Port of MarketSeedService.seed_price_history. Routed through the same
- * yahoo adapter get_quote/get_fundamentals use (not a bare provider-less
- * call) so a broken Yahoo fails this job loudly rather than silently
- * seeding nothing — India-classified (.NS) equities prefer nse_direct with
- * yahoo fallback in Python; this port always uses yahoo for history (see
- * seedPriceHistoryTask's doc comment on why nse_direct's historical path
- * isn't ported this phase). */
+ * yahoo/nse_direct adapters get_quote uses (not a bare provider-less call)
+ * so a broken provider fails this job loudly rather than silently seeding
+ * nothing. */
 async function seedPriceHistory(): Promise<{ totalRows: number }> {
   const assets = await listAllAssets();
   if (assets.length === 0) {
@@ -24,7 +37,7 @@ async function seedPriceHistory(): Promise<{ totalRows: number }> {
   for (const asset of assets) {
     if (skipQuoteIngestion(asset.symbol, asset.assetClass)) continue;
     try {
-      const histRows = await getPriceHistory(asset.symbol, "3mo", "1d");
+      const histRows = await getHistoryForAsset(asset.symbol);
       if (histRows.length === 0) {
         console.warn(`seed_price_history: no history for ${asset.symbol}`);
         continue;
@@ -53,17 +66,7 @@ async function seedPriceHistory(): Promise<{ totalRows: number }> {
 
 /** Port of seed_price_history_task (the @_skip_if_disabled / @shared_task
  * decorator pair). Manual/one-time-backfill entrypoint only this phase — no
- * BullMQ repeatable schedule is registered anywhere.
- *
- * Scope trim: Python prefers a nse_direct→yahoo fallback chain for .NS
- * symbols (jugaad-data's stock_df historical scraping). nse_direct.ts has no
- * getPriceHistory port — porting jugaad-data's NSE historical-data flow is a
- * distinct, nontrivial scraping surface from the live-quote endpoint already
- * ported, and out of this phase's scope. Every symbol here goes through
- * yahoo instead, which does serve .NS tickers directly — Python's own
- * fallback chain lands here too whenever nse_direct is unavailable/fails, so
- * this is the already-exercised fallback path, not a novel one. .NS closes
- * may differ slightly in value/timing from Python's nse_direct-sourced rows. */
+ * BullMQ repeatable schedule is registered anywhere. */
 export async function seedPriceHistoryTask(logId: number | null = null): Promise<void> {
   if (await skipIfDisabled("seed_price_history", logId)) return;
   await wrapJobExecution("seed_price_history", logId, seedPriceHistory);

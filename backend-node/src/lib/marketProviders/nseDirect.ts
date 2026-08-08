@@ -98,3 +98,130 @@ export async function healthCheck(): Promise<boolean> {
     return false;
   }
 }
+
+// Port of jugaad-data's stock_df/stock_raw historical scraping (backend/.venv/
+// lib/.../jugaad_data/nse/history.py) — a genuinely different endpoint/session
+// from the live-quote NextApi above: warm-up page is /report-detail/eq_security
+// (not /get-quotes/equity), and the data endpoint is
+// /api/historicalOR/generateSecurityWiseHistoricalData, requiring the same
+// cookie-handshake pattern proven working in fetchSessionCookies above.
+const HISTORY_HEADERS: Record<string, string> = {
+  Accept: "*/*",
+  "Accept-Language": "en-IN,en-US;q=0.9,en;q=0.8",
+  Referer: "https://www.nseindia.com/report-detail/eq_security",
+  "User-Agent":
+    "Mozilla/5.0 (Windows NT 11.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/134.0.6998.166 Safari/537.36",
+};
+
+async function fetchHistorySessionCookies(): Promise<string> {
+  const res = await fetch("https://www.nseindia.com/report-detail/eq_security", { headers: HISTORY_HEADERS });
+  const setCookies = res.headers.getSetCookie?.() ?? [];
+  return setCookies.map((c) => c.split(";")[0]).join("; ");
+}
+
+function formatNseDate(d: Date): string {
+  const dd = String(d.getUTCDate()).padStart(2, "0");
+  const mm = String(d.getUTCMonth() + 1).padStart(2, "0");
+  return `${dd}-${mm}-${d.getUTCFullYear()}`;
+}
+
+function lastDayOfMonth(d: Date): Date {
+  return new Date(Date.UTC(d.getUTCFullYear(), d.getUTCMonth() + 1, 0));
+}
+
+function addDaysUtc(d: Date, days: number): Date {
+  return new Date(d.getTime() + days * 24 * 60 * 60 * 1000);
+}
+
+function sameCalendarMonth(a: Date, b: Date): boolean {
+  return a.getUTCFullYear() === b.getUTCFullYear() && a.getUTCMonth() === b.getUTCMonth();
+}
+
+/** Port of jugaad_data.util.break_dates — NSE's historical endpoint is
+ * chunked by calendar month, same as Python's implementation (branch-for-
+ * branch, including the same "never triggers if to_date falls exactly on a
+ * month boundary" shape as the original). */
+function breakDates(fromDate: Date, toDate: Date): Array<[Date, Date]> {
+  if (sameCalendarMonth(fromDate, toDate)) return [[fromDate, toDate]];
+  const ranges: Array<[Date, Date]> = [];
+  let monthStart = fromDate;
+  let monthEnd = lastDayOfMonth(monthStart);
+  while (monthEnd < toDate) {
+    ranges.push([monthStart, monthEnd]);
+    monthStart = addDaysUtc(monthEnd, 1);
+    monthEnd = lastDayOfMonth(monthStart);
+    if (monthEnd >= toDate) {
+      ranges.push([monthStart, toDate]);
+    }
+  }
+  return ranges;
+}
+
+interface RawHistoryRow {
+  CH_TIMESTAMP?: string;
+  CH_CLOSING_PRICE?: number;
+  CH_TOT_TRADED_QTY?: number;
+}
+
+async function fetchHistoryChunk(bare: string, from: Date, to: Date, cookie: string): Promise<RawHistoryRow[]> {
+  const url = new URL("https://www.nseindia.com/api/historicalOR/generateSecurityWiseHistoricalData");
+  url.searchParams.set("symbol", bare);
+  url.searchParams.set("from", formatNseDate(from));
+  url.searchParams.set("to", formatNseDate(to));
+  url.searchParams.set("type", "priceVolumeDeliverable");
+  url.searchParams.set("series", "ALL");
+  const res = await fetch(url, { headers: { ...HISTORY_HEADERS, Cookie: cookie } });
+  if (!res.ok) throw new Error(`NSE historical HTTP ${res.status}`);
+  const data = (await res.json()) as { data?: RawHistoryRow[] };
+  return data.data ?? [];
+}
+
+const HISTORY_PERIOD_TO_DAYS: Record<string, number> = { "1mo": 30, "3mo": 90, "6mo": 180, "1y": 365, "2y": 730, "5y": 1825 };
+
+export interface PriceHistoryRow {
+  timestamp: Date;
+  close: number;
+  volume: number | null;
+}
+
+/** Port of NseDirectAdapter.get_price_history. CH_TIMESTAMP is UTC 18:30 on
+ * the day *before* the real IST trading session (confirmed live: a session
+ * reported as mTIMESTAMP "07-Aug-2026" carries CH_TIMESTAMP
+ * "2026-08-06T18:30:00.000Z") — the same +1-day correction Python's provider
+ * applies (see provider.py's inline note), needed here too since this reads
+ * the raw JSON field directly rather than through jugaad-data's pandas layer. */
+export async function getPriceHistory(symbol: string, period: string = "3mo", interval: string = "1d"): Promise<PriceHistoryRow[]> {
+  if (interval !== "1d") {
+    throw new ProviderError(`nse_direct only supports daily price history, got interval=${interval}`);
+  }
+  const bare = bareSymbol(symbol);
+  const days = HISTORY_PERIOD_TO_DAYS[period] ?? 90;
+  try {
+    const toDate = new Date(Date.UTC(new Date().getUTCFullYear(), new Date().getUTCMonth(), new Date().getUTCDate()));
+    const fromDate = addDaysUtc(toDate, -days);
+    const cookie = await fetchHistorySessionCookies();
+    const chunks = breakDates(fromDate, toDate);
+
+    const rows: PriceHistoryRow[] = [];
+    for (const [chunkFrom, chunkTo] of chunks) {
+      const raw = await fetchHistoryChunk(bare, chunkFrom, chunkTo, cookie);
+      for (const row of raw) {
+        const closePrice = row.CH_CLOSING_PRICE;
+        if (closePrice == null) continue;
+        const rawTs = row.CH_TIMESTAMP;
+        if (!rawTs) continue;
+        const tradingDate = addDaysUtc(new Date(rawTs), 1);
+        const ts = new Date(Date.UTC(tradingDate.getUTCFullYear(), tradingDate.getUTCMonth(), tradingDate.getUTCDate()));
+        rows.push({
+          timestamp: ts,
+          close: Number(closePrice),
+          volume: row.CH_TOT_TRADED_QTY != null ? Number(row.CH_TOT_TRADED_QTY) : null,
+        });
+      }
+    }
+    return rows;
+  } catch (e) {
+    if (e instanceof ProviderError) throw e;
+    throw new ProviderError(`nse_direct get_price_history failed for ${symbol}: ${(e as Error).message}`);
+  }
+}
