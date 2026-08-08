@@ -2,12 +2,13 @@ export class NotFoundError extends Error {}
 export class ConflictError extends Error {}
 
 // Mirrors app/core/exceptions.py's ValidationError (business-rule validation)
-// -> 400. Reserved for Phase 3 parity — no route throws this yet; today's
-// request-shape validation (malformed body/path params) uses
-// RequestValidationError -> 422 instead, matching FastAPI/pydantic's status
-// code for the same kind of failure. Do not conflate the two: Python keeps
-// pydantic's automatic 422 request validation separate from the app's own
-// 400 ValidationError, and this backend mirrors that split.
+// -> 400. Thrown by dataReset.ts, providers.ts, and reset.ts for business-rule
+// rejections (e.g. an unknown reset scope) — distinct from request-shape
+// validation (malformed body/path params), which uses RequestValidationError
+// -> 422 instead, matching FastAPI/pydantic's status code for the same kind
+// of failure. Do not conflate the two: Python keeps pydantic's automatic 422
+// request validation separate from the app's own 400 ValidationError, and
+// this backend mirrors that split.
 export class ValidationError extends Error {}
 
 // Mirrors FastAPI/pydantic's automatic request-validation status (422) for
