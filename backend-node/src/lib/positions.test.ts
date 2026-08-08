@@ -1,7 +1,7 @@
 import { describe, it, expect, beforeEach, afterEach, afterAll } from "vitest";
 import { v4 as uuidv4, v5 as uuidv5 } from "uuid";
 import { testPrisma } from "../testUtils/testPrisma";
-import { recalculatePosition } from "./positions";
+import { recalculatePosition, applyTradeCostBasis } from "./positions";
 
 // Same namespace assets.ts uses for its deterministic uuidv5(symbol) — kept
 // in sync here only so cleanup can find the asset_snapshot row
@@ -135,5 +135,114 @@ describe("recalculatePosition", () => {
     await insertTxn({ transactionType: "BUY", quantity: 7, price: 42, kind: "broker_snapshot", transactionDate: new Date("2024-01-01") });
     const pos = await recalc();
     expect(pos).toEqual({ quantity: 7, avgBuyPrice: 42 });
+  });
+});
+
+describe("applyTradeCostBasis", () => {
+  let costBasisPortfolioId: string;
+
+  beforeEach(async () => {
+    const p = await testPrisma.portfolio.create({
+      data: { id: uuidv4(), name: "cost-basis-test", isArchived: false, createdAt: new Date(), updatedAt: new Date() },
+    });
+    costBasisPortfolioId = p.id;
+  });
+
+  afterEach(async () => {
+    await testPrisma.portfolio.delete({ where: { id: costBasisPortfolioId } });
+  });
+
+  it("derives avg_buy_price from broker_trade rows without touching quantity", async () => {
+    await testPrisma.position.create({
+      data: {
+        id: uuidv4(),
+        portfolioId: costBasisPortfolioId,
+        symbol: "AAPL",
+        quantity: 100,
+        avgBuyPrice: 0,
+        wallet: "spot",
+        createdAt: new Date(),
+        updatedAt: new Date(),
+      },
+    });
+    await testPrisma.transaction.createMany({
+      data: [
+        {
+          id: uuidv4(),
+          portfolioId: costBasisPortfolioId,
+          symbol: "AAPL",
+          transactionType: "BUY",
+          quantity: 50,
+          price: 10,
+          transactionDate: new Date("2024-01-01"),
+          fees: 0,
+          taxes: 0,
+          kind: "broker_trade",
+          wallet: "spot",
+          createdAt: new Date(),
+          updatedAt: new Date(),
+        },
+        {
+          id: uuidv4(),
+          portfolioId: costBasisPortfolioId,
+          symbol: "AAPL",
+          transactionType: "BUY",
+          quantity: 50,
+          price: 20,
+          transactionDate: new Date("2024-01-02"),
+          fees: 0,
+          taxes: 0,
+          kind: "broker_trade",
+          wallet: "spot",
+          createdAt: new Date(),
+          updatedAt: new Date(),
+        },
+      ],
+    });
+
+    await testPrisma.$transaction((tx) => applyTradeCostBasis(tx, costBasisPortfolioId, "AAPL"));
+
+    const pos = await testPrisma.position.findFirst({ where: { portfolioId: costBasisPortfolioId, symbol: "AAPL" } });
+    expect(Number(pos!.avgBuyPrice)).toBe(15); // (50*10 + 50*20) / 100
+    expect(Number(pos!.quantity)).toBe(100); // untouched
+  });
+
+  it("no-ops when there's no existing Position", async () => {
+    await expect(testPrisma.$transaction((tx) => applyTradeCostBasis(tx, costBasisPortfolioId, "NOPOS"))).resolves.not.toThrow();
+  });
+
+  it("no-ops when there are no broker_trade rows (kind='trade' rows don't count)", async () => {
+    await testPrisma.position.create({
+      data: {
+        id: uuidv4(),
+        portfolioId: costBasisPortfolioId,
+        symbol: "MSFT",
+        quantity: 10,
+        avgBuyPrice: 5,
+        wallet: "spot",
+        createdAt: new Date(),
+        updatedAt: new Date(),
+      },
+    });
+    await testPrisma.transaction.create({
+      data: {
+        id: uuidv4(),
+        portfolioId: costBasisPortfolioId,
+        symbol: "MSFT",
+        transactionType: "BUY",
+        quantity: 10,
+        price: 99,
+        transactionDate: new Date(),
+        fees: 0,
+        taxes: 0,
+        kind: "trade",
+        wallet: "spot",
+        createdAt: new Date(),
+        updatedAt: new Date(),
+      },
+    });
+    await testPrisma.$transaction((tx) => applyTradeCostBasis(tx, costBasisPortfolioId, "MSFT"));
+    const pos = await testPrisma.position.findFirst({ where: { portfolioId: costBasisPortfolioId, symbol: "MSFT" } });
+    expect(Number(pos!.avgBuyPrice)).toBe(5); // untouched — kind='trade' isn't broker_trade
   });
 });

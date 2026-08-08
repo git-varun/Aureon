@@ -104,3 +104,40 @@ export async function recalculatePosition(tx: Tx, portfolioId: string, symbolRaw
     });
   }
 }
+
+/** Port of PortfolioService._apply_trade_cost_basis (portfolio.py:1884-1925).
+ * Derives avg_buy_price from kind="broker_trade" transactions using the same
+ * running-average math as recalculatePosition, and applies it to the
+ * existing Position WITHOUT touching quantity. Needed alongside
+ * recalculatePosition wherever broker-synced symbols are replayed (broker
+ * sync itself, and Restore) — recalculatePosition alone falls back to the
+ * broker_snapshot row's placeholder price, which is not a real cost basis. */
+export async function applyTradeCostBasis(tx: Tx, portfolioId: string, symbolRaw: string, wallet = "spot"): Promise<void> {
+  const symbol = symbolRaw.toUpperCase().trim();
+  const pos = await tx.position.findFirst({ where: { portfolioId, symbol, wallet } });
+  if (!pos) return;
+
+  const trades = await tx.transaction.findMany({
+    where: { portfolioId, symbol, kind: "broker_trade", transactionType: { in: ["BUY", "SELL"] } },
+    orderBy: [{ transactionDate: "asc" }, { id: "asc" }],
+  });
+  if (trades.length === 0) return;
+
+  let netQty = 0;
+  let runningAvg = 0;
+  for (const t of trades) {
+    const qty = Number(t.quantity);
+    const price = Number(t.price);
+    if (t.transactionType.toUpperCase() === "BUY") {
+      const newQty = netQty + qty;
+      if (newQty > 0) runningAvg = (netQty * runningAvg + qty * price) / newQty;
+      netQty = newQty;
+    } else {
+      netQty = Math.max(netQty - qty, 0.0);
+    }
+  }
+
+  if (runningAvg > 0) {
+    await tx.position.update({ where: { id: pos.id }, data: { avgBuyPrice: runningAvg } });
+  }
+}
