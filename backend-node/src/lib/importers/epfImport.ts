@@ -236,7 +236,6 @@ export async function parseEpfStatement(
   const page1TotalContribution = txnRows.reduce((acc, r) => acc + r.employee + r.employer, 0);
   const crossCheckOk = zeroTxnYear || Math.abs(page1TotalContribution - page2TotalContribution) < 1.0;
   if (!crossCheckOk) {
-    // eslint-disable-next-line no-console
     console.warn(
       `epf importer: page1/page2 contribution total mismatch for UAN=${uan} (page1=${page1TotalContribution}, page2=${page2TotalContribution})`,
     );

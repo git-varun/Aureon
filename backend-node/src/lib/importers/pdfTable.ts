@@ -8,7 +8,7 @@ import { ImportParseError } from "./errors";
 // verified empirically before writing this file. If the Node runtime is
 // ever downgraded below that support, this import will start throwing
 // ERR_REQUIRE_ESM and needs revisiting.
-// eslint-disable-next-line @typescript-eslint/no-var-requires
+// eslint-disable-next-line @typescript-eslint/no-require-imports
 const pdfjsLib = require("pdfjs-dist/legacy/build/pdf.mjs");
 
 type PDFPageProxy = {

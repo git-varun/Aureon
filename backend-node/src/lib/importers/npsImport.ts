@@ -205,7 +205,6 @@ export async function parseNpsStatement(
         txnType = units >= 0 ? "BUY" : "SELL";
         quantity = Math.abs(units);
         txnAmount = amount !== null ? Math.abs(amount) : null;
-        // eslint-disable-next-line no-console
         console.warn(`nps importer: unrecognised transaction description '${desc}' — inferred ${txnType}`);
       }
 
