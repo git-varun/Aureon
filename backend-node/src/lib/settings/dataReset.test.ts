@@ -68,26 +68,41 @@ describe("DataResetService", () => {
     //   constraint "fk_audit_logs_actor_id"
     //   DETAIL:  Key (actor_id)=(ffffffff-ffff-ffff-ffff-ffffffffffff) is
     //   not present in table "users".
+    // And confirmed as actually produced by this exact code path (Prisma's
+    // wrapped form, captured via a temporary probe run):
+    //   PrismaClientKnownRequestError (code P2003):
+    //   Invalid `tx.auditLog.create()` invocation in .../lib/audit.ts:15:21
+    //   Foreign key constraint violated on the constraint: `fk_audit_logs_actor_id`
     // This is arguably a more direct test of the exact fix under review
     // here (Task 6 header note: the corrected draft wraps ALL FIVE scope
     // calls PLUS the final logAuditAction call in one transaction) — it
     // proves that even a failure in the very last statement rolls back
     // every portfolio delete that already succeeded earlier in the call.
+    //
+    // The assertion below pins the failure to this specific FK (not just
+    // "any throw") so that a future refactor moving the audit-log write
+    // outside the transaction — which would make this test pass for the
+    // wrong reason (or fail confusingly) instead of silently losing its
+    // rollback coverage — gets caught by a clear message mismatch instead.
     const p1 = await testPrisma.portfolio.create({ data: { id: uuidv4(), name: "rollback-p1", createdAt: new Date(), updatedAt: new Date() } });
     const p2 = await testPrisma.portfolio.create({ data: { id: uuidv4(), name: "rollback-p2", createdAt: new Date(), updatedAt: new Date() } });
     const nonExistentActorId = "ffffffff-ffff-ffff-ffff-ffffffffffff";
 
-    await expect(runReset(["portfolio"], OWNER_ID, nonExistentActorId)).rejects.toThrow();
+    try {
+      await expect(runReset(["portfolio"], OWNER_ID, nonExistentActorId)).rejects.toThrow(/fk_audit_logs_actor_id/);
 
-    // Both portfolios must survive — proof the whole scope's partial work
-    // (both deletes, which would have succeeded on their own) rolled back
-    // too, because the transaction's final statement (the audit log write)
-    // failed.
-    expect(await testPrisma.portfolio.findUnique({ where: { id: p1.id } })).not.toBeNull();
-    expect(await testPrisma.portfolio.findUnique({ where: { id: p2.id } })).not.toBeNull();
-
-    // Cleanup for subsequent tests in this file.
-    await testPrisma.portfolio.deleteMany({ where: { id: { in: [p1.id, p2.id] } } });
+      // Both portfolios must survive — proof the whole scope's partial work
+      // (both deletes, which would have succeeded on their own) rolled back
+      // too, because the transaction's final statement (the audit log
+      // write) failed.
+      expect(await testPrisma.portfolio.findUnique({ where: { id: p1.id } })).not.toBeNull();
+      expect(await testPrisma.portfolio.findUnique({ where: { id: p2.id } })).not.toBeNull();
+    } finally {
+      // Cleanup for subsequent tests in this file — runs even if an
+      // assertion above fails, so a broken rollback doesn't leak fixtures
+      // into other tests/suites sharing this DB.
+      await testPrisma.portfolio.deleteMany({ where: { id: { in: [p1.id, p2.id] } } });
+    }
   });
 
   it("backup receipt is single-use", async () => {

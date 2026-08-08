@@ -100,11 +100,17 @@ async function countRecommendationHistory(tx: Tx) {
 async function resetRecommendationHistory(tx: Tx) {
   const counts = await countRecommendationHistory(tx);
   // Cascade covers explanations/outcomes (confdeltype='c', confirmed via
-  // pg_constraint). transactions.recommendation_id is NOT SET NULL by the DB
-  // (confdeltype='n', confirmed) — see plan Global Constraints: this can
-  // throw a real FK violation if any transaction actually references a
-  // deleted recommendation, matching Python's real (fragile) behavior
-  // exactly. Do not add a workaround Python doesn't have.
+  // pg_constraint: fk_recommendation_explanations_recommendation_id and
+  // fk_recommendation_outcomes_recommendation_id are both ON DELETE CASCADE).
+  // CORRECTION to the brief's inline comment (verified live via pg_constraint
+  // — see dataReset.test.ts's rollback-test comment for the full note):
+  // fk_transactions_recommendation_id has confdeltype='n', which per
+  // Postgres's pg_constraint docs means ON DELETE SET NULL ('a' is NO
+  // ACTION, 'n' is SET NULL) — NOT "NOT SET NULL" as the brief's comment
+  // claimed. So this delete does NOT throw an FK violation when a
+  // transaction references a deleted recommendation; the DB just nulls out
+  // transactions.recommendation_id automatically, matching Python's
+  // behavior (Python doesn't null it out explicitly either — the DB does).
   await tx.recommendations.deleteMany({});
   return { recommendations_cleared: counts.recommendations, recommendation_explanations_cleared: counts.recommendation_explanations, recommendation_outcomes_cleared: counts.recommendation_outcomes };
 }
