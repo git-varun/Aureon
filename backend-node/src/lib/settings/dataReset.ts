@@ -5,6 +5,7 @@ import { ValidationError } from "../errors";
 import { logAuditAction } from "../audit";
 import { isResetInProgress } from "../marketProviders/redisRateLimit";
 import { tryAcquireResetLock, releaseResetLock } from "./resetRedis";
+import { invalidateIntelligenceRecommendations, invalidateIntelligenceOutcomes } from "../portfolioCache";
 
 type Tx = Prisma.TransactionClient;
 
@@ -55,6 +56,8 @@ async function resetPortfolio(tx: Tx) {
     // require_archived=false equivalent: hard-delete regardless of archive
     // status — do not reuse the /portfolios/:id route's archive-first gate.
     await tx.portfolio.delete({ where: { id: p.id } });
+    await invalidateIntelligenceRecommendations(p.id);
+    await invalidateIntelligenceOutcomes(p.id);
   }
   return {
     portfolios_cleared: counts.portfolios, transactions_cleared: counts.transactions,
@@ -112,6 +115,11 @@ async function resetRecommendationHistory(tx: Tx) {
   // transactions.recommendation_id automatically, matching Python's
   // behavior (Python doesn't null it out explicitly either — the DB does).
   await tx.recommendations.deleteMany({});
+  const portfolios = await tx.portfolio.findMany();
+  for (const p of portfolios) {
+    await invalidateIntelligenceRecommendations(p.id);
+    await invalidateIntelligenceOutcomes(p.id);
+  }
   return { recommendations_cleared: counts.recommendations, recommendation_explanations_cleared: counts.recommendation_explanations, recommendation_outcomes_cleared: counts.recommendation_outcomes };
 }
 
