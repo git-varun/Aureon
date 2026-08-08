@@ -3,8 +3,24 @@ import { getJob, updateJob, getJobLogs, countJobLogs } from "../../lib/jobs/conf
 import { dispatchJob } from "../../lib/settings/jobDispatch";
 import { NotFoundError } from "../../lib/errors";
 import { prisma } from "../../prisma";
+import type { JobLog } from "../../generated/prisma";
 
 export const jobsRouter = Router();
+
+// Port of ConfigService.get_job_logs's dict shape (services/config.py:621-635).
+function jobLogToDict(log: JobLog) {
+  return {
+    id: log.id,
+    job_name: log.jobName,
+    status: log.status,
+    task_id: log.taskId,
+    error_message: log.errorMessage,
+    started_at: log.startedAt ? log.startedAt.toISOString() : null,
+    ended_at: log.endedAt ? log.endedAt.toISOString() : null,
+    duration_ms: log.durationMs,
+    result_summary: log.resultSummary,
+  };
+}
 
 async function jobToDict(jobName: string, enabled: boolean, jobTier: string, lastRunAt: Date | null) {
   const lastLog = await prisma.jobLog.findFirst({ where: { jobName }, orderBy: { startedAt: "desc" } });
@@ -27,7 +43,8 @@ jobsRouter.get("/jobs", async (_req, res) => {
 jobsRouter.get("/jobs/logs", async (req, res) => {
   const limit = Number(req.query.limit ?? 50);
   const offset = Number(req.query.offset ?? 0);
-  res.json({ logs: await getJobLogs(null, limit, offset), total: await countJobLogs(null) });
+  const logs = await getJobLogs(null, limit, offset);
+  res.json({ logs: logs.map(jobLogToDict), total: await countJobLogs(null) });
 });
 
 jobsRouter.put("/jobs/:name", async (req, res) => {
@@ -48,5 +65,6 @@ jobsRouter.post("/jobs/:name/run", async (req, res) => {
 jobsRouter.get("/jobs/:name/logs", async (req, res) => {
   const limit = Number(req.query.limit ?? 50);
   const offset = Number(req.query.offset ?? 0);
-  res.json({ job_name: req.params.name, logs: await getJobLogs(req.params.name, limit, offset) });
+  const logs = await getJobLogs(req.params.name, limit, offset);
+  res.json({ job_name: req.params.name, logs: logs.map(jobLogToDict) });
 });
