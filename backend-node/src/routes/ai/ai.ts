@@ -3,10 +3,12 @@ import { getCurrentUser } from "../../lib/users";
 import { requireUuidParam } from "../../lib/validation";
 import { RequestValidationError } from "../../lib/errors";
 import { generateBriefing, askAureon, explainRecommendation, submitFeedback, getBriefingHistory } from "../../lib/ai/aiService";
+import { dispatchJob } from "../../lib/settings/jobDispatch";
 
 // Port of app/modules/ai/api/ai.py — the briefing/Q&A/feedback/explain
-// surface, plus the briefing-history analytics endpoint. get_single_asset_take
-// and get_usage_summary are deliberately deferred (see Phase 8 handoff).
+// surface, the briefing-history analytics endpoint, and news-batch dispatch.
+// get_single_asset_take and get_usage_summary are deliberately deferred
+// (see Phase 8 handoff / Wave 5 route inventory).
 export const aiRouter = Router();
 
 aiRouter.post("/ai/global", async (req, res, next) => {
@@ -77,6 +79,16 @@ aiRouter.get("/analytics/ai/briefings", async (req, res, next) => {
   try {
     const limit = req.query.limit ? Number(req.query.limit) : 30;
     res.json(await getBriefingHistory(limit));
+  } catch (e) {
+    next(e);
+  }
+});
+
+// Port of analyze_news_batch — pure job dispatch, no AI logic of its own.
+aiRouter.post("/analytics/ai/news/batch", async (req, res, next) => {
+  try {
+    const taskId = await dispatchJob("fetch_news");
+    res.json({ status: "queued", message: "News batch queued", task_id: taskId });
   } catch (e) {
     next(e);
   }

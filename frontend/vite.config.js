@@ -155,6 +155,57 @@ export default defineConfig({
                 target: apiNodeProxyTarget,
                 changeOrigin: true,
             },
+            // Phase 10 wave 5 (final wave): AI briefings/Q&A/feedback/explain
+            // (all of /api/v1/ai/**) are a full port — safe as one blanket
+            // prefix line, same pattern as monitoring/watchlist above.
+            '/api/v1/ai': {
+                target: apiNodeProxyTarget,
+                changeOrigin: true,
+            },
+            // /api/v1/analytics/ai/single/{symbol} (get_single_asset_take)
+            // and /api/v1/analytics/ai/usage (get_usage_summary) are
+            // deliberately NOT ported (Phase 8 handoff, reconfirmed by this
+            // wave's route inventory) and stay on Python. Deliberately no
+            // blanket '/api/v1/analytics/ai' entry — only the two ported
+            // sub-paths below are listed, so the unported two fall through
+            // to the '/api' catch-all untouched.
+            '/api/v1/analytics/ai/briefings': {
+                target: apiNodeProxyTarget,
+                changeOrigin: true,
+            },
+            '/api/v1/analytics/ai/news/batch': {
+                target: apiNodeProxyTarget,
+                changeOrigin: true,
+            },
+            // Bare (non-/recommendation-prefixed) seed route — a real gap
+            // this wave's route inventory found (frontend's AdminPanel calls
+            // it, Phase 8 never ported it). Listed as an exact path, not a
+            // '/api/v1/aureon' prefix — market's unrelated
+            // '/aureon/assets/{ticker}' route lives under that same prefix
+            // and must stay on Python untouched.
+            '/api/v1/aureon/recommendations/seed': {
+                target: apiNodeProxyTarget,
+                changeOrigin: true,
+            },
+            // Recommendation apply/dismiss/undo are deliberately deferred
+            // (Phase 8 handoff: they need Redis cache setters Node doesn't
+            // have yet) and must stay on Python. recommendation_id is a
+            // variable UUID in the middle of the path, so a plain string
+            // prefix can't guard just these — this is the one case in the
+            // whole migration needing a RegExp proxy key (Vite treats any
+            // key starting with '^' as a RegExp, matched by object order
+            // same as string prefixes). MUST precede the blanket
+            // '/api/v1/recommendation' line below.
+            '^/api/v1/recommendation/recommendations/[^/]+/(apply|dismiss|undo)$': {
+                target: apiProxyTarget,
+                changeOrigin: true,
+            },
+            // generate + list are a full port; apply/dismiss/undo are
+            // guarded above.
+            '/api/v1/recommendation': {
+                target: apiNodeProxyTarget,
+                changeOrigin: true,
+            },
             '/api': {
                 target: apiProxyTarget,
                 changeOrigin: true,

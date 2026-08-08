@@ -17,6 +17,22 @@ recommendationRouter.post("/recommendations/generate", async (req, res, next) =>
   }
 });
 
+// Port of the bare (non-/recommendation-prefixed) seed_recommendations route
+// — same generate_recommendations() call, wrapped in a different response
+// envelope with an ext_id alias on each item. Mounted separately at bare
+// /api/v1, matching Python's bare_router.
+export const recommendationSeedRouter = Router();
+
+recommendationSeedRouter.post("/aureon/recommendations/seed", async (req, res, next) => {
+  try {
+    const recs = await generateRecommendations();
+    const items = recs.map((r) => ({ ...r, ext_id: r.id }));
+    res.json({ status: "success", count: items.length, items });
+  } catch (e) {
+    next(e);
+  }
+});
+
 recommendationRouter.get("/recommendations", async (req, res, next) => {
   try {
     const status = typeof req.query.status === "string" ? req.query.status : undefined;
