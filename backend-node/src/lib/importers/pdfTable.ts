@@ -44,24 +44,12 @@ export async function openPdf(bytes: Buffer, password?: string): Promise<PDFDocu
   }
 }
 
-/** Port of pdfplumber's page.extract_text() — joins text items in reading order. */
-export async function extractText(page: PDFPageProxy): Promise<string> {
-  const content = await page.getTextContent();
-  return content.items.map((it) => it.str).join(" ");
-}
-
-/** Approximates pdfplumber's page.extract_tables(): clusters text items into
- * rows (by y-coordinate proximity) and columns (by x-coordinate proximity
- * within a row), then splits the row sequence into multiple logical tables
- * wherever a row matches the caller-supplied header fingerprint. The split
- * step matters — a CDSL CAS page frequently contains both a folio table and
- * a holding table, and a naive "one grid per page" result would merge both
- * headers into a single table, breaking CAS's per-table routing. Callers
- * with only one table per page (or none) can omit `isTableHeader`. */
-export async function extractTables(
-  page: PDFPageProxy,
-  isTableHeader: (row: string[]) => boolean = () => false,
-): Promise<string[][][]> {
+/** Clusters a page's text items into rows (by y-coordinate proximity) and,
+ * within each row, columns (by x-coordinate proximity), sorted into reading
+ * order (top-to-bottom, left-to-right). Shared by extractText (which needs
+ * line structure, not one flattened string) and extractTables (which needs
+ * columns too). */
+async function clusterRows(page: PDFPageProxy): Promise<string[][]> {
   const content = await page.getTextContent();
   const items = content.items;
   if (items.length === 0) return [];
@@ -82,7 +70,32 @@ export async function extractTables(
   if (rows.length === 0) return [];
 
   rows.sort((a, b) => b.y - a.y); // PDF y-axis grows upward; reading order is top-to-bottom.
-  const grid = rows.map((r) => r.cells.sort((a, b) => a.x - b.x).map((c) => c.str.trim()));
+  return rows.map((r) => r.cells.sort((a, b) => a.x - b.x).map((c) => c.str.trim()));
+}
+
+/** Port of pdfplumber's page.extract_text() — joins text items in reading
+ * order, one line per detected row (pdfplumber's extract_text() is
+ * line-structured, not one flattened string — callers like EPF's
+ * wrapped-establishment-name continuation logic depend on that structure). */
+export async function extractText(page: PDFPageProxy): Promise<string> {
+  const grid = await clusterRows(page);
+  return grid.map((row) => row.join(" ")).join("\n");
+}
+
+/** Approximates pdfplumber's page.extract_tables(): clusters text items into
+ * rows/columns (see clusterRows), then splits the row sequence into
+ * multiple logical tables wherever a row matches the caller-supplied header
+ * fingerprint. The split step matters — a CDSL CAS page frequently contains
+ * both a folio table and a holding table, and a naive "one grid per page"
+ * result would merge both headers into a single table, breaking CAS's
+ * per-table routing. Callers with only one table per page (or none) can
+ * omit `isTableHeader`. */
+export async function extractTables(
+  page: PDFPageProxy,
+  isTableHeader: (row: string[]) => boolean = () => false,
+): Promise<string[][][]> {
+  const grid = await clusterRows(page);
+  if (grid.length === 0) return [];
 
   const tables: string[][][] = [];
   let current: string[][] = [];
