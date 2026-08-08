@@ -13,6 +13,7 @@ import { recommendationRouter } from "./routes/ai/recommendations";
 import { newsRouter } from "./routes/news/news";
 import { systemHealthRouter } from "./routes/monitoring/health";
 import { monitoringRouter } from "./routes/monitoring/monitoring";
+import { notificationsRouter } from "./routes/notifications/notifications";
 import { seedDefaultProviders } from "./lib/settings/providers";
 import { seedDefaultJobs } from "./lib/settings/jobDefaults";
 import { errorHandler } from "./lib/errorHandler";
@@ -35,6 +36,7 @@ app.use("/api/v1/recommendation", recommendationRouter);
 app.use("/api/v1/news", newsRouter);
 app.use("/api/v1", systemHealthRouter);
 app.use("/api/v1/monitoring", monitoringRouter);
+app.use("/api/v1/notifications", notificationsRouter);
 app.use(errorHandler);
 
 async function start() {

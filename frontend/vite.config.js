@@ -84,22 +84,74 @@ export default defineConfig({
             },
             // Phase 10 wave 3: Portfolio/Positions/Transactions CRUD. Scoped
             // to '/api/v1/portfolio/portfolios' specifically, NOT the whole
-            // '/api/v1/portfolio' module — '/api/v1/portfolio/sync',
-            // '/api/v1/portfolio/sync/status', '/api/v1/portfolio/backup',
-            // and '/api/v1/portfolio/restore' are siblings of 'portfolios'
+            // '/api/v1/portfolio' module — '/api/v1/portfolio/sync' and
+            // '/api/v1/portfolio/sync/status' are siblings of 'portfolios'
             // (not sub-paths of it, so no prefix-collision risk either way)
-            // and deliberately stay on Python this wave — broker-sync/backup/
-            // restore are a different scope, still verified only for reads
-            // during this cutover, not live-tested for this wave's write
-            // path. Every real Python route under '/portfolios/**' (CRUD,
-            // transactions incl. get/update/delete/broker-coverage,
-            // positions, snapshot, history, all import/*, manual-assets incl.
-            // valuation update, and the binance-backfill status GET) now has
-            // a Node port — see backend-node/src/routes/portfolio/{portfolios,
-            // positions,transactions,imports}.ts. binance-backfill's POST
-            // fails loudly (400, no fake "queued" response) since Node has no
-            // backfill runner yet — see positions.ts's comment there.
+            // and stay on Python (broker-sync orchestration isn't ported).
+            // '/api/v1/portfolio/backup' and '/api/v1/portfolio/restore' —
+            // also siblings — are cut over separately below, wave 4.
             '/api/v1/portfolio/portfolios': {
+                target: apiNodeProxyTarget,
+                changeOrigin: true,
+            },
+            // Phase 10 wave 4: Import (already covered above — imports.ts is
+            // mounted under 'portfolios' too), Settings/Providers/Job-config,
+            // Export, Danger Zone, Restore.
+            //
+            // The Zerodha OAuth *callback* is a sub-path of '/config' that
+            // must stay on Python — same class of near-miss as the
+            // intelligence /trend guards above: it's a live external API
+            // integration (token exchange against Zerodha's servers) with no
+            // Node port, same reasoning as wave 3's binance-backfill gap.
+            // MUST precede the '/api/v1/config' line below or the broader
+            // prefix would swallow it.
+            '/api/v1/config/providers/zerodha/oauth/callback': {
+                target: apiProxyTarget,
+                changeOrigin: true,
+            },
+            // Every other /config/** route (providers CRUD, zerodha
+            // login-url, job config, allocation_targets) now has a Node
+            // port — see backend-node/src/routes/settings/{providers,jobs}.ts.
+            '/api/v1/config': {
+                target: apiNodeProxyTarget,
+                changeOrigin: true,
+            },
+            // Danger Zone. Destructive by design (scoped data reset) — see
+            // backend-node/src/routes/settings/reset.ts /
+            // lib/settings/dataReset.ts, live-verified against Python's exact
+            // deletion behavior (incl. ThemeWeight-before-MarketTheme
+            // ordering) on throwaway data before this cutover.
+            '/api/v1/reset': {
+                target: apiNodeProxyTarget,
+                changeOrigin: true,
+            },
+            '/api/v1/notifications': {
+                target: apiNodeProxyTarget,
+                changeOrigin: true,
+            },
+            // Profile (GET/PUT /users/me) — full port since an earlier
+            // phase (routes/users/users.ts), just never routed until now.
+            // apiService.js's DELETE /users/me (deleteAccount) has no
+            // Python route either — pre-existing frontend/backend mismatch,
+            // not something this migration introduces or should paper over.
+            '/api/v1/users': {
+                target: apiNodeProxyTarget,
+                changeOrigin: true,
+            },
+            // Export (backup) + Restore — full ports since Phase 7, only now
+            // cut over. Restore re-verified under real routed traffic this
+            // wave (double-restore idempotency, rollback-on-failure) — not
+            // just re-trusting the earlier direct-API verification. The
+            // legacy flat-transactions/default-Portfolio path was NOT
+            // re-verified live here (this env's "Default Portfolio" IS the
+            // real 53-position portfolio — no safe throwaway target for that
+            // specific branch); it's still covered by Wave 3's 11 restore
+            // unit tests against the isolated test DB, unchanged since.
+            '/api/v1/portfolio/backup': {
+                target: apiNodeProxyTarget,
+                changeOrigin: true,
+            },
+            '/api/v1/portfolio/restore': {
                 target: apiNodeProxyTarget,
                 changeOrigin: true,
             },
