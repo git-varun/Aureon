@@ -8,9 +8,11 @@ const UUID_NAMESPACE_DNS = "6ba7b810-9dad-11d1-80b4-00c04fd430c8";
 const SYM_A = "TEST-ASSETS-A";
 const SYM_TIE = "TEST-ASSETS-TIE"; // rsi=15.00 exactly, tie-break case
 const SYM_FUT = "TEST-ASSETS-FUT-USDM"; // unresolvable-for-signal suffix
+const SYM_META = "TEST-ASSETS-META"; // populated metadata dict with no "sector" key
 const assetIdA = uuidv5(SYM_A, UUID_NAMESPACE_DNS);
 const assetIdTie = uuidv5(SYM_TIE, UUID_NAMESPACE_DNS);
 const assetIdFut = uuidv5(SYM_FUT, UUID_NAMESPACE_DNS);
+const assetIdMeta = uuidv5(SYM_META, UUID_NAMESPACE_DNS);
 let portfolioId: string;
 
 beforeEach(async () => {
@@ -20,6 +22,15 @@ beforeEach(async () => {
       { id: assetIdA, symbol: SYM_A, name: "Asset A", assetClass: "equity", createdAt: now, updatedAt: now },
       { id: assetIdTie, symbol: SYM_TIE, name: "Tie Asset", assetClass: "equity", createdAt: now, updatedAt: now },
       { id: assetIdFut, symbol: SYM_FUT, name: "Futures Asset", assetClass: "crypto_futures", createdAt: now, updatedAt: now },
+      {
+        id: assetIdMeta,
+        symbol: SYM_META,
+        name: "Meta Asset",
+        assetClass: "equity",
+        metadata: { currency: "USD" },
+        createdAt: now,
+        updatedAt: now,
+      },
     ],
   });
   await testPrisma.latestQuote.createMany({
@@ -27,6 +38,7 @@ beforeEach(async () => {
       { symbol: SYM_A, assetId: assetIdA, price: 100, createdAt: now, updatedAt: now },
       { symbol: SYM_TIE, assetId: assetIdTie, price: 50, createdAt: now, updatedAt: now },
       { symbol: SYM_FUT, assetId: assetIdFut, price: 10, createdAt: now, updatedAt: now },
+      { symbol: SYM_META, assetId: assetIdMeta, price: 25, createdAt: now, updatedAt: now },
     ],
   });
   await testPrisma.assetSnapshot.createMany({
@@ -51,9 +63,9 @@ beforeEach(async () => {
 afterEach(async () => {
   await testPrisma.position.deleteMany({ where: { symbol: { in: [SYM_A, SYM_TIE, SYM_FUT] } } });
   await testPrisma.portfolio.deleteMany({ where: { id: portfolioId } });
-  await testPrisma.assetSnapshot.deleteMany({ where: { assetId: { in: [assetIdA, assetIdTie, assetIdFut] } } });
-  await testPrisma.latestQuote.deleteMany({ where: { symbol: { in: [SYM_A, SYM_TIE, SYM_FUT] } } });
-  await testPrisma.asset.deleteMany({ where: { symbol: { in: [SYM_A, SYM_TIE, SYM_FUT] } } });
+  await testPrisma.assetSnapshot.deleteMany({ where: { assetId: { in: [assetIdA, assetIdTie, assetIdFut, assetIdMeta] } } });
+  await testPrisma.latestQuote.deleteMany({ where: { symbol: { in: [SYM_A, SYM_TIE, SYM_FUT, SYM_META] } } });
+  await testPrisma.asset.deleteMany({ where: { symbol: { in: [SYM_A, SYM_TIE, SYM_FUT, SYM_META] } } });
 });
 
 describe("getSignal", () => {
@@ -109,5 +121,15 @@ describe("getAureonAsset", () => {
 
   it("throws NotFoundError when the symbol has no quote", async () => {
     await expect(getAureonAsset("TEST-ASSETS-NOPE", null)).rejects.toBeInstanceOf(NotFoundError);
+  });
+
+  it("defaults sector to 'General' when the asset has no metadata at all", async () => {
+    const result = await getAureonAsset(SYM_A, null);
+    expect(result.sector).toBe("General");
+  });
+
+  it("returns sector=null (not 'General') when metadata is a populated dict lacking a 'sector' key", async () => {
+    const result = await getAureonAsset(SYM_META, null);
+    expect(result.sector).toBeNull();
   });
 });

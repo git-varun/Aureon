@@ -19,6 +19,10 @@ const UNRESOLVABLE_SIGNAL_SUFFIXES = ["-USDM", "-COINM"];
 // have no continuous price history feed — same permanent-unresolvable case.
 const UNRESOLVABLE_SIGNAL_PREFIXES = ["NPS-", "EPF-", "MANUAL-"];
 
+function isPlainObjectRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === "object" && value !== null && !Array.isArray(value);
+}
+
 function isUnresolvableForSignal(symbol: string): boolean {
   return (
     UNRESOLVABLE_SIGNAL_SUFFIXES.some((s) => symbol.endsWith(s)) ||
@@ -169,8 +173,16 @@ export async function getAureonAsset(tickerRaw: string, portfolioId: string | nu
   const asset = await prisma.asset.findUnique({ where: { symbol: ticker } });
   const name = asset ? asset.name : ticker;
   const assetClass = asset ? asset.assetClass : "equity";
-  const metadata = (asset ? (asset.metadata as Record<string, unknown> | null) : null) ?? {};
-  const sector = typeof metadata.sector === "string" ? metadata.sector : "General";
+  // Port of Python's `metadata.get("sector") if isinstance(metadata, dict)
+  // else "General"` (AssetsService.get_aureon_asset) — same pattern as
+  // getThemeDetail in themes.ts: a populated dict with no "sector" key
+  // yields null, and "General" only applies when metadata itself isn't a
+  // dict (asset.metadata_payload column is SQL NULL, or asset is absent).
+  const rawMetadata: unknown = asset ? asset.metadata : {};
+  const metadata: Record<string, unknown> = isPlainObjectRecord(rawMetadata) ? rawMetadata : {};
+  const sector: string | null = isPlainObjectRecord(rawMetadata)
+    ? ((rawMetadata.sector as string | undefined) ?? null)
+    : "General";
 
   const snap = quote.assetId ? await prisma.assetSnapshot.findUnique({ where: { assetId: quote.assetId } }) : null;
   const price = quote.price !== null ? Number(quote.price) : null;
