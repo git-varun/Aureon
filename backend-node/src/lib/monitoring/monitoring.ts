@@ -3,6 +3,7 @@ import Redis from "ioredis";
 import { prisma } from "../../prisma";
 import { NotFoundError } from "../errors";
 import { quotesQueue, watchlistAlertsQueue } from "../jobs/queues";
+import { checkScheduledJobsHealth } from "./scheduleHealth";
 
 const redis = new Redis(process.env.REDIS_URL!);
 
@@ -57,8 +58,9 @@ export async function getDependenciesStatus(): Promise<Record<string, string>> {
 
   const redisStatus = (await checkRedisHealth()) ? "healthy" : "unhealthy";
   const bullmqStatus = await checkBullmqWorkers();
+  const scheduledJobsStatus = await checkScheduledJobsHealth();
 
-  return { postgresql: postgresStatus, redis: redisStatus, bullmq: bullmqStatus };
+  return { postgresql: postgresStatus, redis: redisStatus, bullmq: bullmqStatus, scheduledJobs: scheduledJobsStatus };
 }
 
 /** Port of MonitoringService.get_provider_health — quote-provider half only.
@@ -169,6 +171,7 @@ export async function getHealth() {
   }
   const redisStatus = (await checkRedisHealth()) ? "healthy" : "unhealthy";
   const bullmqStatus = await checkBullmqWorkers();
+  const scheduledJobsStatus = await checkScheduledJobsHealth();
 
   const providers = await getProviderHealth();
   const providersSummary: Record<string, string> = {};
@@ -204,13 +207,17 @@ export async function getHealth() {
     cors_origins_configured: Boolean(process.env.CORS_ALLOWED_ORIGINS),
   };
 
-  const isHealthy = postgresStatus === "healthy" && redisStatus === "healthy" && bullmqStatus.includes("healthy");
+  const isHealthy =
+    postgresStatus === "healthy" &&
+    redisStatus === "healthy" &&
+    bullmqStatus.includes("healthy") &&
+    scheduledJobsStatus === "healthy";
 
   return {
     status: isHealthy ? "healthy" : "degraded",
     service: "Aureon API",
     timestamp: new Date().toISOString(),
-    dependencies: { database: postgresStatus, redis: redisStatus, celery: bullmqStatus },
+    dependencies: { database: postgresStatus, redis: redisStatus, celery: bullmqStatus, scheduledJobs: scheduledJobsStatus },
     providers: providersSummary,
     migration_version: migrationVersion,
     configuration,
