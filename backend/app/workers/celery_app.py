@@ -84,10 +84,11 @@ celery_app.conf.beat_schedule = {
         "task": "app.workers.ingestion.tasks.monthly_briefing_task",
         "schedule": crontab(hour=9, minute=0, day_of_month=1),
     },
-    "sweep-stale-job-logs": {
-        "task": "app.workers.ingestion.tasks.sweep_stale_job_logs_task",
-        "schedule": crontab(minute="*/30"),
-    },
+    # sweep-stale-job-logs cut over to a BullMQ repeatable schedule in
+    # backend-node (see backend-node/scripts/startWorker.ts) — no longer
+    # scheduled here to avoid both sides dispatching against the same
+    # job_logs table. sweep_stale_job_logs_task itself is untouched and
+    # still reachable via manual dispatch (ConfigService._TASK_MAPPING).
 }
 
 

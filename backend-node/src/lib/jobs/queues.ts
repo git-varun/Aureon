@@ -33,4 +33,11 @@ export interface EvaluateWatchlistAlertsJobData {
   symbol: string;
 }
 
+// First job cut over to a real BullMQ repeatable schedule (see queue.ts) —
+// its own queue since it's cron-driven, not enqueued per-item like the two
+// queues above.
+export const SCHEDULED_JOBS_QUEUE_NAME = "q_scheduled_jobs";
+
+export const scheduledJobsQueue = new Queue(SCHEDULED_JOBS_QUEUE_NAME, { connection });
+
 export { connection as bullmqConnection };

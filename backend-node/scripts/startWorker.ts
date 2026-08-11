@@ -1,5 +1,10 @@
 import "dotenv/config";
-import { startIngestQuoteWorker, startEvaluateWatchlistAlertsWorker } from "../src/queue";
+import {
+  startIngestQuoteWorker,
+  startEvaluateWatchlistAlertsWorker,
+  startSweepStaleJobLogsWorker,
+  registerSweepStaleJobLogsSchedule,
+} from "../src/queue";
 
 // Manual/dev entrypoint — starts BullMQ workers consuming q_ingestion and
 // q_watchlist_alerts. Nothing schedules jobs onto q_ingestion automatically
@@ -24,4 +29,19 @@ alertsWorker.on("failed", (job, err) => {
   console.error(`evaluateWatchlistAlerts failed: ${JSON.stringify(job?.data)} — ${err.message}`);
 });
 
-console.log("BullMQ worker listening on q_ingestion and q_watchlist_alerts (no repeatable schedule registered)");
+const sweepWorker = startSweepStaleJobLogsWorker();
+
+sweepWorker.on("completed", () => {
+  console.log("sweepStaleJobLogs completed");
+});
+sweepWorker.on("failed", (job, err) => {
+  console.error(`sweepStaleJobLogs failed: ${err.message}`);
+});
+
+async function start() {
+  await registerSweepStaleJobLogsSchedule();
+  console.log("BullMQ worker listening on q_ingestion, q_watchlist_alerts, q_scheduled_jobs");
+  console.log("Repeatable schedule registered: sweep-stale-job-logs every 30 minutes (*/30 * * * *)");
+}
+
+start();

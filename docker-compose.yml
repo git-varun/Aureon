@@ -137,11 +137,13 @@ services:
         max-file: "3"
 
   # BullMQ worker for backend-node's jobs (currently: q_ingestion,
-  # q_watchlist_alerts). No repeatable schedule is registered on either
-  # queue yet — see backend-node/scripts/startWorker.ts — so this process
-  # only consumes jobs enqueued by backend-node's own manual trigger
-  # scripts or by backend-node's own ingestQuote/refreshTrackedUniverse
-  # paths, not by the Python celery_worker/celery_beat services above.
+  # q_watchlist_alerts, q_scheduled_jobs). No repeatable schedule is
+  # registered on q_ingestion/q_watchlist_alerts — those only get jobs from
+  # backend-node's own manual trigger scripts or its ingestQuote/
+  # refreshTrackedUniverse paths. q_scheduled_jobs does have a real
+  # repeatable schedule (sweep-stale-job-logs, every 30 min) — see
+  # backend-node/scripts/startWorker.ts — cut over from Python's
+  # celery_beat, which no longer schedules this job (see celery_app.py).
   backend-node-worker:
     image: node:22-alpine
     container_name: aureon_backend_node_worker
