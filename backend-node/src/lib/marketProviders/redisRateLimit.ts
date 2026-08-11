@@ -87,3 +87,43 @@ export async function isResetInProgress(): Promise<boolean> {
     return false;
   }
 }
+
+function getAssetSnapshotKey(assetId: string): string {
+  return `market:snapshot:${assetId}`;
+}
+
+/** Port of get_cached_asset_snapshot. Nothing in this backend writes this
+ * key yet (cache_asset_snapshot's writer, the feature/scoring pipeline,
+ * isn't ported) — reads are always a cache miss today and fall through to
+ * the DB, same net effect as Python when that pipeline hasn't run. */
+export async function getCachedAssetSnapshot(assetId: string): Promise<Record<string, unknown> | null> {
+  try {
+    const data = await redis.get(getAssetSnapshotKey(assetId));
+    if (data) {
+      const result = JSON.parse(data);
+      if (result && typeof result === "object" && !Array.isArray(result)) return result;
+    }
+  } catch {
+    // Matches Python's redis.RedisError swallow.
+  }
+  return null;
+}
+
+function getAssetFeaturesKey(assetId: string): string {
+  return `market:features:${assetId}`;
+}
+
+/** Port of get_cached_asset_features. Same not-yet-written-to caveat as
+ * getCachedAssetSnapshot above. */
+export async function getCachedAssetFeatures(assetId: string): Promise<Record<string, unknown> | null> {
+  try {
+    const data = await redis.get(getAssetFeaturesKey(assetId));
+    if (data) {
+      const result = JSON.parse(data);
+      if (result && typeof result === "object" && !Array.isArray(result)) return result;
+    }
+  } catch {
+    // Matches Python's redis.RedisError swallow.
+  }
+  return null;
+}

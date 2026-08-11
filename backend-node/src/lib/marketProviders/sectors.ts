@@ -1,4 +1,5 @@
 import { prisma } from "../../prisma";
+import { pyRound } from "../market/round";
 
 function isPlainObject(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null && !Array.isArray(value);
@@ -13,7 +14,7 @@ function sectorOf(metadata: unknown): string | null {
 /** Port of MarketService._compute_day_pct. Latest PriceHistory sample vs.
  * the nearest sample >=24h prior. Returns null when no real change can be
  * computed — callers must not treat that as 0%. */
-async function computeDayPct(assetId: string | null): Promise<number | null> {
+export async function computeDayPct(assetId: string | null): Promise<number | null> {
   if (!assetId) return null;
   const latest = await prisma.priceHistory.findFirst({
     where: { assetId },
@@ -33,7 +34,7 @@ async function computeDayPct(assetId: string | null): Promise<number | null> {
   }
   if (!prior || Number(prior.price) === 0 || prior.id === latest.id) return null;
   const pct = (Number(latest.price) - Number(prior.price)) / Number(prior.price);
-  return Math.round(pct * 10000) / 10000;
+  return pyRound(pct, 4);
 }
 
 export interface SectorSummary {
@@ -72,8 +73,8 @@ export async function getSectors(): Promise<SectorSummary[]> {
     const avgDayPct = knownPcts.length ? knownPcts.reduce((a, b) => a + b, 0) / knownPcts.length : null;
     results.push({
       name: sector,
-      wt: Math.round(wt * 10000) / 10000,
-      dayPct: avgDayPct !== null ? Math.round(avgDayPct * 10000) / 10000 : null,
+      wt: pyRound(wt, 4),
+      dayPct: avgDayPct !== null ? pyRound(avgDayPct, 4) : null,
     });
   }
 

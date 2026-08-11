@@ -186,10 +186,44 @@ export default defineConfig({
             // Bare (non-/recommendation-prefixed) seed route — a real gap
             // this wave's route inventory found (frontend's AdminPanel calls
             // it, Phase 8 never ported it). Listed as an exact path, not a
-            // '/api/v1/aureon' prefix — market's unrelated
-            // '/aureon/assets/{ticker}' route lives under that same prefix
-            // and must stay on Python untouched.
+            // '/api/v1/aureon' prefix.
             '/api/v1/aureon/recommendations/seed': {
+                target: apiNodeProxyTarget,
+                changeOrigin: true,
+            },
+            // Market catalog + assets full port (themes, indices, movers,
+            // sectors, symbols, search, universe, signals) — the last
+            // Python-exclusive slice of app/modules/market/api/{assets,
+            // market}.py. '/aureon/assets/{ticker}' (market's, distinct
+            // from the recommendations-seed route above despite sharing the
+            // '/aureon' segment) is a full port too, see backend-node/src/
+            // routes/market/assets.ts.
+            '/api/v1/assets': {
+                target: apiNodeProxyTarget,
+                changeOrigin: true,
+            },
+            '/api/v1/signals': {
+                target: apiNodeProxyTarget,
+                changeOrigin: true,
+            },
+            '/api/v1/aureon/assets': {
+                target: apiNodeProxyTarget,
+                changeOrigin: true,
+            },
+            // POST /market/symbols/{symbol}/backfill stays on Python: its
+            // real effect (admin_backfill_assets -> generate_features) needs
+            // the feature/signal-generation worker pipeline, which isn't
+            // ported to Node in this phase. Must precede the blanket
+            // '/api/v1/market' line below or that prefix would swallow it.
+            '/api/v1/market/symbols': {
+                target: apiProxyTarget,
+                changeOrigin: true,
+            },
+            // Every other /market/** route (sectors, indices, movers,
+            // search, universe, refresh, asset snapshot/features, full
+            // themes CRUD+fork+nav+signals, themes-for) is a full port —
+            // see backend-node/src/routes/market/{sectors,market,themes}.ts.
+            '/api/v1/market': {
                 target: apiNodeProxyTarget,
                 changeOrigin: true,
             },
