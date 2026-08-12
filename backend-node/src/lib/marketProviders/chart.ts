@@ -20,7 +20,13 @@ export interface ChartPoint {
 export async function getChart(symbol: string, days: number): Promise<ChartPoint[]> {
   const sym = symbol.toUpperCase().trim();
   const quote = await prisma.latestQuote.findUnique({ where: { symbol: sym } });
-  if (!quote || !quote.assetId) throw new NotFoundError("Asset not found");
+  if (!quote) throw new NotFoundError("Asset not found");
+  // Python's get_chart only 404s when the LatestQuote row itself is missing
+  // (`if not quote`) — asset_id is nullable on LatestQuote, and a quote with
+  // a null asset_id still 200s with an empty list (get_price_history_since
+  // is queried with asset_id=None, matching zero rows), not a 404. Mirrored
+  // here rather than treating a null assetId as "not found".
+  if (!quote.assetId) return [];
 
   const cutoff = new Date(Date.now() - days * 24 * 60 * 60 * 1000);
   // Prisma's Decimal layer silently coerces Postgres NUMERIC 'NaN' to 0 on

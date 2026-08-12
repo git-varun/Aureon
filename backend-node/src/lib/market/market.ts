@@ -197,14 +197,28 @@ export async function searchMarket(qRaw: string): Promise<SearchResultOut[]> {
 }
 
 /** Port of MarketService.get_universe. No ORDER BY in either backend — the
- * row set (not sequence) is what must match. */
+ * row SET (not sequence) is what must match, which means this can't use
+ * prisma.asset.findMany({take}) the way most of this file does:
+ * `take` without an explicit `orderBy` makes Prisma silently add its own
+ * `ORDER BY id ASC` for pagination-stability reasons (confirmed via query
+ * logging), which is a different physical scan than Python's plain
+ * unordered `SELECT ... LIMIT 50` and was live-diffed to select a visibly
+ * different 50-row subset of the >50-row assets table on real data — not a
+ * theoretical concern. Raw SQL with no ORDER BY at all sidesteps Prisma's
+ * implicit ordering and matches Python's actual (also ORDER-BY-less) plan. */
 export async function getUniverse(search?: string): Promise<SearchResultOut[]> {
-  const assets = await prisma.asset.findMany({
-    where: search
-      ? { OR: [{ symbol: { contains: search.toUpperCase() } }, { name: { contains: search } }] }
-      : undefined,
-    take: 50,
-  });
+  const assets = search
+    ? await prisma.$queryRaw<AssetRow[]>`
+        SELECT id, symbol, name, asset_class AS "assetClass", metadata
+        FROM market.assets
+        WHERE symbol LIKE '%' || ${search.toUpperCase()} || '%' OR name LIKE '%' || ${search} || '%'
+        LIMIT 50
+      `
+    : await prisma.$queryRaw<AssetRow[]>`
+        SELECT id, symbol, name, asset_class AS "assetClass", metadata
+        FROM market.assets
+        LIMIT 50
+      `;
 
   const results: SearchResultOut[] = [];
   for (const a of assets) {
