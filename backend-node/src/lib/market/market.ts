@@ -86,18 +86,23 @@ export interface MoverOut {
 
 /** Port of MarketService.get_movers. */
 export async function getMovers(): Promise<{ gainers: MoverOut[]; losers: MoverOut[] }> {
-  // Inner-join semantics: only assets that currently have a LatestQuote,
-  // excluding asset_class="index" — Asset has no declared Prisma relation
-  // to LatestQuote, so the join is done in JS.
-  const quotes = await prisma.latestQuote.findMany();
+  // Inner-join semantics matching MarketRepository.list_assets_with_latest_quote's
+  // SQL join (LatestQuote.asset_id == Asset.id), NOT a join on symbol — a
+  // LatestQuote row with a null asset_id (nullable in the schema, same real
+  // state handled in getChart) is excluded by Python's join and must be
+  // excluded here too. Asset has no declared Prisma relation to LatestQuote,
+  // so the join is done in JS, keyed on asset_id like the SQL join is.
+  const quotes = (await prisma.latestQuote.findMany()).filter(
+    (q): q is typeof q & { assetId: string } => q.assetId !== null,
+  );
   const assets = await prisma.asset.findMany({
-    where: { symbol: { in: quotes.map((q) => q.symbol) }, assetClass: { not: "index" } },
+    where: { id: { in: quotes.map((q) => q.assetId) }, assetClass: { not: "index" } },
   });
-  const quoteBySymbol = new Map(quotes.map((q) => [q.symbol, q]));
+  const quoteByAssetId = new Map(quotes.map((q) => [q.assetId, q]));
 
   const scored: MoverOut[] = [];
   for (const asset of assets) {
-    const quote = quoteBySymbol.get(asset.symbol);
+    const quote = quoteByAssetId.get(asset.id);
     if (!quote) continue;
     const { exchange, region } = inferExchangeRegion(asset.symbol);
     scored.push({

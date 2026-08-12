@@ -46,6 +46,41 @@ describe("getMovers", () => {
     expect(result.losers).toEqual([]);
   });
 
+  it("excludes a LatestQuote row with a null asset_id, matching Python's INNER JOIN on asset_id (not symbol)", async () => {
+    await wipeAllQuotesAndNonIndexAssets();
+    const now = new Date();
+    // Two real, joinable rows...
+    const symbols = ["TEST-MOVERS-JOIN-A", "TEST-MOVERS-JOIN-B"];
+    const assetIds = symbols.map((s) => uuidv5(s, UUID_NAMESPACE_DNS));
+    await testPrisma.asset.createMany({
+      data: symbols.map((s, i) => ({ id: assetIds[i], symbol: s, name: s, assetClass: "equity", createdAt: now, updatedAt: now })),
+    });
+    await testPrisma.latestQuote.createMany({
+      data: symbols.map((s, i) => ({ symbol: s, assetId: assetIds[i], price: 100, createdAt: now, updatedAt: now })),
+    });
+    // ...and a third asset whose LatestQuote row has a null asset_id (a real,
+    // legitimate schema state — asset_id is nullable on latest_quotes). A
+    // symbol-keyed join would incorrectly include it; an asset_id-keyed join
+    // (matching Python's SQL INNER JOIN on LatestQuote.asset_id == Asset.id)
+    // must exclude it, exactly as Postgres's join does.
+    const orphanSymbol = "TEST-MOVERS-JOIN-ORPHAN";
+    const orphanAssetId = uuidv5(orphanSymbol, UUID_NAMESPACE_DNS);
+    await testPrisma.asset.create({
+      data: { id: orphanAssetId, symbol: orphanSymbol, name: orphanSymbol, assetClass: "equity", createdAt: now, updatedAt: now },
+    });
+    await testPrisma.latestQuote.create({
+      data: { symbol: orphanSymbol, assetId: null, price: 999, createdAt: now, updatedAt: now },
+    });
+
+    const result = await getMovers();
+    const allSyms = [...result.gainers, ...result.losers].map((r) => r.sym);
+    expect(allSyms).not.toContain(orphanSymbol);
+    // With the orphan excluded, this is back to the "exactly 2 quoted
+    // assets" shape: n = min(5, floor(2/2)) = 1 gainer, 1 loser.
+    expect(result.gainers.length).toBe(1);
+    expect(result.losers.length).toBe(1);
+  });
+
   it("with exactly 2 quoted assets (n = min(5, floor(2/2)) = 1), returns 1 gainer and 1 loser", async () => {
     await wipeAllQuotesAndNonIndexAssets();
     const now = new Date();
