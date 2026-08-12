@@ -64,13 +64,7 @@
 - Create: `backend-node/src/lib/market/*.ts`
 - Modify: `frontend/vite.config.js`
 
-- [ ] **Step 1: Audit** — a git worktree (`.claude/worktrees/python-node-migration-task1/`) exists for this task and may already have progress; check it first before re-auditing from scratch. For every endpoint in `backend/app/modules/market/api/{assets,market}.py`, capture exact path, method, params, response shape; cross-check against `backend-node/src/routes/market/*.ts` and the current `vite.config.js` proxy map (only `/api/v1/watchlist` and `/api/v1/intelligence/{portfolio-health,diversification}` are confirmed live on Node as of this writing — re-verify, this drifts fast) to confirm what's actually still missing.
-- [ ] **Step 2: Port service logic.**
-- [ ] **Step 3: Port routes**, wire into `backend-node/src/index.ts`.
-- [ ] **Step 4: Write/port equivalent tests.**
-- [ ] **Step 5: Live-verify** — run both backends against the same real DB, diff responses for the same real assets/themes/queries. Zero tolerance for numeric drift.
-- [ ] **Step 6: Cut over** — extend `vite.config.js`.
-- [ ] **Step 7: Commit.**
+- [x] **Steps 1-7: DONE (2026-08-12).** Audited every endpoint in `backend/app/modules/market/api/{assets,market}.py` fresh against `backend-node/src/routes/market/*.ts`; prior worktree progress (rebased onto `feature_2`) was substantially complete but live-verification against real Python responses surfaced and fixed 3 real correctness bugs: `getUniverse`'s implicit-Prisma-ORDER-BY silently returning a different 50-row subset than Python's unordered `LIMIT 50`; `getMovers` joining by `symbol` instead of `asset_id` (diverging from Python's INNER JOIN semantics for null-`asset_id` `LatestQuote` rows, changing gainers/losers top-N); and 3 endpoints (`/market/search`, `/assets`, `/assets/batch`) silently 200'ing on absent required query params instead of 422'ing. All fixed, tested (real DB, no mocks), live-verified byte-identical against Python. Cut over in `vite.config.js`. Merged into `feature_2` at `0112dbc`. Full trail: `.superpowers/sdd/2026-08-12-python-to-node-remaining-work/task1-report.md`.
 
 ---
 
