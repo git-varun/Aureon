@@ -280,11 +280,25 @@ function diffAsset(assetId: string, symbol: string, assetClass: string, py: PyRe
 
   rows.push(diffField(`${prefix} Recommendation.confidence_score`, py.recommendation?.confidence_score ?? null, nd.recommendation?.confidence_score ?? null));
   rows.push(diffField(`${prefix} Recommendation.recommendation_state`, py.recommendation?.recommendation_state ?? null, nd.recommendation?.recommendation_state ?? null));
+  // Not a wall-clock field like the AssetHealth age fields below — Python's
+  // leg commits its recommendation row before Node's leg's `existingRec`
+  // lookup ever runs, so when both sides have a recommendation, their ids
+  // SHOULD be directly comparable and SHOULD match if Node correctly reused
+  // Python's row (scoreAndMaterialize's existingRec lookup) instead of
+  // creating a duplicate. A real id mismatch here is a genuine regression
+  // (Node failing to reuse the existing recommendation), so it must land in
+  // DISCREPANCY, not get filed as informational alongside the genuinely
+  // time-dependent AssetHealth age fields.
   rows.push({
     field: `${prefix} Recommendation.id_reused`,
     python: py.recommendation?.id ?? null,
     node: nd.recommendation?.id ?? null,
-    category: py.recommendation?.id && nd.recommendation?.id ? "NOT_COMPARABLE" : "NOT_EXERCISED",
+    category:
+      py.recommendation?.id && nd.recommendation?.id
+        ? py.recommendation.id === nd.recommendation.id
+          ? "MATCH"
+          : "DISCREPANCY"
+        : "NOT_EXERCISED",
   });
 
   const pyHealth = py.asset_health.find((h) => h.provider_name === "default") ?? null;
