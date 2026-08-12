@@ -3,7 +3,8 @@ import { ProviderError } from "../lib/errors";
 import { QUOTE_FALLBACK_CANDIDATES, isNonUsExchangeSymbol, yahooCanServeCryptoSymbol } from "../lib/marketProviders/routing";
 import { cacheQuote } from "../lib/marketProviders/redisRateLimit";
 import { watchlistAlertsQueue } from "../lib/jobs/queues";
-import { getOrCreateProvider, recordFailure, saveQuote, markProviderDegraded } from "../lib/jobs/ingestionRepo";
+import { getOrCreateProvider, recordFailure, saveQuote, markProviderDegraded, isSymbolHeld } from "../lib/jobs/ingestionRepo";
+import { processAssetSnapshot } from "./processAssetSnapshot";
 import type { NormalizedQuote } from "../lib/marketProviders/types";
 import * as yahoo from "../lib/marketProviders/yahoo";
 import * as finnhub from "../lib/marketProviders/finnhub";
@@ -66,13 +67,19 @@ async function isProviderAvailable(providerName: string): Promise<boolean> {
 }
 
 /** Port of ingest_quote. Wires routing.ts's candidate-assembly predicates
- * (unwired since Phase 2) into a real fetch-and-persist implementation:
- * primary provider + its fallback candidates, minus the coingecko/non-
- * curated-crypto strip and the non-US-exchange/finnhub strip, tried in
- * order until one succeeds. Does NOT trigger the downstream asset-
- * evaluation chain (process_asset_snapshot/features/signals/scores) — that
- * remains a separate Celery task chain outside this phase's stated scope.
- * Does dispatch evaluate_watchlist_alerts (Phase 5), mirroring Python's
+ * into a real fetch-and-persist implementation: primary provider + its
+ * fallback candidates, minus the coingecko/non-curated-crypto strip and the
+ * non-US-exchange/finnhub strip, tried in order until one succeeds. Runs the
+ * downstream asset-evaluation chain (processAssetSnapshot ->
+ * generateFeatures -> generateSignals -> generateScores -> computeAssetHealth)
+ * in-process for held symbols only, mirroring Python's
+ * `is_symbol_held` gate — matches Python's decoupled failure semantics
+ * (process_asset_snapshot.delay() there is fire-and-forget, so a downstream
+ * evaluation failure never fails ingest_quote itself or gets misattributed
+ * to the quote provider) even though this port awaits the chain directly
+ * rather than dispatching a separate queue job for it — see
+ * task2-step6-report.md for why in-process was chosen over queued. Does
+ * dispatch evaluate_watchlist_alerts (Phase 5), mirroring Python's
  * evaluate_watchlist_alerts.delay(symbol) call right after cache_quote. */
 export async function ingestQuote(providerName: string, symbol: string): Promise<boolean> {
   if (!MARKET_DATA_PROVIDERS.has(providerName)) {
@@ -109,11 +116,25 @@ export async function ingestQuote(providerName: string, symbol: string): Promise
     }
 
     const usedProvider = quote.provider;
-    await saveQuote(usedProvider, quote);
+    const assetId = await saveQuote(usedProvider, quote);
 
     await cacheQuote(symbol, quote as unknown as Record<string, unknown>);
 
     await watchlistAlertsQueue.add("evaluateWatchlistAlerts", { symbol });
+
+    // Downstream evaluation chain, gated on held (not merely watchlisted) —
+    // deliberately outside the outer try/catch's failure-attribution path:
+    // a chain failure here must never be recorded as a provider failure
+    // (record_failure/markProviderDegraded below), matching Python's
+    // process_asset_snapshot.delay() being a decoupled, fire-and-forget
+    // dispatch rather than part of ingest_quote's own success/failure.
+    if (await isSymbolHeld(symbol)) {
+      try {
+        await processAssetSnapshot(assetId);
+      } catch (e) {
+        console.error(`ingestQuote: evaluation chain failed for held symbol=${symbol}: ${(e as Error).message}`);
+      }
+    }
 
     return true;
   } catch (e) {

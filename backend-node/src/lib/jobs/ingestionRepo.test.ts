@@ -1,7 +1,7 @@
 import { describe, it, expect, beforeEach, afterEach } from "vitest";
 import { v4 as uuidv4 } from "uuid";
 import { testPrisma } from "../../testUtils/testPrisma";
-import { listQuotedSymbols, markNewsFetchAttempted } from "./ingestionRepo";
+import { listQuotedSymbols, markNewsFetchAttempted, isSymbolHeld } from "./ingestionRepo";
 
 const SYM_BTC = "TEST-NODE-BTC";
 const SYM_ETH = "TEST-NODE-ETH";
@@ -62,5 +62,48 @@ describe("markNewsFetchAttempted", () => {
     await markNewsFetchAttempted(SYM_AAPL);
     const asset = await testPrisma.asset.findUnique({ where: { id: assetIds[SYM_AAPL] } });
     expect(asset?.lastNewsFetchAt).not.toBeNull();
+  });
+});
+
+// Task 2 Step 6: is_symbol_held's Node port — gates the evaluation chain
+// (processAssetSnapshot -> ...) so it only fires for symbols actually held
+// in a portfolio position, not merely watchlisted.
+describe("isSymbolHeld", () => {
+  const portfolioId = uuidv4();
+  const positionId = uuidv4();
+
+  beforeEach(async () => {
+    const now = new Date();
+    await testPrisma.portfolio.create({
+      data: { id: portfolioId, name: "TEST-NODE-PORTFOLIO", createdAt: now, updatedAt: now },
+    });
+    await testPrisma.position.create({
+      data: {
+        id: positionId,
+        portfolioId,
+        symbol: SYM_BTC,
+        // Not set: Position.assetId's FK targets AssetSnapshot.assetId (not
+        // Asset.id) — see schema.prisma — and isSymbolHeld only filters on
+        // symbol, matching Python's is_symbol_held, so it's not needed here.
+        quantity: 1,
+        avgBuyPrice: 100,
+        wallet: "spot",
+        createdAt: now,
+        updatedAt: now,
+      },
+    });
+  });
+
+  afterEach(async () => {
+    await testPrisma.position.deleteMany({ where: { id: positionId } });
+    await testPrisma.portfolio.deleteMany({ where: { id: portfolioId } });
+  });
+
+  it("returns true for a symbol held in a portfolio position", async () => {
+    expect(await isSymbolHeld(SYM_BTC)).toBe(true);
+  });
+
+  it("returns false for a symbol with no position (e.g. merely watchlisted)", async () => {
+    expect(await isSymbolHeld(SYM_ETH)).toBe(false);
   });
 });

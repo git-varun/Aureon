@@ -150,6 +150,15 @@ export async function saveQuote(providerName: string, quote: NormalizedQuote): P
   return assetId;
 }
 
+/** Port of IngestionRepository.is_symbol_held — true if `symbol` is held in
+ * at least one portfolio position, used to gate the features/signals/scores
+ * evaluation chain so it only ever runs for assets actually owned, not
+ * merely watchlisted. */
+export async function isSymbolHeld(symbol: string): Promise<boolean> {
+  const held = await prisma.position.findFirst({ where: { symbol }, select: { symbol: true } });
+  return held !== null;
+}
+
 /** Port of IngestionRepository.list_tracked_symbols_for_refresh — (symbol,
  * asset_class) for is_tracked assets NOT already covered by
  * listSymbolsForQuoteIngestion's held/watchlisted hot path — kept disjoint
