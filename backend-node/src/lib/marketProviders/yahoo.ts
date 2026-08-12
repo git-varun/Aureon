@@ -117,7 +117,17 @@ export interface PriceHistoryRow {
 /** Port of YahooAdapter.get_price_history — same pence-normalization as
  * getQuote (LSE GBp/GBX symbols quote in pence), applied uniformly to the
  * whole series via the chart response's meta.currency rather than a
- * per-row lookup. */
+ * per-row lookup.
+ *
+ * Uses `adjclose`, not `close`: yfinance's `ticker.history()` defaults to
+ * `auto_adjust=True`, so Python's `row.get("Close")` is already the
+ * dividend/split-adjusted close — confirmed live (2026-08-11) by diffing
+ * yahoo-finance2's `chart()` output against `yfinance` for AAPL/AXISBANK.NS/
+ * BTC-USD: `close` (raw) diverges from Python's value on symbols with a
+ * dividend inside the window (AAPL: 317.31 raw vs Python's 317.037), while
+ * `adjclose` matches Python exactly to the last decimal. Symbols with no
+ * dividend/split in-window (AXISBANK.NS, BTC-USD) have close==adjclose, so
+ * this only silently regresses when it matters. */
 export async function getPriceHistory(symbol: string, period: string = "3mo", interval: string = "1d"): Promise<PriceHistoryRow[]> {
   if (interval !== "1d") {
     throw new ProviderError(`${PROVIDER_NAME} only supports daily price history, got interval=${interval}`);
@@ -129,12 +139,184 @@ export async function getPriceHistory(symbol: string, period: string = "3mo", in
     const divisor = result.meta.currency && PENCE_CURRENCIES.has(result.meta.currency) ? 100 : 1;
     const rows: PriceHistoryRow[] = [];
     for (const q of result.quotes) {
-      if (q.close == null) continue;
-      rows.push({ timestamp: q.date, close: q.close / divisor, volume: q.volume ?? null });
+      const adjClose = q.adjclose ?? q.close;
+      if (adjClose == null) continue;
+      rows.push({ timestamp: q.date, close: adjClose / divisor, volume: q.volume ?? null });
     }
     return rows;
   } catch (e) {
     throw new ProviderError(`Yahoo get_price_history failed for ${symbol}: ${(e as Error).message}`);
+  }
+}
+
+/** Raw v8/finance/chart fetch with a native Yahoo `range` shorthand (e.g.
+ * "1mo"), bypassing yahoo-finance2's chart() wrapper entirely — that wrapper
+ * only accepts explicit period1/period2 dates, which cannot reproduce
+ * yfinance's `ticker.history(period="1mo")` window exactly (a calendar-day
+ * approximation desyncs the row count from Yahoo's own "1mo" range by
+ * exactly the amount that then shifts every value of a recursive/stateful
+ * EMA — confirmed live, see getTechnicalIndicators's doc comment). No
+ * crumb/cookie needed: this endpoint answers an anonymous request with the
+ * same `User-Agent` header nse_direct's live-quote path already uses. */
+async function fetchAdjustedCloses(symbol: string, range: string): Promise<Array<number | null>> {
+  const url = `https://query1.finance.yahoo.com/v8/finance/chart/${encodeURIComponent(symbol)}?range=${range}&interval=1d`;
+  const res = await fetch(url, { headers: { "User-Agent": "Mozilla/5.0" }, signal: AbortSignal.timeout(15_000) });
+  if (!res.ok) throw new ProviderError(`Yahoo chart HTTP ${res.status} for ${symbol}`);
+  const data = (await res.json()) as {
+    chart: {
+      result: Array<{ indicators: { quote: Array<{ close: Array<number | null> }>; adjclose?: Array<{ adjclose: Array<number | null> }> } }> | null;
+    };
+  };
+  const result = data.chart.result?.[0];
+  if (!result) throw new ProviderError(`Yahoo chart: no data for ${symbol}`);
+  return result.indicators.adjclose?.[0]?.adjclose ?? result.indicators.quote[0].close;
+}
+
+/** Port of pandas' `.ewm(..., adjust=False).mean()` with its default
+ * `ignore_na=False`: a null/NaN input carries the previous output forward
+ * *unchanged* (the recurrence step is skipped entirely for that index), not
+ * dropped from the series and not treated as a zero-valued input. This is
+ * not equivalent to filtering nulls out first — confirmed live: doing that
+ * for AXISBANK.NS's trailing null (today's still-open NSE session) shifted
+ * `macd_signal` by ~0.5 because the downstream signal-line EMA still runs
+ * one more real recurrence step against the *healed* (carried-forward,
+ * still-numeric) macd_line value at that index — pandas only skips the
+ * step where the *original* input was null, not every step downstream of it.
+ * Exported for direct unit testing against pandas' documented semantics. */
+export function ewmSkipNaN(values: Array<number | null>, alpha: number): Array<number | null> {
+  const out: Array<number | null> = [];
+  let prev: number | null = null;
+  for (const v of values) {
+    if (v == null || Number.isNaN(v)) {
+      out.push(prev);
+    } else if (prev == null) {
+      out.push(v);
+      prev = v;
+    } else {
+      const updated: number = (1 - alpha) * prev + alpha * v;
+      out.push(updated);
+      prev = updated;
+    }
+  }
+  return out;
+}
+
+function lastNonNull(arr: Array<number | null>): number | null {
+  return arr[arr.length - 1] ?? null;
+}
+
+/** Port of _calculate_rsi's final value (Wilder-style, com=period-1 so
+ * alpha=1/period), computed over the raw (possibly-trailing-null) close
+ * series so ewmSkipNaN's carry-forward semantics apply identically to
+ * Python's. */
+export function computeRsi(closes: Array<number | null>, period = 14): number | null {
+  const deltas: Array<number | null> = [];
+  for (let i = 1; i < closes.length; i++) {
+    deltas.push(closes[i] == null || closes[i - 1] == null ? null : closes[i]! - closes[i - 1]!);
+  }
+  const up = deltas.map((d) => (d == null ? null : Math.max(d, 0)));
+  const down = deltas.map((d) => (d == null ? null : -Math.min(d, 0)));
+  const alpha = 1 / period;
+  const emaUp = lastNonNull(ewmSkipNaN(up, alpha));
+  const emaDown = lastNonNull(ewmSkipNaN(down, alpha));
+  if (emaUp == null || emaDown == null) return null;
+  const rs = emaUp / emaDown;
+  return 100 - 100 / (1 + rs);
+}
+
+/** Port of _calculate_macd's final (macd, signal) pair. The inner exp1/exp2
+ * EMAs use ewmSkipNaN over the raw close series (matching macd_line's own
+ * NaN-carry-forward); the outer signal-line EMA runs over macd_line, which
+ * — once inputs have "healed" through the inner carry-forward — has no
+ * remaining nulls, so it takes one more genuine recurrence step than a
+ * naive "drop nulls first" implementation would. */
+export function computeMacd(closes: Array<number | null>, fast = 12, slow = 26, signal = 9): [number, number] | null {
+  const alphaFast = 2 / (fast + 1);
+  const alphaSlow = 2 / (slow + 1);
+  const exp1 = ewmSkipNaN(closes, alphaFast);
+  const exp2 = ewmSkipNaN(closes, alphaSlow);
+  const macdLine: Array<number | null> = closes.map((_, i) => (exp1[i] == null || exp2[i] == null ? null : exp1[i]! - exp2[i]!));
+  const alphaSig = 2 / (signal + 1);
+  const signalLine = ewmSkipNaN(macdLine, alphaSig);
+  const macdVal = lastNonNull(macdLine);
+  const signalVal = lastNonNull(signalLine);
+  if (macdVal == null || signalVal == null) return null;
+  return [macdVal, signalVal];
+}
+
+/** Port of `returns.std()` in get_technical_indicators — pandas' plain
+ * (non-ewm) `.pct_change().dropna().std()` is a true null-drop (sample std,
+ * ddof=1), not the ewm carry-forward semantics above; those two pandas
+ * operations have different NaN handling and must not share an
+ * implementation. */
+export function computeVolatility(closes: Array<number | null>): number | null {
+  const returns: number[] = [];
+  for (let i = 1; i < closes.length; i++) {
+    if (closes[i] == null || closes[i - 1] == null) continue;
+    returns.push(closes[i]! / closes[i - 1]! - 1);
+  }
+  if (returns.length === 0) return null;
+  const mean = returns.reduce((a, b) => a + b, 0) / returns.length;
+  if (returns.length < 2) return 0;
+  const variance = returns.reduce((a, b) => a + (b - mean) ** 2, 0) / (returns.length - 1);
+  return Math.sqrt(variance);
+}
+
+export interface TechnicalIndicators {
+  rsi: number | null;
+  macd: number | null;
+  macd_signal: number | null;
+  volatility: number | null;
+  sentiment: null;
+  action: "BUY" | "SELL" | "HOLD" | null;
+  trend: "Overbought" | "Oversold" | "Neutral" | null;
+  source: "yfinance" | "unavailable";
+  news_timestamp: number | null;
+}
+
+const UNAVAILABLE_INDICATORS: TechnicalIndicators = {
+  rsi: null, macd: null, macd_signal: null, volatility: null, sentiment: null,
+  action: null, trend: null, source: "unavailable", news_timestamp: null,
+};
+
+/** Port of YahooAdapter.get_technical_indicators. Swallows failures into the
+ * same "unavailable" shape Python returns (this is a best-effort enrichment
+ * call in the asset-evaluation chain, not one that should abort the chain).
+ *
+ * news_timestamp diverges from Python by construction: Python reads
+ * `ticker.news` (yfinance's dedicated news accessor); this reuses getNews's
+ * `yf.search(symbol).news` results (a different, already-ported Yahoo
+ * endpoint — see getNews's own doc comment on why search results need
+ * relatedTickers filtering that `ticker.news` doesn't). Flagged, not
+ * silently approximated — no Node equivalent of `ticker.news` is ported. */
+export async function getTechnicalIndicators(symbol: string): Promise<TechnicalIndicators> {
+  try {
+    const closes = await fetchAdjustedCloses(symbol, "1mo");
+    if (closes.length < 14) return UNAVAILABLE_INDICATORS;
+
+    const rsiVal = computeRsi(closes);
+    const macdPair = computeMacd(closes);
+    const volatilityVal = computeVolatility(closes);
+    if (macdPair == null) return UNAVAILABLE_INDICATORS;
+    const [macdVal, macdSig] = macdPair;
+
+    const action = rsiVal == null ? null : rsiVal > 70 ? "SELL" : rsiVal < 30 ? "BUY" : "HOLD";
+    const trend = rsiVal == null ? null : rsiVal > 70 ? "Overbought" : rsiVal < 30 ? "Oversold" : "Neutral";
+
+    let newsTimestamp: number | null = null;
+    try {
+      const news = await getNews(symbol);
+      if (news.length > 0) {
+        newsTimestamp = Math.max(...news.map((n) => Math.floor(n.publishedAt.getTime() / 1000)));
+      }
+    } catch {
+      // Matches Python's outer try/except: a news-fetch failure degrades
+      // news_timestamp to null, not the whole indicators call.
+    }
+
+    return { rsi: rsiVal, macd: macdVal, macd_signal: macdSig, volatility: volatilityVal, sentiment: null, action, trend, source: "yfinance", news_timestamp: newsTimestamp };
+  } catch {
+    return UNAVAILABLE_INDICATORS;
   }
 }
 

@@ -2,8 +2,12 @@ import "dotenv/config";
 import {
   startIngestQuoteWorker,
   startEvaluateWatchlistAlertsWorker,
-  startSweepStaleJobLogsWorker,
+  startScheduledJobsWorker,
   registerSweepStaleJobLogsSchedule,
+  registerRefreshTrackedUniverseSchedule,
+  registerRefreshMutualFundNavsSchedule,
+  registerSeedPriceHistorySchedule,
+  registerRefreshPricesSchedule,
 } from "../src/queue";
 
 // Manual/dev entrypoint — starts BullMQ workers consuming q_ingestion and
@@ -29,19 +33,27 @@ alertsWorker.on("failed", (job, err) => {
   console.error(`evaluateWatchlistAlerts failed: ${JSON.stringify(job?.data)} — ${err.message}`);
 });
 
-const sweepWorker = startSweepStaleJobLogsWorker();
+const scheduledWorker = startScheduledJobsWorker();
 
-sweepWorker.on("completed", () => {
-  console.log("sweepStaleJobLogs completed");
+scheduledWorker.on("completed", (job) => {
+  console.log(`${job.name} completed`);
 });
-sweepWorker.on("failed", (job, err) => {
-  console.error(`sweepStaleJobLogs failed: ${err.message}`);
+scheduledWorker.on("failed", (job, err) => {
+  console.error(`${job?.name} failed: ${err.message}`);
 });
 
 async function start() {
   await registerSweepStaleJobLogsSchedule();
+  await registerRefreshTrackedUniverseSchedule();
+  await registerRefreshMutualFundNavsSchedule();
+  await registerSeedPriceHistorySchedule();
+  await registerRefreshPricesSchedule();
   console.log("BullMQ worker listening on q_ingestion, q_watchlist_alerts, q_scheduled_jobs");
-  console.log("Repeatable schedule registered: sweep-stale-job-logs every 30 minutes (*/30 * * * *)");
+  console.log(
+    "Repeatable schedules registered: sweep-stale-job-logs (*/30 * * * * UTC), " +
+      "refresh-tracked-universe (0 4 * * * UTC), refresh-mutual-fund-navs (0 23 * * * UTC), " +
+      "seed-price-history (0 2 * * 0 UTC), hourly-price-refresh (0 * * * * UTC)",
+  );
 }
 
 start();

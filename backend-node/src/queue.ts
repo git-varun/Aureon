@@ -2,6 +2,10 @@ import { Worker, type Job } from "bullmq";
 import { ingestQuote } from "./jobs/ingestQuote";
 import { evaluateWatchlistAlertsTask } from "./jobs/evaluateWatchlistAlerts";
 import { sweepStaleJobLogsTask } from "./jobs/sweepStaleJobLogs";
+import { refreshTrackedUniverseTask } from "./jobs/refreshTrackedUniverse";
+import { refreshMutualFundNavsTask } from "./jobs/refreshMutualFundNavs";
+import { seedPriceHistoryTask } from "./jobs/seedPriceHistory";
+import { refreshPricesTask } from "./jobs/refreshPrices";
 import {
   bullmqConnection as connection,
   QUOTES_QUEUE_NAME,
@@ -48,16 +52,72 @@ export async function registerSweepStaleJobLogsSchedule(): Promise<void> {
   );
 }
 
-// Keyed on job.name, not just the queue — q_scheduled_jobs is meant to
-// carry every cron-driven job cut over from Celery beat, not just this
-// one, so a future second job landing here must not silently run this
-// handler.
-export function startSweepStaleJobLogsWorker(): Worker<undefined, void> {
+// Matches Python's beat_schedule crontab(hour=4, minute=0) exactly — daily
+// at 04:00 UTC. Second job cut over per migration plan Task 3 Step 2 (picked
+// as the lowest-risk of the remaining 4: daily, no live financial writes on
+// refreshPrices' scale).
+export async function registerRefreshTrackedUniverseSchedule(): Promise<void> {
+  await scheduledJobsQueue.upsertJobScheduler(
+    "refresh-tracked-universe",
+    { pattern: "0 4 * * *", tz: "UTC" },
+    { name: "refreshTrackedUniverse" },
+  );
+}
+
+// Matches Python's beat_schedule crontab(hour=23, minute=0) exactly — daily
+// at 23:00 UTC. Third job cut over per migration plan Task 3 Step 3.
+export async function registerRefreshMutualFundNavsSchedule(): Promise<void> {
+  await scheduledJobsQueue.upsertJobScheduler(
+    "refresh-mutual-fund-navs",
+    { pattern: "0 23 * * *", tz: "UTC" },
+    { name: "refreshMutualFundNavs" },
+  );
+}
+
+// Matches Python's beat_schedule crontab(hour=2, minute=0, day_of_week="sun")
+// exactly — weekly, Sunday 02:00 UTC. Cron day-of-week 0 = Sunday.
+export async function registerSeedPriceHistorySchedule(): Promise<void> {
+  await scheduledJobsQueue.upsertJobScheduler(
+    "seed-price-history",
+    { pattern: "0 2 * * 0", tz: "UTC" },
+    { name: "seedPriceHistory" },
+  );
+}
+
+// Matches Python's beat_schedule crontab(minute=0, hour="*") exactly —
+// hourly, on the hour, UTC. Last and highest-risk of the four (per plan
+// Task 3 Step 3: highest-traffic, verify no double-enqueue of ingestQuote
+// during cutover — see migration plan note; this repo has no persistent
+// Python beat process running concurrently with a Node worker at any point
+// during this cutover, since the Python beat_schedule entry is removed in
+// the same change, so there is no window where both sides fire this job).
+export async function registerRefreshPricesSchedule(): Promise<void> {
+  await scheduledJobsQueue.upsertJobScheduler(
+    "hourly-price-refresh",
+    { pattern: "0 * * * *", tz: "UTC" },
+    { name: "refreshPrices" },
+  );
+}
+
+// Job-name -> handler map, not one Worker per job — q_scheduled_jobs is
+// meant to carry every cron-driven job cut over from Celery beat (see
+// migration plan Task 3), so a future job landing here only needs an entry
+// added, not a whole new Worker/queue wiring.
+const SCHEDULED_JOB_HANDLERS: Record<string, () => Promise<void>> = {
+  sweepStaleJobLogs: sweepStaleJobLogsTask,
+  refreshTrackedUniverse: refreshTrackedUniverseTask,
+  refreshMutualFundNavs: refreshMutualFundNavsTask,
+  seedPriceHistory: seedPriceHistoryTask,
+  refreshPrices: refreshPricesTask,
+};
+
+export function startScheduledJobsWorker(): Worker<undefined, void> {
   return new Worker<undefined, void>(
     SCHEDULED_JOBS_QUEUE_NAME,
     async (job: Job<undefined>) => {
-      if (job.name !== "sweepStaleJobLogs") return;
-      await sweepStaleJobLogsTask();
+      const handler = SCHEDULED_JOB_HANDLERS[job.name];
+      if (!handler) return;
+      await handler();
     },
     { connection },
   );

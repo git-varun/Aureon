@@ -7,6 +7,10 @@ import { prisma } from "../../prisma";
  * pattern's actual cadence exactly, not be a rough estimate. */
 const SCHEDULED_JOBS: Array<{ jobName: string; intervalMinutes: number }> = [
   { jobName: "sweep_stale_job_logs", intervalMinutes: 30 },
+  { jobName: "refresh_tracked_universe", intervalMinutes: 24 * 60 },
+  { jobName: "refresh_mutual_fund_navs", intervalMinutes: 24 * 60 },
+  { jobName: "seed_price_history", intervalMinutes: 7 * 24 * 60 },
+  { jobName: "refresh_prices", intervalMinutes: 60 },
 ];
 
 /** Multiplier applied to intervalMinutes to decide "stale". 1.5x gives room

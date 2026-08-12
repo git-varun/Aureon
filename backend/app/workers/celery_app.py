@@ -44,14 +44,6 @@ celery_app.conf.task_default_queue = "q_ingestion"
 celery_app.conf.timezone = "UTC"
 
 celery_app.conf.beat_schedule = {
-    "seed-price-history": {
-        "task": "app.workers.ingestion.tasks.seed_price_history_task",
-        "schedule": crontab(hour=2, minute=0, day_of_week="sun"),
-    },
-    "hourly-price-refresh": {
-        "task": "app.workers.ingestion.tasks.refresh_prices_task",
-        "schedule": crontab(minute=0, hour="*"),
-    },
     "news-refresh": {
         "task": "app.workers.ingestion.tasks.fetch_news_task",
         "schedule": crontab(minute=0, hour="*/4"),
@@ -59,18 +51,6 @@ celery_app.conf.beat_schedule = {
     "refresh-fundamentals": {
         "task": "app.workers.ingestion.tasks.refresh_fundamentals_task",
         "schedule": crontab(hour=6, minute=0),
-    },
-    # Deliberately not "seed-tracked-universes" here — seeding the 6 tracked
-    # universes is a rare/manual bulk operation (JobConfig entry, "Run Now"
-    # only), not a recurring job. This is only the low-frequency ongoing
-    # refresh for whatever's already been seeded/lazily tracked.
-    "refresh-tracked-universe": {
-        "task": "app.workers.ingestion.tasks.refresh_tracked_universe_task",
-        "schedule": crontab(hour=4, minute=0),
-    },
-    "refresh-mutual-fund-navs": {
-        "task": "app.workers.ingestion.tasks.refresh_mutual_fund_navs_task",
-        "schedule": crontab(hour=23, minute=0),
     },
     "daily-briefing": {
         "task": "app.workers.ingestion.tasks.daily_briefing_task",
@@ -84,11 +64,14 @@ celery_app.conf.beat_schedule = {
         "task": "app.workers.ingestion.tasks.monthly_briefing_task",
         "schedule": crontab(hour=9, minute=0, day_of_month=1),
     },
-    # sweep-stale-job-logs cut over to a BullMQ repeatable schedule in
-    # backend-node (see backend-node/scripts/startWorker.ts) — no longer
-    # scheduled here to avoid both sides dispatching against the same
-    # job_logs table. sweep_stale_job_logs_task itself is untouched and
-    # still reachable via manual dispatch (ConfigService._TASK_MAPPING).
+    # sweep-stale-job-logs, refresh-tracked-universe, refresh-mutual-fund-navs,
+    # seed-price-history, and hourly-price-refresh (all 5 of migration plan
+    # Task 3) cut over to real BullMQ repeatable schedules in backend-node
+    # (see backend-node/scripts/startWorker.ts) — no longer scheduled here to
+    # avoid both sides dispatching against the same tables (job_logs /
+    # latest_quotes+price_history) concurrently. All 5 tasks themselves are
+    # untouched and still reachable via manual dispatch
+    # (ConfigService._TASK_MAPPING).
 }
 
 
