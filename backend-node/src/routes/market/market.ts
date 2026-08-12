@@ -1,5 +1,5 @@
 import { Router } from "express";
-import { requireUuidParam } from "../../lib/validation";
+import { requireUuidParam, requireQueryParam } from "../../lib/validation";
 import {
   getAssetSnapshot,
   getAssetFeatures,
@@ -34,9 +34,10 @@ marketRouter.get("/movers", async (_req, res) => {
   res.json(await getMovers());
 });
 
-// Port of MarketService.search (GET /market/search).
+// Port of MarketService.search (GET /market/search). Python declares `q` as
+// `Query(...)` (required) — absent (not just empty) 422s, matching FastAPI.
 marketRouter.get("/search", async (req, res) => {
-  const q = String(req.query.q ?? "");
+  const q = requireQueryParam(req.query.q, "q");
   res.json(await searchMarket(q));
 });
 

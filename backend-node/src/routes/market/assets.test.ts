@@ -26,6 +26,16 @@ describe("GET /assets", () => {
     expect(res.status).toBe(200);
     expect(await res.json()).toEqual({ data: [], total: 0 });
   });
+
+  it("422s when search is absent entirely (Python's Query(...) required param)", async () => {
+    const res = await fetch(`${baseUrl}/assets`);
+    expect(res.status).toBe(422);
+  });
+
+  it("200s (not 422) when search is present but empty — absent and empty are different", async () => {
+    const res = await fetch(`${baseUrl}/assets?search=`);
+    expect(res.status).toBe(200);
+  });
 });
 
 describe("GET /assets/batch", () => {
@@ -33,6 +43,11 @@ describe("GET /assets/batch", () => {
     const res = await fetch(`${baseUrl}/assets/batch?symbols=`);
     expect(res.status).toBe(200);
     expect(await res.json()).toEqual({ data: {} });
+  });
+
+  it("422s when symbols is absent entirely (Python's Query(...) required param)", async () => {
+    const res = await fetch(`${baseUrl}/assets/batch`);
+    expect(res.status).toBe(422);
   });
 });
 

@@ -5,20 +5,22 @@ import { getCachedQuote } from "../../lib/marketProviders/redisRateLimit";
 import { getChart } from "../../lib/marketProviders/chart";
 import { getFundamentals } from "../../lib/marketProviders/fundamentals";
 import { searchAssets, getBatch, getSignal, getAureonAsset } from "../../lib/market/assets";
-import { requireUuidParam } from "../../lib/validation";
+import { requireUuidParam, requireQueryParam } from "../../lib/validation";
 import { toPythonIsoString } from "../../lib/tz";
 
 export const assetsRouter = Router();
 
-// Port of AssetsService.search (GET /assets).
+// Port of AssetsService.search (GET /assets). Python declares `search` as
+// `Query(...)` (required) — absent (not just empty) 422s, matching FastAPI.
 assetsRouter.get("/assets", async (req, res) => {
-  const search = String(req.query.search ?? "");
+  const search = requireQueryParam(req.query.search, "search");
   res.json(await searchAssets(search));
 });
 
-// Port of AssetsService.get_batch (GET /assets/batch).
+// Port of AssetsService.get_batch (GET /assets/batch). Python declares
+// `symbols` as `Query(...)` (required) — absent (not just empty) 422s.
 assetsRouter.get("/assets/batch", async (req, res) => {
-  const symbolsParam = String(req.query.symbols ?? "");
+  const symbolsParam = requireQueryParam(req.query.symbols, "symbols");
   const symbolList = symbolsParam.split(",").filter((s) => s.trim());
   res.json({ data: await getBatch(symbolList) });
 });

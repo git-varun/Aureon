@@ -50,6 +50,16 @@ describe("GET /market/search", () => {
     expect(res.status).toBe(200);
     expect(await res.json()).toEqual([]);
   });
+
+  it("422s when q is absent entirely (Python's Query(...) required param)", async () => {
+    const res = await fetch(`${baseUrl}/search`);
+    expect(res.status).toBe(422);
+  });
+
+  it("200s (not 422) when q is present but empty — absent and empty are different", async () => {
+    const res = await fetch(`${baseUrl}/search?q=`);
+    expect(res.status).toBe(200);
+  });
 });
 
 describe("POST /market/refresh", () => {
