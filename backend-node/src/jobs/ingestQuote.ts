@@ -124,16 +124,18 @@ export async function ingestQuote(providerName: string, symbol: string): Promise
 
     // Downstream evaluation chain, gated on held (not merely watchlisted) —
     // deliberately outside the outer try/catch's failure-attribution path:
-    // a chain failure here must never be recorded as a provider failure
-    // (record_failure/markProviderDegraded below), matching Python's
+    // a failure here (including the isSymbolHeld positions-table read, not
+    // just processAssetSnapshot itself) must never be recorded as a provider
+    // failure (record_failure/markProviderDegraded below), matching Python's
     // process_asset_snapshot.delay() being a decoupled, fire-and-forget
-    // dispatch rather than part of ingest_quote's own success/failure.
-    if (await isSymbolHeld(symbol)) {
-      try {
-        await processAssetSnapshot(assetId);
-      } catch (e) {
-        console.error(`ingestQuote: evaluation chain failed for held symbol=${symbol}: ${(e as Error).message}`);
-      }
+    // dispatch rather than part of ingest_quote's own success/failure — and
+    // going one step further than Python, whose is_symbol_held call sits
+    // unprotected before the .delay() dispatch and so would misattribute a
+    // positions-table read failure to the provider.
+    try {
+      if (await isSymbolHeld(symbol)) await processAssetSnapshot(assetId);
+    } catch (e) {
+      console.error(`ingestQuote: evaluation chain failed for held symbol=${symbol}:`, e);
     }
 
     return true;

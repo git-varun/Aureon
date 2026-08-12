@@ -1,5 +1,6 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { buildCandidateNames, ingestQuote } from "./ingestQuote";
+import { ProviderError } from "../lib/errors";
 
 const {
   mockSaveQuote,
@@ -144,5 +145,37 @@ describe("ingestQuote — evaluation chain wiring", () => {
     expect(result).toBe(true);
     expect(mockRecordFailure).not.toHaveBeenCalled();
     expect(mockMarkProviderDegraded).not.toHaveBeenCalled();
+  });
+
+  // Regression test for a code-review finding on commit 46d49f2: isSymbolHeld
+  // itself (a positions-table read, not just processAssetSnapshot) must also
+  // be decoupled from the outer provider-failure attribution — a naive
+  // placement left `await isSymbolHeld(symbol)` inside the outer try but
+  // outside the inner catch, so a positions-table read failure would have
+  // fallen through to the outer catch and been recorded as a provider
+  // failure despite the quote fetch/save having already succeeded.
+  it("does not fail ingestQuote or record a provider failure when isSymbolHeld itself throws", async () => {
+    mockIsSymbolHeld.mockRejectedValue(new Error("positions table unavailable"));
+
+    const result = await ingestQuote("coingecko", "BTC-USD");
+
+    expect(result).toBe(true);
+    expect(mockProcessAssetSnapshot).not.toHaveBeenCalled();
+    expect(mockRecordFailure).not.toHaveBeenCalled();
+    expect(mockMarkProviderDegraded).not.toHaveBeenCalled();
+  });
+
+  it("does not trigger the evaluation chain when the quote fetch fails for all providers", async () => {
+    // Non-curated crypto symbol (not in the mocked SYMBOL_TO_COINGECKO_ID
+    // map) so buildCandidateNames strips yahoo from the fallback chain,
+    // leaving only coingecko — otherwise a real, unmocked yahoo fallback
+    // call would mask the failure this test is asserting on.
+    mockCoingeckoGetQuote.mockRejectedValue(new ProviderError("coingecko unavailable"));
+
+    await expect(ingestQuote("coingecko", "SOME-UNCURATED-COIN-USD")).rejects.toThrow();
+
+    expect(mockSaveQuote).not.toHaveBeenCalled();
+    expect(mockProcessAssetSnapshot).not.toHaveBeenCalled();
+    expect(mockRecordFailure).toHaveBeenCalled();
   });
 });
