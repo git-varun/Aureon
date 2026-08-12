@@ -6,6 +6,7 @@ import { getChart } from "../../lib/marketProviders/chart";
 import { getFundamentals } from "../../lib/marketProviders/fundamentals";
 import { searchAssets, getBatch, getSignal, getAureonAsset } from "../../lib/market/assets";
 import { requireUuidParam } from "../../lib/validation";
+import { toPythonIsoString } from "../../lib/tz";
 
 export const assetsRouter = Router();
 
@@ -48,7 +49,7 @@ assetsRouter.get("/assets/:symbol/quote", async (req, res) => {
     low: null,
     high_52w: null,
     low_52w: null,
-    last_updated: new Date().toISOString(),
+    last_updated: toPythonIsoString(new Date()),
   });
 });
 

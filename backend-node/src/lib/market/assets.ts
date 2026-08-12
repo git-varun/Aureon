@@ -5,6 +5,7 @@ import { classify } from "./classify";
 import { inferCurrency } from "../currency";
 import { pyRound } from "./round";
 import { searchMarket } from "./market";
+import { toPythonIsoString } from "../tz";
 
 // Port of AssetsService's module-level constants. Crypto-futures symbols
 // (e.g. "ETHUSD_PERP-COINM") are structurally unresolvable by the
@@ -58,7 +59,7 @@ function signalFromRsi(symbol: string, rsi: number): SignalResult {
     signal_type: signalType,
     confidence: signalConfidence(rsi, signalType),
     rationale: `RSI is at ${rsi.toFixed(1)}. Recommending ${signalType}.`,
-    created_at: new Date().toISOString(),
+    created_at: toPythonIsoString(new Date()),
   };
 }
 
@@ -80,7 +81,7 @@ export async function getSignal(symbolRaw: string): Promise<SignalResult> {
       signal_type: null,
       confidence: null,
       rationale: "Signal unavailable — this asset isn't covered by the price/indicator pipeline.",
-      created_at: new Date().toISOString(),
+      created_at: toPythonIsoString(new Date()),
     };
   }
 
