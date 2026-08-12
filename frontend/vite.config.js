@@ -82,6 +82,12 @@ export default defineConfig({
                 target: apiNodeProxyTarget,
                 changeOrigin: true,
             },
+            // Evaluation (GET /assets/{asset_id}/scores) — full port, single
+            // route module (backend-node/src/routes/evaluation/evaluation.ts).
+            '/api/v1/evaluation': {
+                target: apiNodeProxyTarget,
+                changeOrigin: true,
+            },
             // Phase 10 wave 3: Portfolio/Positions/Transactions CRUD. Scoped
             // to '/api/v1/portfolio/portfolios' specifically, NOT the whole
             // '/api/v1/portfolio' module — '/api/v1/portfolio/sync' and
