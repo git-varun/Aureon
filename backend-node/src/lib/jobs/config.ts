@@ -92,3 +92,13 @@ export async function countJobLogs(jobName: string | null): Promise<number> {
 export async function updateJob(jobName: string, enabled: boolean): Promise<void> {
   await prisma.jobConfig.updateMany({ where: { jobName }, data: { enabled } });
 }
+
+/** Port of ConfigService.get_last_successful_run — most recent SUCCESS
+ * JobLog for job_name, independent of whether a later run failed. Used where
+ * "days since it last actually worked" matters more than "status of the most
+ * recent attempt" (GET /portfolio/sync/status). */
+export async function getLastSuccessfulRun(jobName: string): Promise<{ started_at: string | null; ended_at: string | null } | null> {
+  const log = await prisma.jobLog.findFirst({ where: { jobName, status: "SUCCESS" }, orderBy: { startedAt: "desc" } });
+  if (!log) return null;
+  return { started_at: log.startedAt ? log.startedAt.toISOString() : null, ended_at: log.endedAt ? log.endedAt.toISOString() : null };
+}

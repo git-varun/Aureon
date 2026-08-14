@@ -21,3 +21,12 @@ export class RequestValidationError extends Error {}
 export class ProviderError extends Error {}
 export class ConfigurationError extends ProviderError {}
 export class RateLimitError extends ProviderError {}
+
+// Mirrors app/core/exceptions.py's ZerodhaAuthError/GrowwAuthError/
+// BinanceAuthError — ProviderError subclasses whose message is prefixed
+// "AUTH_REQUIRED: ..." on stale/missing credentials (see PROVIDERS.md
+// "Shared Patterns" — GET /portfolio/sync/status string-matches on that
+// prefix in the last job log to surface a distinct auth_required status).
+export class ZerodhaAuthError extends ProviderError {}
+export class GrowwAuthError extends ProviderError {}
+export class BinanceAuthError extends ProviderError {}

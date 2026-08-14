@@ -135,7 +135,7 @@ async function requireAllowedKey(providerName: string, keyName: string): Promise
   return p;
 }
 
-export async function setProviderKey(providerName: string, keyName: string, value: string, actorId: string): Promise<void> {
+export async function setProviderKey(providerName: string, keyName: string, value: string, actorId?: string | null): Promise<void> {
   const p = await requireAllowedKey(providerName, keyName);
   const keys = safeJsonLoad<Record<string, string>>(p.encryptedKeys, {});
   keys[keyName] = value ? encryptFernet(value, secret()) : "";
