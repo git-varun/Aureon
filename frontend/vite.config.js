@@ -90,10 +90,23 @@ export default defineConfig({
             },
             // Phase 10 wave 3: Portfolio/Positions/Transactions CRUD. Scoped
             // to '/api/v1/portfolio/portfolios' specifically, NOT the whole
-            // '/api/v1/portfolio' module — '/api/v1/portfolio/sync' and
-            // '/api/v1/portfolio/sync/status' are siblings of 'portfolios'
-            // (not sub-paths of it, so no prefix-collision risk either way)
-            // and stay on Python (broker-sync orchestration isn't ported).
+            // '/api/v1/portfolio' module — '/api/v1/portfolio/sync',
+            // '/api/v1/portfolio/sync/status', and the binance-backfill
+            // sub-routes are siblings of 'portfolios' (not sub-paths of it,
+            // so no prefix-collision risk either way) and stay on Python.
+            // Task 4 (real-money broker sync) DID port these — Zerodha/
+            // Groww/Binance sync, futures positions, trade-history cost
+            // basis, and the Spot backfill all have a Node implementation
+            // (backend-node/src/lib/broker/**, src/jobs/{syncZerodha,
+            // syncGroww,syncBinance,backfillBinanceSpot}.ts) with unit +
+            // integration test coverage. It is deliberately NOT cut over
+            // here: no broker had live credentials configured in the audit
+            // environment to verify a real holdings/trade-history sync
+            // against Zerodha/Groww/Binance's actual servers, and this is
+            // real cost-basis/position data — see task4-report.md for the
+            // full audit. Flip this line only after a live sync has been
+            // verified against a real connected account for the broker(s)
+            // being cut over.
             // '/api/v1/portfolio/backup' and '/api/v1/portfolio/restore' —
             // also siblings — are cut over separately below, wave 4.
             '/api/v1/portfolio/portfolios': {
@@ -107,10 +120,16 @@ export default defineConfig({
             // The Zerodha OAuth *callback* is a sub-path of '/config' that
             // must stay on Python — same class of near-miss as the
             // intelligence /trend guards above: it's a live external API
-            // integration (token exchange against Zerodha's servers) with no
-            // Node port, same reasoning as wave 3's binance-backfill gap.
-            // MUST precede the '/api/v1/config' line below or the broader
-            // prefix would swallow it.
+            // integration (token exchange against Zerodha's servers). Task 4
+            // ported it (backend-node/src/routes/settings/providers.ts,
+            // byte-for-byte checksum parity unit-tested against Python's
+            // real sha256 output) but did NOT cut it over here — no live
+            // Zerodha credentials were available to verify the real checksum
+            // exchange against Zerodha's servers, and this endpoint is
+            // intentionally unauthenticated and creates a real broker
+            // session, so it stays proxied to Python until that's done — see
+            // task4-report.md. MUST precede the '/api/v1/config' line below
+            // or the broader prefix would swallow it.
             '/api/v1/config/providers/zerodha/oauth/callback': {
                 target: apiProxyTarget,
                 changeOrigin: true,
