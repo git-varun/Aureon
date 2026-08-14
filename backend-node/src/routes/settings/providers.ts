@@ -4,7 +4,10 @@ import {
   getAllProviders, getProviderDict, updateProvider, setProviderKey, removeProviderKey, getDecryptedKey,
 } from "../../lib/settings/providers";
 import { listAllocationTargets, upsertAllocationTarget } from "../../lib/settings/allocationTargets";
-import { NotFoundError, RequestValidationError, ValidationError } from "../../lib/errors";
+import { NotFoundError, RequestValidationError, ValidationError, ZerodhaAuthError } from "../../lib/errors";
+import { ZerodhaClient } from "../../lib/broker/zerodha/client";
+
+const FRONTEND_BASE_URL = process.env.FRONTEND_BASE_URL ?? "http://localhost:3000";
 
 export const providersRouter = Router();
 
@@ -50,6 +53,49 @@ providersRouter.get("/providers/zerodha/oauth/login-url", async (_req, res) => {
   const apiKey = await getDecryptedKey("zerodha", "api_key");
   if (!apiKey) throw new ValidationError("Zerodha api_key is not configured yet");
   res.json({ login_url: `https://kite.zerodha.com/connect/login?api_key=${apiKey}&v=3` });
+});
+
+// Port of zerodha_oauth_callback. Ported for parity/testability, but NOT
+// cut over in vite.config.js as of this change — Task 4's live-credential
+// audit found no Zerodha credentials configured in this environment to
+// verify the checksum/session-exchange against Zerodha's real servers, and
+// this is an intentionally-unauthenticated endpoint (see the comment below)
+// guarding real broker session creation, so it stays proxied to Python until
+// a live exchange can be verified. Unauthenticated by necessity: Zerodha's
+// browser redirect carries no session cookie/JWT. An attacker hitting this
+// endpoint without our api_secret cannot forge a session — the request_token
+// is only useful when exchanged against Zerodha's own servers with that secret.
+providersRouter.get("/providers/zerodha/oauth/callback", async (req, res) => {
+  const requestToken = typeof req.query.request_token === "string" ? req.query.request_token : undefined;
+  const status = typeof req.query.status === "string" ? req.query.status : undefined;
+  console.log(`Zerodha OAuth callback hit (status=${status})`);
+
+  if (status !== "success" || !requestToken) {
+    res.redirect(`${FRONTEND_BASE_URL}/profile?zerodha=error&reason=login_failed`);
+    return;
+  }
+
+  const apiKey = await getDecryptedKey("zerodha", "api_key");
+  const apiSecret = await getDecryptedKey("zerodha", "api_secret");
+  if (!apiKey || !apiSecret) {
+    res.redirect(`${FRONTEND_BASE_URL}/profile?zerodha=error&reason=not_configured`);
+    return;
+  }
+
+  const client = new ZerodhaClient(apiKey, apiSecret);
+  try {
+    await client.generateSession(requestToken);
+  } catch (e) {
+    if (e instanceof ZerodhaAuthError) {
+      console.warn(`Zerodha session exchange failed: ${e.message}`);
+      res.redirect(`${FRONTEND_BASE_URL}/profile?zerodha=error&reason=exchange_failed`);
+      return;
+    }
+    throw e;
+  }
+
+  await setProviderKey("zerodha", "access_token", client.accessToken!, null);
+  res.redirect(`${FRONTEND_BASE_URL}/profile?zerodha=connected`);
 });
 
 // Port of ConfigService.list_allocation_targets via GET /allocation_targets.
