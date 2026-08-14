@@ -1,6 +1,6 @@
 import { v4 as uuidv4 } from "uuid";
 import Redis from "ioredis";
-import { getJob, logJobStart } from "../jobs/config";
+import { getJob, logJobStart, logJobEnd } from "../jobs/config";
 import { ConflictError, NotFoundError, ConfigurationError, ValidationError } from "../errors";
 import { prisma } from "../../prisma";
 import { refreshPricesTask } from "../../jobs/refreshPrices";
@@ -72,9 +72,17 @@ async function releaseJobLock(jobName: string, token: string): Promise<void> {
 }
 
 // Shared dispatch plumbing: job-lock acquire (for PROVIDER_REQUIRED_JOBS),
-// provider-configured check, JobLog start, fire-and-forget runner call with
+// JobLog start, provider-configured check, fire-and-forget runner call with
 // lock release on completion. Used by both dispatchJob (generic jobs) and
 // dispatchPortfolioJob (backfill_binance_spot's portfolio-scoped variant).
+//
+// Order matches Python's dispatch_job (app/core/api/config.py:693-745)
+// exactly: acquire lock -> log_job_start -> provider check -> on failure,
+// release lock + log_job_end(FAILED, message) + raise. logJobStart must run
+// BEFORE the provider check (not after) so a dispatch rejected for an
+// unconfigured/disabled provider still leaves a FAILED JobLog row with an
+// explanatory message — GET /config/jobs/logs (Job History in the UI) would
+// otherwise silently lose an entry Python would have shown.
 async function dispatchWithRunner(jobName: string, runner: (logId: number) => Promise<void>): Promise<string> {
   const taskId = uuidv4();
   const requiredProvider = PROVIDER_REQUIRED_JOBS[jobName];
@@ -82,14 +90,20 @@ async function dispatchWithRunner(jobName: string, runner: (logId: number) => Pr
     const ttl = JOB_LOCK_TTL_SECONDS[jobName] ?? 600;
     const acquired = await tryAcquireJobLock(jobName, taskId, ttl);
     if (!acquired) throw new ConflictError(`Job '${jobName}' is already running — rejected duplicate dispatch`);
-    const cfg = await prisma.providerConfig.findUnique({ where: { providerName: requiredProvider } });
-    if (!cfg || !cfg.enabled || cfg.status === "PLANNED" || cfg.status === "DISABLED") {
-      await releaseJobLock(jobName, taskId);
-      throw new ConfigurationError(`Provider '${requiredProvider}' is not configured (status=${cfg?.status ?? "NOT_FOUND"}) — job not dispatched`);
-    }
   }
 
   const log = await logJobStart(jobName, taskId);
+
+  if (requiredProvider) {
+    const cfg = await prisma.providerConfig.findUnique({ where: { providerName: requiredProvider } });
+    if (!cfg || !cfg.enabled || cfg.status === "PLANNED" || cfg.status === "DISABLED") {
+      const message = `Provider '${requiredProvider}' is not configured (status=${cfg?.status ?? "NOT_FOUND"}) — job not dispatched`;
+      await logJobEnd(log.id, "FAILED", { error: message });
+      await releaseJobLock(jobName, taskId);
+      throw new ConfigurationError(message);
+    }
+  }
+
   void runner(log.id)
     .catch((e: Error) => {
       console.error(`Job ${jobName} (log ${log.id}) failed: ${e.message}`);
