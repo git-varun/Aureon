@@ -106,11 +106,7 @@
 **Files:**
 - Create: `backend-node/src/jobs/{seedTrackedUniverses,resolveAndTrackSymbol,refreshFundamentals,validateDataQuality,adminReprocessAllAssets,adminBackfillAssets,adminRepairJobs}.ts`
 
-- [ ] **Step 1: Audit** each task in `backend/app/workers/ingestion/tasks.py` — confirm beat-scheduled (`refresh-fundamentals`) vs manual-trigger-only (`admin_*`, `seed_tracked_universes`, `resolve_and_track_symbol`).
-- [ ] **Step 2: Port each**, preserving manual-vs-scheduled trigger semantics.
-- [ ] **Step 3: For `refresh-fundamentals`, cut over its schedule** same as Task 3's pattern; the rest wire into `backend-node/src/lib/settings/jobDispatch.ts`'s `JOB_RUNNERS` map only.
-- [ ] **Step 4: Live-verify** each against real data.
-- [ ] **Step 5: Commit.**
+- [x] **Steps 1-5: DONE (2026-08-15).** Ported `refresh_fundamentals` (beat-scheduled, `crontab(hour=6, minute=0)` UTC — cut over to a real BullMQ schedule, Python `beat_schedule` entry removed in the same commit) plus `validate_data_quality`, `admin_reprocess_all_assets`, `admin_repair_jobs`, `admin_backfill_assets`, and `seed_tracked_universes` (all manual-trigger-only, wired into `jobDispatch.ts`'s `JOB_RUNNERS` where their signature fits — `admin_backfill_assets` doesn't, ported as a plain function instead). Audited `resolve_and_track_symbol` fresh: no `src/jobs/resolveAndTrackSymbol.ts` wrapper needed (it has no JobConfig row/`_TASK_MAPPING` entry in Python either — always `.delay()`'d directly from search, matching Node's existing `resolveAndTrackSymbol()` call in `market.ts`); closed its one real gap instead (missing `backfill_history` call) via a new shared `lib/market/backfillHistory.ts`. Also found `admin_reprocess_all`/`admin_repair` have no real caller anywhere in Python today (no JobConfig row, no HTTP route) — ported anyway per the brief, documented as unreachable via `dispatchJob` in Node too (matches Python's `_DEFAULT_JOBS` omission). Live-verified against the real dev DB: `refresh_fundamentals` (44 real equities updated + real accelerated-schedule cron fire), `validate_data_quality` (1020 real issues found), `admin_repair` (57 real assets, 33 successful `generateFeatures` writes), `admin_reprocess_all` (real 564-asset dispatch), `resolveAndTrackSymbol` (real PLTR track + 62 history rows), `seed_tracked_universes` (real 5-universe equity seed + real 100-coin CoinGecko crypto seed). Full trail: `.superpowers/sdd/2026-08-12-python-to-node-remaining-work/task7-report.md`.
 
 ---
 
