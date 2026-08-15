@@ -10,15 +10,6 @@ const apiProxyTarget = process.env.VITE_API_PROXY_TARGET || 'http://localhost:80
 // module, add one line here — this is the per-module routing switch, not
 // apiService.js or any per-request logic.
 const apiNodeProxyTarget = process.env.VITE_API_NODE_PROXY_TARGET || 'http://localhost:8010'
-// Phase 10 wave 2 note: two /api/v1/intelligence sub-paths
-// (portfolio-health/trend, diversification/trend) are deliberately NOT
-// routed to Node — those endpoints aren't ported yet (Phase 8 deferred
-// them) and stay on Python. Because Vite/http-proxy-middleware matches
-// proxy keys by string prefix, '/api/v1/intelligence/portfolio-health'
-// would otherwise also match '.../portfolio-health/trend' — so the two
-// trend guards below MUST stay listed (and stay ahead of the shorter
-// intelligence entries) rather than being deleted as "redundant" with
-// the '/api' catch-all.
 const frontendPort = parseInt(process.env.FRONTEND_PORT || '3000', 10)
 const isDocker = process.env.RUNNING_IN_DOCKER === 'true'
 
@@ -40,17 +31,11 @@ export default defineConfig({
                 target: apiNodeProxyTarget,
                 changeOrigin: true,
             },
-            // Trend endpoints stay on Python — not ported in Node yet (see
-            // note above). Must precede the shorter intelligence prefixes
-            // below since those would otherwise prefix-match these too.
-            '/api/v1/intelligence/portfolio-health/trend': {
-                target: apiProxyTarget,
-                changeOrigin: true,
-            },
-            '/api/v1/intelligence/diversification/trend': {
-                target: apiProxyTarget,
-                changeOrigin: true,
-            },
+            // Task 8: portfolio-health/trend and diversification/trend are now
+            // full ports too (backend-node/src/lib/ai/intelligence.ts) — no
+            // dedicated guard entries needed any more since Vite/http-proxy-
+            // middleware's string-prefix match sends both the base path and
+            // its /trend sub-path to the same (now-correct) Node target below.
             '/api/v1/intelligence/portfolio-health': {
                 target: apiNodeProxyTarget,
                 changeOrigin: true,
@@ -118,9 +103,10 @@ export default defineConfig({
             // Export, Danger Zone, Restore.
             //
             // The Zerodha OAuth *callback* is a sub-path of '/config' that
-            // must stay on Python — same class of near-miss as the
-            // intelligence /trend guards above: it's a live external API
-            // integration (token exchange against Zerodha's servers). Task 4
+            // must stay on Python — same class of prefix-collision guard the
+            // intelligence /trend endpoints used to need (see Task 8): it's a
+            // live external API integration (token exchange against
+            // Zerodha's servers). Task 4
             // ported it (backend-node/src/routes/settings/providers.ts,
             // byte-for-byte checksum parity unit-tested against Python's
             // real sha256 output) but did NOT cut it over here — no live
