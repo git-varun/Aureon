@@ -6,6 +6,7 @@ import { refreshTrackedUniverseTask } from "./jobs/refreshTrackedUniverse";
 import { refreshMutualFundNavsTask } from "./jobs/refreshMutualFundNavs";
 import { seedPriceHistoryTask } from "./jobs/seedPriceHistory";
 import { refreshPricesTask } from "./jobs/refreshPrices";
+import { dailyBriefingTask } from "./jobs/dailyBriefing";
 import {
   bullmqConnection as connection,
   QUOTES_QUEUE_NAME,
@@ -99,6 +100,18 @@ export async function registerRefreshPricesSchedule(): Promise<void> {
   );
 }
 
+// Matches Python's beat_schedule crontab(hour=8, minute=0) exactly — daily
+// at 08:00 UTC. Task 6 Step 3 — re-verified fresh against celery_app.py at
+// execution time (daily-briefing/weekly-briefing/monthly-briefing were still
+// present in beat_schedule, unremoved, as of this port).
+export async function registerDailyBriefingSchedule(): Promise<void> {
+  await scheduledJobsQueue.upsertJobScheduler(
+    "daily-briefing",
+    { pattern: "0 8 * * *", tz: "UTC" },
+    { name: "dailyBriefing" },
+  );
+}
+
 // Job-name -> handler map, not one Worker per job — q_scheduled_jobs is
 // meant to carry every cron-driven job cut over from Celery beat (see
 // migration plan Task 3), so a future job landing here only needs an entry
@@ -109,6 +122,7 @@ const SCHEDULED_JOB_HANDLERS: Record<string, () => Promise<void>> = {
   refreshMutualFundNavs: refreshMutualFundNavsTask,
   seedPriceHistory: seedPriceHistoryTask,
   refreshPrices: refreshPricesTask,
+  dailyBriefing: dailyBriefingTask,
 };
 
 export function startScheduledJobsWorker(): Worker<undefined, void> {

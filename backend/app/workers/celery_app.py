@@ -52,10 +52,6 @@ celery_app.conf.beat_schedule = {
         "task": "app.workers.ingestion.tasks.refresh_fundamentals_task",
         "schedule": crontab(hour=6, minute=0),
     },
-    "daily-briefing": {
-        "task": "app.workers.ingestion.tasks.daily_briefing_task",
-        "schedule": crontab(hour=8, minute=0),
-    },
     "weekly-briefing": {
         "task": "app.workers.ingestion.tasks.weekly_briefing_task",
         "schedule": crontab(hour=8, minute=30, day_of_week="mon"),
@@ -65,13 +61,13 @@ celery_app.conf.beat_schedule = {
         "schedule": crontab(hour=9, minute=0, day_of_month=1),
     },
     # sweep-stale-job-logs, refresh-tracked-universe, refresh-mutual-fund-navs,
-    # seed-price-history, and hourly-price-refresh (all 5 of migration plan
-    # Task 3) cut over to real BullMQ repeatable schedules in backend-node
-    # (see backend-node/scripts/startWorker.ts) — no longer scheduled here to
-    # avoid both sides dispatching against the same tables (job_logs /
-    # latest_quotes+price_history) concurrently. All 5 tasks themselves are
-    # untouched and still reachable via manual dispatch
-    # (ConfigService._TASK_MAPPING).
+    # seed-price-history, hourly-price-refresh (all 5 of migration plan
+    # Task 3), and daily-briefing (Task 6) cut over to real BullMQ repeatable
+    # schedules in backend-node (see backend-node/scripts/startWorker.ts) — no
+    # longer scheduled here to avoid both sides dispatching against the same
+    # tables (job_logs / latest_quotes+price_history / ai_briefings)
+    # concurrently. All tasks themselves are untouched and still reachable
+    # via manual dispatch (ConfigService._TASK_MAPPING).
 }
 
 

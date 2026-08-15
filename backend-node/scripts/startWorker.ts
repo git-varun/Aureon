@@ -8,6 +8,7 @@ import {
   registerRefreshMutualFundNavsSchedule,
   registerSeedPriceHistorySchedule,
   registerRefreshPricesSchedule,
+  registerDailyBriefingSchedule,
 } from "../src/queue";
 
 // Manual/dev entrypoint — starts BullMQ workers consuming q_ingestion and
@@ -48,11 +49,13 @@ async function start() {
   await registerRefreshMutualFundNavsSchedule();
   await registerSeedPriceHistorySchedule();
   await registerRefreshPricesSchedule();
+  await registerDailyBriefingSchedule();
   console.log("BullMQ worker listening on q_ingestion, q_watchlist_alerts, q_scheduled_jobs");
   console.log(
     "Repeatable schedules registered: sweep-stale-job-logs (*/30 * * * * UTC), " +
       "refresh-tracked-universe (0 4 * * * UTC), refresh-mutual-fund-navs (0 23 * * * UTC), " +
-      "seed-price-history (0 2 * * 0 UTC), hourly-price-refresh (0 * * * * UTC)",
+      "seed-price-history (0 2 * * 0 UTC), hourly-price-refresh (0 * * * * UTC), " +
+      "daily-briefing (0 8 * * * UTC)",
   );
 }
 
