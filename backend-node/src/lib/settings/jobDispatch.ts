@@ -16,6 +16,8 @@ import { dailyBriefingTask } from "../../jobs/dailyBriefing";
 import { weeklyBriefingTask } from "../../jobs/weeklyBriefing";
 import { monthlyBriefingTask } from "../../jobs/monthlyBriefing";
 import { refreshFundamentalsTask } from "../../jobs/refreshFundamentals";
+import { validateDataQualityTask } from "../../jobs/validateDataQuality";
+import { adminReprocessAllAssetsTask, adminRepairJobsTask } from "../../jobs/adminMaintenance";
 
 const redis = new Redis(process.env.REDIS_URL!);
 
@@ -40,6 +42,9 @@ const JOB_RUNNERS: Record<string, (logId: number) => Promise<void>> = {
   weekly_briefing: weeklyBriefingTask,
   monthly_briefing: monthlyBriefingTask,
   refresh_fundamentals: refreshFundamentalsTask,
+  validate_data_quality: validateDataQualityTask,
+  admin_reprocess_all: adminReprocessAllAssetsTask,
+  admin_repair: adminRepairJobsTask,
 };
 
 // Port of ConfigService._PROVIDER_REQUIRED_JOBS — dispatch_job checks the
