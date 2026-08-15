@@ -7,8 +7,11 @@ import { prisma } from "../src/prisma";
 // only current way to invoke it in Node.
 adminRepairJobsTask()
   .then(async () => {
+    // adminRepairJobsTask now awaits the full bounded-batch fan-out (see
+    // adminMaintenance.ts's fanOutGenerateFeatures) before resolving — every
+    // generateFeatures() call has already settled by the time this "done"
+    // prints, no extra grace period needed.
     console.log("admin_repair: done");
-    await new Promise((r) => setTimeout(r, 3000));
     await prisma.$disconnect();
   })
   .catch(async (e) => {

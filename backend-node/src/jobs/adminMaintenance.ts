@@ -2,17 +2,37 @@ import { prisma } from "../prisma";
 import { generateFeatures } from "./generateFeatures";
 import { wrapJobExecution } from "../lib/jobs/wrapJobExecution";
 
-/** Fire-and-forget fan-out matching Python's generate_features.delay(str(aid))
- * loop — Celery dispatches each asset onto q_ingestion and returns
- * immediately; Node has no per-job queue for this phase (see plan Global
- * Constraints — no BullMQ queue-per-job), so each call is invoked directly
- * and NOT awaited, keeping the same "fire many, don't block the caller on
- * all of them" semantics. A rejected promise is logged, not thrown, so one
- * bad asset can't take down the batch. */
-function fanOutGenerateFeatures(assetIds: string[]): void {
-  for (const assetId of assetIds) {
-    generateFeatures(assetId).catch((e: Error) => {
-      console.error(`admin maintenance: generateFeatures failed for asset ${assetId}: ${e.message}`);
+// Bounds how many generateFeatures(assetId) calls run concurrently. Python's
+// generate_features.delay(str(aid)) loop is queue-bounded by Celery worker
+// concurrency (durable, retryable); Node has no per-job queue this phase
+// (see plan Global Constraints — no BullMQ queue-per-job), so an earlier
+// version of this function fired every call as an unawaited promise all at
+// once — up to 564 concurrent generateFeatures runs for admin_reprocess_all,
+// each doing several Prisma round-trips, against a Prisma connection pool
+// that defaults to a small multiple of CPU count. That does NOT match
+// Celery's dispatch semantics (no bound, no durability across a process
+// restart, no retry-on-failure) despite an earlier version of this comment
+// claiming it did — this is a plain bounded-batch loop, nothing more.
+const FAN_OUT_BATCH_SIZE = 10;
+
+/** Processes assetIds in fixed-size batches, awaiting each batch (via
+ * Promise.allSettled, so one bad asset can't take down the batch or abort
+ * the remaining ones) before starting the next — bounds concurrent
+ * generateFeatures() calls to FAN_OUT_BATCH_SIZE regardless of how large
+ * assetIds is, so behavior no longer depends on Prisma connection-pool
+ * size at full-universe scale. Awaited by its caller (unlike the earlier
+ * fire-and-forget version), so the job's JobLog reflects when processing
+ * actually finished, not just when it was kicked off. */
+async function fanOutGenerateFeatures(assetIds: string[]): Promise<void> {
+  for (let i = 0; i < assetIds.length; i += FAN_OUT_BATCH_SIZE) {
+    const batch = assetIds.slice(i, i + FAN_OUT_BATCH_SIZE);
+    const results = await Promise.allSettled(batch.map((assetId) => generateFeatures(assetId)));
+    results.forEach((result, idx) => {
+      if (result.status === "rejected") {
+        const assetId = batch[idx];
+        const e = result.reason as Error;
+        console.error(`admin maintenance: generateFeatures failed for asset ${assetId}: ${e.message}`);
+      }
     });
   }
 }
@@ -30,7 +50,7 @@ function fanOutGenerateFeatures(assetIds: string[]): void {
 async function reprocessAllAssets(): Promise<void> {
   const rows = await prisma.latestQuote.findMany({ where: { assetId: { not: null } }, select: { assetId: true }, distinct: ["assetId"] });
   const assetIds = rows.map((r) => r.assetId).filter((id): id is string => id !== null);
-  fanOutGenerateFeatures(assetIds);
+  await fanOutGenerateFeatures(assetIds);
 }
 
 export async function adminReprocessAllAssetsTask(logId: number | null = null): Promise<void> {
@@ -43,14 +63,19 @@ export async function adminReprocessAllAssetsTask(logId: number | null = null): 
  * cannot fit `JOB_RUNNERS`'s `(logId) => Promise<void>` shape, so it is
  * NOT added there — its only real Python call site is
  * `POST /market/symbols/{symbol}/backfill` (market.py:142), which resolves
- * one asset by symbol and calls `admin_backfill_assets.delay([str(asset.id)])`.
- * That route is deliberately not ported to Node yet (Task 1 explicitly
- * deferred it — see task1-report.md — because generate_features had no
- * Node runner at the time; it does now, but porting the route itself is
- * out of Task 7's scope, which is jobs/tasks.py only). This function exists
- * so a future route port has a ready runner to call. */
+ * one asset by symbol and calls `admin_backfill_assets.delay([str(asset.id)])`
+ * without awaiting it. That route is deliberately not ported to Node yet
+ * (Task 1 explicitly deferred it — see task1-report.md — because
+ * generate_features had no Node runner at the time; it does now, but
+ * porting the route itself is out of Task 7's scope, which is jobs/tasks.py
+ * only). This function exists so a future route port has a ready runner to
+ * call; it stays fire-and-forget at this outer layer (no JobLog to close
+ * out, matching Python's own no-`_wrap_job_execution` shape) while
+ * `fanOutGenerateFeatures` still bounds concurrency internally. */
 export function adminBackfillAssets(assetIds: string[]): void {
-  fanOutGenerateFeatures(assetIds);
+  void fanOutGenerateFeatures(assetIds).catch((e: Error) => {
+    console.error(`admin_backfill_assets: fan-out failed: ${e.message}`);
+  });
 }
 
 /** Port of admin_repair_jobs (job_name "admin_repair"). Finds every
@@ -69,7 +94,7 @@ async function repairJobs(): Promise<void> {
     ]);
     if (!features || !score) missing.push(assetId);
   }
-  fanOutGenerateFeatures(missing);
+  await fanOutGenerateFeatures(missing);
 }
 
 export async function adminRepairJobsTask(logId: number | null = null): Promise<void> {

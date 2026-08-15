@@ -7,10 +7,11 @@ import { prisma } from "../src/prisma";
 // only current way to invoke it in Node.
 adminReprocessAllAssetsTask()
   .then(async () => {
+    // adminReprocessAllAssetsTask now awaits the full bounded-batch fan-out
+    // (see adminMaintenance.ts's fanOutGenerateFeatures) before resolving —
+    // every generateFeatures() call has already settled by the time this
+    // "done" prints, no extra grace period needed.
     console.log("admin_reprocess_all: done");
-    // fan-out is fire-and-forget (matches Python's generate_features.delay),
-    // so give in-flight generateFeatures() calls a moment before exit.
-    await new Promise((r) => setTimeout(r, 3000));
     await prisma.$disconnect();
   })
   .catch(async (e) => {
