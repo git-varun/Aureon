@@ -161,6 +161,38 @@ export async function getQuotesByIds(coinIds: string[]): Promise<Record<string, 
   return results;
 }
 
+export interface TopMarketCapCoin {
+  id: string;
+  symbol: string;
+  name: string | null;
+  price: number | null;
+  market_cap: number | null;
+}
+
+/** Port of CoinGeckoAdapter.get_top_market_cap_coins — live top-`limit`-by-
+ * market-cap coins in one /coins/markets call (confirmed live: a single
+ * page=1&per_page=100 call returns the full top 100, well within the
+ * 2-calls/60s local budget), used by seed_tracked_universes so the crypto
+ * universe is discovered from real live ranking rather than a 6th hardcoded
+ * static list. */
+export async function getTopMarketCapCoins(limit = 100): Promise<TopMarketCapCoin[]> {
+  await checkBudget();
+  try {
+    const res = await get("/coins/markets", { vs_currency: "usd", order: "market_cap_desc", per_page: limit, page: 1 });
+    const data = (await res.json()) as Array<{ id: string; symbol: string; name?: string; current_price?: number; market_cap?: number }>;
+    return data.map((c) => ({
+      id: c.id,
+      symbol: c.symbol.toUpperCase(),
+      name: c.name ?? null,
+      price: c.current_price ?? null,
+      market_cap: c.market_cap ?? null,
+    }));
+  } catch (e) {
+    if (e instanceof ProviderError) throw e;
+    throw new ProviderError(`CoinGecko get_top_market_cap_coins failed: ${(e as Error).message}`);
+  }
+}
+
 export async function healthCheck(): Promise<boolean> {
   try {
     const res = await fetch(`${BASE_URL}/ping`, { signal: AbortSignal.timeout(5_000) });

@@ -74,6 +74,25 @@ export async function getOrCreateAsset(tx: Tx, symbol: string): Promise<Asset> {
   });
 }
 
+/** Port of IngestionRepository.ensure_tracked_asset — creates the Asset if
+ * missing (is_tracked=true from the start), or flips is_tracked true on an
+ * already-existing one (e.g. already held/watchlisted). A plain
+ * create-if-missing would silently skip real, currently-untracked rows.
+ * Used by seed_tracked_universes' equity/crypto seeding. */
+export async function ensureTrackedAsset(symbol: string, name: string, assetClass: string): Promise<Asset> {
+  const existing = await prisma.asset.findUnique({ where: { symbol } });
+  if (existing) {
+    if (!existing.isTracked) {
+      return prisma.asset.update({ where: { id: existing.id }, data: { isTracked: true } });
+    }
+    return existing;
+  }
+  const now = new Date();
+  return prisma.asset.create({
+    data: { id: uuidv5(symbol, UUID_NAMESPACE_DNS), symbol, name, assetClass, isTracked: true, createdAt: now, updatedAt: now },
+  });
+}
+
 /** Port of IngestionRepository.upsert_quote. */
 export async function upsertQuote(tx: Tx, quote: NormalizedQuote, assetId: string): Promise<void> {
   await tx.latestQuote.upsert({
