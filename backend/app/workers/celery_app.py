@@ -52,14 +52,10 @@ celery_app.conf.beat_schedule = {
         "task": "app.workers.ingestion.tasks.refresh_fundamentals_task",
         "schedule": crontab(hour=6, minute=0),
     },
-    "monthly-briefing": {
-        "task": "app.workers.ingestion.tasks.monthly_briefing_task",
-        "schedule": crontab(hour=9, minute=0, day_of_month=1),
-    },
     # sweep-stale-job-logs, refresh-tracked-universe, refresh-mutual-fund-navs,
     # seed-price-history, hourly-price-refresh (all 5 of migration plan
-    # Task 3), and daily-briefing, weekly-briefing (Task 6) cut over to real
-    # BullMQ repeatable schedules in backend-node (see
+    # Task 3), and daily-briefing, weekly-briefing, monthly-briefing (Task 6)
+    # cut over to real BullMQ repeatable schedules in backend-node (see
     # backend-node/scripts/startWorker.ts) — no longer scheduled here to
     # avoid both sides dispatching against the same tables (job_logs /
     # latest_quotes+price_history / ai_briefings) concurrently. All tasks
