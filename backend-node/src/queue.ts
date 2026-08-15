@@ -7,6 +7,7 @@ import { refreshMutualFundNavsTask } from "./jobs/refreshMutualFundNavs";
 import { seedPriceHistoryTask } from "./jobs/seedPriceHistory";
 import { refreshPricesTask } from "./jobs/refreshPrices";
 import { dailyBriefingTask } from "./jobs/dailyBriefing";
+import { weeklyBriefingTask } from "./jobs/weeklyBriefing";
 import {
   bullmqConnection as connection,
   QUOTES_QUEUE_NAME,
@@ -112,6 +113,16 @@ export async function registerDailyBriefingSchedule(): Promise<void> {
   );
 }
 
+// Matches Python's beat_schedule crontab(hour=8, minute=30, day_of_week="mon")
+// exactly — weekly, Monday 08:30 UTC. Cron day-of-week 1 = Monday.
+export async function registerWeeklyBriefingSchedule(): Promise<void> {
+  await scheduledJobsQueue.upsertJobScheduler(
+    "weekly-briefing",
+    { pattern: "30 8 * * 1", tz: "UTC" },
+    { name: "weeklyBriefing" },
+  );
+}
+
 // Job-name -> handler map, not one Worker per job — q_scheduled_jobs is
 // meant to carry every cron-driven job cut over from Celery beat (see
 // migration plan Task 3), so a future job landing here only needs an entry
@@ -123,6 +134,7 @@ const SCHEDULED_JOB_HANDLERS: Record<string, () => Promise<void>> = {
   seedPriceHistory: seedPriceHistoryTask,
   refreshPrices: refreshPricesTask,
   dailyBriefing: dailyBriefingTask,
+  weeklyBriefing: weeklyBriefingTask,
 };
 
 export function startScheduledJobsWorker(): Worker<undefined, void> {

@@ -13,6 +13,7 @@ import { syncZerodhaTask } from "../../jobs/syncZerodha";
 import { syncGrowwTask } from "../../jobs/syncGroww";
 import { syncBinanceTask } from "../../jobs/syncBinance";
 import { dailyBriefingTask } from "../../jobs/dailyBriefing";
+import { weeklyBriefingTask } from "../../jobs/weeklyBriefing";
 
 const redis = new Redis(process.env.REDIS_URL!);
 
@@ -34,6 +35,7 @@ const JOB_RUNNERS: Record<string, (logId: number) => Promise<void>> = {
   sync_groww: syncGrowwTask,
   sync_binance: syncBinanceTask,
   daily_briefing: dailyBriefingTask,
+  weekly_briefing: weeklyBriefingTask,
 };
 
 // Port of ConfigService._PROVIDER_REQUIRED_JOBS — dispatch_job checks the
