@@ -58,7 +58,10 @@ describe("jobs settings", () => {
   });
 
   it("running a job with no Node runner fails loudly, not silently", async () => {
-    const res = await fetch(`${baseUrl}/jobs/daily_briefing/run`, { method: "POST" });
+    // daily_briefing/weekly_briefing/monthly_briefing gained real Node
+    // runners in Task 6 — refresh_fundamentals is still unported, so it's
+    // the current example of "seeded in job_configs but not dispatchable".
+    const res = await fetch(`${baseUrl}/jobs/refresh_fundamentals/run`, { method: "POST" });
     expect(res.status).toBeGreaterThanOrEqual(400);
   });
 
