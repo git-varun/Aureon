@@ -33,40 +33,11 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
     from app.core.validation import validate_environment
     validate_environment()
 
-    # Run database migrations (auto-migrate)
-    try:
-        import os
+    from app.core.database import engine
 
-        from alembic.config import Config
-        from sqlalchemy import text
+    # Schema migrations are Prisma's responsibility now (backend-node/prisma) —
+    # `prisma migrate deploy` is run out-of-band, not from this Python startup path.
 
-        from alembic import command
-        from app.core.database import engine
-        
-        logger.info("Applying pending database migrations...")
-        base_dir = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-        ini_path = os.path.join(base_dir, "alembic.ini")
-        alembic_cfg = Config(ini_path)
-        
-        if engine.dialect.name == "postgresql":
-            with engine.connect() as conn:
-                logger.info("Acquiring Postgres migration advisory lock...")
-                conn.execute(text("SELECT pg_advisory_lock(74239847)"))
-                try:
-                    command.upgrade(alembic_cfg, "head")
-                finally:
-                    try:
-                        conn.execute(text("SELECT pg_advisory_unlock(74239847)"))
-                    except Exception as unlock_err:
-                        logger.warning(f"Failed to release Postgres migration lock: {unlock_err}")
-                logger.info("Database migrations applied successfully under lock.")
-        else:
-            command.upgrade(alembic_cfg, "head")
-            logger.info("Database migrations applied successfully.")
-    except Exception as e:
-        logger.error(f"Failed to apply database migrations: {e}")
-        raise RuntimeError(f"Startup check failed: Database migration failed. Error: {e}")
-    
     # Seeding database defaults
     try:
         from app.core.database import SessionLocal

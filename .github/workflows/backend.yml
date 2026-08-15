@@ -72,10 +72,18 @@ jobs:
       run: |
         PGPASSWORD=postgres psql -h localhost -U postgres -c "CREATE DATABASE aureon_test"
 
-    - name: Run Alembic migrations (dev database)
+    - name: Set up Node.js
+      uses: actions/setup-node@v4
+      with:
+        node-version: '22'
+
+    - name: Apply Prisma schema (dev database)
       run: |
-        cd backend
-        alembic upgrade head
+        cd backend-node
+        npm ci
+        npx prisma migrate deploy
+      env:
+        DATABASE_URL: postgresql://postgres:postgres@localhost:5432/aureon
 
     - name: Run bootstrap smoke test (dev database)
       run: |
