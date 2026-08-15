@@ -97,11 +97,7 @@
 - Create: `backend-node/src/jobs/{dailyBriefing,weeklyBriefing,monthlyBriefing}.ts`
 - Modify: `backend-node/src/queue.ts`, `celery_app.py`
 
-- [ ] **Step 1: Audit** `daily_briefing_task`/`weekly_briefing_task`/`monthly_briefing_task` in `backend/app/workers/ingestion/tasks.py` for exact prompt construction and `AIBriefing` writes.
-- [ ] **Step 2: Port each**, reusing `backend-node/src/lib/ai/aiService.ts`'s fallback chain (already ported).
-- [ ] **Step 3: Schedule cutover** — same `registerXSchedule()` + `SCHEDULED_JOB_HANDLERS` pattern used for all 5 Task 3 jobs. Re-confirm cadences from `celery_app.py` at execution time (`daily-briefing`, `weekly-briefing`, `monthly-briefing` were still on Python's `beat_schedule` as of this writing).
-- [ ] **Step 4: Live-verify** one real fire per cadence tier where feasible; note explicitly if a real fire isn't practically observable within the verification window (don't fake one) — same caveat this session hit with `seed_price_history`'s weekly cadence (that one was verified via a temporary short-interval test scheduler, not a wait for the real Sunday fire; the same technique applies here).
-- [ ] **Step 5: Commit per job.**
+- [x] **Steps 1-5: DONE (2026-08-15).** Ported daily/weekly/monthly briefing jobs to `backend-node/src/jobs/{daily,weekly,monthly}Briefing.ts`, reusing `aiService.ts`'s existing Gemini→Groq fallback chain (no AI logic reimplemented). Cadences re-verified fresh (`0 8 * * *`, `30 8 * * 1`, `0 9 1 * *` UTC) and matched exactly. Each commit paired its BullMQ schedule addition with the corresponding Python `beat_schedule` removal — verified via `git show` on all 3 commits, zero double-fire window at any point. Live-verified with real Gemini calls, cost-conscious (one temp-scheduler real fire for the shared cron-trigger plumbing, one direct `dispatchJob` call each for weekly/monthly's bodies). `celery_app.py`'s `beat_schedule` now contains only `news-refresh`/`refresh-fundamentals`. Reviewed clean, no fix round needed. Full trail: `.superpowers/sdd/2026-08-12-python-to-node-remaining-work/task6-report.md`.
 
 ---
 
