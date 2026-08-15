@@ -1,13 +1,24 @@
 import { v4 as uuidv4 } from "uuid";
 import { prisma } from "../../prisma";
 import type { Prisma, recommendations as Recommendation } from "../../generated/prisma";
+import { NotFoundError, ValidationError } from "../errors";
+import { logAuditAction } from "../audit";
+import { invalidateOrgRecommendations } from "../portfolioCache";
 
-// Port of the parts of app/modules/ai/services/recommendation.py needed by
-// this phase: the deterministic rule engine (_score_and_materialize) and the
-// manual-batch trigger (generate_recommendations). apply/dismiss/undo and
-// materialize_for_asset/update_financial_intelligence_pipeline are
-// deliberately out of scope for this pass (see Phase 8 handoff) — they drag
-// in Redis cache *setters* that don't exist in Node yet.
+// Port of the parts of app/modules/ai/services/recommendation.py needed so
+// far: the deterministic rule engine (_score_and_materialize), the
+// manual-batch trigger (generate_recommendations), and apply/dismiss/undo.
+// materialize_for_asset/update_financial_intelligence_pipeline remain
+// out of scope (Task 8, per task5-brief.md) — apply/dismiss/undo below
+// deliberately do NOT call it, matching that decision; Python wraps that
+// call in try/except so a pipeline failure never blocks the primary action,
+// and skipping it entirely here has the same observable effect (the
+// downstream intelligence/outcomes/dashboard caches just don't get
+// refreshed by this path, same as if the pipeline call had failed).
+
+// Matches Python's RECOMMENDATIONS_CACHE_KEY = "global" — recommendations
+// are global, not portfolio-scoped.
+const RECOMMENDATIONS_CACHE_KEY = "global";
 
 export interface SerializedRecommendation {
   id: string;
@@ -248,4 +259,185 @@ export async function generateRecommendations(): Promise<SerializedRecommendatio
   }
 
   return Promise.all(recsCreated.map((r) => serializeRecommendation(r)));
+}
+
+/** Port of apply_recommendation. Creates a real Transaction against the
+ * target portfolio (or the first portfolio found, if none specified),
+ * marks the recommendation "applied", and records a predicted_impact
+ * (+/-0.05, or 0.0 for HOLD — a fixed heuristic, not a model output; see
+ * Python's identical hardcoded values). */
+export async function applyRecommendation(
+  recommendationId: string,
+  portfolioId: string | null,
+  actorId: string | null,
+): Promise<SerializedRecommendation> {
+  const updatedRec = await prisma.$transaction(async (tx) => {
+    const rec = await tx.recommendations.findUnique({ where: { id: recommendationId } });
+    if (!rec) throw new NotFoundError("Recommendation not found");
+    if (rec.status !== "active") throw new ValidationError(`Recommendation is already ${rec.status}`);
+
+    let targetPortfolioId = portfolioId;
+    if (!targetPortfolioId) {
+      const portfolio = await tx.portfolio.findFirst();
+      if (!portfolio) throw new ValidationError("No portfolios found to apply recommendation");
+      targetPortfolioId = portfolio.id;
+    } else {
+      const portfolio = await tx.portfolio.findUnique({ where: { id: targetPortfolioId } });
+      if (!portfolio) throw new ValidationError("Invalid portfolio");
+    }
+
+    const quote = await tx.latestQuote.findFirst({ where: { assetId: rec.asset_id } });
+    const symbol = quote?.symbol ?? "UNKNOWN";
+    const price = quote ? Number(quote.price) : 0.0;
+
+    const isReduceOrAvoid = rec.recommendation_state === "REDUCE" || rec.recommendation_state === "AVOID";
+    const transactionType = rec.recommendation_state === "BUY" ? "BUY" : isReduceOrAvoid ? "SELL" : "HOLD";
+    const quantity = rec.recommendation_state === "BUY" || isReduceOrAvoid ? 1.0 : 0.0;
+    const now = new Date();
+    const txnId = uuidv4();
+
+    await tx.transaction.create({
+      data: {
+        id: txnId,
+        portfolioId: targetPortfolioId,
+        symbol,
+        assetId: rec.asset_id,
+        transactionType,
+        quantity,
+        price,
+        transactionDate: now,
+        fees: 0.0,
+        taxes: 0.0,
+        notes: `Applied recommendation ${rec.id} (${rec.recommendation_state})`,
+        broker: "aureon",
+        kind: "trade",
+        recommendationId: rec.id,
+        createdAt: now,
+        updatedAt: now,
+      },
+    });
+
+    const updated = await tx.recommendations.update({
+      where: { id: recommendationId },
+      data: { status: "applied", updated_at: now },
+    });
+
+    const predictedImpact = rec.recommendation_state === "BUY" ? 0.05 : isReduceOrAvoid ? -0.05 : 0.0;
+
+    await tx.recommendation_outcomes.upsert({
+      where: { recommendation_id: recommendationId },
+      create: {
+        recommendation_id: recommendationId,
+        status: "applied",
+        action_taken_at: now,
+        ledger_transaction_id: txnId,
+        predicted_impact: predictedImpact,
+      },
+      update: {
+        status: "applied",
+        action_taken_at: now,
+        ledger_transaction_id: txnId,
+        predicted_impact: predictedImpact,
+      },
+    });
+
+    await logAuditAction(tx, "recommendation_apply", "recommendation", actorId, recommendationId, {
+      recommendation_state: rec.recommendation_state,
+      portfolio_id: targetPortfolioId,
+    });
+
+    return updated;
+  });
+
+  await invalidateOrgRecommendations(RECOMMENDATIONS_CACHE_KEY);
+  return serializeRecommendation(updatedRec);
+}
+
+/** Port of dismiss_recommendation. */
+export async function dismissRecommendation(
+  recommendationId: string,
+  reason: string | null,
+  actorId: string | null,
+): Promise<SerializedRecommendation> {
+  const updatedRec = await prisma.$transaction(async (tx) => {
+    const rec = await tx.recommendations.findUnique({ where: { id: recommendationId } });
+    if (!rec) throw new NotFoundError("Recommendation not found");
+    if (rec.status !== "active") throw new ValidationError(`Recommendation is already ${rec.status}`);
+
+    const now = new Date();
+    const updated = await tx.recommendations.update({
+      where: { id: recommendationId },
+      data: { status: "dismissed", updated_at: now },
+    });
+
+    await tx.recommendation_outcomes.upsert({
+      where: { recommendation_id: recommendationId },
+      create: {
+        recommendation_id: recommendationId,
+        status: "dismissed",
+        action_taken_at: now,
+        dismiss_reason: reason,
+      },
+      update: {
+        status: "dismissed",
+        action_taken_at: now,
+        dismiss_reason: reason,
+      },
+    });
+
+    await logAuditAction(tx, "recommendation_dismiss", "recommendation", actorId, recommendationId, { reason });
+
+    return updated;
+  });
+
+  await invalidateOrgRecommendations(RECOMMENDATIONS_CACHE_KEY);
+  return serializeRecommendation(updatedRec);
+}
+
+/** Port of undo_recommendation. Nulls the outcome's ledger_transaction_id
+ * before deleting the Transaction row (order matters: recommendation_outcomes
+ * has a real FK to transactions, so the reference must be cleared first —
+ * Python's SQLAlchemy unit-of-work reorders these automatically within one
+ * session.commit(), Prisma does not). */
+export async function undoRecommendation(recommendationId: string, actorId: string | null): Promise<SerializedRecommendation> {
+  const updatedRec = await prisma.$transaction(async (tx) => {
+    const rec = await tx.recommendations.findUnique({ where: { id: recommendationId } });
+    if (!rec) throw new NotFoundError("Recommendation not found");
+    if (rec.status === "active") throw new ValidationError("Recommendation is already active");
+
+    const out = await tx.recommendation_outcomes.findUnique({ where: { recommendation_id: recommendationId } });
+    const ledgerTransactionId = out?.ledger_transaction_id ?? null;
+    const now = new Date();
+
+    const updated = await tx.recommendations.update({
+      where: { id: recommendationId },
+      data: { status: "active", updated_at: now },
+    });
+
+    if (out) {
+      await tx.recommendation_outcomes.update({
+        where: { recommendation_id: recommendationId },
+        data: { status: "active", action_taken_at: now, ledger_transaction_id: null, dismiss_reason: null },
+      });
+    }
+
+    if (ledgerTransactionId) {
+      const txn = await tx.transaction.findUnique({ where: { id: ledgerTransactionId } });
+      if (txn) await tx.transaction.delete({ where: { id: txn.id } });
+    }
+
+    // Matches Python exactly: rec.status is read here *after* being mutated
+    // to "active" above (recommendation.py's undo_recommendation logs
+    // rec.status post-mutation too), so this always logs "active" rather
+    // than the actual prior status — a pre-existing quirk in the Python
+    // source, ported as-is rather than silently fixed.
+    await logAuditAction(tx, "recommendation_undo", "recommendation", actorId, recommendationId, {
+      previous_status: updated.status,
+    });
+
+    return updated;
+  });
+
+  await invalidateOrgRecommendations(RECOMMENDATIONS_CACHE_KEY);
+  return serializeRecommendation(updatedRec);
 }

@@ -12,8 +12,7 @@ import { buildGlobalContext, buildQaContext } from "./contextBuilder";
 
 // Port of app/modules/ai/services/ai.py's AIService (execute_completion,
 // generate_briefing, ask_aureon, explain_recommendation, submit_feedback,
-// get_briefing_history). get_usage_summary and get_single_asset_take are
-// deliberately deferred (see Phase 8 handoff).
+// get_briefing_history, get_single_asset_take, get_usage_summary).
 
 // ── Prompts (byte-identical JSON schema keys to the Python originals) ──────
 
@@ -142,6 +141,14 @@ Respond with ONLY valid JSON using exactly these keys:
 Context:
 ${context}
 `;
+
+const SINGLE_ASSET_TAKE_PROMPT = (symbol: string, context: string) => `\
+Role: Investment Advisor.
+Analyze this asset: ${symbol}.
+Context:
+${context}
+
+Provide 3 sentences of technical/fundamental analysis. Any metric marked N/A is genuinely unavailable — do not invent or assume a value for it; note it as unavailable if relevant instead. Return JSON only with key: 'take'.`;
 
 // ── Compliance & Evaluation Engine ──────────────────────────────────────────
 
@@ -541,4 +548,70 @@ export async function getBriefingHistory(limit = 30): Promise<Record<string, unk
     take: limit,
   });
   return briefs.map((b) => ({ ...(b.content as Record<string, unknown>), id: b.id }));
+}
+
+/** Port of get_single_asset_take. */
+export async function getSingleAssetTake(symbolRaw: string, userId: string | null): Promise<Record<string, unknown>> {
+  const symbol = symbolRaw.toUpperCase().trim();
+
+  const quote = await prisma.latestQuote.findUnique({ where: { symbol } });
+  let context = "";
+  if (quote) {
+    const snap = quote.assetId ? await prisma.assetSnapshot.findUnique({ where: { assetId: quote.assetId } }) : null;
+    const rsi = snap?.rsi !== null && snap?.rsi !== undefined ? Number(snap.rsi).toFixed(1) : "N/A";
+    const pe = snap?.peRatio !== null && snap?.peRatio !== undefined ? Number(snap.peRatio).toFixed(1) : "N/A";
+    context = `Asset: ${symbol} | Price: ${quote.price} | RSI: ${rsi} | PE Ratio: ${pe}`;
+  }
+
+  const prompt = SINGLE_ASSET_TAKE_PROMPT(symbol, context);
+  const { responseText, generationId } = await executeCompletion(prompt, "single", userId, null, null, true);
+
+  const parsed = parseJsonLoose(responseText) as Record<string, unknown>;
+  parsed.generation_id = generationId;
+  return parsed;
+}
+
+/** Port of get_usage_summary. Aggregate token usage over ai_generations,
+ * grouped by provider/model. No dollar cost is computed — per-model pricing
+ * isn't tracked anywhere in this codebase, and hardcoding a rate table would
+ * be fabricating a number this system never actually observed. Rows written
+ * before token capture was added have null token counts and are excluded
+ * from the token sums but included in generation_count. */
+export async function getUsageSummary(since: Date | null, until: Date | null): Promise<Record<string, unknown>> {
+  const where: Prisma.ai_generationsWhereInput = {};
+  if (since !== null || until !== null) {
+    where.created_at = {};
+    if (since !== null) where.created_at.gte = since;
+    if (until !== null) where.created_at.lte = until;
+  }
+
+  const grouped = await prisma.ai_generations.groupBy({
+    by: ["provider", "model"],
+    where,
+    _count: { _all: true, error_message: true },
+    _sum: { prompt_tokens: true, completion_tokens: true, total_tokens: true },
+    _avg: { latency_ms: true },
+  });
+
+  const byModel = grouped.map((r) => ({
+    provider: r.provider,
+    model: r.model,
+    generation_count: r._count._all,
+    prompt_tokens: r._sum.prompt_tokens,
+    completion_tokens: r._sum.completion_tokens,
+    total_tokens: r._sum.total_tokens,
+    avg_latency_ms: r._avg.latency_ms !== null ? Math.round(r._avg.latency_ms * 10) / 10 : null,
+    error_count: r._count.error_message,
+  }));
+
+  const totalTokens = byModel.reduce((sum, m) => (m.total_tokens !== null ? sum + m.total_tokens : sum), 0);
+  const anyTotalTokens = byModel.some((m) => m.total_tokens !== null);
+
+  return {
+    since: since ? since.toISOString() : null,
+    until: until ? until.toISOString() : null,
+    by_model: byModel,
+    total_generations: byModel.reduce((sum, m) => sum + m.generation_count, 0),
+    total_tokens: anyTotalTokens ? totalTokens : null,
+  };
 }

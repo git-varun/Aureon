@@ -187,18 +187,11 @@ export default defineConfig({
                 target: apiNodeProxyTarget,
                 changeOrigin: true,
             },
-            // /api/v1/analytics/ai/single/{symbol} (get_single_asset_take)
-            // and /api/v1/analytics/ai/usage (get_usage_summary) are
-            // deliberately NOT ported (Phase 8 handoff, reconfirmed by this
-            // wave's route inventory) and stay on Python. Deliberately no
-            // blanket '/api/v1/analytics/ai' entry — only the two ported
-            // sub-paths below are listed, so the unported two fall through
-            // to the '/api' catch-all untouched.
-            '/api/v1/analytics/ai/briefings': {
-                target: apiNodeProxyTarget,
-                changeOrigin: true,
-            },
-            '/api/v1/analytics/ai/news/batch': {
+            // Task 5: single-asset-take and usage-summary are now a full
+            // port too — every /api/v1/analytics/ai/** sub-path (briefings,
+            // single/{symbol}, usage, news/batch) is on Node. Safe as one
+            // blanket prefix line, same pattern as monitoring/watchlist.
+            '/api/v1/analytics/ai': {
                 target: apiNodeProxyTarget,
                 changeOrigin: true,
             },
@@ -246,21 +239,18 @@ export default defineConfig({
                 target: apiNodeProxyTarget,
                 changeOrigin: true,
             },
-            // Recommendation apply/dismiss/undo are deliberately deferred
-            // (Phase 8 handoff: they need Redis cache setters Node doesn't
-            // have yet) and must stay on Python. recommendation_id is a
-            // variable UUID in the middle of the path, so a plain string
-            // prefix can't guard just these — this is the one case in the
-            // whole migration needing a RegExp proxy key (Vite treats any
-            // key starting with '^' as a RegExp, matched by object order
-            // same as string prefixes). MUST precede the blanket
-            // '/api/v1/recommendation' line below.
-            '^/api/v1/recommendation/recommendations/[^/]+/(apply|dismiss|undo)$': {
-                target: apiProxyTarget,
-                changeOrigin: true,
-            },
-            // generate + list are a full port; apply/dismiss/undo are
-            // guarded above.
+            // Task 5: apply/dismiss/undo are now a full port too (the org-
+            // recommendations Redis cache invalidation they need lives in
+            // backend-node/src/lib/portfolioCache.ts). Live-verified against
+            // real recommendation rows in the real DB — apply (real
+            // Transaction + audit log + cache invalidation), dismiss, undo
+            // (transaction delete + outcome reset), and the 400/404 error
+            // paths. update_financial_intelligence_pipeline is NOT called
+            // (a known, deliberately deferred gap to Task 8 — see
+            // task5-report.md), same as Python's apply/dismiss/undo already
+            // tolerate that call failing via try/except. generate + list
+            // were already a full port; the whole '/api/v1/recommendation'
+            // prefix is now safe as one blanket line.
             '/api/v1/recommendation': {
                 target: apiNodeProxyTarget,
                 changeOrigin: true,

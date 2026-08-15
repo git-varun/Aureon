@@ -29,6 +29,13 @@ function getIntelligenceOutcomesKey(portfolioId: string): string {
   return `intelligence:outcomes:${portfolioId}`;
 }
 
+// Matches Python's RECOMMENDATIONS_CACHE_KEY = "global" in
+// app/modules/ai/services/recommendation.py — recommendations are global,
+// not portfolio-scoped, so there's a single fixed cache key.
+function getOrgRecommendationsKey(orgId: string): string {
+  return `recommendation:org:${orgId}`;
+}
+
 /** Port of app/core/redis.py cache_portfolio_snapshot. Same key/900s TTL as
  * Python so a Node-written entry can be read by Python (and vice versa)
  * during a partial rollout or rollback. */
@@ -85,5 +92,19 @@ export async function invalidateIntelligenceOutcomes(portfolioId: string): Promi
     await redis.del(getIntelligenceOutcomesKey(portfolioId));
   } catch (e) {
     console.warn(`redis_operation_failed operation=invalidate_intelligence_outcomes portfolio_id=${portfolioId} error=${(e as Error).message}`);
+  }
+}
+
+/** Port of Python's invalidate_org_recommendations (app/core/redis.py),
+ * called by apply_recommendation/dismiss_recommendation/undo_recommendation
+ * after each write. Does NOT call update_financial_intelligence_pipeline —
+ * that downstream refresh (5 more Redis cache writers, an outcome-recompute
+ * loop, an all-portfolios loop) is a known, deliberately deferred gap; see
+ * task2-step2-report.md and task5-brief.md. */
+export async function invalidateOrgRecommendations(orgId: string): Promise<void> {
+  try {
+    await redis.del(getOrgRecommendationsKey(orgId));
+  } catch (e) {
+    console.warn(`redis_operation_failed operation=invalidate_org_recommendations org_id=${orgId} error=${(e as Error).message}`);
   }
 }

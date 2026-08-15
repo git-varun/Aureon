@@ -1,12 +1,19 @@
 import { Router } from "express";
 import { prisma } from "../../prisma";
 import { requireUuidParam } from "../../lib/validation";
-import { generateRecommendations, serializeRecommendation } from "../../lib/ai/recommendation";
+import { getCurrentUser } from "../../lib/users";
+import {
+  generateRecommendations,
+  serializeRecommendation,
+  applyRecommendation,
+  dismissRecommendation,
+  undoRecommendation,
+} from "../../lib/ai/recommendation";
 
-// Port of app/modules/ai/api/recommendation.py — generate + list only.
-// apply/dismiss/undo are deliberately deferred (see Phase 8 handoff): they
-// drag in update_financial_intelligence_pipeline, which needs Redis cache
-// *setters* that don't exist in Node yet.
+// Port of app/modules/ai/api/recommendation.py — generate, list, and
+// apply/dismiss/undo. NotFoundError/ValidationError thrown by the apply/
+// dismiss/undo lib functions are handled by the central errorHandler
+// (404/400), matching Python's per-route try/except HTTPException mapping.
 export const recommendationRouter = Router();
 
 recommendationRouter.post("/recommendations/generate", async (req, res, next) => {
@@ -52,6 +59,43 @@ recommendationRouter.get("/recommendations/:id", async (req, res, next) => {
       return;
     }
     res.json(await serializeRecommendation(rec));
+  } catch (e) {
+    next(e);
+  }
+});
+
+recommendationRouter.post("/recommendations/:id/apply", async (req, res, next) => {
+  try {
+    requireUuidParam(req.params.id, "recommendation_id");
+    const portfolioIdRaw = req.query.portfolio_id;
+    let portfolioId: string | null = null;
+    if (typeof portfolioIdRaw === "string") {
+      requireUuidParam(portfolioIdRaw, "portfolio_id");
+      portfolioId = portfolioIdRaw;
+    }
+    const user = await getCurrentUser();
+    res.json(await applyRecommendation(req.params.id, portfolioId, user.id));
+  } catch (e) {
+    next(e);
+  }
+});
+
+recommendationRouter.post("/recommendations/:id/dismiss", async (req, res, next) => {
+  try {
+    requireUuidParam(req.params.id, "recommendation_id");
+    const reason = typeof req.query.reason === "string" ? req.query.reason : null;
+    const user = await getCurrentUser();
+    res.json(await dismissRecommendation(req.params.id, reason, user.id));
+  } catch (e) {
+    next(e);
+  }
+});
+
+recommendationRouter.post("/recommendations/:id/undo", async (req, res, next) => {
+  try {
+    requireUuidParam(req.params.id, "recommendation_id");
+    const user = await getCurrentUser();
+    res.json(await undoRecommendation(req.params.id, user.id));
   } catch (e) {
     next(e);
   }

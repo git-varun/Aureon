@@ -87,12 +87,7 @@
 - Modify: `backend-node/src/routes/ai/recommendations.ts` (`apply`/`dismiss`/`undo`)
 - Create: cache-setter helpers mirroring Python's apply/dismiss/undo Redis writes
 
-- [ ] **Step 1: Audit** the exact Redis keys/cache behavior Python's `apply_recommendation`/`dismiss_recommendation`/`undo_recommendation` set — re-read `backend/app/modules/ai/services/recommendation.py` fresh (lines ~255–430 in the version read this session; re-verify line numbers, the file has been changing).
-- [ ] **Step 2: Port the two analytics endpoints.**
-- [ ] **Step 3: Port apply/dismiss/undo.**
-- [ ] **Step 4: Live-verify** against a real recommendation.
-- [ ] **Step 5: Cut over** — remove the `apply|dismiss|undo` RegExp guard and the `analytics/ai/single`+`analytics/ai/usage` gaps from `vite.config.js`.
-- [ ] **Step 6: Commit.**
+- [x] **Steps 1-6: DONE (2026-08-15), cut over.** Ported `single-asset-take`/`usage-summary` (`backend-node/src/lib/ai/aiService.ts` + `routes/ai/ai.ts`) and `apply`/`dismiss`/`undo` (`backend-node/src/lib/ai/recommendation.ts` + `routes/ai/recommendations.ts`), plus the one Redis cache-invalidation helper apply/dismiss/undo actually need (`invalidateOrgRecommendations`, added to `backend-node/src/lib/portfolioCache.ts`, matching the `recommendation:org:global` key Python's `RECOMMENDATIONS_CACHE_KEY` uses). Deliberately does NOT call `update_financial_intelligence_pipeline` — that's Task 8, per this task's brief; Python already tolerates that call failing via try/except, so skipping it entirely has the same observable effect. Live-verified against real recommendation rows in the real DB: apply (real Transaction row + audit log + cache invalidation), the buggy-but-matched `previous_status` value undo's audit log logs (ported byte-for-byte, not silently fixed), dismiss with reason, the 400 "already applied/dismissed/active" paths, 404 for an unknown id, and both `single-asset-take` (real Gemini call, N/A-metric handling for a no-PE crypto asset and an unknown symbol) and `usage-summary` (real `ai_generations` aggregation, since/until filtering, 422 on a malformed date). `vite.config.js` cut over: removed the `apply|dismiss|undo` RegExp guard and the `analytics/ai/single`/`analytics/ai/usage` gaps, both routes now blanket-prefixed to Node. Full trail: `.superpowers/sdd/2026-08-12-python-to-node-remaining-work/task5-report.md`.
 
 ---
 
