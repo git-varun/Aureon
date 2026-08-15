@@ -2,6 +2,7 @@ import { v4 as uuidv4 } from "uuid";
 import { prisma } from "../../prisma";
 import { computeQualityValuationScores } from "../ai/fundamentalsScoring";
 import { scoreAndMaterialize } from "../ai/recommendation";
+import { updateFinancialIntelligencePipeline } from "../ai/intelligence";
 import { validateFeatures } from "./features";
 import { cacheAssetScores, getCachedAssetSignals, invalidateOrgRecommendations } from "./cache";
 
@@ -9,45 +10,12 @@ const MODEL_VERSION = "v1.0.0";
 const FEATURE_SCHEMA_VERSION = "1.0";
 
 /** Port of materialize_for_asset — loads the snapshot/features/latest score
- * already persisted for this asset and runs the deterministic rule engine
- * against them.
- *
- * DECISION (2026-08-12, migration plan Task 2 Step 2 — re-audited live, not
- * from a prior summary): deliberately does NOT call
- * update_financial_intelligence_pipeline. Re-scoped to migration plan
- * Task 8 (Intelligence gaps), not built here. Rationale — this is a much
- * bigger port than "compose get_dashboard_aggregation's 8 sub-results":
- *   - Python's update_financial_intelligence_pipeline (recommendation.py)
- *     first recomputes RecommendationOutcome.realized_impact for every
- *     APPLIED outcome across the whole DB, then loops every portfolio and
- *     writes 5 separate Redis cache keys (intelligence:portfolio,
- *     :health, :recommendations, :outcomes, :dashboard) via
- *     cache_intelligence_*.
- *   - None of those 5 cache_intelligence_* writers exist in Node yet —
- *     only invalidators do (backend-node/src/lib/portfolioCache.ts). This
- *     is confirmed by backend-node/src/routes/ai/intelligence.ts's own
- *     header comment, which independently defers /dashboard and all cache
- *     read/write wrapping for the same reason.
- *   - get_dashboard_aggregation (FinancialIntelligenceService,
- *     app/modules/ai/services/intelligence.py) composes investor_health,
- *     diversification, concentration, cash_opportunities, quality
- *     metrics, performance, goal_progress — all of which DO already have
- *     Node equivalents in backend-node/src/lib/ai/intelligence.ts — plus
- *     recent-outcomes serialization and latest-briefing summary, which
- *     don't (would need 2 new repo methods).
- * Concrete live consequence today: getConfidenceCalibration (wired to
- * GET /api/v1/intelligence/calibration) and the unwired
- * getRecommendationScorecard/getRulePerformance all read
- * RecommendationOutcome.realized_impact directly
- * (backend-node/src/lib/ai/intelligence.ts). Nothing in the Node path
- * refreshes that field — while an asset is scored/recommendations are
- * applied through Node, /calibration silently serves increasingly stale
- * win-rate data until either Python's materialize_for_asset equivalent
- * runs, or Task 8 ports update_financial_intelligence_pipeline. (Node has
- * not yet ported apply_recommendation/dismiss_recommendation/
- * undo_recommendation — the other 3 Python call sites of this pipeline —
- * so materializeForAsset is currently the only Node code path affected.)
- * Full audit trail: .superpowers/sdd/2026-08-12-python-to-node-remaining-work/task2-step2-report.md */
+ * already persisted for this asset, runs the deterministic rule engine
+ * against them, then (Task 8, migration plan) calls
+ * update_financial_intelligence_pipeline exactly like Python's
+ * materialize_for_asset does — wrapped so a pipeline failure never blocks
+ * the primary materialization. See lib/ai/intelligence.ts for the pipeline
+ * port and task2-step2-report.md / task8-report.md for the prior deferral. */
 export async function materializeForAsset(assetId: string): Promise<void> {
   const [snapshot, features, scores] = await Promise.all([
     prisma.assetSnapshot.findUnique({ where: { assetId } }),
@@ -64,6 +32,12 @@ export async function materializeForAsset(assetId: string): Promise<void> {
   if (rec === null) return;
 
   await invalidateOrgRecommendations();
+
+  try {
+    await updateFinancialIntelligencePipeline();
+  } catch (e) {
+    console.warn(`intelligence_pipeline_refresh_failed operation=materialize_for_asset asset_id=${assetId} error=${(e as Error).message}`);
+  }
 }
 
 /** Port of RecommendationService.generate_and_score_asset. Validates an

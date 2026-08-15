@@ -4,17 +4,28 @@ import type { Prisma, recommendations as Recommendation } from "../../generated/
 import { NotFoundError, ValidationError } from "../errors";
 import { logAuditAction } from "../audit";
 import { invalidateOrgRecommendations } from "../portfolioCache";
+import { updateFinancialIntelligencePipeline } from "./intelligence";
 
 // Port of the parts of app/modules/ai/services/recommendation.py needed so
 // far: the deterministic rule engine (_score_and_materialize), the
 // manual-batch trigger (generate_recommendations), and apply/dismiss/undo.
-// materialize_for_asset/update_financial_intelligence_pipeline remain
-// out of scope (Task 8, per task5-brief.md) — apply/dismiss/undo below
-// deliberately do NOT call it, matching that decision; Python wraps that
-// call in try/except so a pipeline failure never blocks the primary action,
-// and skipping it entirely here has the same observable effect (the
-// downstream intelligence/outcomes/dashboard caches just don't get
-// refreshed by this path, same as if the pipeline call had failed).
+// apply/dismiss/undo below call update_financial_intelligence_pipeline
+// (Task 8, migration plan — see lib/ai/intelligence.ts) wrapped in
+// try/catch, exactly matching Python's try/except-wrap-and-continue so a
+// pipeline failure never blocks the primary action.
+
+/** Logs and swallows a pipeline failure, matching Python's
+ * `except Exception as e: logger.warning(...)` at all 4 call sites. */
+async function refreshIntelligencePipeline(operation: string, recommendationId: string, extra?: Record<string, string>): Promise<void> {
+  try {
+    await updateFinancialIntelligencePipeline();
+  } catch (e) {
+    const extraStr = extra ? " " + Object.entries(extra).map(([k, v]) => `${k}=${v}`).join(" ") : "";
+    console.warn(
+      `intelligence_pipeline_refresh_failed operation=${operation} recommendation_id=${recommendationId}${extraStr} error=${(e as Error).message}`,
+    );
+  }
+}
 
 // Matches Python's RECOMMENDATIONS_CACHE_KEY = "global" — recommendations
 // are global, not portfolio-scoped.
@@ -271,6 +282,7 @@ export async function applyRecommendation(
   portfolioId: string | null,
   actorId: string | null,
 ): Promise<SerializedRecommendation> {
+  let resolvedPortfolioId = "";
   const updatedRec = await prisma.$transaction(async (tx) => {
     const rec = await tx.recommendations.findUnique({ where: { id: recommendationId } });
     if (!rec) throw new NotFoundError("Recommendation not found");
@@ -346,10 +358,12 @@ export async function applyRecommendation(
       portfolio_id: targetPortfolioId,
     });
 
+    resolvedPortfolioId = targetPortfolioId;
     return updated;
   });
 
   await invalidateOrgRecommendations(RECOMMENDATIONS_CACHE_KEY);
+  await refreshIntelligencePipeline("apply_recommendation", recommendationId, { portfolio_id: resolvedPortfolioId });
   return serializeRecommendation(updatedRec);
 }
 
@@ -391,6 +405,7 @@ export async function dismissRecommendation(
   });
 
   await invalidateOrgRecommendations(RECOMMENDATIONS_CACHE_KEY);
+  await refreshIntelligencePipeline("dismiss_recommendation", recommendationId);
   return serializeRecommendation(updatedRec);
 }
 
@@ -439,5 +454,6 @@ export async function undoRecommendation(recommendationId: string, actorId: stri
   });
 
   await invalidateOrgRecommendations(RECOMMENDATIONS_CACHE_KEY);
+  await refreshIntelligencePipeline("undo_recommendation", recommendationId);
   return serializeRecommendation(updatedRec);
 }

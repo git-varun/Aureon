@@ -97,10 +97,9 @@ export async function invalidateIntelligenceOutcomes(portfolioId: string): Promi
 
 /** Port of Python's invalidate_org_recommendations (app/core/redis.py),
  * called by apply_recommendation/dismiss_recommendation/undo_recommendation
- * after each write. Does NOT call update_financial_intelligence_pipeline —
- * that downstream refresh (5 more Redis cache writers, an outcome-recompute
- * loop, an all-portfolios loop) is a known, deliberately deferred gap; see
- * task2-step2-report.md and task5-brief.md. */
+ * after each write. Those call sites also call
+ * updateFinancialIntelligencePipeline (lib/ai/intelligence.ts, Task 8,
+ * migration plan) right after this invalidation, matching Python. */
 export async function invalidateOrgRecommendations(orgId: string): Promise<void> {
   try {
     await redis.del(getOrgRecommendationsKey(orgId));
