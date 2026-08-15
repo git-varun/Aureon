@@ -76,12 +76,7 @@
 - Create: `backend-node/src/jobs/{syncZerodha,syncBinance,syncGroww,backfillBinanceSpot}.ts`
 - Modify: `frontend/vite.config.js`
 
-- [ ] **Step 1: Read `backend/app/modules/portfolio/PROVIDERS.md` in full**, plus each broker's provider module. Real-money account sync — no shortcuts on cost-basis/lot-matching logic.
-- [ ] **Step 2: Port Zerodha OAuth token exchange first.**
-- [ ] **Step 3: Port each broker's sync logic**, one per commit, live-verified against a real connected account's real holdings.
-- [ ] **Step 4: Port `backfill_binance_spot_task`.**
-- [ ] **Step 5: Cut over** `/api/v1/portfolio/sync`, `/api/v1/portfolio/sync/status`, the OAuth callback.
-- [ ] **Step 6: Commit per broker.**
+- [x] **Steps 1-6: DONE (2026-08-15), NOT cut over.** Ported Zerodha/Groww/Binance broker sync, futures positions, trade-history cost basis, Binance Spot backfill, and the Zerodha OAuth callback — checksum/HMAC math, cost-basis math, and idempotent upsert-by-symbol logic all verified byte-for-byte against Python source. **Zero live credentials exist in this dev environment for any of the three brokers** (confirmed via DB query before writing code) — every claim is code-parity-verified via unit tests, honestly reported as NOT live-verified against a real connected account. Given real-money risk, deliberately did **not** cut over `/api/v1/portfolio/sync`, `/sync/status`, the Binance-backfill routes, or the OAuth callback in `vite.config.js` — comment-only update there explains why. 2 real bugs caught and fixed pre-shipping (Binance stablecoin-quote default trap; Groww exception-swallowing). 53 new tests, reviewed and approved (1 fix round: a JobLog observability gap, unrelated to the cutover decision). **Cutover remains a follow-up task, gated on either obtaining real credentials to live-verify, or accepting code-parity-only as sufficient — that's a decision for the user, not made here.** Full trail: `.superpowers/sdd/2026-08-12-python-to-node-remaining-work/task4-report.md`.
 
 ---
 
