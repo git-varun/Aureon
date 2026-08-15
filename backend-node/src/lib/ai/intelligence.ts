@@ -1,11 +1,22 @@
 import { prisma } from "../../prisma";
 import { resolvePositionsPriceMap } from "../prices";
-import type { Position } from "../../generated/prisma";
+import type { Position, Transaction, Asset, recommendation_outcomes } from "../../generated/prisma";
+import {
+  cacheIntelligencePortfolio,
+  cacheIntelligenceHealth,
+  cacheIntelligenceRecommendations,
+  cacheIntelligenceOutcomes,
+  cacheIntelligenceDashboard,
+} from "../evaluation/cache";
+import { serializeRecommendation } from "./recommendation";
 
 // Port of app/modules/ai/services/intelligence.py's FinancialIntelligenceService.
 // Only the methods reachable from build_intelligence_context are ported here
-// (see the Phase 8 handoff) — the trend endpoints, get_dashboard_aggregation,
-// and get_recommendation_explainability_v2 are deliberately out of scope.
+// (see the Phase 8 handoff) — get_recommendation_explainability_v2 remains
+// out of scope. Task 8 (migration plan) added: the trend endpoints
+// (get_portfolio_health_trend/get_diversification_trend + their shared
+// _clamp_trend_dates/_index_price_history_by_asset/_get_portfolio_state_at_date
+// helpers), get_dashboard_aggregation, and update_financial_intelligence_pipeline.
 
 interface IntelConfig {
   expected_return_default: number;
@@ -784,6 +795,431 @@ export async function getGoalProgressMetrics(portfolioId: string, userId: string
       status: monthlySaving > 0 ? "Active" : "Inactive",
     },
   };
+}
+
+// ── Trend endpoints (Task 8) ────────────────────────────────────────────────
+
+interface PortfolioState {
+  total_value: number;
+  positions: Record<string, { quantity: number; total_cost: number; asset_id: string | null }>;
+  stock_values: Record<string, number>;
+  sector_values: Record<string, number>;
+  sectors: Set<string>;
+  weights: number[];
+}
+
+function formatDate(d: Date): string {
+  return d.toISOString().slice(0, 10);
+}
+
+/** Port of _index_price_history_by_asset: groups PriceHistory rows by
+ * asset_id and sorts each group ascending by timestamp so closestPrice can
+ * binary-search instead of linearly scanning every point on every trend day. */
+function indexPriceHistoryByAsset(priceHistory: Array<{ assetId: string; timestamp: Date; price: unknown }>): Map<string, Array<[Date, number]>> {
+  const byAsset = new Map<string, Array<[Date, number]>>();
+  for (const p of priceHistory) {
+    const arr = byAsset.get(p.assetId) ?? [];
+    arr.push([p.timestamp, Number(p.price)]);
+    byAsset.set(p.assetId, arr);
+  }
+  for (const arr of byAsset.values()) arr.sort((a, b) => a[0].getTime() - b[0].getTime());
+  return byAsset;
+}
+
+/** Port of _closest_price: bisect_left on the sorted timestamps, then picks
+ * whichever of the two neighboring points is closer in time to dt. */
+function closestPrice(points: Array<[Date, number]>, dt: Date): number | null {
+  if (points.length === 0) return null;
+  const t = dt.getTime();
+  let lo = 0;
+  let hi = points.length;
+  while (lo < hi) {
+    const mid = (lo + hi) >> 1;
+    if (points[mid][0].getTime() < t) lo = mid + 1;
+    else hi = mid;
+  }
+  const candidates = [lo - 1, lo].filter((i) => i >= 0 && i < points.length);
+  let best = candidates[0];
+  let bestDiff = Math.abs(points[best][0].getTime() - t);
+  for (const i of candidates) {
+    const diff = Math.abs(points[i][0].getTime() - t);
+    if (diff < bestDiff) {
+      best = i;
+      bestDiff = diff;
+    }
+  }
+  return points[best][1];
+}
+
+/** Port of _get_portfolio_state_at_date: replays every transaction up to dt
+ * to derive per-symbol quantities, then values each held position at its
+ * price closest to dt. Positions with no real price history as of dt are
+ * skipped from the aggregate rather than fabricated in — same policy as
+ * getAssetPriceAtTime. */
+function getPortfolioStateAtDate(
+  dt: Date,
+  transactions: Transaction[],
+  priceHistoryByAsset: Map<string, Array<[Date, number]>>,
+  assetsBySymbol: Map<string, Asset>,
+): PortfolioState {
+  const positions: Record<string, { quantity: number; total_cost: number; asset_id: string | null }> = {};
+  for (const tx of transactions) {
+    if (tx.transactionDate > dt) continue;
+    const symbol = tx.symbol;
+    const qty = Number(tx.quantity);
+    const price = Number(tx.price);
+
+    if (!positions[symbol]) positions[symbol] = { quantity: 0.0, total_cost: 0.0, asset_id: tx.assetId };
+
+    if (tx.transactionType === "BUY") {
+      positions[symbol].quantity += qty;
+      positions[symbol].total_cost += qty * price;
+    } else if (tx.transactionType === "SELL") {
+      positions[symbol].quantity = Math.max(0.0, positions[symbol].quantity - qty);
+    }
+  }
+
+  let totalVal = 0.0;
+  const stockValues: Record<string, number> = {};
+  const sectorValues: Record<string, number> = {};
+  const weights: number[] = [];
+  const sectors = new Set<string>();
+
+  for (const [sym, pos] of Object.entries(positions)) {
+    if (pos.quantity <= 0) continue;
+    const assetId = pos.asset_id;
+    let price: number | null = null;
+    if (assetId && priceHistoryByAsset.has(assetId)) {
+      price = closestPrice(priceHistoryByAsset.get(assetId)!, dt);
+    }
+    if (price === null) continue;
+
+    const val = pos.quantity * price;
+    totalVal += val;
+    stockValues[sym] = val;
+    weights.push(val);
+
+    const asset = assetsBySymbol.get(sym);
+    if (asset) {
+      const sector = sectorOf(asset.metadata);
+      sectors.add(sector);
+      sectorValues[sector] = (sectorValues[sector] ?? 0.0) + val;
+    }
+  }
+
+  return { total_value: totalVal, positions, stock_values: stockValues, sector_values: sectorValues, sectors, weights };
+}
+
+/** Port of _clamp_trend_dates: builds the day-by-day date list for a trend
+ * series, clamped to the portfolio's actual start so no point predates its
+ * first real transaction. Returns [] when there are no transactions at all. */
+function clampTrendDates(days: number, transactions: Transaction[]): Date[] {
+  if (transactions.length === 0) return [];
+  const now = new Date();
+  const earliestTxnDate = transactions.reduce(
+    (min, t) => (t.transactionDate < min ? t.transactionDate : min),
+    transactions[0].transactionDate,
+  );
+  const requestedStart = new Date(now.getTime() - (days - 1) * 86400000);
+  const start = requestedStart > earliestTxnDate ? requestedStart : earliestTxnDate;
+  const totalDays = Math.max(1, Math.floor((now.getTime() - start.getTime()) / 86400000) + 1);
+  const dates: Date[] = [];
+  for (let i = totalDays - 1; i >= 0; i--) dates.push(new Date(now.getTime() - i * 86400000));
+  return dates;
+}
+
+export interface HealthTrendPoint {
+  date: string;
+  investor_health_score: number;
+  diversification_score: number;
+  allocation_discipline_score: number;
+  activity_consistency_score: number;
+}
+
+/** Port of get_portfolio_health_trend. Known gap, deliberately deferred
+ * (matches Python): get_transactions_by_portfolio doesn't filter
+ * kind="broker_snapshot" the way portfolio history does — a broker-synced
+ * holding with no real trade ledger will show a false "sudden appearance"
+ * at its sync date instead of being excluded. Display-skew, not fabrication. */
+export async function getPortfolioHealthTrend(portfolioId: string, days: number): Promise<HealthTrendPoint[]> {
+  const transactions = await prisma.transaction.findMany({ where: { portfolioId }, orderBy: { transactionDate: "asc" } });
+  const dates = clampTrendDates(days, transactions);
+  if (dates.length === 0) return [];
+
+  const symbols = [...new Set(transactions.map((t) => t.symbol))];
+  const assets = symbols.length > 0 ? await prisma.asset.findMany({ where: { symbol: { in: symbols } } }) : [];
+  const assetsBySymbol = new Map(assets.map((a) => [a.symbol, a]));
+  const assetIds = assets.map((a) => a.id);
+
+  const priceHistory = assetIds.length > 0 ? await prisma.priceHistory.findMany({ where: { assetId: { in: assetIds } } }) : [];
+  const priceHistoryByAsset = indexPriceHistoryByAsset(priceHistory);
+
+  // Hoisted out of the per-day loop, matching Python's fix for the same
+  // N+1: allocation targets don't vary by date.
+  const classTarget = await getAllocationTargets();
+
+  const trend: HealthTrendPoint[] = [];
+  for (const d of dates) {
+    const state = getPortfolioStateAtDate(d, transactions, priceHistoryByAsset, assetsBySymbol);
+    const assetCount = Object.values(state.positions).filter((p) => p.quantity > 0).length;
+    const sCount = Math.min(100.0, assetCount * 10.0);
+    const sSector = Math.min(100.0, state.sectors.size * 20.0);
+    const hhi = state.total_value > 0 ? state.weights.reduce((acc, w) => acc + (w / state.total_value) ** 2, 0) : 0.0;
+    const sBalance = state.total_value > 0 ? 100.0 * (1.0 - hhi) : 0.0;
+    const sDiv = 0.3 * sCount + 0.3 * sSector + 0.4 * sBalance;
+
+    const alloc: Record<string, number> = {};
+    for (const [sym, val] of Object.entries(state.stock_values)) {
+      const asset = assetsBySymbol.get(sym);
+      if (!asset) continue;
+      const clsKey = classKey(asset.assetClass);
+      alloc[clsKey] = (alloc[clsKey] ?? 0.0) + val;
+    }
+    let totalDrift = 0.0;
+    for (const [cls, target] of Object.entries(classTarget)) {
+      const currPct = state.total_value > 0 ? (alloc[cls] ?? 0.0) / state.total_value : 0.0;
+      totalDrift += Math.abs(currPct - target);
+    }
+    const sDiscipline = Math.max(0.0, 100.0 - totalDrift * 50.0);
+
+    const ninetyDaysBefore = new Date(d.getTime() - 90 * 86400000);
+    const recentTxns = transactions.filter((t) => t.transactionDate >= ninetyDaysBefore && t.transactionDate <= d).length;
+    const sConsistency = Math.min(100.0, recentTxns * 33.3);
+
+    // Recommendation status isn't a dated field, so there's no real
+    // point-in-time "outcomes" signal here — excluded and renormalized,
+    // matching getInvestorHealthScore's no-fabricated-neutral-default policy.
+    const weightedTerms: Array<[number, number]> = [
+      [0.3, sDiv],
+      [0.3, sDiscipline],
+      [0.2, sConsistency],
+    ];
+    const totalWeight = weightedTerms.reduce((acc, [w]) => acc + w, 0);
+    const healthScore = weightedTerms.reduce((acc, [w, v]) => acc + w * v, 0) / totalWeight;
+
+    trend.push({
+      date: formatDate(d),
+      investor_health_score: round1(healthScore),
+      diversification_score: round1(sDiv),
+      allocation_discipline_score: round1(sDiscipline),
+      activity_consistency_score: round1(sConsistency),
+    });
+  }
+  return trend;
+}
+
+export interface DiversificationTrendPoint {
+  date: string;
+  diversification_score: number;
+  asset_count: number;
+  sector_count: number;
+  hhi: number;
+}
+
+/** Port of get_diversification_trend. Same broker_snapshot filtering gap as
+ * getPortfolioHealthTrend above (deliberately deferred, matches Python). */
+export async function getDiversificationTrend(portfolioId: string, days: number): Promise<DiversificationTrendPoint[]> {
+  const transactions = await prisma.transaction.findMany({ where: { portfolioId }, orderBy: { transactionDate: "asc" } });
+  const dates = clampTrendDates(days, transactions);
+  if (dates.length === 0) return [];
+
+  const symbols = [...new Set(transactions.map((t) => t.symbol))];
+  const assets = symbols.length > 0 ? await prisma.asset.findMany({ where: { symbol: { in: symbols } } }) : [];
+  const assetsBySymbol = new Map(assets.map((a) => [a.symbol, a]));
+  const assetIds = assets.map((a) => a.id);
+
+  const priceHistory = assetIds.length > 0 ? await prisma.priceHistory.findMany({ where: { assetId: { in: assetIds } } }) : [];
+  const priceHistoryByAsset = indexPriceHistoryByAsset(priceHistory);
+
+  const trend: DiversificationTrendPoint[] = [];
+  for (const d of dates) {
+    const state = getPortfolioStateAtDate(d, transactions, priceHistoryByAsset, assetsBySymbol);
+    const assetCount = Object.values(state.positions).filter((p) => p.quantity > 0).length;
+    const sCount = Math.min(100.0, assetCount * 10.0);
+    const sSector = Math.min(100.0, state.sectors.size * 20.0);
+    const hhi = state.total_value > 0 ? state.weights.reduce((acc, w) => acc + (w / state.total_value) ** 2, 0) : 0.0;
+    const sBalance = state.total_value > 0 ? 100.0 * (1.0 - hhi) : 0.0;
+    const score = 0.3 * sCount + 0.3 * sSector + 0.4 * sBalance;
+
+    trend.push({
+      date: formatDate(d),
+      diversification_score: round1(score),
+      asset_count: assetCount,
+      sector_count: state.sectors.size,
+      hhi: round4(hhi),
+    });
+  }
+  return trend;
+}
+
+// ── Dashboard aggregation / financial-intelligence pipeline (Task 8) ───────
+
+/** Port of IntelligenceRepository.get_recent_applied_outcomes. */
+export async function getRecentAppliedOutcomes(limit: number): Promise<recommendation_outcomes[]> {
+  return prisma.recommendation_outcomes.findMany({
+    where: { status: "applied" },
+    orderBy: { action_taken_at: "desc" },
+    take: limit,
+  });
+}
+
+/** Port of IntelligenceRepository.get_latest_briefing. */
+export async function getLatestBriefing() {
+  return prisma.ai_briefings.findFirst({ orderBy: { created_at: "desc" } });
+}
+
+export interface RecentOutcomeEntry {
+  recommendation_id: string;
+  symbol: string;
+  action_taken_at: string | null;
+  predicted_impact: number | null;
+  realized_impact: number | null;
+}
+
+export interface LatestBriefingSummary {
+  briefing_id: string;
+  briefing_type: string;
+  created_at: string | null;
+  market_vibe: unknown;
+  vibe: unknown;
+}
+
+export interface DashboardAggregation {
+  investor_health: InvestorHealthScore;
+  diversification: DiversificationScore;
+  concentration: ConcentrationAnalysis;
+  cash_opportunities: CashDeploymentOpportunities;
+  recommendation_summary: RecommendationQualityMetrics;
+  recommendation_performance: RecommendationPerformanceEntry[];
+  recent_outcomes: RecentOutcomeEntry[];
+  goal_progress: GoalProgressMetrics;
+  latest_briefing: LatestBriefingSummary | null;
+}
+
+/** Port of FinancialIntelligenceService.get_dashboard_aggregation (Initiative 6). */
+export async function getDashboardAggregation(portfolioId: string, userId: string): Promise<DashboardAggregation> {
+  const health = await getInvestorHealthScore(portfolioId);
+  const div = await getPortfolioDiversificationScore(portfolioId);
+  const conc = await getPortfolioConcentrationAnalysis(portfolioId);
+  const cash = await getCashDeploymentOpportunities(portfolioId);
+  const quality = await getRecommendationQualityMetrics();
+  const perf = await getRecommendationPerformance();
+
+  const recentOutcomes = await getRecentAppliedOutcomes(5);
+  const serializedOutcomes: RecentOutcomeEntry[] = [];
+  for (const o of recentOutcomes) {
+    const rec = await prisma.recommendations.findUnique({ where: { id: o.recommendation_id } });
+    const quote = rec ? await prisma.latestQuote.findFirst({ where: { assetId: rec.asset_id } }) : null;
+    serializedOutcomes.push({
+      recommendation_id: o.recommendation_id,
+      symbol: quote?.symbol ?? "Unknown",
+      action_taken_at: o.action_taken_at?.toISOString() ?? null,
+      predicted_impact: o.predicted_impact !== null ? Number(o.predicted_impact) : null,
+      realized_impact: o.realized_impact !== null ? Number(o.realized_impact) : null,
+    });
+  }
+
+  const goals = await getGoalProgressMetrics(portfolioId, userId);
+
+  const briefing = await getLatestBriefing();
+  let briefingSummary: LatestBriefingSummary | null = null;
+  if (briefing && briefing.content) {
+    const content = briefing.content;
+    const isObj = content !== null && typeof content === "object" && !Array.isArray(content);
+    briefingSummary = {
+      briefing_id: briefing.id,
+      briefing_type: briefing.briefing_type,
+      created_at: briefing.created_at?.toISOString() ?? null,
+      market_vibe: isObj ? (content as Record<string, unknown>).market_vibe ?? null : null,
+      vibe: isObj ? (content as Record<string, unknown>).vibe ?? null : null,
+    };
+  }
+
+  return {
+    investor_health: health,
+    diversification: div,
+    concentration: conc,
+    cash_opportunities: cash,
+    recommendation_summary: quality,
+    recommendation_performance: perf,
+    recent_outcomes: serializedOutcomes,
+    goal_progress: goals,
+    latest_briefing: briefingSummary,
+  };
+}
+
+// Zero UUID Python's update_financial_intelligence_pipeline hardcodes as the
+// user_id passed to get_dashboard_aggregation in its all-portfolios loop
+// (recommendation.py:661) — not the real current user, ported as-is.
+const PIPELINE_DASHBOARD_USER_ID = "00000000-0000-0000-0000-000000000000";
+
+/** Port of RecommendationService.update_financial_intelligence_pipeline.
+ * Two phases: (1) recomputes RecommendationOutcome.realized_impact for every
+ * APPLIED outcome across the whole DB (unbounded, not just recent ones,
+ * matching Python); (2) loops every portfolio and writes the 5
+ * intelligence:* Redis cache keys (portfolio, health, recommendations,
+ * outcomes, dashboard) via lib/evaluation/cache.ts's writers.
+ *
+ * Callers must wrap this in try/catch — a pipeline failure must never block
+ * the primary action (apply/dismiss/undo/materialize), matching Python's
+ * try/except-wrap-and-continue at all 4 call sites. */
+export async function updateFinancialIntelligencePipeline(): Promise<void> {
+  // 1. Outcome updates
+  const appliedOutcomes = await prisma.recommendation_outcomes.findMany({ where: { status: "applied" } });
+  for (const o of appliedOutcomes) {
+    const rec = await prisma.recommendations.findUnique({ where: { id: o.recommendation_id } });
+    if (!rec) continue;
+
+    let p0: number | null = null;
+    if (o.ledger_transaction_id) {
+      const txn = await prisma.transaction.findUnique({ where: { id: o.ledger_transaction_id } });
+      if (txn) p0 = Number(txn.price);
+    }
+    if (p0 === null) {
+      p0 = await getAssetPriceAtTime(rec.asset_id, rec.created_at);
+    }
+    if (p0 === null) {
+      // No real price data at all — skip updating this outcome's
+      // realized_impact rather than fabricate a return.
+      continue;
+    }
+
+    const quote = await prisma.latestQuote.findFirst({ where: { assetId: rec.asset_id } });
+    const pCurrent = quote && quote.price !== null ? Number(quote.price) : p0;
+
+    const rawReturn = p0 > 0 ? (pCurrent - p0) / p0 : 0.0;
+    const realizedImpact = ["REDUCE", "AVOID"].includes(rec.recommendation_state) ? -rawReturn : rawReturn;
+
+    await prisma.recommendation_outcomes.update({
+      where: { recommendation_id: o.recommendation_id },
+      data: { realized_impact: realizedImpact },
+    });
+  }
+
+  // 2. Portfolio intelligence, financial health, and dashboard cache
+  const portfolios = await prisma.portfolio.findMany();
+  for (const portfolio of portfolios) {
+    const pid = portfolio.id;
+
+    const div = await getPortfolioDiversificationScore(pid);
+    const conc = await getPortfolioConcentrationAnalysis(pid);
+    const cash = await getCashDeploymentOpportunities(pid);
+    await cacheIntelligencePortfolio(pid, { diversification: div, concentration: conc, cash_opportunities: cash });
+
+    const health = await getInvestorHealthScore(pid);
+    await cacheIntelligenceHealth(pid, health);
+
+    const recs = await prisma.recommendations.findMany();
+    const serializedRecs = await Promise.all(recs.map((r) => serializeRecommendation(r)));
+    await cacheIntelligenceRecommendations(pid, serializedRecs);
+
+    const qualityMetrics = await getRecommendationQualityMetrics();
+    const performance = await getRecommendationPerformance();
+    await cacheIntelligenceOutcomes(pid, { quality_metrics: qualityMetrics, performance });
+
+    const dashboard = await getDashboardAggregation(pid, PIPELINE_DASHBOARD_USER_ID);
+    await cacheIntelligenceDashboard(pid, dashboard);
+  }
 }
 
 // ── Rounding helpers (match Python's round(x, n)) ───────────────────────────
