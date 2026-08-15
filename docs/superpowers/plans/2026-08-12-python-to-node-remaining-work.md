@@ -116,12 +116,7 @@
 - Modify: `backend-node/src/routes/ai/intelligence.ts`
 - Modify: `backend-node/src/lib/ai/intelligence.ts` (if Task 2 Step 2 above deferred `get_dashboard_aggregation` here)
 
-- [ ] **Step 1: Audit** `backend/app/modules/ai/api/intelligence.py`'s trend endpoints — re-check for any other remaining gaps beyond the two `vite.config.js` currently guards (`portfolio-health/trend`, `diversification/trend`).
-- [ ] **Step 2: Port**, reusing `backend-node/src/lib/ai/intelligence.ts`'s already-ported sub-aggregations where possible.
-- [ ] **Step 3: If not already done in Task 2 Step 2, port `update_financial_intelligence_pipeline`/`get_dashboard_aggregation` here** and wire `materializeForAsset` to call it.
-- [ ] **Step 4: Live-verify** against real portfolio trend data.
-- [ ] **Step 5: Cut over** — delete the two `/trend` guard lines from `vite.config.js` once the blanket `intelligence` prefix above them covers everything.
-- [ ] **Step 6: Commit.**
+- [x] **Steps 1-6: DONE (2026-08-16).** Ported `portfolio-health/trend`/`diversification/trend` line-for-line (including Python's own known bugs, preserved deliberately). Ported the full deferred pipeline: found all 5 `cache_intelligence_*` writers already existed unused (Task 2 scaffolding) and reused them; unbounded outcome-recompute loop and all 8 `get_dashboard_aggregation` sub-results verified against Python. Wired into all 4 call sites (`materializeForAsset`, `apply`/`dismiss`/`undo`) with failure isolation verified stricter than Python's own code. Fixed a real bug in review: the pipeline cached an unfiltered recommendation list (missing Python's held-asset filter) into a cache key a still-Python-served route reads — fixed in both the pipeline write and Node's own list route. Cut over both `/trend` guard lines in `vite.config.js`, verified no third gap. Reviewed clean after 1 fix round. Full trail: `.superpowers/sdd/2026-08-12-python-to-node-remaining-work/task8-report.md`.
 
 ---
 
