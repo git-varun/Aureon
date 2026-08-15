@@ -8,6 +8,7 @@ import {
   applyRecommendation,
   dismissRecommendation,
   undoRecommendation,
+  heldAssetIds,
 } from "../../lib/ai/recommendation";
 
 // Port of app/modules/ai/api/recommendation.py — generate, list, and
@@ -43,7 +44,12 @@ recommendationSeedRouter.post("/aureon/recommendations/seed", async (req, res, n
 recommendationRouter.get("/recommendations", async (req, res, next) => {
   try {
     const status = typeof req.query.status === "string" ? req.query.status : undefined;
-    const recs = await prisma.recommendations.findMany(status ? { where: { status } } : undefined);
+    // Port of RecommendationRepository.get_all(): held-asset-filtered, not
+    // every Recommendation row (recommendation.py:34/647).
+    const assetIds = await heldAssetIds();
+    const recs = await prisma.recommendations.findMany({
+      where: status ? { asset_id: { in: assetIds }, status } : { asset_id: { in: assetIds } },
+    });
     res.json(await Promise.all(recs.map((r) => serializeRecommendation(r))));
   } catch (e) {
     next(e);

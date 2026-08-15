@@ -231,12 +231,13 @@ export default defineConfig({
             // real recommendation rows in the real DB — apply (real
             // Transaction + audit log + cache invalidation), dismiss, undo
             // (transaction delete + outcome reset), and the 400/404 error
-            // paths. update_financial_intelligence_pipeline is NOT called
-            // (a known, deliberately deferred gap to Task 8 — see
-            // task5-report.md), same as Python's apply/dismiss/undo already
-            // tolerate that call failing via try/except. generate + list
-            // were already a full port; the whole '/api/v1/recommendation'
-            // prefix is now safe as one blanket line.
+            // paths. Task 8 closed the remaining gap: apply/dismiss/undo (and
+            // materialize_for_asset) now call update_financial_intelligence_
+            // pipeline too, wrapped in try/catch so a pipeline failure never
+            // blocks the primary action — see backend-node/src/lib/ai/
+            // intelligence.ts and task8-report.md. generate + list were
+            // already a full port; the whole '/api/v1/recommendation' prefix
+            // is safe as one blanket line.
             '/api/v1/recommendation': {
                 target: apiNodeProxyTarget,
                 changeOrigin: true,

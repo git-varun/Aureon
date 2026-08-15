@@ -1,6 +1,7 @@
 import { describe, it, expect, beforeAll, afterAll, beforeEach, afterEach } from "vitest";
 import type { Server } from "http";
 import express from "express";
+import Redis from "ioredis";
 import { v4 as uuidv4 } from "uuid";
 import { testPrisma } from "../../testUtils/testPrisma";
 import { errorHandler } from "../../lib/errorHandler";
@@ -10,10 +11,13 @@ import { recommendationRouter } from "./recommendations";
 // contextBuilder.test.ts's pattern doesn't already cover: the deterministic
 // status-machine transitions (active -> applied/dismissed -> active), the
 // real Transaction row apply creates and undo deletes, and the 400/404
-// error paths. Does not exercise Redis (invalidateOrgRecommendations
-// swallows its own errors, same as every other cache helper in
-// portfolioCache.ts) — that side effect was live-verified manually against
-// the real dev Redis instead (see task5-report.md).
+// error paths. Task 8 wired apply/dismiss/undo to
+// updateFinancialIntelligencePipeline, which writes real
+// intelligence:*:<portfolioId> Redis keys for every portfolio in the test
+// DB (900s TTL) — cleaned up in afterAll below so they don't outlive this
+// test's deleted portfolio row.
+
+const redis = new Redis(process.env.REDIS_URL!);
 
 let server: Server;
 let baseUrl: string;
@@ -43,6 +47,22 @@ beforeAll(async () => {
   await testPrisma.latestQuote.create({
     data: { symbol, assetId, price: 42.5, createdAt: now, updatedAt: now },
   });
+  // Held asset: a real Position row is what makes heldAssetIds() (Task 8's
+  // held-asset filter, matching Python's RecommendationRepository.
+  // _held_asset_ids/get_all()) include this asset's recommendations.
+  await testPrisma.position.create({
+    data: {
+      id: uuidv4(),
+      portfolioId,
+      symbol,
+      assetId,
+      quantity: 10,
+      avgBuyPrice: 40.0,
+      wallet: "spot",
+      createdAt: now,
+      updatedAt: now,
+    },
+  });
 });
 
 afterAll(async () => {
@@ -52,8 +72,17 @@ afterAll(async () => {
   await testPrisma.recommendations.deleteMany({ where: { asset_id: assetId } });
   await testPrisma.latestQuote.deleteMany({ where: { symbol } });
   await testPrisma.assetSnapshot.deleteMany({ where: { assetId } });
+  await testPrisma.position.deleteMany({ where: { portfolioId } });
   await testPrisma.asset.deleteMany({ where: { id: assetId } });
   await testPrisma.portfolio.deleteMany({ where: { id: portfolioId } });
+  await redis.del(
+    `intelligence:portfolio:${portfolioId}`,
+    `intelligence:health:${portfolioId}`,
+    `intelligence:recommendations:${portfolioId}`,
+    `intelligence:outcomes:${portfolioId}`,
+    `intelligence:dashboard:${portfolioId}`,
+  );
+  await redis.quit();
   await new Promise<void>((resolve) => server.close(() => resolve()));
 });
 
@@ -191,5 +220,66 @@ describe("POST /recommendations/:id/undo", () => {
   it("404s for an unknown recommendation id", async () => {
     const res = await fetch(`${baseUrl}/recommendations/${uuidv4()}/undo`, { method: "POST" });
     expect(res.status).toBe(404);
+  });
+});
+
+// Task 8 review fix: GET /recommendations and the pipeline's
+// intelligence:recommendations:<portfolioId> cache write must both filter
+// to held-asset recommendations only (RecommendationRepository.get_all()/
+// _held_asset_ids in Python), not every Recommendation row.
+describe("held-asset filter (Task 8)", () => {
+  const unheldAssetId = uuidv4();
+  const unheldSymbol = "TASK8UNHELD";
+  let unheldRecId: string;
+
+  beforeEach(async () => {
+    const now = new Date();
+    await testPrisma.asset.create({
+      data: { id: unheldAssetId, symbol: unheldSymbol, name: "Task 8 Unheld Asset", assetClass: "equity", createdAt: now, updatedAt: now },
+    });
+    // recommendations.asset_id FKs to asset_snapshot.asset_id, not assets.id.
+    await testPrisma.assetSnapshot.create({ data: { assetId: unheldAssetId, createdAt: now, updatedAt: now } });
+    unheldRecId = uuidv4();
+    await testPrisma.recommendations.create({
+      data: {
+        id: unheldRecId,
+        asset_id: unheldAssetId,
+        recommendation_state: "BUY",
+        confidence_score: 0.8,
+        status: "active",
+        version: "v2.0.0",
+        created_at: now,
+        updated_at: now,
+      },
+    });
+  });
+
+  afterEach(async () => {
+    await testPrisma.recommendation_outcomes.deleteMany({ where: { recommendation_id: unheldRecId } });
+    await testPrisma.recommendation_explanations.deleteMany({ where: { recommendation_id: unheldRecId } });
+    await testPrisma.recommendations.deleteMany({ where: { id: unheldRecId } });
+    await testPrisma.assetSnapshot.deleteMany({ where: { assetId: unheldAssetId } });
+    await testPrisma.asset.deleteMany({ where: { id: unheldAssetId } });
+  });
+
+  it("GET /recommendations excludes recommendations for assets with no Position row", async () => {
+    const res = await fetch(`${baseUrl}/recommendations`);
+    expect(res.status).toBe(200);
+    const body = (await res.json()) as Array<{ id: string }>;
+    const ids = body.map((r) => r.id);
+    expect(ids).toContain(recId); // held (Position seeded in beforeAll)
+    expect(ids).not.toContain(unheldRecId); // not held — no Position row
+  });
+
+  it("the pipeline's intelligence:recommendations cache excludes unheld assets after an apply", async () => {
+    const res = await fetch(`${baseUrl}/recommendations/${recId}/apply?portfolio_id=${portfolioId}`, { method: "POST" });
+    expect(res.status).toBe(200);
+
+    const cached = await redis.get(`intelligence:recommendations:${portfolioId}`);
+    expect(cached).not.toBeNull();
+    const cachedRecs = JSON.parse(cached!) as Array<{ id: string }>;
+    const ids = cachedRecs.map((r) => r.id);
+    expect(ids).toContain(recId);
+    expect(ids).not.toContain(unheldRecId);
   });
 });

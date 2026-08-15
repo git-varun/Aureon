@@ -8,7 +8,7 @@ import {
   cacheIntelligenceOutcomes,
   cacheIntelligenceDashboard,
 } from "../evaluation/cache";
-import { serializeRecommendation } from "./recommendation";
+import { serializeRecommendation, heldAssetIds } from "./recommendation";
 
 // Port of app/modules/ai/services/intelligence.py's FinancialIntelligenceService.
 // Only the methods reachable from build_intelligence_context are ported here
@@ -1209,7 +1209,13 @@ export async function updateFinancialIntelligencePipeline(): Promise<void> {
     const health = await getInvestorHealthScore(pid);
     await cacheIntelligenceHealth(pid, health);
 
-    const recs = await prisma.recommendations.findMany();
+    // Port of RecommendationRepository.get_all(): filtered to held-asset
+    // recommendations only, not every Recommendation row — matches Python's
+    // recommendation.py:647 exactly (this cache key is also read by
+    // Python's still-live GET /recommendations, so an unfiltered list here
+    // would leak a superset of what Python itself would ever compute).
+    const heldIds = await heldAssetIds();
+    const recs = await prisma.recommendations.findMany({ where: { asset_id: { in: heldIds } } });
     const serializedRecs = await Promise.all(recs.map((r) => serializeRecommendation(r)));
     await cacheIntelligenceRecommendations(pid, serializedRecs);
 

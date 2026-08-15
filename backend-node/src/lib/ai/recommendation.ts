@@ -234,8 +234,12 @@ export async function scoreAndMaterialize(assetId: string, features: Features, s
 /** Port of RecommendationRepository._held_asset_ids: distinct non-null
  * asset_ids held across every portfolio (this app is single-user/no-
  * multi-tenancy, so Recommendation stays asset-scoped rather than gaining a
- * portfolio_id column). */
-async function heldAssetIds(): Promise<string[]> {
+ * portfolio_id column). Exported so other callers of Python's
+ * RecommendationRepository.get_all() (which filters to held assets, not
+ * every Recommendation row) can apply the same filter — see
+ * lib/ai/intelligence.ts's updateFinancialIntelligencePipeline and
+ * routes/ai/recommendations.ts's GET /recommendations list. */
+export async function heldAssetIds(): Promise<string[]> {
   const rows = await prisma.position.findMany({
     where: { assetId: { not: null } },
     select: { assetId: true },
