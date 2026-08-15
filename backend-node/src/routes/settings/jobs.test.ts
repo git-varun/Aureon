@@ -58,10 +58,11 @@ describe("jobs settings", () => {
   });
 
   it("running a job with no Node runner fails loudly, not silently", async () => {
-    // daily_briefing/weekly_briefing/monthly_briefing gained real Node
-    // runners in Task 6 — refresh_fundamentals is still unported, so it's
-    // the current example of "seeded in job_configs but not dispatchable".
-    const res = await fetch(`${baseUrl}/jobs/refresh_fundamentals/run`, { method: "POST" });
+    // refresh_fundamentals gained a real Node runner in Task 7 —
+    // sync_portfolio is still unported (deliberately out of scope, see
+    // sync.ts's comment / task4-report.md / task7-report.md), so it's the
+    // current example of "seeded in job_configs but not dispatchable".
+    const res = await fetch(`${baseUrl}/jobs/sync_portfolio/run`, { method: "POST" });
     expect(res.status).toBeGreaterThanOrEqual(400);
   });
 

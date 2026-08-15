@@ -196,6 +196,44 @@ export async function listAllAssets(): Promise<Asset[]> {
   return prisma.asset.findMany();
 }
 
+/** Port of IngestionRepository.list_equity_assets_with_quotes — (asset_id,
+ * symbol) for every quoted equity, used by the daily fundamentals task.
+ * Python does this as one INNER JOIN across LatestQuote/Asset/AssetSnapshot;
+ * Prisma has no relation wired between LatestQuote and Asset (assetId is a
+ * plain field, not a relation — see schema.prisma), so this fetches the
+ * three sets separately and intersects in JS, same approach already used by
+ * listTrackedSymbolsForRefresh above. */
+export async function listEquityAssetsWithQuotes(): Promise<Array<{ id: string; symbol: string }>> {
+  const equityAssets = await prisma.asset.findMany({
+    where: { assetClass: "equity" },
+    select: { id: true, symbol: true },
+  });
+  if (equityAssets.length === 0) return [];
+
+  const assetIds = equityAssets.map((a) => a.id);
+  const [quoted, snapshotted] = await Promise.all([
+    prisma.latestQuote.findMany({ where: { assetId: { in: assetIds } }, select: { assetId: true } }),
+    prisma.assetSnapshot.findMany({ where: { assetId: { in: assetIds } }, select: { assetId: true } }),
+  ]);
+  const quotedIds = new Set(quoted.map((q) => q.assetId));
+  const snapshotIds = new Set(snapshotted.map((s) => s.assetId));
+  return equityAssets.filter((a) => quotedIds.has(a.id) && snapshotIds.has(a.id));
+}
+
+/** Port of IngestionRepository.update_asset_sector — merges sector/industry
+ * into Asset.metadata without clobbering other keys already there. Only
+ * writes when at least one of the two is real (never writes a placeholder
+ * key). */
+export async function updateAssetSector(assetId: string, sector: string | null | undefined, industry: string | null | undefined): Promise<void> {
+  if (sector == null && industry == null) return;
+  const asset = await prisma.asset.findUnique({ where: { id: assetId } });
+  if (!asset) return;
+  const payload = { ...((asset.metadata as Record<string, unknown> | null) ?? {}) };
+  if (sector != null) payload.sector = sector;
+  if (industry != null) payload.industry = industry;
+  await prisma.asset.update({ where: { id: assetId }, data: { metadata: payload as Prisma.InputJsonValue } });
+}
+
 /** Port of MarketRepository.bulk_insert_price_history. */
 export async function bulkInsertPriceHistory(rows: PriceHistoryRow[]): Promise<void> {
   if (rows.length === 0) return;

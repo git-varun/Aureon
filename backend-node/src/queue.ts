@@ -9,6 +9,7 @@ import { refreshPricesTask } from "./jobs/refreshPrices";
 import { dailyBriefingTask } from "./jobs/dailyBriefing";
 import { weeklyBriefingTask } from "./jobs/weeklyBriefing";
 import { monthlyBriefingTask } from "./jobs/monthlyBriefing";
+import { refreshFundamentalsTask } from "./jobs/refreshFundamentals";
 import {
   bullmqConnection as connection,
   QUOTES_QUEUE_NAME,
@@ -134,6 +135,19 @@ export async function registerMonthlyBriefingSchedule(): Promise<void> {
   );
 }
 
+// Matches Python's beat_schedule crontab(hour=6, minute=0) exactly — daily
+// at 06:00 UTC. Task 7 — last of celery_app.py's beat_schedule entries
+// (besides news-refresh, out of this task's scope) to cut over; its
+// beat_schedule removal is in the same commit as this registration going
+// live, same no-double-writer discipline as every job above.
+export async function registerRefreshFundamentalsSchedule(): Promise<void> {
+  await scheduledJobsQueue.upsertJobScheduler(
+    "refresh-fundamentals",
+    { pattern: "0 6 * * *", tz: "UTC" },
+    { name: "refreshFundamentals" },
+  );
+}
+
 // Job-name -> handler map, not one Worker per job — q_scheduled_jobs is
 // meant to carry every cron-driven job cut over from Celery beat (see
 // migration plan Task 3), so a future job landing here only needs an entry
@@ -147,6 +161,7 @@ const SCHEDULED_JOB_HANDLERS: Record<string, () => Promise<void>> = {
   dailyBriefing: dailyBriefingTask,
   weeklyBriefing: weeklyBriefingTask,
   monthlyBriefing: monthlyBriefingTask,
+  refreshFundamentals: refreshFundamentalsTask,
 };
 
 export function startScheduledJobsWorker(): Worker<undefined, void> {
