@@ -168,6 +168,10 @@ describe("POST /recommendations/:id/undo", () => {
     // Matches Python's own quirk (recommendation.py's undo_recommendation
     // logs rec.status *after* mutating it to "active"): the audit log's
     // "previous_status" is always "active", not the real prior status.
+    // TODO(parity): this pins Python's undo_recommendation bug (audit log
+    // always records previous_status="active", never the real prior
+    // status) — see recommendation.py's undo_recommendation. If that bug is
+    // ever fixed in either codebase, update this assertion to match.
     const audit = await testPrisma.auditLog.findFirst({
       where: { entityId: recId, action: "recommendation_undo" },
       orderBy: { createdAt: "desc" },
