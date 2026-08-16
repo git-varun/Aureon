@@ -36,53 +36,51 @@ jobs:
           --health-retries 5
 
     env:
-      DATABASE_URL: postgresql+psycopg://postgres:postgres@localhost:5432/aureon
-      TEST_DATABASE_URL: postgresql+psycopg://postgres:postgres@localhost:5432/aureon_test
+      DATABASE_URL: postgresql://postgres:postgres@localhost:5432/aureon?options=-c%20timezone%3Dutc
+      TEST_DATABASE_URL: postgresql://postgres:postgres@localhost:5432/aureon_test?options=-c%20timezone%3Dutc
       REDIS_URL: redis://localhost:6379/0
       SECRET_KEY: ci-secret-key-not-for-production-use-only-in-ci
-      BOOTSTRAP_EMAIL: admin@ci.local
-      BOOTSTRAP_PASSWORD: ci-bootstrap-password-not-for-prod
 
     steps:
     - uses: actions/checkout@v4
 
-    - name: Set up Python
-      uses: actions/setup-python@v5
+    - name: Set up Bun
+      uses: oven-sh/setup-bun@v2
       with:
-        python-version: '3.12'
-        cache: 'pip'
+        bun-version: latest
 
     - name: Install dependencies
       run: |
         cd backend
-        python -m pip install --upgrade pip
-        pip install -e .[dev]
+        bun install --frozen-lockfile
 
-    - name: Run Ruff Linter
+    - name: Run ESLint
       run: |
         cd backend
-        ruff check .
+        bun run lint
 
-    - name: Run Mypy Typecheck
+    - name: Run TypeScript typecheck
       run: |
         cd backend
-        mypy .
+        bunx tsc --noEmit -p .
+
+    - name: Apply Prisma schema (dev database)
+      run: |
+        cd backend
+        bunx prisma migrate deploy
 
     - name: Create isolated test database
       run: |
         PGPASSWORD=postgres psql -h localhost -U postgres -c "CREATE DATABASE aureon_test"
 
-    - name: Run Alembic migrations (dev database)
+    - name: Apply Prisma schema (test database)
       run: |
         cd backend
-        alembic upgrade head
+        bunx prisma migrate deploy
+      env:
+        DATABASE_URL: ${{ env.TEST_DATABASE_URL }}
 
-    - name: Run bootstrap smoke test (dev database)
+    - name: Run Vitest Suite
       run: |
         cd backend
-        python scripts/bootstrap.py
-
-    - name: Run Pytest Suite (isolated test database)
-      run: |
-        cd backend
-        pytest tests/ -q
+        bun run test
