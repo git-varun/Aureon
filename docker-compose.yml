@@ -106,10 +106,14 @@ services:
   # q_watchlist_alerts, q_scheduled_jobs). No repeatable schedule is
   # registered on q_ingestion/q_watchlist_alerts — those only get jobs from
   # backend-node's own manual trigger scripts or its ingestQuote/
-  # refreshTrackedUniverse paths. q_scheduled_jobs does have a real
-  # repeatable schedule (sweep-stale-job-logs, every 30 min) — see
-  # backend-node/scripts/startWorker.ts — cut over from Python's
-  # celery_beat, which no longer schedules this job (see celery_app.py).
+  # refreshTrackedUniverse paths. q_scheduled_jobs carries all of this app's
+  # repeatable schedules (10 as of Task 10: sweep-stale-job-logs,
+  # refresh-tracked-universe, refresh-mutual-fund-navs, seed-price-history,
+  # hourly-price-refresh, daily/weekly/monthly-briefing,
+  # refresh-fundamentals, news-refresh) — registered in src/queue.ts, see
+  # backend-node/scripts/startWorker.ts for the full registration list. This
+  # fully replaces Python's celery_beat, which is gone along with the rest
+  # of backend/.
   backend-node-worker:
     image: node:22-alpine
     container_name: aureon_backend_node_worker

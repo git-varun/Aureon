@@ -36,7 +36,8 @@ jobs:
           --health-retries 5
 
     env:
-      DATABASE_URL: postgresql://postgres:postgres@localhost:5432/aureon
+      DATABASE_URL: postgresql://postgres:postgres@localhost:5432/aureon?options=-c%20timezone%3Dutc
+      TEST_DATABASE_URL: postgresql://postgres:postgres@localhost:5432/aureon_test?options=-c%20timezone%3Dutc
       REDIS_URL: redis://localhost:6379/0
       SECRET_KEY: ci-secret-key-not-for-production-use-only-in-ci
 
@@ -63,10 +64,21 @@ jobs:
         cd backend-node
         npx tsc --noEmit -p .
 
-    - name: Apply Prisma schema
+    - name: Apply Prisma schema (dev database)
       run: |
         cd backend-node
         npx prisma migrate deploy
+
+    - name: Create isolated test database
+      run: |
+        PGPASSWORD=postgres psql -h localhost -U postgres -c "CREATE DATABASE aureon_test"
+
+    - name: Apply Prisma schema (test database)
+      run: |
+        cd backend-node
+        npx prisma migrate deploy
+      env:
+        DATABASE_URL: ${{ env.TEST_DATABASE_URL }}
 
     - name: Run Vitest Suite
       run: |

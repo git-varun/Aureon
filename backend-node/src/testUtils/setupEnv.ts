@@ -1,3 +1,5 @@
+import { beforeAll } from "vitest";
+
 // Vitest setupFiles entry — runs before any test file's module graph is
 // evaluated. Needed only by tests that exercise the shared `prisma`
 // singleton (src/prisma.ts), which reads process.env.DATABASE_URL at
@@ -20,3 +22,23 @@ process.env.DATABASE_URL =
 // via dotenv).
 process.env.SECRET_KEY =
   process.env.SECRET_KEY ?? "a7ab7603b94dfe3dd6c0fa505548081fc5cda3bc340ac80e0f37aaf2f05623fa";
+
+// Task 10 (2026-08-16): several route tests (e.g. routes/portfolio/
+// sync.test.ts's zerodha/binance flows) assume DEFAULT_JOBS'
+// JobConfig rows already exist, matching what a real app boot does
+// (src/index.ts's start() calls seedDefaultProviders()+seedDefaultJobs()
+// before listening). On a long-lived shared dev DB that's always true (a
+// real `npm run dev` session seeded it once already), but a genuinely fresh
+// CI-created aureon_test database has no such history — and vitest.config
+// .mts's fileParallelism:false ordering doesn't guarantee
+// settings/jobs.test.ts or settings/providers.test.ts (which call these
+// seed functions themselves) run before routes/portfolio/sync.test.ts
+// alphabetically. Seed here instead, once per test file (setupFiles reruns
+// per file, but both functions are insert-if-absent/idempotent — see their
+// own doc comments — so this is safe and cheap regardless of run order).
+beforeAll(async () => {
+  const { seedDefaultProviders } = await import("../lib/settings/providers");
+  const { seedDefaultJobs } = await import("../lib/settings/jobDefaults");
+  await seedDefaultProviders();
+  await seedDefaultJobs();
+});

@@ -1,8 +1,12 @@
 import { describe, it, expect, beforeAll, afterAll } from "vitest";
 import type { Server } from "http";
 import express from "express";
+import { v5 as uuidv5 } from "uuid";
 import { errorHandler } from "../../lib/errorHandler";
 import { marketRouter } from "./market";
+import { testPrisma } from "../../testUtils/testPrisma";
+
+const UUID_NAMESPACE_DNS = "6ba7b810-9dad-11d1-80b4-00c04fd430c8";
 
 let server: Server;
 let baseUrl: string;
@@ -67,5 +71,30 @@ describe("POST /market/refresh", () => {
     const res = await fetch(`${baseUrl}/refresh`, { method: "POST" });
     expect(res.status).toBe(200);
     expect(await res.json()).toEqual({ status: "queued", task_id: null });
+  });
+});
+
+describe("POST /market/symbols/:symbol/backfill", () => {
+  it("404s when the symbol has no matching asset", async () => {
+    const res = await fetch(`${baseUrl}/symbols/TEST-BACKFILL-NO-SUCH-SYMBOL/backfill`, { method: "POST" });
+    expect(res.status).toBe(404);
+  });
+
+  it("200s with a queued status when the asset exists (case-insensitive symbol lookup)", async () => {
+    const symbol = "TEST-BACKFILL-HAPPY";
+    const assetId = uuidv5(symbol, UUID_NAMESPACE_DNS);
+    const now = new Date();
+    await testPrisma.asset.deleteMany({ where: { symbol } });
+    await testPrisma.asset.create({ data: { id: assetId, symbol, name: symbol, assetClass: "equity", createdAt: now, updatedAt: now } });
+    try {
+      // Lowercase on purpose — matches Python's `symbol.upper().strip()`
+      // normalization before the lookup.
+      const lower = symbol.toLowerCase();
+      const res = await fetch(`${baseUrl}/symbols/${lower}/backfill`, { method: "POST" });
+      expect(res.status).toBe(200);
+      expect(await res.json()).toEqual({ status: "queued", symbol: lower, task_id: null });
+    } finally {
+      await testPrisma.asset.deleteMany({ where: { symbol } });
+    }
   });
 });

@@ -61,17 +61,18 @@ export async function adminReprocessAllAssetsTask(logId: number | null = null): 
  * plan, Python's task takes `asset_ids: list[str]` directly — no `log_id`,
  * no `_wrap_job_execution` wrapper, no JobLog row at all. It structurally
  * cannot fit `JOB_RUNNERS`'s `(logId) => Promise<void>` shape, so it is
- * NOT added there — its only real Python call site is
- * `POST /market/symbols/{symbol}/backfill` (market.py:142), which resolves
- * one asset by symbol and calls `admin_backfill_assets.delay([str(asset.id)])`
- * without awaiting it. That route is deliberately not ported to Node yet
- * (Task 1 explicitly deferred it — see task1-report.md — because
- * generate_features had no Node runner at the time; it does now, but
- * porting the route itself is out of Task 7's scope, which is jobs/tasks.py
- * only). This function exists so a future route port has a ready runner to
- * call; it stays fire-and-forget at this outer layer (no JobLog to close
- * out, matching Python's own no-`_wrap_job_execution` shape) while
- * `fanOutGenerateFeatures` still bounds concurrency internally. */
+ * NOT added there — its only real call site is
+ * `POST /market/symbols/{symbol}/backfill`
+ * (backend-node/src/routes/market/market.ts's `triggerBackfill`), which
+ * resolves one asset by symbol and calls `adminBackfillAssets([asset.id])`
+ * without awaiting it. The route itself was deferred from Task 1 (no Node
+ * generate_features runner existed yet) through Task 7 (out of that task's
+ * jobs/tasks.py-only scope) and was finally ported in Task 10, as part of
+ * deleting backend/ entirely — this function existed as a ready runner
+ * before the route did. It stays fire-and-forget at this outer layer (no
+ * JobLog to close out, matching Python's own no-`_wrap_job_execution`
+ * shape) while `fanOutGenerateFeatures` still bounds concurrency
+ * internally. */
 export function adminBackfillAssets(assetIds: string[]): void {
   void fanOutGenerateFeatures(assetIds).catch((e: Error) => {
     console.error(`admin_backfill_assets: fan-out failed: ${e.message}`);

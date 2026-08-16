@@ -2,7 +2,6 @@ import { describe, it, expect, beforeAll, afterAll, beforeEach } from "vitest";
 import type { Server } from "http";
 import express from "express";
 import Redis from "ioredis";
-import { v4 as uuidv4 } from "uuid";
 import { testPrisma } from "../../testUtils/testPrisma";
 import { errorHandler } from "../../lib/errorHandler";
 import { ensureAssetExists } from "../../lib/assets";
