@@ -44,30 +44,30 @@ jobs:
     steps:
     - uses: actions/checkout@v4
 
-    - name: Set up Node.js
-      uses: actions/setup-node@v4
+    - name: Set up Bun
+      uses: oven-sh/setup-bun@v2
       with:
-        node-version: '22'
+        bun-version: latest
 
     - name: Install dependencies
       run: |
-        cd backend-node
-        npm ci
+        cd backend
+        bun install --frozen-lockfile
 
     - name: Run ESLint
       run: |
-        cd backend-node
-        npm run lint
+        cd backend
+        bun run lint
 
     - name: Run TypeScript typecheck
       run: |
-        cd backend-node
-        npx tsc --noEmit -p .
+        cd backend
+        bunx tsc --noEmit -p .
 
     - name: Apply Prisma schema (dev database)
       run: |
-        cd backend-node
-        npx prisma migrate deploy
+        cd backend
+        bunx prisma migrate deploy
 
     - name: Create isolated test database
       run: |
@@ -75,12 +75,12 @@ jobs:
 
     - name: Apply Prisma schema (test database)
       run: |
-        cd backend-node
-        npx prisma migrate deploy
+        cd backend
+        bunx prisma migrate deploy
       env:
         DATABASE_URL: ${{ env.TEST_DATABASE_URL }}
 
     - name: Run Vitest Suite
       run: |
-        cd backend-node
-        npm test
+        cd backend
+        bun run test

@@ -45,46 +45,46 @@ services:
         max-size: "10m"
         max-file: "3"
 
-  # One-shot: applies backend-node/prisma/migrations to aureon-db and exits.
+  # One-shot: applies backend/prisma/migrations to aureon-db and exits.
   # Prisma is the canonical schema source (Task 9 retired Alembic and Task
   # 10 deleted backend/ entirely — see CLAUDE.md's Database migrations
   # section) — nothing else creates schema on a fresh Postgres volume, so
-  # backend-node/backend-node-worker both wait on this completing
+  # backend/backend-worker both wait on this completing
   # successfully before they start.
   migrate:
-    image: node:22-alpine
+    image: oven/bun:1-alpine
     container_name: aureon_migrate
     working_dir: /app
     environment:
       DATABASE_URL: postgresql://${POSTGRES_USER}:${POSTGRES_PASSWORD}@aureon-db:5432/${POSTGRES_DB:-aureon}?options=-c%20timezone%3Dutc
     volumes:
-      - ./backend-node:/app
+      - ./backend:/app
       - /app/node_modules
     depends_on:
       aureon-db:
         condition: service_healthy
     networks:
       - aureon_network
-    command: sh -c "npm install && npx prisma migrate deploy"
+    command: sh -c "bun install && bunx prisma migrate deploy"
     logging:
       driver: "json-file"
       options:
         max-size: "10m"
         max-file: "3"
 
-  backend-node:
-    image: node:22-alpine
-    container_name: aureon_backend_node
+  backend:
+    image: oven/bun:1-alpine
+    container_name: aureon_backend
     working_dir: /app
     environment:
       DATABASE_URL: postgresql://${POSTGRES_USER}:${POSTGRES_PASSWORD}@aureon-db:5432/${POSTGRES_DB:-aureon}?options=-c%20timezone%3Dutc
       REDIS_URL: redis://redis:6379/0
       PORT: "8010"
     volumes:
-      - ./backend-node:/app
+      - ./backend:/app
       - /app/node_modules
     ports:
-      - "${BACKEND_NODE_PORT:-8010}:8010"
+      - "${BACKEND_PORT:-8010}:8010"
     depends_on:
       aureon-db:
         condition: service_healthy
@@ -94,7 +94,7 @@ services:
         condition: service_completed_successfully
     networks:
       - aureon_network
-    command: sh -c "npm install && npm run dev"
+    command: sh -c "bun install && bun run dev"
     restart: unless-stopped
     logging:
       driver: "json-file"
@@ -102,27 +102,27 @@ services:
         max-size: "10m"
         max-file: "3"
 
-  # BullMQ worker for backend-node's jobs (currently: q_ingestion,
+  # BullMQ worker for backend's jobs (currently: q_ingestion,
   # q_watchlist_alerts, q_scheduled_jobs). No repeatable schedule is
   # registered on q_ingestion/q_watchlist_alerts — those only get jobs from
-  # backend-node's own manual trigger scripts or its ingestQuote/
+  # backend's own manual trigger scripts or its ingestQuote/
   # refreshTrackedUniverse paths. q_scheduled_jobs carries all of this app's
   # repeatable schedules (10 as of Task 10: sweep-stale-job-logs,
   # refresh-tracked-universe, refresh-mutual-fund-navs, seed-price-history,
   # hourly-price-refresh, daily/weekly/monthly-briefing,
   # refresh-fundamentals, news-refresh) — registered in src/queue.ts, see
-  # backend-node/scripts/startWorker.ts for the full registration list. This
+  # backend/scripts/startWorker.ts for the full registration list. This
   # fully replaces Python's celery_beat, which is gone along with the rest
   # of backend/.
-  backend-node-worker:
-    image: node:22-alpine
-    container_name: aureon_backend_node_worker
+  backend-worker:
+    image: oven/bun:1-alpine
+    container_name: aureon_backend_worker
     working_dir: /app
     environment:
       DATABASE_URL: postgresql://${POSTGRES_USER}:${POSTGRES_PASSWORD}@aureon-db:5432/${POSTGRES_DB:-aureon}?options=-c%20timezone%3Dutc
       REDIS_URL: redis://redis:6379/0
     volumes:
-      - ./backend-node:/app
+      - ./backend:/app
       - /app/node_modules
     depends_on:
       aureon-db:
@@ -133,7 +133,7 @@ services:
         condition: service_completed_successfully
     networks:
       - aureon_network
-    command: sh -c "npm install && npm run worker"
+    command: sh -c "bun install && bun run worker"
     restart: unless-stopped
     logging:
       driver: "json-file"
@@ -142,11 +142,11 @@ services:
         max-file: "3"
 
   frontend:
-    image: node:22-alpine
+    image: oven/bun:1-alpine
     container_name: aureon_frontend
     working_dir: /app
     environment:
-      VITE_API_NODE_PROXY_TARGET: http://backend-node:8010
+      VITE_API_PROXY_TARGET: http://backend:8010
       FRONTEND_PORT: ${FRONTEND_PORT:-3000}
       RUNNING_IN_DOCKER: "true"
     volumes:
@@ -154,11 +154,11 @@ services:
     ports:
       - "${FRONTEND_PORT:-3000}:${FRONTEND_PORT:-3000}"
     depends_on:
-      backend-node:
+      backend:
         condition: service_started
     networks:
       - aureon_network
-    command: sh -c "npm install && npm run dev"
+    command: sh -c "bun install && bun run dev"
     restart: unless-stopped
     logging:
       driver: "json-file"

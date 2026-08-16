@@ -1,5 +1,5 @@
 {
-  "name": "backend-node",
+  "name": "backend",
   "version": "1.0.0",
   "description": "",
   "main": "index.js",
@@ -11,7 +11,8 @@
     "lint": "eslint src scripts",
     "test": "vitest run",
     "worker": "tsx scripts/startWorker.ts",
-    "trigger:refresh-prices": "tsx scripts/triggerRefreshPrices.ts"
+    "trigger:refresh-prices": "tsx scripts/triggerRefreshPrices.ts",
+    "clean": "rm -rf dist node_modules && yarn install"
   },
   "keywords": [],
   "author": "",

@@ -48,7 +48,7 @@ async function start() {
   await seedDefaultProviders();
   await seedDefaultJobs();
   app.listen(port, () => {
-    console.log(`backend-node listening on port ${port}`);
+    console.log(`backend listening on port ${port}`);
   });
 }
 

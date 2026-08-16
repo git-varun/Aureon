@@ -21,8 +21,7 @@ afterAll(async () => {
 // Reproduces, at the unit level, the live gap this monitor exists to catch:
 // upsertJobScheduler silently skipped two consecutive */30 fires after a
 // worker restart against warm Redis state (confirmed live 2026-08-10 —
-// see docs/superpowers/plans/2026-08-11-python-to-node-full-migration.md
-// Task 3, and taskforcesh/bullmq#3048/#3197/#3381/#3430/#2466). The
+// see taskforcesh/bullmq#3048/#3197/#3381/#3430/#2466). The
 // registered job (sweep_stale_job_logs) has a 30min interval and a 1.5x
 // staleness multiplier, so 45min is the exact healthy/stale boundary.
 describe("getScheduledJobHealth", () => {

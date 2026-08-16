@@ -161,7 +161,7 @@ function detectBroker(header: string[]): string | null {
 
 // Binance spot quote assets, in probe order (mirrors app/core/binance.py's
 // SPOT_TRADE_QUOTES = STABLECOIN_ASSETS + CRYPTO_QUOTE_ASSETS). Not yet
-// ported anywhere shared in backend-node, so scoped locally to this importer.
+// ported anywhere shared in backend, so scoped locally to this importer.
 const SPOT_TRADE_QUOTES = ["USDT", "USDC", "BUSD", "FDUSD", "BTC", "ETH", "BNB"];
 
 function normaliseBinanceSymbol(pair: string): string {

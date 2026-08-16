@@ -63,7 +63,7 @@ import {
  * asset_sentiment_snapshots row Python's own aggregate call already wrote
  * moments earlier. Node's aggregateAssetSentiment function itself is not
  * exercised by this harness as a result — it's a real, separately portable
- * unit (see backend-node/src/lib/news/sentiment.ts) but out of scope for
+ * unit (see backend/src/lib/news/sentiment.ts) but out of scope for
  * this comparison.
  *
  * WHAT ISN'T PINNED, DELIBERATELY: LatestQuote.price (read directly, not
@@ -88,13 +88,13 @@ import {
  * portfolio/transaction data is touched.
  *
  * Usage:
- *   cd backend-node
+ *   cd backend
  *   REDIS_URL=redis://localhost:6379/0 npx tsx scripts/compareEvalChains.ts <assetId> [assetId ...]
  *
  * REDIS_URL must point at the SAME Redis instance backend/'s local dev
- * environment uses (see task2-step1-report.md — backend-node/.env's default
+ * environment uses (see task2-step1-report.md — backend/.env's default
  * points at a stopped Docker container). DATABASE_URL is read from
- * backend-node/.env as-is (port 5433, the populated Docker aureon_postgres
+ * backend/.env as-is (port 5433, the populated Docker aureon_postgres
  * instance) and passed through to the Python subprocess explicitly so both
  * legs are guaranteed to hit the same database regardless of backend/'s own
  * .env defaults (root cause of task2-step1-report.md's investigation).
@@ -142,7 +142,7 @@ function runPythonLeg(assetId: string): PyResult {
 async function runNodeLeg(assetId: string, pinnedIndicators: Partial<TechnicalIndicators>, pinnedAction: unknown): Promise<NodeResult> {
   // Reconstructed from the same lib functions processAssetSnapshot/
   // generateFeatures/generateSignals/generateScores/computeAssetHealth call
-  // (backend-node/src/jobs/*.ts) — not the job wrappers themselves, since
+  // (backend/src/jobs/*.ts) — not the job wrappers themselves, since
   // they don't offer a seam to inject the indicator pin without editing
   // production code. Every function called below is the literal one the
   // real job chain calls.

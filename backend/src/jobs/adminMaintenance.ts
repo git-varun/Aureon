@@ -63,7 +63,7 @@ export async function adminReprocessAllAssetsTask(logId: number | null = null): 
  * cannot fit `JOB_RUNNERS`'s `(logId) => Promise<void>` shape, so it is
  * NOT added there — its only real call site is
  * `POST /market/symbols/{symbol}/backfill`
- * (backend-node/src/routes/market/market.ts's `triggerBackfill`), which
+ * (backend/src/routes/market/market.ts's `triggerBackfill`), which
  * resolves one asset by symbol and calls `adminBackfillAssets([asset.id])`
  * without awaiting it. The route itself was deferred from Task 1 (no Node
  * generate_features runner existed yet) through Task 7 (out of that task's

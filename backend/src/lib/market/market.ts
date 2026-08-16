@@ -261,7 +261,7 @@ export async function refreshMarket(): Promise<{ status: string; task_id: null }
  * `symbol.upper().strip()`, 404s if not found, then fires
  * `admin_backfill_assets.delay([str(asset.id)])` without awaiting it. Task
  * 10 (2026-08-16 backend/ deletion cutover) ports the route itself —
- * `adminBackfillAssets` (backend-node/src/jobs/adminMaintenance.ts) already
+ * `adminBackfillAssets` (backend/src/jobs/adminMaintenance.ts) already
  * existed as a ready-to-call runner but had no HTTP route until now. Same
  * `task_id: null` honesty as refreshMarket() above — the frontend
  * (AssetDetail.jsx's handleBackfill) never reads the response body. */
