@@ -2,13 +2,9 @@ import {defineConfig} from 'vite'
 import react from '@vitejs/plugin-react'
 import path from 'path'
 
-const apiProxyTarget = process.env.VITE_API_PROXY_TARGET || 'http://localhost:8001'
-// Node backend-node cutover target — only routes explicitly listed below
-// (currently just /api/v1/watchlist, Phase 10's first cutover wave) go
-// here. Everything else keeps hitting apiProxyTarget (Python). To roll a
-// module back, delete its line from the proxy map below; to add the next
-// module, add one line here — this is the per-module routing switch, not
-// apiService.js or any per-request logic.
+// Node backend-node target. Task 10 (2026-08-16) deleted the Python
+// backend/ entirely, so every route below — including the catch-all '/api'
+// line — now targets Node; there is no other backend left to route to.
 const apiNodeProxyTarget = process.env.VITE_API_NODE_PROXY_TARGET || 'http://localhost:8010'
 const frontendPort = parseInt(process.env.FRONTEND_PORT || '3000', 10)
 const isDocker = process.env.RUNNING_IN_DOCKER === 'true'
@@ -75,26 +71,40 @@ export default defineConfig({
             },
             // Phase 10 wave 3: Portfolio/Positions/Transactions CRUD. Scoped
             // to '/api/v1/portfolio/portfolios' specifically, NOT the whole
-            // '/api/v1/portfolio' module — '/api/v1/portfolio/sync',
-            // '/api/v1/portfolio/sync/status', and the binance-backfill
-            // sub-routes are siblings of 'portfolios' (not sub-paths of it,
-            // so no prefix-collision risk either way) and stay on Python.
-            // Task 4 (real-money broker sync) DID port these — Zerodha/
-            // Groww/Binance sync, futures positions, trade-history cost
-            // basis, and the Spot backfill all have a Node implementation
-            // (backend-node/src/lib/broker/**, src/jobs/{syncZerodha,
-            // syncGroww,syncBinance,backfillBinanceSpot}.ts) with unit +
-            // integration test coverage. It is deliberately NOT cut over
-            // here: no broker had live credentials configured in the audit
-            // environment to verify a real holdings/trade-history sync
-            // against Zerodha/Groww/Binance's actual servers, and this is
-            // real cost-basis/position data — see task4-report.md for the
-            // full audit. Flip this line only after a live sync has been
-            // verified against a real connected account for the broker(s)
-            // being cut over.
+            // '/api/v1/portfolio' module. Note '/api/v1/portfolio/portfolios/
+            // :id/sync/binance/backfill(/status)?' is a genuine sub-path of
+            // this prefix (not a sibling, despite what an earlier version of
+            // this comment claimed) so it already routed to Node under this
+            // one line — no separate guard entry was ever needed for it.
+            // '/api/v1/portfolio/sync' and '/api/v1/portfolio/sync/status'
+            // ARE true siblings (not sub-paths of 'portfolios') and needed
+            // an entry below — one '/api/v1/portfolio/sync' prefix line
+            // covers both, since '/status' is itself a sub-path of '/sync'.
+            //
+            // Task 10 (2026-08-16, explicit user sign-off — see
+            // task10-brief.md's scope decision): backend/ is being deleted
+            // in this same change, so every route that was "reviewed but
+            // not live-credential-verified" is cut over now rather than
+            // left pointed at a Python backend that no longer exists.
+            // Zerodha/Groww/Binance sync, futures positions, trade-history
+            // cost basis, and the Spot backfill all have a Node
+            // implementation (backend-node/src/lib/broker/**, src/jobs/
+            // {syncZerodha,syncGroww,syncBinance,backfillBinanceSpot}.ts)
+            // with unit + integration test coverage, but NO live broker
+            // credentials were available to verify a real holdings/trade-
+            // history sync against Zerodha/Groww/Binance's actual servers —
+            // see task4-report.md for the full audit. This is real cost-
+            // basis/position data; the user will verify it manually against
+            // real accounts after this lands, per the scope decision.
             // '/api/v1/portfolio/backup' and '/api/v1/portfolio/restore' —
             // also siblings — are cut over separately below, wave 4.
             '/api/v1/portfolio/portfolios': {
+                target: apiNodeProxyTarget,
+                changeOrigin: true,
+            },
+            // Siblings of 'portfolios' (see note above) — cut over unverified
+            // per the Task 10 scope decision, same risk acceptance as above.
+            '/api/v1/portfolio/sync': {
                 target: apiNodeProxyTarget,
                 changeOrigin: true,
             },
@@ -102,22 +112,23 @@ export default defineConfig({
             // mounted under 'portfolios' too), Settings/Providers/Job-config,
             // Export, Danger Zone, Restore.
             //
-            // The Zerodha OAuth *callback* is a sub-path of '/config' that
-            // must stay on Python — same class of prefix-collision guard the
-            // intelligence /trend endpoints used to need (see Task 8): it's a
-            // live external API integration (token exchange against
-            // Zerodha's servers). Task 4
-            // ported it (backend-node/src/routes/settings/providers.ts,
-            // byte-for-byte checksum parity unit-tested against Python's
-            // real sha256 output) but did NOT cut it over here — no live
-            // Zerodha credentials were available to verify the real checksum
-            // exchange against Zerodha's servers, and this endpoint is
-            // intentionally unauthenticated and creates a real broker
-            // session, so it stays proxied to Python until that's done — see
-            // task4-report.md. MUST precede the '/api/v1/config' line below
-            // or the broader prefix would swallow it.
+            // The Zerodha OAuth *callback* is a sub-path of '/config' — kept
+            // as its own entry for documentation even though it now targets
+            // the same place as the blanket '/api/v1/config' line below.
+            // It's a live external API integration (token exchange against
+            // Zerodha's servers): Task 4 ported it
+            // (backend-node/src/routes/settings/providers.ts, byte-for-byte
+            // checksum parity unit-tested against Python's real sha256
+            // output) but no live Zerodha credentials were available to
+            // verify the real checksum exchange against Zerodha's servers —
+            // see task4-report.md. Task 10 (2026-08-16, explicit user
+            // sign-off) cuts it over unverified anyway, since backend/ is
+            // deleted in the same change and leaving it on Python would
+            // route this unauthenticated, real-broker-session-creating
+            // endpoint to nothing. The user will verify it manually against
+            // a real Zerodha account after this lands.
             '/api/v1/config/providers/zerodha/oauth/callback': {
-                target: apiProxyTarget,
+                target: apiNodeProxyTarget,
                 changeOrigin: true,
             },
             // Every other /config/** route (providers CRUD, zerodha
@@ -208,15 +219,17 @@ export default defineConfig({
                 target: apiNodeProxyTarget,
                 changeOrigin: true,
             },
-            // POST /market/symbols/{symbol}/backfill stays on Python: its
-            // real effect (admin_backfill_assets -> generate_features) needs
-            // the feature/signal-generation worker pipeline, which isn't
-            // ported to Node in this phase. Must precede the blanket
-            // '/api/v1/market' line below or that prefix would swallow it.
-            '/api/v1/market/symbols': {
-                target: apiProxyTarget,
-                changeOrigin: true,
-            },
+            // POST /market/symbols/{symbol}/backfill (deferred since Task 1
+            // because generate_features had no Node runner at the time) is
+            // now ported too — Task 10 added the route
+            // (backend-node/src/routes/market/market.ts's triggerBackfill,
+            // reusing the adminBackfillAssets runner Task 7 already built)
+            // during this task's route-inventory audit, since it's actively
+            // called by the frontend (AssetDetail.jsx's "Trigger Historical
+            // Backfill" button) and would otherwise route to nothing once
+            // backend/ is deleted. No separate guard entry needed any more —
+            // it now falls under the blanket '/api/v1/market' line below,
+            // same as every other market route.
             // Every other /market/** route (sectors, indices, movers,
             // search, universe, refresh, asset snapshot/features, full
             // themes CRUD+fork+nav+signals, themes-for) is a full port —
@@ -242,8 +255,21 @@ export default defineConfig({
                 target: apiNodeProxyTarget,
                 changeOrigin: true,
             },
+            // News (GET /news, GET /news/{symbol}) — a full port
+            // (backend-node/src/routes/news/news.ts) since Task 11's
+            // news-refresh schedule cutover, but that task only moved the
+            // beat_schedule/worker side; the HTTP route itself was never
+            // added here and was silently falling through to the catch-all
+            // below. Found and fixed during Task 10's route-inventory audit.
+            '/api/v1/news': {
+                target: apiNodeProxyTarget,
+                changeOrigin: true,
+            },
+            // Task 10 (2026-08-16): backend/ is deleted in this same change,
+            // so the catch-all can no longer point at Python — every route
+            // not explicitly listed above now falls through to Node too.
             '/api': {
-                target: apiProxyTarget,
+                target: apiNodeProxyTarget,
                 changeOrigin: true,
             },
         },

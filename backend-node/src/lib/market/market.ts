@@ -8,6 +8,7 @@ import { SYMBOL_SECTOR_MAP, INDEX_META } from "./constants";
 import { looksLikeSymbol } from "../marketProviders/routing";
 import { resolveAndTrackSymbol } from "./resolveAndTrack";
 import { refreshPricesTask } from "../../jobs/refreshPrices";
+import { adminBackfillAssets } from "../../jobs/adminMaintenance";
 
 /** Port of MarketService.get_asset_snapshot. */
 export async function getAssetSnapshot(assetId: string): Promise<Record<string, unknown>> {
@@ -253,4 +254,21 @@ export async function getUniverse(search?: string): Promise<SearchResultOut[]> {
 export async function refreshMarket(): Promise<{ status: string; task_id: null }> {
   await refreshPricesTask();
   return { status: "queued", task_id: null };
+}
+
+/** Port of MarketService's POST /market/symbols/{symbol}/backfill handler
+ * (market.py:142, trigger_backfill). Python resolves the asset by
+ * `symbol.upper().strip()`, 404s if not found, then fires
+ * `admin_backfill_assets.delay([str(asset.id)])` without awaiting it. Task
+ * 10 (2026-08-16 backend/ deletion cutover) ports the route itself —
+ * `adminBackfillAssets` (backend-node/src/jobs/adminMaintenance.ts) already
+ * existed as a ready-to-call runner but had no HTTP route until now. Same
+ * `task_id: null` honesty as refreshMarket() above — the frontend
+ * (AssetDetail.jsx's handleBackfill) never reads the response body. */
+export async function triggerBackfill(symbol: string): Promise<{ status: string; symbol: string; task_id: null }> {
+  const normalized = symbol.toUpperCase().trim();
+  const asset = await prisma.asset.findUnique({ where: { symbol: normalized } });
+  if (!asset) throw new NotFoundError("Asset not found");
+  adminBackfillAssets([asset.id]);
+  return { status: "queued", symbol, task_id: null };
 }

@@ -28,7 +28,7 @@ cp .env.example .env
 
 Common variable:
 
-- `VITE_API_PROXY_TARGET` (defaults to backend service/proxy target in Docker/local setups)
+- `VITE_API_NODE_PROXY_TARGET` (defaults to backend-node service/proxy target in Docker/local setups)
 
 ## Run (without Docker)
 

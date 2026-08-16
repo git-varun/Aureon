@@ -8,6 +8,7 @@ import {
   searchMarket,
   getUniverse,
   refreshMarket,
+  triggerBackfill,
 } from "../../lib/market/market";
 
 export const marketRouter = Router();
@@ -52,4 +53,11 @@ marketRouter.get("/universe", async (req, res) => {
 // Port of the POST /market/refresh Celery dispatch.
 marketRouter.post("/refresh", async (_req, res) => {
   res.json(await refreshMarket());
+});
+
+// Port of POST /market/symbols/{symbol}/backfill (market.py:142). Cut over
+// as part of Task 10's route audit — deferred since Task 1, now ported so
+// vite.config.js can stop routing it to Python before backend/ is deleted.
+marketRouter.post("/symbols/:symbol/backfill", async (req, res) => {
+  res.json(await triggerBackfill(req.params.symbol));
 });
