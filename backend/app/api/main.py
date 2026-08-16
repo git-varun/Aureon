@@ -33,8 +33,6 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
     from app.core.validation import validate_environment
     validate_environment()
 
-    from app.core.database import engine
-
     # Schema migrations are Prisma's responsibility now (backend-node/prisma) —
     # `prisma migrate deploy` is run out-of-band, not from this Python startup path.
 
@@ -53,6 +51,7 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
     yield
     
     logger.info("Shutdown initiated. Cleaning up active database connections...")
+    from app.core.database import engine
     engine.dispose()
     logger.info("Shutdown completed. Connections successfully closed.")
 

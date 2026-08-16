@@ -137,6 +137,9 @@ model ProviderConfig {
   keyNames         String    @map("key_names")
   encryptedKeys    String    @map("encrypted_keys")
   config           String
+  // DB also enforces CHECK ck_provider_configs_status_valid (PLANNED/STUB/PARTIAL/ACTIVE/
+  // DISABLED/DEPRECATED/FAILED) — Prisma can't model CHECK constraints, so it's hand-added to
+  // prisma/migrations/0_init/migration.sql. Re-add it by hand in any future re-baseline.
   status           String    @db.VarChar(16)
   capabilities     String
   priority         Int

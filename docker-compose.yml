@@ -16,6 +16,8 @@ x-backend-common: &backend-common
       condition: service_healthy
     redis:
       condition: service_healthy
+    migrate:
+      condition: service_completed_successfully
   networks:
     - aureon_network
   restart: unless-stopped
@@ -108,6 +110,32 @@ services:
       start_period: 20s
       retries: 3
 
+  # One-shot: applies backend-node/prisma/migrations to aureon-db and exits.
+  # Prisma is the canonical schema source now (Alembic retired — see
+  # CLAUDE.md's Database migrations section) — nothing else creates schema
+  # on a fresh Postgres volume, so api/backend-node/backend-node-worker all
+  # wait on this completing successfully before they start.
+  migrate:
+    image: node:22-alpine
+    container_name: aureon_migrate
+    working_dir: /app
+    environment:
+      DATABASE_URL: postgresql://${POSTGRES_USER}:${POSTGRES_PASSWORD}@aureon-db:5432/${POSTGRES_DB:-aureon}?options=-c%20timezone%3Dutc
+    volumes:
+      - ./backend-node:/app
+      - /app/node_modules
+    depends_on:
+      aureon-db:
+        condition: service_healthy
+    networks:
+      - aureon_network
+    command: sh -c "npm install && npx prisma migrate deploy"
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
+
   backend-node:
     image: node:22-alpine
     container_name: aureon_backend_node
@@ -126,6 +154,8 @@ services:
         condition: service_healthy
       redis:
         condition: service_healthy
+      migrate:
+        condition: service_completed_successfully
     networks:
       - aureon_network
     command: sh -c "npm install && npm run dev"
@@ -159,6 +189,8 @@ services:
         condition: service_healthy
       redis:
         condition: service_healthy
+      migrate:
+        condition: service_completed_successfully
     networks:
       - aureon_network
     command: sh -c "npm install && npm run worker"

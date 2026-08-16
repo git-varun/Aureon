@@ -13,7 +13,6 @@ investment-os/
   │   ├── app/  
   │   ├── tests/  
   │   ├── scripts/      # bootstrap.py, migrate.sh, init.sql  
-  │   ├── alembic/      # migrations (single linear history, canonical schema source of truth)  
   │   ├── Dockerfile  
   │   └── requirements.txt  
   ├── frontend/         # React/Vite SPA  
@@ -92,7 +91,7 @@ more than one domain. Each layer has one job and a fixed home:
 - app/workers/*.py — Celery tasks, unchanged by the modularization: celery_app.py (app config, task routes, beat schedule, reads REDIS_URL), ingestion/tasks.py (quote/broker-sync ingestion), snapshots/asset_snapshot.py, evaluation/{features,scoring,signals}.py, monitoring/asset_health.py.  
 **Core infrastructure (**app/core/**)**  
 - config.py — Pydantic-Settings singleton (settings); reads .env from project root. PostgreSQL is mandatory.  
-- database.py — SQLAlchemy engine + SessionLocal + get_db(). Schema-qualified tables are managed by Alembic migrations, not create_all, outside of tests.  
+- database.py — SQLAlchemy engine + SessionLocal + get_db(). Schema-qualified tables are managed by Prisma migrations (backend-node/prisma/migrations/), not create_all, outside of tests.  
 - redis.py — Redis cache helpers (cache_quote, cache_asset_snapshot, check_redis_health, etc.).  
 - app/api/dependencies.py (not app/core/) — FastAPI dependency functions (get_db, get_current_user, get_user_context, serialize_user_profile).  
 - logging/ — structured logging package (no single logger.py file): core.py (the `logger` instance + compact one-line formatter), context.py (contextvars-based request/task/user/worker correlation IDs), sanitizer.py (masks secrets/JWTs before they hit the log line), http.py (outbound HTTP call logging), middleware.py (RequestLoggingMiddleware, assigns a correlation ID per request), instrument.py (the `instrument()` decorator wrapping service/provider methods with OK/FAIL + duration logging).  
@@ -110,7 +109,7 @@ React + Vite SPA. All API calls go through the single client frontend/src/api/ap
 Copy .env.example to .env. Required: DATABASE_URL (must be postgresql://...), REDIS_URL. Optional but needed for full functionality: GEMINI_API_KEY/GROQ_API_KEY, FINNHUB_API_KEY, POLYGON_API_KEY. Broker credentials (Binance, Zerodha, Groww) are not env vars — they're stored DB-side in ProviderConfig.encrypted_keys and set via the Settings UI / config API. Without these, the corresponding provider/AI calls fail loudly (ProviderError) rather than returning fake data.  
 Without Redis the app will fail startup checks as Redis is required for worker coordination and cache operations.  
 **Adding a New API Resource**  
-1. Add/extend a model in app/modules/<domain>/entities/<schema>.py (or app/core/entities/<schema>.py if cross-cutting) — tables are schema-qualified and created via Alembic migrations, see Database migrations above.  
+1. Add/extend a model in app/modules/<domain>/entities/<schema>.py (or app/core/entities/<schema>.py if cross-cutting) — tables are schema-qualified and created via Prisma migrations, see Database migrations above.  
 2. Add business logic in app/modules/<domain>/services/<name>.py, and a repository in app/modules/<domain>/repositories/<name>.py if raw queries are needed (app/core/services|repositories/ if cross-cutting).  
 3. Add a router in app/modules/<domain>/api/<name>.py (or app/core/api/<name>.py if cross-cutting) and include it in create_app() in app/api/main.py.  
 4. Generate and run a migration: ./scripts/migrate.sh new "..." then ./scripts/migrate.sh upgrade.  
