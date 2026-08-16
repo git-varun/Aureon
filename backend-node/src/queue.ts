@@ -10,6 +10,7 @@ import { dailyBriefingTask } from "./jobs/dailyBriefing";
 import { weeklyBriefingTask } from "./jobs/weeklyBriefing";
 import { monthlyBriefingTask } from "./jobs/monthlyBriefing";
 import { refreshFundamentalsTask } from "./jobs/refreshFundamentals";
+import { fetchNewsTask } from "./jobs/fetchNews";
 import {
   bullmqConnection as connection,
   QUOTES_QUEUE_NAME,
@@ -136,8 +137,8 @@ export async function registerMonthlyBriefingSchedule(): Promise<void> {
 }
 
 // Matches Python's beat_schedule crontab(hour=6, minute=0) exactly — daily
-// at 06:00 UTC. Task 7 — last of celery_app.py's beat_schedule entries
-// (besides news-refresh, out of this task's scope) to cut over; its
+// at 06:00 UTC. Task 7 — second-to-last of celery_app.py's beat_schedule
+// entries (news-refresh, below, was last — Task 11) to cut over; its
 // beat_schedule removal is in the same commit as this registration going
 // live, same no-double-writer discipline as every job above.
 export async function registerRefreshFundamentalsSchedule(): Promise<void> {
@@ -145,6 +146,19 @@ export async function registerRefreshFundamentalsSchedule(): Promise<void> {
     "refresh-fundamentals",
     { pattern: "0 6 * * *", tz: "UTC" },
     { name: "refreshFundamentals" },
+  );
+}
+
+// Matches Python's beat_schedule crontab(minute=0, hour="*/4") exactly —
+// every 4 hours, on the hour, UTC. Last of celery_app.py's beat_schedule
+// entries to cut over; its beat_schedule removal is in the same commit as
+// this registration going live, same no-double-writer discipline as every
+// job above (News rows this time, not a financial table).
+export async function registerFetchNewsSchedule(): Promise<void> {
+  await scheduledJobsQueue.upsertJobScheduler(
+    "news-refresh",
+    { pattern: "0 */4 * * *", tz: "UTC" },
+    { name: "fetchNews" },
   );
 }
 
@@ -162,6 +176,7 @@ const SCHEDULED_JOB_HANDLERS: Record<string, () => Promise<void>> = {
   weeklyBriefing: weeklyBriefingTask,
   monthlyBriefing: monthlyBriefingTask,
   refreshFundamentals: refreshFundamentalsTask,
+  fetchNews: fetchNewsTask,
 };
 
 export function startScheduledJobsWorker(): Worker<undefined, void> {

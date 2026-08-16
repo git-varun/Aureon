@@ -1,5 +1,4 @@
 from celery import Celery
-from celery.schedules import crontab
 from celery.signals import (
     after_setup_logger,
     after_setup_task_logger,
@@ -44,19 +43,16 @@ celery_app.conf.task_default_queue = "q_ingestion"
 celery_app.conf.timezone = "UTC"
 
 celery_app.conf.beat_schedule = {
-    "news-refresh": {
-        "task": "app.workers.ingestion.tasks.fetch_news_task",
-        "schedule": crontab(minute=0, hour="*/4"),
-    },
     # sweep-stale-job-logs, refresh-tracked-universe, refresh-mutual-fund-navs,
     # seed-price-history, hourly-price-refresh (all 5 of migration plan
-    # Task 3), daily-briefing, weekly-briefing, monthly-briefing (Task 6), and
-    # refresh-fundamentals (Task 7) cut over to real BullMQ repeatable
-    # schedules in backend-node (see backend-node/scripts/startWorker.ts) —
-    # no longer scheduled here to avoid both sides dispatching against the
-    # same tables (job_logs / latest_quotes+price_history / ai_briefings /
-    # asset_fundamentals) concurrently. All tasks themselves are untouched
-    # and still reachable via manual dispatch (ConfigService._TASK_MAPPING).
+    # Task 3), daily-briefing, weekly-briefing, monthly-briefing (Task 6),
+    # refresh-fundamentals (Task 7), and news-refresh (Task 11) cut over to
+    # real BullMQ repeatable schedules in backend-node (see
+    # backend-node/scripts/startWorker.ts) — no longer scheduled here to
+    # avoid both sides dispatching against the same tables (job_logs /
+    # latest_quotes+price_history / ai_briefings / asset_fundamentals / news)
+    # concurrently. All tasks themselves are untouched and still reachable
+    # via manual dispatch (ConfigService._TASK_MAPPING).
 }
 
 
