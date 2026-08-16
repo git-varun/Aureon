@@ -127,12 +127,7 @@
 - Modify: `CLAUDE.md`
 - Delete (end of task, only after confirming zero drift): `backend/alembic/`
 
-- [ ] **Step 1: Diff `backend-node/prisma/schema.prisma` against the live DB schema** (`prisma db pull` into a scratch file, diff against committed schema). Fix every mismatch first.
-- [ ] **Step 2: Generate a baseline Prisma migration.**
-- [ ] **Step 3: Update `CLAUDE.md`'s "Database migrations" section.**
-- [ ] **Step 4: Confirm no code anywhere still calls `alembic`** (`bootstrap.sh`, `scripts/migrate.sh`, CI config, `README.md`).
-- [ ] **Step 5: Delete `backend/alembic/` and `backend/scripts/migrate.sh`.**
-- [ ] **Step 6: Commit.**
+- [x] **Steps 1-6: DONE (2026-08-16).** Verified zero real schema drift (400 raw `prisma db pull` diff lines were all cosmetic). Hand-added a Postgres CHECK constraint Prisma can't introspect to the baseline migration (verified via empty migrate-diff round-trip). Caught and fixed 2 live Alembic dependencies before deletion: FastAPI's startup auto-migrate block, and CI's migration step (switched to `npx prisma migrate deploy`). Deleted `backend/alembic/` + `backend/scripts/migrate.sh`. Added a one-shot `migrate` docker-compose service so fresh-volume `docker compose up` still self-heals — verified end-to-end with a real fresh volume. Reviewed clean after 1 fix round. Full trail: `.superpowers/sdd/2026-08-12-python-to-node-remaining-work/task9-report.md`.
 
 ---
 
