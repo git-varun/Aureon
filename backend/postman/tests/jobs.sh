@@ -6,7 +6,7 @@ cd "$(dirname "$0")"
 source ./lib.sh
 
 assert_status GET "/api/v1/config/jobs" "200"
-JOB_NAME=$(grep -o '"name":"[^"]*"' /tmp/aureon_curl_body | head -1 | cut -d'"' -f4)
+JOB_NAME=$(grep -o '"job_name":"[^"]*"' /tmp/aureon_curl_body | head -1 | cut -d'"' -f4)
 
 if [[ -z "$JOB_NAME" ]]; then
   echo "SKIP  PUT/GET-logs/POST-run jobs/{jobName} — no jobs found (needs registered job config)"

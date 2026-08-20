@@ -5,8 +5,8 @@ set -uo pipefail
 cd "$(dirname "$0")"
 source ./lib.sh
 
-WL_ID=$(curl -s -X POST "$BASE_URL/api/v1/watchlist" -H "Content-Type: application/json" \
-  -d '{"name":"curl-smoke-test-watchlist"}' | grep -o '"id":"[^"]*"' | head -1 | cut -d'"' -f4)
+assert_status POST "/api/v1/watchlist" "201" '{"name":"curl-smoke-test-watchlist"}'
+WL_ID=$(grep -o '"id":"[^"]*"' /tmp/aureon_curl_body | head -1 | cut -d'"' -f4)
 
 if [[ -z "$WL_ID" ]]; then
   echo "FAIL  setup: could not create watchlist"

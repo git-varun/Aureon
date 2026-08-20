@@ -7,8 +7,8 @@ set -uo pipefail
 cd "$(dirname "$0")"
 source ./lib.sh
 
-PORTFOLIO_ID=$(curl -s -X POST "$BASE_URL/api/v1/portfolio/portfolios" -H "Content-Type: application/json" \
-  -d '{"name":"curl-smoke-test-portfolio"}' | grep -o '"id":"[^"]*"' | head -1 | cut -d'"' -f4)
+assert_status POST "/api/v1/portfolio/portfolios" "201" '{"name":"curl-smoke-test-portfolio"}'
+PORTFOLIO_ID=$(grep -o '"id":"[^"]*"' /tmp/aureon_curl_body | head -1 | cut -d'"' -f4)
 echo "PORTFOLIO_ID=$PORTFOLIO_ID" > /tmp/aureon_portfolio_id.env
 
 if [[ -z "$PORTFOLIO_ID" ]]; then

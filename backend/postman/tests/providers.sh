@@ -11,7 +11,7 @@ assert_status GET "/api/v1/config/allocation_targets" "200"
 assert_status PUT "/api/v1/config/allocation_targets/equity" "200" '{"target_pct":0.2}'
 
 assert_status GET "/api/v1/config/providers" "200"
-PROVIDER_NAME=$(grep -o '"name":"[^"]*"' /tmp/aureon_curl_body | head -1 | cut -d'"' -f4)
+PROVIDER_NAME=$(grep -o '"provider_name":"[^"]*"' /tmp/aureon_curl_body | head -1 | cut -d'"' -f4)
 
 if [[ -z "$PROVIDER_NAME" ]]; then
   echo "SKIP  PUT/health-check/keys providers/{providerName} — no providers found (needs seed config)"
