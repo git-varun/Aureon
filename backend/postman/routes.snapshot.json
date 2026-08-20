@@ -1,0 +1,657 @@
+[
+  {
+    "method": "POST",
+    "fullPath": "/api/v1/ai/feedback",
+    "file": "routes/ai/ai.ts"
+  },
+  {
+    "method": "POST",
+    "fullPath": "/api/v1/ai/global",
+    "file": "routes/ai/ai.ts"
+  },
+  {
+    "method": "POST",
+    "fullPath": "/api/v1/ai/monthly",
+    "file": "routes/ai/ai.ts"
+  },
+  {
+    "method": "POST",
+    "fullPath": "/api/v1/ai/qa",
+    "file": "routes/ai/ai.ts"
+  },
+  {
+    "method": "POST",
+    "fullPath": "/api/v1/ai/recommendations/:id/explain",
+    "file": "routes/ai/ai.ts"
+  },
+  {
+    "method": "POST",
+    "fullPath": "/api/v1/ai/weekly",
+    "file": "routes/ai/ai.ts"
+  },
+  {
+    "method": "GET",
+    "fullPath": "/api/v1/analytics/ai/briefings",
+    "file": "routes/ai/ai.ts"
+  },
+  {
+    "method": "POST",
+    "fullPath": "/api/v1/analytics/ai/news/batch",
+    "file": "routes/ai/ai.ts"
+  },
+  {
+    "method": "GET",
+    "fullPath": "/api/v1/analytics/ai/single/:symbol",
+    "file": "routes/ai/ai.ts"
+  },
+  {
+    "method": "POST",
+    "fullPath": "/api/v1/analytics/ai/single/:symbol",
+    "file": "routes/ai/ai.ts"
+  },
+  {
+    "method": "GET",
+    "fullPath": "/api/v1/analytics/ai/usage",
+    "file": "routes/ai/ai.ts"
+  },
+  {
+    "method": "GET",
+    "fullPath": "/api/v1/assets",
+    "file": "routes/market/assets.ts"
+  },
+  {
+    "method": "GET",
+    "fullPath": "/api/v1/assets/:symbol/chart",
+    "file": "routes/market/assets.ts"
+  },
+  {
+    "method": "GET",
+    "fullPath": "/api/v1/assets/:symbol/fundamentals",
+    "file": "routes/market/assets.ts"
+  },
+  {
+    "method": "GET",
+    "fullPath": "/api/v1/assets/:symbol/quote",
+    "file": "routes/market/assets.ts"
+  },
+  {
+    "method": "GET",
+    "fullPath": "/api/v1/assets/batch",
+    "file": "routes/market/assets.ts"
+  },
+  {
+    "method": "GET",
+    "fullPath": "/api/v1/aureon/assets/:ticker",
+    "file": "routes/market/assets.ts"
+  },
+  {
+    "method": "POST",
+    "fullPath": "/api/v1/aureon/recommendations/seed",
+    "file": "routes/ai/recommendations.ts"
+  },
+  {
+    "method": "GET",
+    "fullPath": "/api/v1/config/allocation_targets",
+    "file": "routes/settings/providers.ts"
+  },
+  {
+    "method": "PUT",
+    "fullPath": "/api/v1/config/allocation_targets/:assetClass",
+    "file": "routes/settings/providers.ts"
+  },
+  {
+    "method": "GET",
+    "fullPath": "/api/v1/config/jobs",
+    "file": "routes/settings/jobs.ts"
+  },
+  {
+    "method": "PUT",
+    "fullPath": "/api/v1/config/jobs/:name",
+    "file": "routes/settings/jobs.ts"
+  },
+  {
+    "method": "GET",
+    "fullPath": "/api/v1/config/jobs/:name/logs",
+    "file": "routes/settings/jobs.ts"
+  },
+  {
+    "method": "POST",
+    "fullPath": "/api/v1/config/jobs/:name/run",
+    "file": "routes/settings/jobs.ts"
+  },
+  {
+    "method": "GET",
+    "fullPath": "/api/v1/config/jobs/logs",
+    "file": "routes/settings/jobs.ts"
+  },
+  {
+    "method": "GET",
+    "fullPath": "/api/v1/config/providers",
+    "file": "routes/settings/providers.ts"
+  },
+  {
+    "method": "PUT",
+    "fullPath": "/api/v1/config/providers/:name",
+    "file": "routes/settings/providers.ts"
+  },
+  {
+    "method": "POST",
+    "fullPath": "/api/v1/config/providers/:name/health-check",
+    "file": "routes/settings/providers.ts"
+  },
+  {
+    "method": "PUT",
+    "fullPath": "/api/v1/config/providers/:name/keys",
+    "file": "routes/settings/providers.ts"
+  },
+  {
+    "method": "DELETE",
+    "fullPath": "/api/v1/config/providers/:name/keys/:keyName",
+    "file": "routes/settings/providers.ts"
+  },
+  {
+    "method": "GET",
+    "fullPath": "/api/v1/config/providers/zerodha/oauth/callback",
+    "file": "routes/settings/providers.ts"
+  },
+  {
+    "method": "GET",
+    "fullPath": "/api/v1/config/providers/zerodha/oauth/login-url",
+    "file": "routes/settings/providers.ts"
+  },
+  {
+    "method": "GET",
+    "fullPath": "/api/v1/evaluation/assets/:assetId/scores",
+    "file": "routes/evaluation/evaluation.ts"
+  },
+  {
+    "method": "GET",
+    "fullPath": "/api/v1/health",
+    "file": "routes/monitoring/health.ts"
+  },
+  {
+    "method": "GET",
+    "fullPath": "/api/v1/health/score",
+    "file": "routes/monitoring/health.ts"
+  },
+  {
+    "method": "GET",
+    "fullPath": "/api/v1/intelligence/calibration",
+    "file": "routes/ai/intelligence.ts"
+  },
+  {
+    "method": "GET",
+    "fullPath": "/api/v1/intelligence/cash-opportunities",
+    "file": "routes/ai/intelligence.ts"
+  },
+  {
+    "method": "GET",
+    "fullPath": "/api/v1/intelligence/concentration",
+    "file": "routes/ai/intelligence.ts"
+  },
+  {
+    "method": "GET",
+    "fullPath": "/api/v1/intelligence/diversification",
+    "file": "routes/ai/intelligence.ts"
+  },
+  {
+    "method": "GET",
+    "fullPath": "/api/v1/intelligence/diversification/trend",
+    "file": "routes/ai/intelligence.ts"
+  },
+  {
+    "method": "GET",
+    "fullPath": "/api/v1/intelligence/goals",
+    "file": "routes/ai/intelligence.ts"
+  },
+  {
+    "method": "GET",
+    "fullPath": "/api/v1/intelligence/outcomes",
+    "file": "routes/ai/intelligence.ts"
+  },
+  {
+    "method": "GET",
+    "fullPath": "/api/v1/intelligence/portfolio-health",
+    "file": "routes/ai/intelligence.ts"
+  },
+  {
+    "method": "GET",
+    "fullPath": "/api/v1/intelligence/portfolio-health/trend",
+    "file": "routes/ai/intelligence.ts"
+  },
+  {
+    "method": "GET",
+    "fullPath": "/api/v1/market/assets/:assetId/features",
+    "file": "routes/market/market.ts"
+  },
+  {
+    "method": "GET",
+    "fullPath": "/api/v1/market/assets/:assetId/snapshot",
+    "file": "routes/market/market.ts"
+  },
+  {
+    "method": "GET",
+    "fullPath": "/api/v1/market/indices",
+    "file": "routes/market/market.ts"
+  },
+  {
+    "method": "GET",
+    "fullPath": "/api/v1/market/movers",
+    "file": "routes/market/market.ts"
+  },
+  {
+    "method": "POST",
+    "fullPath": "/api/v1/market/refresh",
+    "file": "routes/market/market.ts"
+  },
+  {
+    "method": "GET",
+    "fullPath": "/api/v1/market/search",
+    "file": "routes/market/market.ts"
+  },
+  {
+    "method": "GET",
+    "fullPath": "/api/v1/market/sectors",
+    "file": "routes/market/sectors.ts"
+  },
+  {
+    "method": "GET",
+    "fullPath": "/api/v1/market/sectors/:name",
+    "file": "routes/market/sectors.ts"
+  },
+  {
+    "method": "POST",
+    "fullPath": "/api/v1/market/symbols/:symbol/backfill",
+    "file": "routes/market/market.ts"
+  },
+  {
+    "method": "GET",
+    "fullPath": "/api/v1/market/themes",
+    "file": "routes/market/themes.ts"
+  },
+  {
+    "method": "GET",
+    "fullPath": "/api/v1/market/themes-for/:symbol",
+    "file": "routes/market/themes.ts"
+  },
+  {
+    "method": "DELETE",
+    "fullPath": "/api/v1/market/themes/:themeId",
+    "file": "routes/market/themes.ts"
+  },
+  {
+    "method": "GET",
+    "fullPath": "/api/v1/market/themes/:themeId",
+    "file": "routes/market/themes.ts"
+  },
+  {
+    "method": "PUT",
+    "fullPath": "/api/v1/market/themes/:themeId",
+    "file": "routes/market/themes.ts"
+  },
+  {
+    "method": "POST",
+    "fullPath": "/api/v1/market/themes/:themeId/fork",
+    "file": "routes/market/themes.ts"
+  },
+  {
+    "method": "GET",
+    "fullPath": "/api/v1/market/themes/:themeId/nav",
+    "file": "routes/market/themes.ts"
+  },
+  {
+    "method": "GET",
+    "fullPath": "/api/v1/market/themes/:themeId/signals",
+    "file": "routes/market/themes.ts"
+  },
+  {
+    "method": "GET",
+    "fullPath": "/api/v1/market/universe",
+    "file": "routes/market/market.ts"
+  },
+  {
+    "method": "GET",
+    "fullPath": "/api/v1/monitoring/assets/:assetId/health",
+    "file": "routes/monitoring/monitoring.ts"
+  },
+  {
+    "method": "GET",
+    "fullPath": "/api/v1/monitoring/dependencies",
+    "file": "routes/monitoring/monitoring.ts"
+  },
+  {
+    "method": "GET",
+    "fullPath": "/api/v1/monitoring/failed-ingestions",
+    "file": "routes/monitoring/monitoring.ts"
+  },
+  {
+    "method": "GET",
+    "fullPath": "/api/v1/monitoring/health/aggregate",
+    "file": "routes/monitoring/monitoring.ts"
+  },
+  {
+    "method": "GET",
+    "fullPath": "/api/v1/monitoring/observability",
+    "file": "routes/monitoring/monitoring.ts"
+  },
+  {
+    "method": "GET",
+    "fullPath": "/api/v1/monitoring/positions/quote-integrity",
+    "file": "routes/monitoring/monitoring.ts"
+  },
+  {
+    "method": "GET",
+    "fullPath": "/api/v1/monitoring/providers",
+    "file": "routes/monitoring/monitoring.ts"
+  },
+  {
+    "method": "GET",
+    "fullPath": "/api/v1/monitoring/transactions/integrity",
+    "file": "routes/monitoring/monitoring.ts"
+  },
+  {
+    "method": "GET",
+    "fullPath": "/api/v1/news",
+    "file": "routes/news/news.ts"
+  },
+  {
+    "method": "GET",
+    "fullPath": "/api/v1/news/:symbol",
+    "file": "routes/news/news.ts"
+  },
+  {
+    "method": "GET",
+    "fullPath": "/api/v1/news/health",
+    "file": "routes/news/news.ts"
+  },
+  {
+    "method": "GET",
+    "fullPath": "/api/v1/notifications",
+    "file": "routes/notifications/notifications.ts"
+  },
+  {
+    "method": "POST",
+    "fullPath": "/api/v1/notifications",
+    "file": "routes/notifications/notifications.ts"
+  },
+  {
+    "method": "PUT",
+    "fullPath": "/api/v1/notifications/:id/read",
+    "file": "routes/notifications/notifications.ts"
+  },
+  {
+    "method": "PUT",
+    "fullPath": "/api/v1/notifications/mark-all-read",
+    "file": "routes/notifications/notifications.ts"
+  },
+  {
+    "method": "GET",
+    "fullPath": "/api/v1/portfolio/backup",
+    "file": "routes/portfolio/backup.ts"
+  },
+  {
+    "method": "GET",
+    "fullPath": "/api/v1/portfolio/portfolios",
+    "file": "routes/portfolio/portfolios.ts"
+  },
+  {
+    "method": "POST",
+    "fullPath": "/api/v1/portfolio/portfolios",
+    "file": "routes/portfolio/portfolios.ts"
+  },
+  {
+    "method": "DELETE",
+    "fullPath": "/api/v1/portfolio/portfolios/:id",
+    "file": "routes/portfolio/portfolios.ts"
+  },
+  {
+    "method": "GET",
+    "fullPath": "/api/v1/portfolio/portfolios/:id",
+    "file": "routes/portfolio/portfolios.ts"
+  },
+  {
+    "method": "PUT",
+    "fullPath": "/api/v1/portfolio/portfolios/:id",
+    "file": "routes/portfolio/portfolios.ts"
+  },
+  {
+    "method": "POST",
+    "fullPath": "/api/v1/portfolio/portfolios/:id/archive",
+    "file": "routes/portfolio/portfolios.ts"
+  },
+  {
+    "method": "GET",
+    "fullPath": "/api/v1/portfolio/portfolios/:id/history",
+    "file": "routes/portfolio/positions.ts"
+  },
+  {
+    "method": "POST",
+    "fullPath": "/api/v1/portfolio/portfolios/:id/import",
+    "file": "routes/portfolio/imports.ts"
+  },
+  {
+    "method": "POST",
+    "fullPath": "/api/v1/portfolio/portfolios/:id/import/cdsl",
+    "file": "routes/portfolio/imports.ts"
+  },
+  {
+    "method": "POST",
+    "fullPath": "/api/v1/portfolio/portfolios/:id/import/epf",
+    "file": "routes/portfolio/imports.ts"
+  },
+  {
+    "method": "POST",
+    "fullPath": "/api/v1/portfolio/portfolios/:id/import/groww/holdings",
+    "file": "routes/portfolio/imports.ts"
+  },
+  {
+    "method": "POST",
+    "fullPath": "/api/v1/portfolio/portfolios/:id/import/groww/mf-holdings",
+    "file": "routes/portfolio/imports.ts"
+  },
+  {
+    "method": "GET",
+    "fullPath": "/api/v1/portfolio/portfolios/:id/import/history",
+    "file": "routes/portfolio/imports.ts"
+  },
+  {
+    "method": "GET",
+    "fullPath": "/api/v1/portfolio/portfolios/:id/import/history/:runId/transactions",
+    "file": "routes/portfolio/imports.ts"
+  },
+  {
+    "method": "POST",
+    "fullPath": "/api/v1/portfolio/portfolios/:id/import/nps",
+    "file": "routes/portfolio/imports.ts"
+  },
+  {
+    "method": "POST",
+    "fullPath": "/api/v1/portfolio/portfolios/:id/manual-assets",
+    "file": "routes/portfolio/imports.ts"
+  },
+  {
+    "method": "PUT",
+    "fullPath": "/api/v1/portfolio/portfolios/:id/manual-assets/:symbol/valuation",
+    "file": "routes/portfolio/imports.ts"
+  },
+  {
+    "method": "GET",
+    "fullPath": "/api/v1/portfolio/portfolios/:id/positions",
+    "file": "routes/portfolio/positions.ts"
+  },
+  {
+    "method": "GET",
+    "fullPath": "/api/v1/portfolio/portfolios/:id/snapshot",
+    "file": "routes/portfolio/positions.ts"
+  },
+  {
+    "method": "POST",
+    "fullPath": "/api/v1/portfolio/portfolios/:id/snapshot",
+    "file": "routes/portfolio/positions.ts"
+  },
+  {
+    "method": "POST",
+    "fullPath": "/api/v1/portfolio/portfolios/:id/sync/binance/backfill",
+    "file": "routes/portfolio/sync.ts"
+  },
+  {
+    "method": "GET",
+    "fullPath": "/api/v1/portfolio/portfolios/:id/sync/binance/backfill/status",
+    "file": "routes/portfolio/sync.ts"
+  },
+  {
+    "method": "GET",
+    "fullPath": "/api/v1/portfolio/portfolios/:id/transactions",
+    "file": "routes/portfolio/transactions.ts"
+  },
+  {
+    "method": "POST",
+    "fullPath": "/api/v1/portfolio/portfolios/:id/transactions",
+    "file": "routes/portfolio/transactions.ts"
+  },
+  {
+    "method": "DELETE",
+    "fullPath": "/api/v1/portfolio/portfolios/:id/transactions/:txnId",
+    "file": "routes/portfolio/transactions.ts"
+  },
+  {
+    "method": "GET",
+    "fullPath": "/api/v1/portfolio/portfolios/:id/transactions/:txnId",
+    "file": "routes/portfolio/transactions.ts"
+  },
+  {
+    "method": "PUT",
+    "fullPath": "/api/v1/portfolio/portfolios/:id/transactions/:txnId",
+    "file": "routes/portfolio/transactions.ts"
+  },
+  {
+    "method": "GET",
+    "fullPath": "/api/v1/portfolio/portfolios/:id/transactions/broker-coverage",
+    "file": "routes/portfolio/transactions.ts"
+  },
+  {
+    "method": "POST",
+    "fullPath": "/api/v1/portfolio/portfolios/:id/unarchive",
+    "file": "routes/portfolio/portfolios.ts"
+  },
+  {
+    "method": "POST",
+    "fullPath": "/api/v1/portfolio/restore",
+    "file": "routes/portfolio/backup.ts"
+  },
+  {
+    "method": "POST",
+    "fullPath": "/api/v1/portfolio/sync",
+    "file": "routes/portfolio/sync.ts"
+  },
+  {
+    "method": "GET",
+    "fullPath": "/api/v1/portfolio/sync/status",
+    "file": "routes/portfolio/sync.ts"
+  },
+  {
+    "method": "GET",
+    "fullPath": "/api/v1/recommendation/recommendations",
+    "file": "routes/ai/recommendations.ts"
+  },
+  {
+    "method": "GET",
+    "fullPath": "/api/v1/recommendation/recommendations/:id",
+    "file": "routes/ai/recommendations.ts"
+  },
+  {
+    "method": "POST",
+    "fullPath": "/api/v1/recommendation/recommendations/:id/apply",
+    "file": "routes/ai/recommendations.ts"
+  },
+  {
+    "method": "POST",
+    "fullPath": "/api/v1/recommendation/recommendations/:id/dismiss",
+    "file": "routes/ai/recommendations.ts"
+  },
+  {
+    "method": "POST",
+    "fullPath": "/api/v1/recommendation/recommendations/:id/undo",
+    "file": "routes/ai/recommendations.ts"
+  },
+  {
+    "method": "POST",
+    "fullPath": "/api/v1/recommendation/recommendations/generate",
+    "file": "routes/ai/recommendations.ts"
+  },
+  {
+    "method": "POST",
+    "fullPath": "/api/v1/reset",
+    "file": "routes/settings/reset.ts"
+  },
+  {
+    "method": "GET",
+    "fullPath": "/api/v1/reset/preview",
+    "file": "routes/settings/reset.ts"
+  },
+  {
+    "method": "GET",
+    "fullPath": "/api/v1/reset/scopes",
+    "file": "routes/settings/reset.ts"
+  },
+  {
+    "method": "GET",
+    "fullPath": "/api/v1/signals/:symbol",
+    "file": "routes/market/assets.ts"
+  },
+  {
+    "method": "POST",
+    "fullPath": "/api/v1/signals/generate/:symbol",
+    "file": "routes/market/assets.ts"
+  },
+  {
+    "method": "GET",
+    "fullPath": "/api/v1/users/me",
+    "file": "routes/users/users.ts"
+  },
+  {
+    "method": "PUT",
+    "fullPath": "/api/v1/users/me",
+    "file": "routes/users/users.ts"
+  },
+  {
+    "method": "GET",
+    "fullPath": "/api/v1/watchlist",
+    "file": "routes/watchlist/watchlist.ts"
+  },
+  {
+    "method": "POST",
+    "fullPath": "/api/v1/watchlist",
+    "file": "routes/watchlist/watchlist.ts"
+  },
+  {
+    "method": "DELETE",
+    "fullPath": "/api/v1/watchlist/:id",
+    "file": "routes/watchlist/watchlist.ts"
+  },
+  {
+    "method": "PUT",
+    "fullPath": "/api/v1/watchlist/:id",
+    "file": "routes/watchlist/watchlist.ts"
+  },
+  {
+    "method": "POST",
+    "fullPath": "/api/v1/watchlist/:id/symbols",
+    "file": "routes/watchlist/watchlist.ts"
+  },
+  {
+    "method": "DELETE",
+    "fullPath": "/api/v1/watchlist/:id/symbols/:symbol",
+    "file": "routes/watchlist/watchlist.ts"
+  },
+  {
+    "method": "DELETE",
+    "fullPath": "/api/v1/watchlist/:id/symbols/:symbol/alert",
+    "file": "routes/watchlist/watchlist.ts"
+  },
+  {
+    "method": "PUT",
+    "fullPath": "/api/v1/watchlist/:id/symbols/:symbol/alert",
+    "file": "routes/watchlist/watchlist.ts"
+  }
+]

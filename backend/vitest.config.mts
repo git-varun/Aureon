@@ -2,7 +2,7 @@ import { defineConfig } from "vitest/config";
 
 export default defineConfig({
   test: {
-    include: ["src/**/*.test.ts"],
+    include: ["src/**/*.test.ts", "postman/**/*.test.ts"],
     setupFiles: ["src/testUtils/setupEnv.ts"],
     // Test files share a single Postgres DB (aureon_test) with no per-worker
     // isolation. Several suites (dataReset.test.ts's whole-table-wipe
