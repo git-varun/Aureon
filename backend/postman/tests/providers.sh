@@ -3,6 +3,10 @@
 # the list response. The 2 Zerodha OAuth GETs are marked manual: true in
 # endpoints.ts (they require a real broker OAuth redirect/callback) and are
 # never curl-tested automatically.
+# WARNING: this script overwrites real config: PUT allocation_targets/equity
+# sets target_pct to a test value, and PUT providers/{providerName} sets
+# enabled:true, potentially flipping a real provider's enabled flag. There is
+# no restore step. Only run against a disposable DB.
 set -uo pipefail
 cd "$(dirname "$0")"
 source ./lib.sh

@@ -7,9 +7,10 @@ source ./lib.sh
 
 if [[ -f /tmp/aureon_portfolio_id.env ]]; then source /tmp/aureon_portfolio_id.env; fi
 if [[ -z "${PORTFOLIO_ID:-}" ]]; then
-  echo "SKIP  all: PORTFOLIO_ID not set — run portfolios.sh first"
+  echo "FAIL  setup: required \$PORTFOLIO_ID is empty, upstream portfolios.sh must have failed"
+  FAIL=$((FAIL + 1))
   report
-  exit $?
+  exit 1
 fi
 
 assert_status GET "/api/v1/portfolio/portfolios/$PORTFOLIO_ID/history?days=90" "200"

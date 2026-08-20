@@ -22,8 +22,12 @@ for name in "${SCRIPTS[@]}"; do
 done
 
 # Cleanup: delete the scratch portfolio created by portfolios.sh, last.
+# DELETE requires the portfolio to be archived (see portfolios.ts), and
+# portfolios.sh archives-then-unarchives it as part of its own coverage, so
+# re-archive here immediately before deleting.
 if [[ -f "/tmp/aureon_portfolio_id.env" ]]; then
   source /tmp/aureon_portfolio_id.env
+  curl -s -o /dev/null -X POST "${BASE_URL:-http://localhost:8010}/api/v1/portfolio/portfolios/$PORTFOLIO_ID/archive"
   curl -s -o /dev/null -X DELETE "${BASE_URL:-http://localhost:8010}/api/v1/portfolio/portfolios/$PORTFOLIO_ID"
   rm -f /tmp/aureon_portfolio_id.env
 fi

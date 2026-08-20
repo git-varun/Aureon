@@ -23,12 +23,17 @@ else
 fi
 
 assert_status GET "/api/v1/analytics/ai/briefings?limit=10" "200"
-AI_GENERATION_ID=$(grep -o '"id":"[^"]*"' /tmp/aureon_curl_body | head -1 | cut -d'"' -f4)
+# getBriefingHistory (aiService.ts ~line 551) returns {...briefing.content, id: briefing.id} —
+# generation_id lives at the top level of each item (persisted into content by
+# generateBriefing so it survives this read path), NOT the top-level "id" field,
+# which is the ai_briefings row PK and is rejected by /ai/feedback (aiService.ts ~525-526).
+AI_GENERATION_ID=$(grep -o '"generation_id":"[^"]*"' /tmp/aureon_curl_body | head -1 | cut -d'"' -f4)
 
 if [[ -z "$AI_GENERATION_ID" ]]; then
   echo "SKIP  POST /ai/feedback — no briefing generation id found (needs an AI generation to exist)"
 else
-  assert_status POST "/api/v1/ai/feedback" "200" "{\"generation_id\":\"$AI_GENERATION_ID\",\"rating\":5,\"comment\":\"Helpful\"}"
+  # rating must be exactly 1 or -1 (aiService.ts ~523: rating !== 1 && rating !== -1 -> rejected)
+  assert_status POST "/api/v1/ai/feedback" "200" "{\"generation_id\":\"$AI_GENERATION_ID\",\"rating\":1,\"comment\":\"Helpful\"}"
 fi
 
 RECOMMENDATION_ID=$(curl -s "$BASE_URL/api/v1/recommendation/recommendations?status=active" | grep -o '"id":"[^"]*"' | head -1 | cut -d'"' -f4)

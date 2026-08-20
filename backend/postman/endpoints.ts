@@ -23,7 +23,7 @@ export const ENDPOINTS: Endpoint[] = [
   { method: "POST", path: "/api/v1/ai/weekly", folder: "ai", name: "Generate weekly briefing", expectStatus: [200] },
   { method: "POST", path: "/api/v1/ai/monthly", folder: "ai", name: "Generate monthly briefing", expectStatus: [200] },
   { method: "POST", path: "/api/v1/ai/qa", folder: "ai", name: "Ask Aureon Q&A", body: { context_type: "portfolio", context_id: "{{portfolioId}}", question: "How is my portfolio doing?" }, expectStatus: [200] },
-  { method: "POST", path: "/api/v1/ai/feedback", folder: "ai", name: "Submit AI feedback", body: { generation_id: "{{aiGenerationId}}", rating: 5, comment: "Helpful" }, expectStatus: [200] },
+  { method: "POST", path: "/api/v1/ai/feedback", folder: "ai", name: "Submit AI feedback", body: { generation_id: "{{aiGenerationId}}", rating: 1, comment: "Helpful" }, expectStatus: [200] },
   { method: "POST", path: "/api/v1/ai/recommendations/{{recommendationId}}/explain", folder: "ai", name: "Explain recommendation", expectStatus: [200] },
   { method: "GET", path: "/api/v1/analytics/ai/briefings", folder: "ai", name: "Get briefing history", query: { limit: "10" }, expectStatus: [200] },
   { method: "GET", path: "/api/v1/analytics/ai/single/{{symbol}}", folder: "ai", name: "Get single-asset take", expectStatus: [200] },

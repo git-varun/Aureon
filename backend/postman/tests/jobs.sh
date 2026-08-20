@@ -1,6 +1,10 @@
 #!/usr/bin/env bash
 # backend/postman/tests/jobs.sh — {{jobName}} is best-effort: taken from the
 # job list response, SKIP job-scoped routes if the list is empty.
+# WARNING: this script overwrites real config: PUT jobs/{jobName} sets
+# enabled:true, potentially re-enabling a job that was deliberately disabled,
+# and POST jobs/{jobName}/run triggers a real job execution. There is no
+# restore step. Only run against a disposable DB.
 set -uo pipefail
 cd "$(dirname "$0")"
 source ./lib.sh
