@@ -7,8 +7,12 @@ export interface RouteEntry {
   file: string;
 }
 
-// Mirrors backend/src/index.ts's app.use(...) table exactly. Each entry is
-// [routerVariableName, mountPrefix]. Keep this in lockstep with index.ts —
+// Resolves each route file's final mount prefix by composing BOTH:
+// 1. index.ts's top-level app.use(...) call (e.g., app.use("/api/v1/portfolio", portfolioRouter))
+// 2. Any intermediate barrel-router nesting in routes/<domain>/index.ts (e.g., portfolioRouter.use("/portfolios", portfoliosRouter))
+// The MOUNTS entries list individual file-level routers with their final prefixes after all nesting is applied.
+// Keep this in lockstep with both index.ts AND routes/<domain>/index.ts barrel files —
+// changing a mount prefix in either location requires updating MOUNTS here.
 // Task 5's coverage check is only as good as this map.
 const MOUNTS: Array<{ file: string; routerVar: string; prefix: string }> = [
   { file: "routes/portfolio/portfolios.ts", routerVar: "portfoliosRouter", prefix: "/api/v1/portfolio/portfolios" },
@@ -45,9 +49,42 @@ function joinPath(prefix: string, sub: string): string {
   return full.length > 1 && full.endsWith("/") ? full.slice(0, -1) : full;
 }
 
+/**
+ * Deduplicates routes by method+fullPath, detecting collisions between different route files.
+ * If the same method+fullPath is registered in two DIFFERENT files, throws an error naming both.
+ * If the same route is repeated within the SAME file, silently dedupes (this happens legitimately
+ * when a file composes multiple routers or has redundant route declarations).
+ */
+export function mergeAndValidateRoutes(entries: RouteEntry[]): RouteEntry[] {
+  const seen = new Map<string, RouteEntry>();
+  const result: RouteEntry[] = [];
+
+  for (const entry of entries) {
+    const key = `${entry.method} ${entry.fullPath}`;
+    const existing = seen.get(key);
+
+    if (existing) {
+      // Same key found before
+      if (existing.file !== entry.file) {
+        // Collision: same route from different files
+        throw new Error(
+          `Route collision: ${entry.method} ${entry.fullPath} is registered in both ` +
+          `"${existing.file}" and "${entry.file}". Each method+path must have a unique home.`
+        );
+      }
+      // Same file: silently dedupe
+      continue;
+    }
+
+    seen.set(key, entry);
+    result.push(entry);
+  }
+
+  return result;
+}
+
 export function listRoutes(): RouteEntry[] {
   const srcDir = join(__dirname, "..", "src");
-  const seen = new Set<string>();
   const out: RouteEntry[] = [];
 
   for (const mount of MOUNTS) {
@@ -63,16 +100,17 @@ export function listRoutes(): RouteEntry[] {
       if (!line.trimStart().startsWith(mount.routerVar)) continue;
 
       const fullPath = joinPath(mount.prefix, subPath);
-      const key = `${method.toUpperCase()} ${fullPath}`;
-      if (seen.has(key)) continue;
-      seen.add(key);
       out.push({ method: method.toUpperCase() as RouteEntry["method"], fullPath, file: mount.file });
     }
   }
-  return out;
+
+  // Deduplicate and validate collision detection, then sort for canonical ordering
+  const deduped = mergeAndValidateRoutes(out);
+  deduped.sort((a, b) => a.fullPath.localeCompare(b.fullPath) || a.method.localeCompare(b.method));
+  return deduped;
 }
 
 if (require.main === module) {
-  const routes = listRoutes().sort((a, b) => a.fullPath.localeCompare(b.fullPath) || a.method.localeCompare(b.method));
+  const routes = listRoutes();
   console.log(JSON.stringify(routes, null, 2));
 }
