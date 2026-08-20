@@ -78,4 +78,8 @@ if (require.main === module) {
   const out = buildCollection(ENDPOINTS);
   fs.writeFileSync(path.join(__dirname, "aureon.postman_collection.json"), JSON.stringify(out, null, 2) + "\n");
   console.log(`wrote ${ENDPOINTS.length} requests to aureon.postman_collection.json`);
+
+  const automated = buildCollection(ENDPOINTS.filter((e) => !e.manual));
+  fs.writeFileSync(path.join(__dirname, "aureon.postman_collection.automated.json"), JSON.stringify(automated, null, 2) + "\n");
+  console.log(`wrote ${automated.item.reduce((n: number, f: any) => n + f.item.length, 0)} requests to aureon.postman_collection.automated.json`);
 }
