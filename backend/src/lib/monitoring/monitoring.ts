@@ -4,8 +4,10 @@ import { prisma } from "../../prisma";
 import { NotFoundError } from "../errors";
 import { quotesQueue, watchlistAlertsQueue } from "../jobs/queues";
 import { checkScheduledJobsHealth } from "./scheduleHealth";
+import { logger } from "../logger";
 
 const redis = new Redis(process.env.REDIS_URL!);
+redis.on("error", (err) => logger.error({ err }, "monitoring: redis connection error"));
 
 function safeJsonLoad<T>(data: string | null | undefined, fallback: T): T {
   try {

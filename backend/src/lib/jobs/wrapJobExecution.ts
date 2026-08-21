@@ -1,5 +1,6 @@
 import { getJob, markJobRan, logJobStart, logJobEnd } from "./config";
 import { isResetInProgress } from "../marketProviders/redisRateLimit";
+import { logger } from "../logger";
 
 /** Port of _wrap_job_execution. Every scheduled job goes through this —
  * reset-in-progress guard, JobLog lifecycle (create-if-absent, always closed
@@ -12,7 +13,7 @@ export async function wrapJobExecution<T>(
   fn: () => Promise<T>,
 ): Promise<void> {
   if (await isResetInProgress()) {
-    console.warn(`Job ${jobName} skipped — data reset in progress`);
+    logger.warn({ job: jobName }, "job skipped — data reset in progress");
     return;
   }
 
@@ -29,6 +30,7 @@ export async function wrapJobExecution<T>(
     const resultRecord = result && typeof result === "object" && !Array.isArray(result) ? (result as Record<string, unknown>) : null;
     await logJobEnd(resolvedLogId, "SUCCESS", { result: resultRecord });
   } catch (e) {
+    logger.error({ job: jobName, logId: resolvedLogId, err: e }, "job failed");
     await logJobEnd(resolvedLogId, "FAILED", { error: (e as Error).message });
     throw e;
   }
@@ -41,7 +43,7 @@ export async function wrapJobExecution<T>(
 export async function skipIfDisabled(jobName: string, logId: number | null): Promise<boolean> {
   const job = await getJob(jobName);
   if (job !== null && !job.enabled) {
-    console.info(`${jobName}: skipped — JobConfig.enabled is False`);
+    logger.info({ job: jobName }, "job skipped — JobConfig.enabled is False");
     if (logId !== null) {
       await logJobEnd(logId, "SUCCESS", { error: "skipped — JobConfig.enabled is False" });
     }

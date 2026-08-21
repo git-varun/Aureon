@@ -1,4 +1,5 @@
 import "dotenv/config";
+import { logger } from "../src/lib/logger";
 import {
   startIngestQuoteWorker,
   startEvaluateWatchlistAlertsWorker,
@@ -23,28 +24,28 @@ import {
 const worker = startIngestQuoteWorker();
 
 worker.on("completed", (job) => {
-  console.log(`ingestQuote completed: ${JSON.stringify(job.data)}`);
+  logger.info({ job: "ingestQuote", data: job.data }, "completed");
 });
 worker.on("failed", (job, err) => {
-  console.error(`ingestQuote failed: ${JSON.stringify(job?.data)} — ${err.message}`);
+  logger.error({ job: "ingestQuote", data: job?.data, err }, "failed");
 });
 
 const alertsWorker = startEvaluateWatchlistAlertsWorker();
 
 alertsWorker.on("completed", (job) => {
-  console.log(`evaluateWatchlistAlerts completed: ${JSON.stringify(job.data)}`);
+  logger.info({ job: "evaluateWatchlistAlerts", data: job.data }, "completed");
 });
 alertsWorker.on("failed", (job, err) => {
-  console.error(`evaluateWatchlistAlerts failed: ${JSON.stringify(job?.data)} — ${err.message}`);
+  logger.error({ job: "evaluateWatchlistAlerts", data: job?.data, err }, "failed");
 });
 
 const scheduledWorker = startScheduledJobsWorker();
 
 scheduledWorker.on("completed", (job) => {
-  console.log(`${job.name} completed`);
+  logger.info({ job: job.name }, "completed");
 });
 scheduledWorker.on("failed", (job, err) => {
-  console.error(`${job?.name} failed: ${err.message}`);
+  logger.error({ job: job?.name, err }, "failed");
 });
 
 async function start() {
@@ -58,8 +59,8 @@ async function start() {
   await registerMonthlyBriefingSchedule();
   await registerRefreshFundamentalsSchedule();
   await registerFetchNewsSchedule();
-  console.log("BullMQ worker listening on q_ingestion, q_watchlist_alerts, q_scheduled_jobs");
-  console.log(
+  logger.info("BullMQ worker listening on q_ingestion, q_watchlist_alerts, q_scheduled_jobs");
+  logger.info(
     "Repeatable schedules registered: sweep-stale-job-logs (*/30 * * * * UTC), " +
       "refresh-tracked-universe (0 4 * * * UTC), refresh-mutual-fund-navs (0 23 * * * UTC), " +
       "seed-price-history (0 2 * * 0 UTC), hourly-price-refresh (0 * * * * UTC), " +

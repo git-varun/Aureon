@@ -49,3 +49,18 @@ export async function groqFetch(
     },
   ];
 }
+
+// Lightweight auth check — lists models instead of running a completion, so
+// it costs no completion tokens.
+export async function healthCheck(apiKey: string | null): Promise<boolean> {
+  if (!apiKey) return false;
+  try {
+    const res = await fetch("https://api.groq.com/openai/v1/models", {
+      headers: { Authorization: `Bearer ${apiKey}` },
+      signal: AbortSignal.timeout(5_000),
+    });
+    return res.status === 200;
+  } catch {
+    return false;
+  }
+}

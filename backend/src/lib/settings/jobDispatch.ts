@@ -19,8 +19,10 @@ import { refreshFundamentalsTask } from "../../jobs/refreshFundamentals";
 import { validateDataQualityTask } from "../../jobs/validateDataQuality";
 import { adminReprocessAllAssetsTask, adminRepairJobsTask } from "../../jobs/adminMaintenance";
 import { seedTrackedUniversesTask } from "../../jobs/seedTrackedUniverses";
+import { logger } from "../logger";
 
 const redis = new Redis(process.env.REDIS_URL!);
+redis.on("error", (err) => logger.error({ err }, "jobDispatch: redis connection error"));
 
 // Port of ConfigService._TASK_MAPPING, restricted to jobs with a real Node
 // runner today (see Task 3 header note) — every other _DEFAULT_JOBS entry is
@@ -119,10 +121,11 @@ async function dispatchWithRunner(jobName: string, runner: (logId: number) => Pr
     }
   }
 
+  // Rejection already logged by wrapJobExecution (every JOB_RUNNERS entry
+  // goes through it) — this catch exists only to stop an unhandled promise
+  // rejection from crashing the process, not to log a second time.
   void runner(log.id)
-    .catch((e: Error) => {
-      console.error(`Job ${jobName} (log ${log.id}) failed: ${e.message}`);
-    })
+    .catch(() => {})
     .finally(() => {
       if (requiredProvider) void releaseJobLock(jobName, taskId);
     });

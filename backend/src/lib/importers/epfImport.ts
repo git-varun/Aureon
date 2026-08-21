@@ -1,6 +1,7 @@
 import { openPdf, extractText, extractTables } from "./pdfTable";
 import { ImportParseError } from "./errors";
 import { parseDate } from "./csvImport";
+import { logger } from "../logger";
 
 // Port of portfolio_importer.py's parse_epf_statement (lines ~1027-1264).
 // Per the Python docstring: only the header + zero-transaction-year path has
@@ -236,8 +237,9 @@ export async function parseEpfStatement(
   const page1TotalContribution = txnRows.reduce((acc, r) => acc + r.employee + r.employer, 0);
   const crossCheckOk = zeroTxnYear || Math.abs(page1TotalContribution - page2TotalContribution) < 1.0;
   if (!crossCheckOk) {
-    console.warn(
-      `epf importer: page1/page2 contribution total mismatch for UAN=${uan} (page1=${page1TotalContribution}, page2=${page2TotalContribution})`,
+    logger.warn(
+      { importer: "epf", uan, page1TotalContribution, page2TotalContribution },
+      "page1/page2 contribution total mismatch",
     );
   }
 

@@ -5,6 +5,7 @@ import { NotFoundError, ValidationError } from "../errors";
 import { logAuditAction } from "../audit";
 import { invalidateOrgRecommendations } from "../portfolioCache";
 import { updateFinancialIntelligencePipeline } from "./intelligence";
+import { logger } from "../logger";
 
 // Port of the parts of app/modules/ai/services/recommendation.py needed so
 // far: the deterministic rule engine (_score_and_materialize), the
@@ -20,10 +21,7 @@ async function refreshIntelligencePipeline(operation: string, recommendationId: 
   try {
     await updateFinancialIntelligencePipeline();
   } catch (e) {
-    const extraStr = extra ? " " + Object.entries(extra).map(([k, v]) => `${k}=${v}`).join(" ") : "";
-    console.warn(
-      `intelligence_pipeline_refresh_failed operation=${operation} recommendation_id=${recommendationId}${extraStr} error=${(e as Error).message}`,
-    );
+    logger.warn({ operation, recommendationId, ...extra, err: e }, "intelligence_pipeline_refresh_failed");
   }
 }
 

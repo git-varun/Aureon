@@ -3,6 +3,7 @@ import { ProviderError } from "../lib/errors";
 import { getFundamentals } from "../lib/marketProviders/yahoo";
 import { listEquityAssetsWithQuotes, updateAssetSector } from "../lib/jobs/ingestionRepo";
 import { wrapJobExecution, skipIfDisabled } from "../lib/jobs/wrapJobExecution";
+import { logger } from "../lib/logger";
 
 /** Port of refresh_fundamentals_task's _run. Daily job: refreshes trailing
  * PE/price-to-book/ROE/etc for every quoted equity via Yahoo, and rides
@@ -16,7 +17,7 @@ import { wrapJobExecution, skipIfDisabled } from "../lib/jobs/wrapJobExecution";
 async function refreshFundamentals(): Promise<void> {
   const assets = await listEquityAssetsWithQuotes();
   if (assets.length === 0) {
-    console.warn("refresh_fundamentals_task: no quoted equities found");
+    logger.warn({ job: "refresh_fundamentals" }, "no quoted equities found");
     return;
   }
 
@@ -55,7 +56,7 @@ async function refreshFundamentals(): Promise<void> {
       // Isolated per-symbol failure (e.g. no fundamentals coverage for this
       // ticker) shouldn't abort the whole daily run — only escalate if every
       // symbol this cycle failed outright (below).
-      console.warn(`refresh_fundamentals_task: failed for symbol=${symbol}: ${(e as Error).message}`);
+      logger.warn({ job: "refresh_fundamentals", symbol, err: e }, "failed for symbol");
       failed.push(symbol);
     }
   }

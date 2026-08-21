@@ -4,8 +4,11 @@ import {
   getAllProviders, getProviderDict, updateProvider, setProviderKey, removeProviderKey, getDecryptedKey,
 } from "../../lib/settings/providers";
 import { listAllocationTargets, upsertAllocationTarget } from "../../lib/settings/allocationTargets";
+import { PROVIDER_HEALTH_CHECKS } from "../../lib/settings/providerHealth";
+import { prisma } from "../../prisma";
 import { NotFoundError, RequestValidationError, ValidationError, ZerodhaAuthError } from "../../lib/errors";
 import { ZerodhaClient } from "../../lib/broker/zerodha/client";
+import { logger } from "../../lib/logger";
 
 const FRONTEND_BASE_URL = process.env.FRONTEND_BASE_URL ?? "http://localhost:3000";
 
@@ -18,6 +21,7 @@ providersRouter.get("/providers", async (_req, res) => {
 providersRouter.put("/providers/:name", async (req, res) => {
   const user = await getCurrentUser();
   await updateProvider(req.params.name, { enabled: req.body?.enabled, config: req.body?.config }, user.id);
+  logger.info({ category: "SECURITY", action: "provider_updated", provider: req.params.name, userId: user.id, enabled: req.body?.enabled }, "Provider config updated");
   res.json({ providers: await getAllProviders() });
 });
 
@@ -25,6 +29,8 @@ providersRouter.put("/providers/:name/keys", async (req, res) => {
   const user = await getCurrentUser();
   const { key_name: keyName, value } = req.body ?? {};
   await setProviderKey(req.params.name, keyName, value ?? "", user.id);
+  // Never log the credential value itself — only which key on which provider changed.
+  logger.info({ category: "SECURITY", action: "credential_set", provider: req.params.name, keyName, userId: user.id }, "Provider credential set");
   const p = await getProviderDict(req.params.name);
   if (!p) throw new NotFoundError(`Provider ${req.params.name} not found`);
   res.json({ provider: p });
@@ -33,15 +39,22 @@ providersRouter.put("/providers/:name/keys", async (req, res) => {
 providersRouter.delete("/providers/:name/keys/:keyName", async (req, res) => {
   const user = await getCurrentUser();
   await removeProviderKey(req.params.name, req.params.keyName, user.id);
+  logger.info({ category: "SECURITY", action: "credential_removed", provider: req.params.name, keyName: req.params.keyName, userId: user.id }, "Provider credential removed");
   const p = await getProviderDict(req.params.name);
   if (!p) throw new NotFoundError(`Provider ${req.params.name} not found`);
   res.json({ provider: p });
 });
 
 providersRouter.post("/providers/:name/health-check", async (req, res) => {
-  // No unified provider-adapter registry ported yet (see Task 2 note) —
-  // honest "unknown" rather than a fake pass/fail.
-  res.json({ provider_name: req.params.name, healthy: null, checked_at: new Date().toISOString() });
+  const name = req.params.name;
+  const provider = await prisma.providerConfig.findUnique({ where: { providerName: name } });
+  if (!provider) throw new NotFoundError(`Provider ${name} not found`);
+
+  const check = PROVIDER_HEALTH_CHECKS[name];
+  const disabled = !provider.enabled || provider.status === "PLANNED" || provider.status === "DISABLED";
+  const healthy = !check || disabled ? null : await check();
+
+  res.json({ provider_name: name, healthy, checked_at: new Date().toISOString() });
 });
 
 // Port of get_zerodha_login_url. Pure string construction (ZerodhaClient.
@@ -68,7 +81,7 @@ providersRouter.get("/providers/zerodha/oauth/login-url", async (_req, res) => {
 providersRouter.get("/providers/zerodha/oauth/callback", async (req, res) => {
   const requestToken = typeof req.query.request_token === "string" ? req.query.request_token : undefined;
   const status = typeof req.query.status === "string" ? req.query.status : undefined;
-  console.log(`Zerodha OAuth callback hit (status=${status})`);
+  logger.info({ category: "SECURITY", action: "zerodha_oauth_callback", status }, "Zerodha OAuth callback hit");
 
   if (status !== "success" || !requestToken) {
     res.redirect(`${FRONTEND_BASE_URL}/profile?zerodha=error&reason=login_failed`);
@@ -87,7 +100,7 @@ providersRouter.get("/providers/zerodha/oauth/callback", async (req, res) => {
     await client.generateSession(requestToken);
   } catch (e) {
     if (e instanceof ZerodhaAuthError) {
-      console.warn(`Zerodha session exchange failed: ${e.message}`);
+      logger.warn({ category: "SECURITY", action: "zerodha_session_exchange_failed", err: e }, "Zerodha session exchange failed");
       res.redirect(`${FRONTEND_BASE_URL}/profile?zerodha=error&reason=exchange_failed`);
       return;
     }

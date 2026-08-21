@@ -1,6 +1,7 @@
 import { createHmac } from "crypto";
 import { BinanceAuthError, RateLimitError } from "../../errors";
 import { SPOT_TRADE_QUOTES } from "../binanceConstants";
+import { logger } from "../../logger";
 
 const BASE_URL = "https://api.binance.com";
 const FAPI_URL = "https://fapi.binance.com";
@@ -139,7 +140,7 @@ export class BinanceClient {
       this.coinmContractSizes = sizes;
       return sizes;
     } catch (e) {
-      console.warn(`Binance COIN-M exchangeInfo fetch failed: ${(e as Error).message}`);
+      logger.warn({ provider: "binance", operation: "coinm_exchange_info", err: e }, "exchangeInfo fetch failed");
       return {};
     }
   }
@@ -169,7 +170,7 @@ export class BinanceClient {
       this.spotSymbols = new Set((data.symbols ?? []).map((s) => s.symbol as string).filter(Boolean));
       return this.spotSymbols;
     } catch (e) {
-      console.warn(`Binance exchangeInfo fetch failed, falling back to per-symbol probing: ${(e as Error).message}`);
+      logger.warn({ provider: "binance", operation: "spot_exchange_info", err: e }, "exchangeInfo fetch failed, falling back to per-symbol probing");
       return null;
     }
   }
@@ -247,8 +248,9 @@ export class BinanceClient {
     const validSymbols = await this.getValidSpotSymbols();
     const toPoll = validSymbols === null ? candidates : candidates.filter((c) => validSymbols.has(c));
 
-    console.log(
-      `Binance spot trade discovery: ${candidates.length} candidate pairs, ${toPoll.length} polled, ${candidates.length - toPoll.length} filtered out via exchangeInfo`,
+    logger.info(
+      { provider: "binance", candidatePairs: candidates.length, polled: toPoll.length, filteredOut: candidates.length - toPoll.length },
+      "spot trade discovery",
     );
     return toPoll;
   }
@@ -284,7 +286,7 @@ export class BinanceClient {
       } catch (e) {
         if (!(e instanceof RateLimitError)) throw e;
         const wait = 2 ** attempt;
-        console.warn(`Binance backfill: rate limited on ${symbol} (fromId=${fromId}), backing off ${wait}s (attempt ${attempt + 1}/${maxRetries})`);
+        logger.warn({ provider: "binance", operation: "backfill", symbol, fromId, waitSeconds: wait, attempt: attempt + 1, maxRetries }, "rate limited, backing off");
         await sleep(wait * 1000);
       }
     }
@@ -320,7 +322,7 @@ async function tryFetch<T>(label: string, fn: () => Promise<T[]>): Promise<T[]> 
   try {
     return await fn();
   } catch (e) {
-    console.warn(`Binance sync: ${label} unavailable (likely missing API key permission): ${(e as Error).message}`);
+    logger.warn({ provider: "binance", operation: "sync", label, err: e }, "unavailable (likely missing API key permission)");
     return [];
   }
 }

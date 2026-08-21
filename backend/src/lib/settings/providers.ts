@@ -5,6 +5,7 @@ import { encryptFernet, decryptFernet, decryptFernetHealth } from "../crypto/fer
 import { DEFAULT_PROVIDERS } from "./providerDefaults";
 import { Prisma } from "../../generated/prisma";
 import type { ProviderConfig } from "../../generated/prisma";
+import { logger } from "../logger";
 
 const secret = (): string => process.env.SECRET_KEY!;
 
@@ -52,7 +53,7 @@ export async function seedDefaultProviders(): Promise<void> {
       // concurrent process seeding the same provider) must not abort the
       // rest of the seed loop.
       if (e instanceof Prisma.PrismaClientKnownRequestError && e.code === "P2002") {
-        console.warn(`seed_default_providers_collision provider_name=${p.providerName}`);
+        logger.warn({ provider: p.providerName }, "seed_default_providers_collision");
         continue;
       }
       throw e;
@@ -105,7 +106,9 @@ export async function updateProvider(
   actorId: string,
 ) {
   const existing = await prisma.providerConfig.findUnique({ where: { providerName } });
+
   if (!existing) throw new NotFoundError(`Provider ${providerName} not found`);
+
   await prisma.$transaction(async (tx) => {
     await tx.providerConfig.update({
       where: { providerName },

@@ -6,6 +6,7 @@ import { ensureTrackedAsset, saveQuote } from "../lib/jobs/ingestionRepo";
 import { getTopMarketCapCoins, SYMBOL_TO_COINGECKO_ID } from "../lib/marketProviders/coingecko";
 import { wrapJobExecution, skipIfDisabled } from "../lib/jobs/wrapJobExecution";
 import type { NormalizedQuote } from "../lib/marketProviders/types";
+import { logger } from "../lib/logger";
 
 interface UniverseResult {
   symbols: number;
@@ -31,12 +32,12 @@ async function seedEquityUniverses(): Promise<Record<string, UniverseResult>> {
         quoted += 1;
       } catch (e) {
         failed += 1;
-        console.warn(`seed_tracked_universes: quote failed for ${symbol}: ${(e as Error).message}`);
+        logger.warn({ job: "seed_tracked_universes", symbol, err: e }, "quote failed");
       }
       historyRows += await backfillHistory(asset.id, symbol, providerName);
     }
     results[universeName] = { symbols: symbols.length, quoted, failed, history_rows: historyRows };
-    console.log(`seed_tracked_universes: ${universeName} — ${JSON.stringify(results[universeName])}`);
+    logger.info({ job: "seed_tracked_universes", universeName, ...results[universeName] }, "universe seeded");
   }
   return results;
 }
@@ -88,7 +89,7 @@ async function seedCryptoTop100(limit = 100, historyPaceSeconds = 21): Promise<U
       seeded.push({ assetId: asset.id, symbol });
     } catch (e) {
       failed += 1;
-      console.warn(`seed_tracked_universes: crypto quote save failed for ${symbol}: ${(e as Error).message}`);
+      logger.warn({ job: "seed_tracked_universes", symbol, err: e }, "crypto quote save failed");
     }
   }
 
@@ -99,7 +100,7 @@ async function seedCryptoTop100(limit = 100, historyPaceSeconds = 21): Promise<U
   }
 
   const result: UniverseResult = { symbols: coins.length, quoted, failed, history_rows: historyRows };
-  console.log(`seed_tracked_universes: crypto_top100 — ${JSON.stringify(result)}`);
+  logger.info({ job: "seed_tracked_universes", universeName: "crypto_top100", ...result }, "universe seeded");
   return result;
 }
 
@@ -107,7 +108,7 @@ async function seedCryptoTop100(limit = 100, historyPaceSeconds = 21): Promise<U
 async function seedTrackedUniverses(): Promise<Record<string, UniverseResult>> {
   const results = await seedEquityUniverses();
   results.crypto_top100 = await seedCryptoTop100();
-  console.log(`seed_tracked_universes: completed — ${JSON.stringify(results)}`);
+  logger.info({ job: "seed_tracked_universes", results }, "completed");
   return results;
 }
 

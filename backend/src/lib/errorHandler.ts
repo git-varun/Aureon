@@ -8,6 +8,7 @@ import {
   RateLimitError,
   ProviderError,
 } from "./errors";
+import { logger } from "./logger";
 
 // Mirrors the FastAPI routers' NotFoundError->404 / ConflictError->409 /
 // ValidationError->400 exception handling, plus app/core/exceptions.py's
@@ -47,6 +48,6 @@ export const errorHandler: ErrorRequestHandler = (err, _req, res, _next) => {
     res.status(502).json({ detail: err.message });
     return;
   }
-  console.error(err);
+  logger.error(err);
   res.status(500).json({ detail: "Internal server error" });
 };

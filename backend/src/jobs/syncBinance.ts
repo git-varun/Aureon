@@ -5,12 +5,13 @@ import { invalidatePortfolioCaches } from "../lib/portfolioCache";
 import { resolveProviderCredentials, applyHoldingsToAllPortfolios, refreshQuotesAndSnapshots, lastBrokerTradeAt } from "../lib/broker/runBrokerSync";
 import { BinanceAuthError } from "../lib/errors";
 import { wrapJobExecution } from "../lib/jobs/wrapJobExecution";
+import { logger } from "../lib/logger";
 
 /** Port of _run_broker_sync("sync_binance", "binance", "sync_binance_holdings"). */
 async function runSyncBinance(): Promise<void> {
   const creds = await resolveProviderCredentials("binance", ["api_key", "api_secret"]);
   if (creds === null) {
-    console.warn("sync_binance: skipped — binance provider is not configured/enabled");
+    logger.warn({ job: "sync_binance", provider: "binance" }, "skipped — provider is not configured/enabled");
     return;
   }
 

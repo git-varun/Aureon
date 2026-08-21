@@ -3,6 +3,7 @@ import ExcelJS from "exceljs";
 import { ImportParseError } from "./errors";
 import { openPdf, extractText } from "./pdfTable";
 import { parseDate } from "./csvImport";
+import { logger } from "../logger";
 
 // Port of portfolio_importer.py's parse_nps_statement and its helpers
 // (lines ~813-1024). Statements are CSV/XLSX/PDF renditions of the same
@@ -205,7 +206,7 @@ export async function parseNpsStatement(
         txnType = units >= 0 ? "BUY" : "SELL";
         quantity = Math.abs(units);
         txnAmount = amount !== null ? Math.abs(amount) : null;
-        console.warn(`nps importer: unrecognised transaction description '${desc}' — inferred ${txnType}`);
+        logger.warn({ importer: "nps", description: desc, inferredType: txnType }, "unrecognised transaction description");
       }
 
       transactions.push({

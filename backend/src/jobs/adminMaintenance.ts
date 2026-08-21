@@ -1,6 +1,7 @@
 import { prisma } from "../prisma";
 import { generateFeatures } from "./generateFeatures";
 import { wrapJobExecution } from "../lib/jobs/wrapJobExecution";
+import { logger } from "../lib/logger";
 
 // Bounds how many generateFeatures(assetId) calls run concurrently. Python's
 // generate_features.delay(str(aid)) loop is queue-bounded by Celery worker
@@ -31,7 +32,7 @@ async function fanOutGenerateFeatures(assetIds: string[]): Promise<void> {
       if (result.status === "rejected") {
         const assetId = batch[idx];
         const e = result.reason as Error;
-        console.error(`admin maintenance: generateFeatures failed for asset ${assetId}: ${e.message}`);
+        logger.error({ job: "admin_reprocess_all", assetId, err: e }, "generateFeatures failed");
       }
     });
   }
@@ -75,7 +76,7 @@ export async function adminReprocessAllAssetsTask(logId: number | null = null): 
  * internally. */
 export function adminBackfillAssets(assetIds: string[]): void {
   void fanOutGenerateFeatures(assetIds).catch((e: Error) => {
-    console.error(`admin_backfill_assets: fan-out failed: ${e.message}`);
+    logger.error({ job: "admin_backfill_assets", err: e }, "fan-out failed");
   });
 }
 

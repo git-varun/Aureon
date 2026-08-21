@@ -1,4 +1,5 @@
 import Redis from "ioredis";
+import { logger } from "../logger";
 
 // Same Redis instance/keys as Python's app/core/redis.py — every function
 // here is a direct port of one of its cache_*/get_cached_*/invalidate_*
@@ -6,6 +7,7 @@ import Redis from "ioredis";
 // tier), sharing the same key names/TTLs so either backend can read the
 // other's writes.
 const redis = new Redis(process.env.REDIS_URL!);
+redis.on("error", (err) => logger.error({ err }, "evaluation cache: redis connection error"));
 
 async function setJson(key: string, ttlSeconds: number, data: unknown): Promise<void> {
   try {

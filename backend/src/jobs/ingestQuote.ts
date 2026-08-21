@@ -14,6 +14,7 @@ import * as coingecko from "../lib/marketProviders/coingecko";
 import * as nseDirect from "../lib/marketProviders/nseDirect";
 import * as binancePrice from "../lib/marketProviders/binancePrice";
 import * as polygon from "../lib/marketProviders/polygon";
+import { logger } from "../lib/logger";
 
 // Port of _MARKET_DATA_PROVIDERS — the full provider-name validation surface.
 const MARKET_DATA_PROVIDERS = new Set([
@@ -135,7 +136,7 @@ export async function ingestQuote(providerName: string, symbol: string): Promise
     try {
       if (await isSymbolHeld(symbol)) await processAssetSnapshot(assetId);
     } catch (e) {
-      console.error(`ingestQuote: evaluation chain failed for held symbol=${symbol}:`, e);
+      logger.error({ err: e }, `ingestQuote: evaluation chain failed for held symbol=${symbol}`);
     }
 
     return true;

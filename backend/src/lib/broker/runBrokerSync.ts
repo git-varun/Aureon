@@ -4,6 +4,7 @@ import { generatePortfolioSnapshot } from "../snapshot";
 import { getSessionTimeZone, naiveToUtc } from "../tz";
 import { refreshAllQuotes } from "../../jobs/refreshPrices";
 import type { SyncResult } from "./brokerSync";
+import { logger } from "../logger";
 
 /** Port of PortfolioService.list_all (via _list_portfolio_entries — loads
  * portfolio ids in a short-lived read, matching Python's separate session so
@@ -60,7 +61,7 @@ export async function refreshQuotesAndSnapshots(jobName: string): Promise<void> 
     try {
       await generatePortfolioSnapshot(portfolioId);
     } catch (e) {
-      console.warn(`${jobName}: snapshot failed for portfolio ${portfolioId}: ${(e as Error).message}`);
+      logger.warn({ job: jobName, portfolioId, err: e }, "snapshot failed");
     }
   }
 }
@@ -75,9 +76,9 @@ export async function applyHoldingsToAllPortfolios(
   for (const portfolioId of await listPortfolioIds()) {
     try {
       await applyFn(portfolioId);
-      console.log(`${jobName}: holdings synced for portfolio ${portfolioId}`);
+      logger.info({ job: jobName, portfolioId }, "holdings synced");
     } catch (e) {
-      console.warn(`${jobName}: sync failed for portfolio ${portfolioId}: ${(e as Error).message}`);
+      logger.warn({ job: jobName, portfolioId, err: e }, "sync failed");
     }
   }
 }

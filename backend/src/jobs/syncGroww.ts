@@ -5,12 +5,13 @@ import { invalidatePortfolioCaches } from "../lib/portfolioCache";
 import { resolveProviderCredentials, applyHoldingsToAllPortfolios, refreshQuotesAndSnapshots } from "../lib/broker/runBrokerSync";
 import { GrowwAuthError } from "../lib/errors";
 import { wrapJobExecution } from "../lib/jobs/wrapJobExecution";
+import { logger } from "../lib/logger";
 
 /** Port of _run_broker_sync("sync_groww", "groww", "sync_groww_holdings"). */
 async function runSyncGroww(): Promise<void> {
   const creds = await resolveProviderCredentials("groww", ["api_key", "api_secret"]);
   if (creds === null) {
-    console.warn("sync_groww: skipped — groww provider is not configured/enabled");
+    logger.warn({ job: "sync_groww", provider: "groww" }, "skipped — provider is not configured/enabled");
     return;
   }
 

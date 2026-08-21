@@ -25,7 +25,7 @@ aureon/
 **Commands**  
 **Backend (run from backend/)**  
  cd backend  
- bun run dev       # API server (tsx watch src/index.ts), port 8010  
+ bun run dev       # API server (bun --watch src/index.ts), port 8010  
  bun run worker    # BullMQ worker (scripts/startWorker.ts) — job execution + repeatable schedules  
  bun run build     # tsc compile to dist/  
  bun run lint      # ESLint  

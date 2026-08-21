@@ -1,6 +1,7 @@
 import { DEFAULT_USER_ID } from "../lib/users";
 import { generateBriefing } from "../lib/ai/aiService";
 import { wrapJobExecution, skipIfDisabled } from "../lib/jobs/wrapJobExecution";
+import { logger } from "../lib/logger";
 
 /** Port of tasks.py's _run_briefing("monthly") helper, as called by
  * monthly_briefing_task. Reuses aiService.ts's already-ported generateBriefing
@@ -8,6 +9,7 @@ import { wrapJobExecution, skipIfDisabled } from "../lib/jobs/wrapJobExecution";
  * no AI-calling logic is reimplemented here. */
 async function runMonthlyBriefing(): Promise<void> {
   await generateBriefing("monthly", DEFAULT_USER_ID);
+  logger.info({ job: "monthly_briefing" }, "briefing generated");
 }
 
 /** Port of monthly_briefing_task (the @_skip_if_disabled("monthly_briefing")

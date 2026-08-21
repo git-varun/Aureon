@@ -1,10 +1,12 @@
 import Redis from "ioredis";
+import { logger } from "../logger";
 
 // Same Redis instance/keys as the Python backend's app/core/redis.py — the
 // budget/cooldown counters are deliberately shared across both backends
 // (that's what stops either one from drawing a real 429, not a per-backend
 // concern) and market:quote:* is the same cache the Python read path checks.
 const redis = new Redis(process.env.REDIS_URL!);
+redis.on("error", (err) => logger.error({ err }, "redisRateLimit: redis connection error"));
 
 export function getProviderBudgetKey(providerName: string, windowSeconds: number): string {
   const bucket = Math.floor(Date.now() / 1000 / windowSeconds);

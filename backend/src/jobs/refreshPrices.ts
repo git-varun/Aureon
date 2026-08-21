@@ -2,6 +2,7 @@ import { prisma } from "../prisma";
 import { skipQuoteIngestion, resolveQuoteProvider } from "../lib/marketProviders/routing";
 import { quotesQueue } from "../queue";
 import { wrapJobExecution, skipIfDisabled } from "../lib/jobs/wrapJobExecution";
+import { logger } from "../lib/logger";
 
 /** Port of IngestionRepository.list_symbols_for_quote_ingestion — (symbol,
  * asset_class) for every symbol held in a portfolio position or watchlisted. */
@@ -26,13 +27,17 @@ async function listSymbolsForQuoteIngestion(): Promise<Array<{ symbol: string; a
 export async function refreshAllQuotes(): Promise<void> {
   const assets = await listSymbolsForQuoteIngestion();
   if (assets.length === 0) {
+    logger.info({ job: "refresh_prices" }, "no held/watchlisted symbols — nothing to enqueue");
     return;
   }
+  let enqueued = 0;
   for (const { symbol, assetClass } of assets) {
     if (skipQuoteIngestion(symbol, assetClass)) continue;
     const providerName = resolveQuoteProvider(symbol, assetClass);
     await quotesQueue.add("ingestQuote", { providerName, symbol });
+    enqueued++;
   }
+  logger.info({ job: "refresh_prices", enqueued, total: assets.length }, "quote ingestion enqueued");
 }
 
 /** Port of refresh_prices_task (the @_skip_if_disabled("refresh_prices") /

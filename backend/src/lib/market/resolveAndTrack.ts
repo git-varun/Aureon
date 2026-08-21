@@ -2,6 +2,7 @@ import { prisma } from "../../prisma";
 import { looksLikeSymbol, resolveQuoteProvider } from "../marketProviders/routing";
 import { ingestQuote } from "../../jobs/ingestQuote";
 import { backfillHistory } from "./backfillHistory";
+import { logger } from "../logger";
 
 /** Port of app/workers/ingestion/tasks.py resolve_and_track_symbol.
  * Dispatched fire-and-forget by searchMarket() when a search query has no DB
@@ -38,5 +39,5 @@ export async function resolveAndTrackSymbol(query: string): Promise<void> {
   }
 
   const rows = await backfillHistory(asset.id, symbol, providerName);
-  console.log(`resolve_and_track_symbol: tracked ${symbol} via ${providerName}, ${rows} history rows backfilled`);
+  logger.info({ operation: "resolve_and_track_symbol", symbol, provider: providerName, historyRows: rows }, "symbol tracked");
 }

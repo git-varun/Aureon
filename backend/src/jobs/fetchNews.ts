@@ -2,12 +2,13 @@ import { ProviderError } from "../lib/errors";
 import { fetchAndStore } from "../lib/news/news";
 import { listQuotedSymbols, markNewsFetchAttempted } from "../lib/jobs/ingestionRepo";
 import { wrapJobExecution, skipIfDisabled } from "../lib/jobs/wrapJobExecution";
+import { logger } from "../lib/logger";
 
 /** Port of fetch_news_task's _run_fetch. */
 async function runFetchNews(): Promise<void> {
   const symbols = await listQuotedSymbols(10);
   if (symbols.length === 0) {
-    console.log("fetch_news_task: no quoted symbols yet, skipping");
+    logger.info({ job: "fetch_news" }, "no quoted symbols yet, skipping");
     return;
   }
 
@@ -21,7 +22,7 @@ async function runFetchNews(): Promise<void> {
       // every symbol this cycle hit total provider failure, which is the
       // real "pipeline is down" signal.
       if (e instanceof ProviderError) {
-        console.error(`fetch_news_task: all providers failed for symbol=${sym}: ${e.message}`);
+        logger.error({ job: "fetch_news", symbol: sym, err: e }, "all providers failed for symbol");
         failedSymbols.push(sym);
       } else {
         throw e;

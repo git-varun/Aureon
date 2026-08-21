@@ -1,6 +1,6 @@
 import { Router } from "express";
 import { prisma } from "../../prisma";
-import { NotFoundError, RequestValidationError, ConfigurationError } from "../../lib/errors";
+import { NotFoundError, RequestValidationError } from "../../lib/errors";
 import { requireUuidParam } from "../../lib/validation";
 import { resolvePositionsPriceMap } from "../../lib/prices";
 import { generatePortfolioSnapshot, serializeSnapshotForCache, getPortfolioHistory } from "../../lib/snapshot";
@@ -105,57 +105,3 @@ positionsRouter.get("/:id/history", async (req, res) => {
   res.json(await getPortfolioHistory(portfolio.id, days));
 });
 
-// Port of POST /portfolios/{portfolio_id}/sync/binance/backfill. Unlike every
-// other endpoint in this file, the actual backfill worker (authenticated
-// paginated walk of Binance's spot trade history, credential decryption,
-// resumable per-symbol checkpointing) has no Node port — Node's own
-// dispatchJob() already hard-codes this job as portfolio-scoped-only with no
-// registered runner (see lib/settings/jobDispatch.ts's REQUIRES_PORTFOLIO_ID/
-// JOB_RUNNERS). Rather than return a fake "queued" response for work that
-// will never run — this project's standing no-fake-data policy — this fails
-// loudly and says so.
-positionsRouter.post("/:id/sync/binance/backfill", async (req) => {
-  requireUuidParam(req.params.id, "portfolio_id");
-  const portfolio = await prisma.portfolio.findUnique({ where: { id: req.params.id } });
-  if (!portfolio) throw new NotFoundError("Portfolio not found");
-
-  throw new ConfigurationError(
-    "Binance Spot backfill has no runner in the Node backend yet — trigger this from the Python backend (POST /api/v1/portfolio/portfolios/{id}/sync/binance/backfill) until it's ported.",
-  );
-});
-
-interface BinanceBackfillProgressRow {
-  symbol: string;
-  done: boolean;
-  trades_fetched: number;
-  trades_imported: number;
-}
-
-// Port of GET /portfolios/{portfolio_id}/sync/binance/backfill/status —
-// PortfolioService.get_binance_backfill_status. Read-only, sourced straight
-// from the binance_backfill_progress checkpoint table — correct whether a
-// backfill is mid-run, finished, or (as in Node today, see the POST route
-// above) never started at all.
-positionsRouter.get("/:id/sync/binance/backfill/status", async (req, res) => {
-  requireUuidParam(req.params.id, "portfolio_id");
-  const portfolio = await prisma.portfolio.findUnique({ where: { id: req.params.id } });
-  if (!portfolio) throw new NotFoundError("Portfolio not found");
-
-  const rows = await prisma.binance_backfill_progress.findMany({ where: { portfolio_id: portfolio.id } });
-  const symbols: BinanceBackfillProgressRow[] = rows.map((r) => ({
-    symbol: r.symbol,
-    done: r.done,
-    trades_fetched: r.trades_fetched,
-    trades_imported: r.trades_imported,
-  }));
-
-  res.json({
-    symbols_total: rows.length,
-    symbols_done: rows.filter((r) => r.done).length,
-    trades_fetched: rows.reduce((sum, r) => sum + r.trades_fetched, 0),
-    trades_imported: rows.reduce((sum, r) => sum + r.trades_imported, 0),
-    symbols,
-    scope: "spot_only",
-    note: "Covers Binance Spot only — Futures trade history is not backfilled (Binance API limitation).",
-  });
-});

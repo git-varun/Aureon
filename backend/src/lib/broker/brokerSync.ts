@@ -7,6 +7,7 @@ import { STABLECOIN_ASSETS, WALLET_SUFFIXES, splitQuoteAsset } from "./binanceCo
 import type { ZerodhaHolding } from "./zerodha/client";
 import type { GrowwHolding } from "./groww/client";
 import type { BinanceClient, BinanceSyncData } from "./binance/client";
+import { logger } from "../logger";
 
 type Tx = Prisma.TransactionClient;
 
@@ -543,11 +544,11 @@ export async function backfillBinanceSpot(portfolioId: string, client: BinanceCl
 async function getBackfillSymbolUniverse(client: BinanceClient, extraSymbols: Set<string>): Promise<string[]> {
   const spot = await client.getBalances();
   const earnFlexible = await client.getEarnFlexiblePositions().catch((e: Error) => {
-    console.warn(`Binance backfill: Simple Earn flexible unavailable (likely missing API key permission): ${e.message}`);
+    logger.warn({ provider: "binance", operation: "backfill_earn_flexible", err: e }, "Simple Earn flexible unavailable (likely missing API key permission)");
     return [] as Array<Record<string, unknown>>;
   });
   const earnLocked = await client.getEarnLockedPositions().catch((e: Error) => {
-    console.warn(`Binance backfill: Simple Earn locked unavailable (likely missing API key permission): ${e.message}`);
+    logger.warn({ provider: "binance", operation: "backfill_earn_locked", err: e }, "Simple Earn locked unavailable (likely missing API key permission)");
     return [] as Array<Record<string, unknown>>;
   });
   const earn = [...earnFlexible, ...earnLocked];

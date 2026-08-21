@@ -3,6 +3,7 @@ import { ProviderError } from "../lib/errors";
 import { getAllNavs } from "../lib/marketProviders/amfi";
 import { listMutualFundAssetsWithQuotes, recordPriceHistory } from "../lib/jobs/ingestionRepo";
 import { wrapJobExecution, skipIfDisabled } from "../lib/jobs/wrapJobExecution";
+import { logger } from "../lib/logger";
 
 /** Port of refresh_mutual_fund_navs_task's _run. Asset.symbol for a
  * mutual_fund asset is `{ISIN}_MF` when the importer resolved a real ISIN
@@ -12,7 +13,7 @@ import { wrapJobExecution, skipIfDisabled } from "../lib/jobs/wrapJobExecution";
 async function refreshMutualFundNavs(): Promise<void> {
   const assets = await listMutualFundAssetsWithQuotes();
   if (assets.length === 0) {
-    console.log("refresh_mutual_fund_navs_task: no mutual fund holdings found");
+    logger.info({ job: "refresh_mutual_fund_navs" }, "no mutual fund holdings found");
     return;
   }
 
@@ -45,9 +46,9 @@ async function refreshMutualFundNavs(): Promise<void> {
   });
 
   if (unmatched.length > 0) {
-    console.warn(`refresh_mutual_fund_navs_task: no AMFI NAV match for ${unmatched.length} symbol(s): ${unmatched.join(", ")}`);
+    logger.warn({ job: "refresh_mutual_fund_navs", unmatchedCount: unmatched.length, unmatched }, "no AMFI NAV match for symbol(s)");
   }
-  console.log(`refresh_mutual_fund_navs_task: updated ${matched}/${assets.length} mutual fund NAV(s)`);
+  logger.info({ job: "refresh_mutual_fund_navs", matched, total: assets.length }, "mutual fund NAV(s) updated");
 
   if (matched === 0) {
     throw new ProviderError("refresh_mutual_fund_navs_task: no AMFI NAV matched any held mutual fund symbol");

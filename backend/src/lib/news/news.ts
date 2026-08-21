@@ -4,6 +4,7 @@ import { ProviderError } from "../errors";
 import * as yahoo from "../marketProviders/yahoo";
 import * as finnhub from "../marketProviders/finnhub";
 import type { NormalizedNews } from "../marketProviders/types";
+import { logger } from "../logger";
 
 // VADER's compound score is already on news.sentiment_score's documented
 // -1..1 scale, so no conversion is needed at this write point. Verified
@@ -44,7 +45,7 @@ export async function fetchAndStore(symbolRaw: string): Promise<number> {
     try {
       headlines = await provider.getNews(symbol);
     } catch (e) {
-      console.error(`Failed to fetch news from provider ${provider.name} for ${symbol}: ${(e as Error).message}`);
+      logger.error({ provider: provider.name, symbol, err: e }, "Failed to fetch news");
       failedProviders.push(provider.name);
       continue;
     }

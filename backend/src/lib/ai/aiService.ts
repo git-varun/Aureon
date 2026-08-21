@@ -9,6 +9,7 @@ import { aiCircuitBreaker } from "./circuitBreaker";
 import { GEMINI_MODELS, geminiFetch, type FetchUsage } from "./providers/gemini";
 import { GROQ_MODELS, groqFetch } from "./providers/groq";
 import { buildGlobalContext, buildQaContext } from "./contextBuilder";
+import { logger } from "../logger";
 
 // Port of app/modules/ai/services/ai.py's AIService (execute_completion,
 // generate_briefing, ask_aureon, explain_recommendation, submit_feedback,
@@ -304,7 +305,7 @@ export async function executeCompletion(
   let usage: FetchUsage = { prompt_tokens: null, completion_tokens: null, total_tokens: null };
 
   if (process.env.AUREON_TEST_MOCK_AI === "true") {
-    console.log("AUREON_TEST_MOCK_AI is active; returning mock completion");
+    logger.info({ operation: "ai_completion", mock: true }, "AUREON_TEST_MOCK_AI is active; returning mock completion");
     responseText = mockBriefing(featureName);
   } else {
     const geminiKey = await getDecryptedKey("gemini", "api_key");
@@ -328,7 +329,7 @@ export async function executeCompletion(
         const cooldownKey = `${pname}:${model}`;
         if (await aiCircuitBreaker.isOpen(cooldownKey)) continue;
         try {
-          console.log(`Attempting ${pname} model: ${model}`);
+          logger.info({ operation: "ai_completion", provider: pname, model }, "attempting model");
           const [text, u] = await fetchFn(key, prompt, jsonMode, model);
           responseText = text;
           usage = u;
@@ -339,10 +340,10 @@ export async function executeCompletion(
           if (e instanceof RateLimitError) {
             await aiCircuitBreaker.trip(cooldownKey, 60.0);
             executionTrace[cooldownKey] = String((e as Error).message);
-            console.error(`${pname} ${model} rate limited: ${e}`);
+            logger.error({ operation: "ai_completion", provider: pname, model, err: e }, "model rate limited");
           } else {
             executionTrace[cooldownKey] = String((e as Error).message);
-            console.error(`${pname} ${model} failed: ${e}`);
+            logger.error({ operation: "ai_completion", provider: pname, model, err: e }, "model failed");
           }
         }
       }
@@ -350,7 +351,7 @@ export async function executeCompletion(
 
     if (!responseText) {
       errorMsg = `All models exhausted. Trace: ${JSON.stringify(executionTrace)}`;
-      console.error(errorMsg);
+      logger.error({ operation: "ai_completion", executionTrace }, errorMsg);
       throw new ProviderError(errorMsg);
     }
   }

@@ -1,10 +1,12 @@
 import Redis from "ioredis";
+import { logger } from "./logger";
 
 // Own client, same pattern as redisRateLimit.ts and queue.ts (each module
 // constructs its own connection rather than sharing one) — this module owns
 // portfolio-aggregate invalidation, distinct from that file's market-data
 // rate-limit/quote-cache concerns.
 const redis = new Redis(process.env.REDIS_URL!);
+redis.on("error", (err) => logger.error({ err }, "portfolioCache: redis connection error"));
 
 // Same key patterns as Python's app/core/redis.py — these must match exactly
 // since Node's writes need to invalidate the SAME keys Python's read path
@@ -43,7 +45,7 @@ export async function cachePortfolioSnapshot(portfolioId: string, snapshotData: 
   try {
     await redis.setex(getPortfolioSnapshotKey(portfolioId), 900, JSON.stringify(snapshotData));
   } catch (e) {
-    console.warn(`redis_operation_failed operation=cache_portfolio_snapshot portfolio_id=${portfolioId} error=${(e as Error).message}`);
+    logger.warn({ operation: "cache_portfolio_snapshot", portfolioId, err: e }, "redis_operation_failed");
   }
 }
 
@@ -56,7 +58,7 @@ export async function getCachedPortfolioSnapshot(portfolioId: string): Promise<R
       if (result && typeof result === "object") return result as Record<string, unknown>;
     }
   } catch (e) {
-    console.warn(`redis_operation_failed operation=get_cached_portfolio_snapshot portfolio_id=${portfolioId} error=${(e as Error).message}`);
+    logger.warn({ operation: "get_cached_portfolio_snapshot", portfolioId, err: e }, "redis_operation_failed");
   }
   return null;
 }
@@ -73,7 +75,7 @@ export async function invalidatePortfolioCaches(portfolioId: string): Promise<vo
       getIntelligenceHealthKey(portfolioId),
     );
   } catch (e) {
-    console.warn(`redis_operation_failed operation=invalidate_portfolio_caches portfolio_id=${portfolioId} error=${(e as Error).message}`);
+    logger.warn({ operation: "invalidate_portfolio_caches", portfolioId, err: e }, "redis_operation_failed");
   }
 }
 
@@ -82,7 +84,7 @@ export async function invalidateIntelligenceRecommendations(portfolioId: string)
   try {
     await redis.del(getIntelligenceRecommendationsKey(portfolioId));
   } catch (e) {
-    console.warn(`redis_operation_failed operation=invalidate_intelligence_recommendations portfolio_id=${portfolioId} error=${(e as Error).message}`);
+    logger.warn({ operation: "invalidate_intelligence_recommendations", portfolioId, err: e }, "redis_operation_failed");
   }
 }
 
@@ -91,7 +93,7 @@ export async function invalidateIntelligenceOutcomes(portfolioId: string): Promi
   try {
     await redis.del(getIntelligenceOutcomesKey(portfolioId));
   } catch (e) {
-    console.warn(`redis_operation_failed operation=invalidate_intelligence_outcomes portfolio_id=${portfolioId} error=${(e as Error).message}`);
+    logger.warn({ operation: "invalidate_intelligence_outcomes", portfolioId, err: e }, "redis_operation_failed");
   }
 }
 
@@ -104,6 +106,6 @@ export async function invalidateOrgRecommendations(orgId: string): Promise<void>
   try {
     await redis.del(getOrgRecommendationsKey(orgId));
   } catch (e) {
-    console.warn(`redis_operation_failed operation=invalidate_org_recommendations org_id=${orgId} error=${(e as Error).message}`);
+    logger.warn({ operation: "invalidate_org_recommendations", orgId, err: e }, "redis_operation_failed");
   }
 }

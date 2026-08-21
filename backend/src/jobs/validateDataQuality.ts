@@ -1,5 +1,6 @@
 import { prisma } from "../prisma";
 import { wrapJobExecution } from "../lib/jobs/wrapJobExecution";
+import { logger } from "../lib/logger";
 
 const STALE_CUTOFF_MS = 3 * 24 * 60 * 60 * 1000;
 
@@ -46,9 +47,9 @@ export async function validateDataQualityTask(logId: number | null = null): Prom
   await wrapJobExecution("validate_data_quality", logId, async () => {
     const errors = await validate();
     if (errors.length > 0) {
-      console.error(`Data Quality Audit found ${errors.length} issues: ${errors.slice(0, 10).join("; ")}`);
+      logger.error({ job: "validate_data_quality", issueCount: errors.length, issues: errors.slice(0, 10) }, "Data Quality Audit found issues");
     } else {
-      console.log("Data Quality Validation completed successfully. No issues found.");
+      logger.info({ job: "validate_data_quality" }, "Data Quality Validation completed successfully. No issues found.");
     }
   });
 }

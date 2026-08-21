@@ -1,7 +1,7 @@
 import { Router } from "express";
 import { v4 as uuidv4 } from "uuid";
 import { prisma } from "../../prisma";
-import { getCurrentUser, getUserContext } from "../../lib/users";
+import { getCurrentUser } from "../../lib/users";
 import { storeBackupReceipt } from "../../lib/settings/resetRedis";
 import { RequestValidationError } from "../../lib/errors";
 import { upload } from "../../lib/uploadMiddleware";
@@ -155,7 +155,7 @@ interface BackupTransaction {
   fees?: number; taxes?: number; notes?: string; broker?: string; broker_reference?: string;
   kind?: string; recommendation_id?: string; created_at?: string; updated_at?: string;
 }
-interface BackupPortfolioEntry { name: string | null; transactions: BackupTransaction[] }
+interface BackupPortfolioEntry { name: string; transactions: BackupTransaction[] }
 
 /** Port of app/modules/portfolio/api/portfolio.py restore_backup (:966-1319).
  *
@@ -172,10 +172,7 @@ backupRouter.post("/restore", upload.single("file"), async (req, res) => {
   if (!req.file) throw new RequestValidationError("file is required");
   const data = JSON.parse(req.file.buffer.toString("utf-8"));
 
-  // Backward compatibility with the pre-multi-portfolio export shape (a flat
-  // top-level "transactions" list): treat it as a single unnamed portfolio.
-  const portfolioEntries: BackupPortfolioEntry[] =
-    data.portfolios ?? [{ name: null, transactions: data.transactions ?? [] }];
+  const portfolioEntries: BackupPortfolioEntry[] = data.portfolios ?? [];
 
   if (!confirm) {
     // Per-portfolio existing-transaction counts so the confirm step can state
@@ -184,10 +181,8 @@ backupRouter.post("/restore", upload.single("file"), async (req, res) => {
     const portfoliosToReplace = [];
     for (const entry of portfolioEntries) {
       let existingCount = 0;
-      if (entry.name) {
-        const portfolio = await prisma.portfolio.findFirst({ where: { name: entry.name } });
-        if (portfolio) existingCount = await prisma.transaction.count({ where: { portfolioId: portfolio.id } });
-      }
+      const portfolio = await prisma.portfolio.findFirst({ where: { name: entry.name } });
+      if (portfolio) existingCount = await prisma.transaction.count({ where: { portfolioId: portfolio.id } });
       portfoliosToReplace.push({
         name: entry.name,
         existing_transactions_count: existingCount,
@@ -263,19 +258,13 @@ backupRouter.post("/restore", upload.single("file"), async (req, res) => {
     // so recreating it would silently drop portfolio-level fields (e.g.
     // isArchived) that aren't in the backup at all.
     for (const entry of portfolioEntries) {
-      let portfolioId: string;
-      if (entry.name) {
-        let portfolio = await tx.portfolio.findFirst({ where: { name: entry.name } });
-        if (!portfolio) {
-          portfolio = await tx.portfolio.create({
-            data: { id: uuidv4(), name: entry.name, isArchived: false, createdAt: new Date(), updatedAt: new Date() },
-          });
-        }
-        portfolioId = portfolio.id;
-      } else {
-        // Only reachable for the legacy flat-transactions backup shape.
-        portfolioId = await getUserContext(tx);
+      let portfolio = await tx.portfolio.findFirst({ where: { name: entry.name } });
+      if (!portfolio) {
+        portfolio = await tx.portfolio.create({
+          data: { id: uuidv4(), name: entry.name, isArchived: false, createdAt: new Date(), updatedAt: new Date() },
+        });
       }
+      const portfolioId = portfolio.id;
       portfoliosCount += 1;
       portfolioIdsTouched.add(portfolioId);
 

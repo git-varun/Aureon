@@ -2,6 +2,7 @@ import { prisma } from "../prisma";
 import { evaluateAlerts, type ActiveAlert } from "../lib/watchlist/alerts";
 import { createNotification } from "../lib/notifications";
 import { wrapJobExecution, skipIfDisabled } from "../lib/jobs/wrapJobExecution";
+import { logger } from "../lib/logger";
 
 /** Port of WatchlistsRepository.list_active_alerts_for_symbol — WatchlistSymbol
  * rows with a live alertPrice for this symbol, paired with their owning
@@ -38,6 +39,9 @@ async function evaluateWatchlistAlerts(symbol: string): Promise<{ fired: number 
   }
   for (const notification of fired) {
     await createNotification(notification);
+  }
+  if (fired.length > 0) {
+    logger.info({ job: "evaluate_watchlist_alerts", symbol, fired: fired.length }, "watchlist alert(s) fired");
   }
   return { fired: fired.length };
 }

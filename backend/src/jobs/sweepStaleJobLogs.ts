@@ -1,5 +1,6 @@
 import { sweepStaleRunningJobs } from "../lib/jobs/config";
 import { wrapJobExecution } from "../lib/jobs/wrapJobExecution";
+import { logger } from "../lib/logger";
 
 // Generous enough to outlast the slowest real job with comfortable margin,
 // so this never marks a merely-slow job as crashed. Matches Python's
@@ -9,7 +10,7 @@ const STALE_JOB_TIMEOUT_SECONDS = 2 * 60 * 60;
 async function sweep(): Promise<{ swept: number }> {
   const swept = await sweepStaleRunningJobs(STALE_JOB_TIMEOUT_SECONDS);
   if (swept > 0) {
-    console.warn(`sweep_stale_job_logs: marked ${swept} stale RUNNING job_logs row(s) as FAILED`);
+    logger.warn({ job: "sweep_stale_job_logs", swept }, "marked stale RUNNING job_logs row(s) as FAILED");
   }
   return { swept };
 }

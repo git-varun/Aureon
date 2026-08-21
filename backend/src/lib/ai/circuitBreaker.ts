@@ -1,10 +1,12 @@
 import Redis from "ioredis";
+import { logger } from "../logger";
 
 // Own client, same pattern as redisRateLimit.ts/queue.ts. Port of
 // app/core/providers/retry.py's CircuitBreaker — per-key cooldown tracker,
 // Redis-backed with an in-memory fallback so it still works if Redis is
 // briefly unavailable.
 const redis = new Redis(process.env.REDIS_URL!);
+redis.on("error", (err) => logger.error({ err }, "circuitBreaker: redis connection error"));
 
 export class CircuitBreaker {
   private namespace: string;

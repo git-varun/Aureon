@@ -7,6 +7,7 @@ import { listTrackedSymbolsForRefresh, saveQuote, recordPriceHistory, recordFail
 import { quotesQueue, watchlistAlertsQueue } from "../lib/jobs/queues";
 import { wrapJobExecution, skipIfDisabled } from "../lib/jobs/wrapJobExecution";
 import type { NormalizedQuote } from "../lib/marketProviders/types";
+import { logger } from "../lib/logger";
 
 /** Port of _coin_id — same curated-ticker-vs-raw-CoinGecko-id resolution as
  * coingecko.ts's private coinId(), duplicated here (not exported from
@@ -48,7 +49,7 @@ async function refreshTrackedCryptoBulk(symbols: string[]): Promise<void> {
   try {
     quotesById = await getQuotesByIds(ids);
   } catch (e) {
-    console.warn(`refresh_tracked_universe: crypto bulk refresh failed: ${(e as Error).message}`);
+    logger.warn({ job: "refresh_tracked_universe", operation: "crypto_bulk", err: e }, "crypto bulk refresh failed");
     for (const symbol of symbolToId.keys()) {
       await recordFailureStandalone("coingecko", symbol, (e as Error).message);
     }
@@ -73,7 +74,7 @@ async function refreshTrackedCryptoBulk(symbols: string[]): Promise<void> {
     quoted += 1;
   }
 
-  console.log(`refresh_tracked_universe: crypto bulk — quoted=${quoted} failed=${failed} of ${symbolToId.size}`);
+  logger.info({ job: "refresh_tracked_universe", operation: "crypto_bulk", quoted, failed, total: symbolToId.size }, "crypto bulk refresh completed");
 }
 
 /** Standalone version of ingestionRepo.recordFailure — the crypto-bulk path
@@ -98,7 +99,7 @@ async function recordFailureStandalone(providerName: string, symbol: string, err
 async function refreshTrackedUniverse(): Promise<void> {
   const assets = await listTrackedSymbolsForRefresh();
   if (assets.length === 0) {
-    console.log("refresh_tracked_universe: nothing tracked yet, skipping");
+    logger.info({ job: "refresh_tracked_universe" }, "nothing tracked yet, skipping");
     return;
   }
 

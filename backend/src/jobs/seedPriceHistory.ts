@@ -4,6 +4,7 @@ import { getPriceHistory as getYahooPriceHistory, type PriceHistoryRow as YahooP
 import { getPriceHistory as getNsePriceHistory } from "../lib/marketProviders/nseDirect";
 import { listAllAssets, bulkInsertPriceHistory, type PriceHistoryRow } from "../lib/jobs/ingestionRepo";
 import { wrapJobExecution, skipIfDisabled } from "../lib/jobs/wrapJobExecution";
+import { logger } from "../lib/logger";
 
 const UUID_NAMESPACE_DNS = "6ba7b810-9dad-11d1-80b4-00c04fd430c8";
 
@@ -16,7 +17,7 @@ async function getHistoryForAsset(symbol: string): Promise<YahooPriceHistoryRow[
     try {
       return await getNsePriceHistory(symbol, "3mo", "1d");
     } catch (e) {
-      console.warn(`seed_price_history: nse_direct failed for ${symbol}, trying next: ${(e as Error).message}`);
+      logger.warn({ job: "seed_price_history", symbol, provider: "nse_direct", err: e }, "nse_direct failed, trying next");
     }
   }
   return getYahooPriceHistory(symbol, "3mo", "1d");
@@ -29,7 +30,7 @@ async function getHistoryForAsset(symbol: string): Promise<YahooPriceHistoryRow[
 async function seedPriceHistory(): Promise<{ totalRows: number }> {
   const assets = await listAllAssets();
   if (assets.length === 0) {
-    console.warn("seed_price_history: no assets found — nothing held or watchlisted yet");
+    logger.warn({ job: "seed_price_history" }, "no assets found — nothing held or watchlisted yet");
     return { totalRows: 0 };
   }
 
@@ -39,7 +40,7 @@ async function seedPriceHistory(): Promise<{ totalRows: number }> {
     try {
       const histRows = await getHistoryForAsset(asset.symbol);
       if (histRows.length === 0) {
-        console.warn(`seed_price_history: no history for ${asset.symbol}`);
+        logger.warn({ job: "seed_price_history", symbol: asset.symbol }, "no history for symbol");
         continue;
       }
 
@@ -54,13 +55,13 @@ async function seedPriceHistory(): Promise<{ totalRows: number }> {
 
       await bulkInsertPriceHistory(rows);
       totalRows += rows.length;
-      console.log(`seed_price_history: ${asset.symbol} — ${rows.length} rows inserted`);
+      logger.info({ job: "seed_price_history", symbol: asset.symbol, rows: rows.length }, "rows inserted");
     } catch (e) {
-      console.warn(`seed_price_history: failed for ${asset.symbol}: ${(e as Error).message}`);
+      logger.warn({ job: "seed_price_history", symbol: asset.symbol, err: e }, "failed for symbol");
     }
   }
 
-  console.log(`seed_price_history: completed — total new rows: ${totalRows}`);
+  logger.info({ job: "seed_price_history", totalRows }, "completed");
   return { totalRows };
 }
 

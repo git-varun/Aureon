@@ -5,6 +5,7 @@ import { scoreAndMaterialize } from "../ai/recommendation";
 import { updateFinancialIntelligencePipeline } from "../ai/intelligence";
 import { validateFeatures } from "./features";
 import { cacheAssetScores, getCachedAssetSignals, invalidateOrgRecommendations } from "./cache";
+import { logger } from "../logger";
 
 const MODEL_VERSION = "v1.0.0";
 const FEATURE_SCHEMA_VERSION = "1.0";
@@ -36,7 +37,7 @@ export async function materializeForAsset(assetId: string): Promise<void> {
   try {
     await updateFinancialIntelligencePipeline();
   } catch (e) {
-    console.warn(`intelligence_pipeline_refresh_failed operation=materialize_for_asset asset_id=${assetId} error=${(e as Error).message}`);
+    logger.warn({ operation: "materialize_for_asset", assetId, err: e }, "intelligence_pipeline_refresh_failed");
   }
 }
 

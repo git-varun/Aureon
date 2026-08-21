@@ -1,6 +1,5 @@
 import { Router, type Request, type Response, type NextFunction } from "express";
-import { prisma } from "../../prisma";
-import { getCurrentUser, getUserContext } from "../../lib/users";
+import { getCurrentUser } from "../../lib/users";
 import { requireUuidParam } from "../../lib/validation";
 import { RequestValidationError } from "../../lib/errors";
 import {
@@ -101,12 +100,10 @@ aiRouter.get("/analytics/ai/briefings", async (req, res, next) => {
   }
 });
 
-// Port of get_ai_take. get_user_context is a side-effect-only call in Python
-// (ensures the default Portfolio exists; the returned id is unused here).
+// Port of get_ai_take.
 async function handleSingleAssetTake(req: Request, res: Response, next: NextFunction) {
   try {
     const user = await getCurrentUser();
-    await prisma.$transaction((tx) => getUserContext(tx));
     res.json(await getSingleAssetTake(String(req.params.symbol), user.id));
   } catch (e) {
     next(e);
@@ -118,7 +115,6 @@ aiRouter.post("/analytics/ai/single/:symbol", handleSingleAssetTake);
 aiRouter.get("/analytics/ai/usage", async (req, res, next) => {
   try {
     await getCurrentUser();
-    await prisma.$transaction((tx) => getUserContext(tx));
     const since = parseOptionalDateQuery(req.query.since, "since");
     const until = parseOptionalDateQuery(req.query.until, "until");
     res.json(await getUsageSummary(since, until));

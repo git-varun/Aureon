@@ -62,6 +62,7 @@ export async function fetchAssetInfo(symbols: string[]): Promise<Map<string, Ass
     prisma.asset.findMany({ where: { symbol: { in: symbols } } }),
     recentPriceHistoryBySymbols(symbols),
   ]);
+
   const quoteBySymbol = new Map(quotes.map((q) => [q.symbol, q]));
   const assetBySymbol = new Map(assets.map((a) => [a.symbol, a]));
 

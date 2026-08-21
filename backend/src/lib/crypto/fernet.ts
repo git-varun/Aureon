@@ -1,4 +1,5 @@
 import { createCipheriv, createDecipheriv, createHmac, randomBytes, timingSafeEqual } from "crypto";
+import { logger } from "../logger";
 
 // Port of app/core/services/config.py's _fernet/_encrypt/_decrypt/_decrypt_health.
 // Byte-compatible with Python's cryptography.fernet.Fernet — both backends
@@ -64,7 +65,7 @@ export function decryptFernet(token: string, secret?: string, context = ""): str
     const plaintext = Buffer.concat([decipher.update(ciphertext), decipher.final()]);
     return plaintext.toString("utf-8");
   } catch (e) {
-    console.error(`Decryption failed [${context}] — ${(e as Error).message}`);
+    logger.error({ category: "SECURITY", action: "credential_decrypt_failed", context, err: e }, "Decryption failed");
     return "";
   }
 }

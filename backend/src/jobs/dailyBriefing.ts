@@ -1,6 +1,7 @@
 import { DEFAULT_USER_ID } from "../lib/users";
 import { generateBriefing } from "../lib/ai/aiService";
 import { wrapJobExecution, skipIfDisabled } from "../lib/jobs/wrapJobExecution";
+import { logger } from "../lib/logger";
 
 /** Port of tasks.py's _run_briefing("global") helper, as called by
  * daily_briefing_task. Reuses aiService.ts's already-ported generateBriefing
@@ -8,6 +9,7 @@ import { wrapJobExecution, skipIfDisabled } from "../lib/jobs/wrapJobExecution";
  * no AI-calling logic is reimplemented here. */
 async function runDailyBriefing(): Promise<void> {
   await generateBriefing("global", DEFAULT_USER_ID);
+  logger.info({ job: "daily_briefing" }, "briefing generated");
 }
 
 /** Port of daily_briefing_task (the @_skip_if_disabled("daily_briefing") /

@@ -3,6 +3,7 @@ import { QUOTE_FALLBACK_CANDIDATES, yahooCanServeCryptoSymbol } from "../marketP
 import { getPriceHistory as getYahooPriceHistory } from "../marketProviders/yahoo";
 import { getPriceHistory as getNsePriceHistory } from "../marketProviders/nseDirect";
 import { bulkInsertPriceHistory, type PriceHistoryRow } from "../jobs/ingestionRepo";
+import { logger } from "../logger";
 
 const UUID_NAMESPACE_DNS = "6ba7b810-9dad-11d1-80b4-00c04fd430c8";
 
@@ -56,7 +57,7 @@ export async function backfillHistory(assetId: string, symbol: string, providerN
       await bulkInsertPriceHistory(rows);
       return rows.length;
     } catch (e) {
-      console.warn(`backfillHistory: history failed for ${symbol} via ${candidate}: ${(e as Error).message}`);
+      logger.warn({ operation: "backfillHistory", symbol, provider: candidate, err: e }, "history failed");
     }
   }
   return 0;

@@ -1,6 +1,8 @@
 import Redis from "ioredis";
+import { logger } from "../logger";
 
 const redis = new Redis(process.env.REDIS_URL!);
+redis.on("error", (err) => logger.error({ err }, "resetRedis: redis connection error"));
 
 const RESET_LOCK_KEY = "reset:in_progress";
 
@@ -27,7 +29,7 @@ export async function storeBackupReceipt(receipt: string, ttlSeconds = 600): Pro
   try {
     await redis.set(backupReceiptKey(), receipt, "EX", ttlSeconds);
   } catch (e) {
-    console.warn(`redis_operation_failed operation=store_backup_receipt error=${(e as Error).message}`);
+    logger.warn({ operation: "store_backup_receipt", err: e }, "redis_operation_failed");
   }
 }
 

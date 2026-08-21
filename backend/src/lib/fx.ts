@@ -1,7 +1,9 @@
 import Redis from "ioredis";
+import { logger } from "./logger";
 
 // Own client, same pattern as portfolioCache.ts / queue.ts.
 const redis = new Redis(process.env.REDIS_URL!);
+redis.on("error", (err) => logger.error({ err }, "fx: redis connection error"));
 
 /** Port of app/core/fx.py FX_TO_INR — same key ("fx:rates") and 3600s TTL as
  * Python's cache_fx_rates/get_cached_fx_rates, so both backends share one
@@ -28,7 +30,7 @@ async function cacheFxRates(rates: Record<string, number>): Promise<void> {
   try {
     await redis.setex(getFxRatesKey(), 3600, JSON.stringify(rates));
   } catch (e) {
-    console.warn(`redis_operation_failed operation=cache_fx_rates key=${getFxRatesKey()} error=${(e as Error).message}`);
+    logger.warn({ operation: "cache_fx_rates", key: getFxRatesKey(), err: e }, "redis_operation_failed");
   }
 }
 
@@ -40,7 +42,7 @@ async function getCachedFxRates(): Promise<Record<string, number> | null> {
       if (result && typeof result === "object") return result as Record<string, number>;
     }
   } catch (e) {
-    console.warn(`redis_operation_failed operation=get_cached_fx_rates key=${getFxRatesKey()} error=${(e as Error).message}`);
+    logger.warn({ operation: "get_cached_fx_rates", key: getFxRatesKey(), err: e }, "redis_operation_failed");
   }
   return null;
 }
@@ -66,7 +68,7 @@ async function getFxRates(): Promise<Record<string, number>> {
   try {
     rates = await fetchLiveFxRates();
   } catch (e) {
-    console.warn(`fx_live_rate_fetch_failed error=${(e as Error).message}`);
+    logger.warn({ operation: "fetch_live_fx_rates", err: e }, "fx_live_rate_fetch_failed");
     return FX_TO_INR;
   }
   await cacheFxRates(rates);

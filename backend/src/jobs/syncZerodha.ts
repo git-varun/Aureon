@@ -5,12 +5,13 @@ import { invalidatePortfolioCaches } from "../lib/portfolioCache";
 import { resolveProviderCredentials, applyHoldingsToAllPortfolios, refreshQuotesAndSnapshots } from "../lib/broker/runBrokerSync";
 import { ZerodhaAuthError } from "../lib/errors";
 import { wrapJobExecution } from "../lib/jobs/wrapJobExecution";
+import { logger } from "../lib/logger";
 
 /** Port of _run_broker_sync("sync_zerodha", "zerodha", "sync_zerodha_holdings"). */
 async function runSyncZerodha(): Promise<void> {
   const creds = await resolveProviderCredentials("zerodha", ["api_key", "api_secret", "access_token"]);
   if (creds === null) {
-    console.warn("sync_zerodha: skipped — zerodha provider is not configured/enabled");
+    logger.warn({ job: "sync_zerodha", provider: "zerodha" }, "skipped — provider is not configured/enabled");
     return;
   }
 

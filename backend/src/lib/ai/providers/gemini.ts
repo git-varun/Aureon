@@ -51,3 +51,17 @@ export async function geminiFetch(
     },
   ];
 }
+
+// Lightweight auth check — lists models instead of generating content, so it
+// costs no completion tokens.
+export async function healthCheck(apiKey: string | null): Promise<boolean> {
+  if (!apiKey) return false;
+  try {
+    const res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models?key=${apiKey}`, {
+      signal: AbortSignal.timeout(5_000),
+    });
+    return res.status === 200;
+  } catch {
+    return false;
+  }
+}

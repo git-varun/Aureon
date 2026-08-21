@@ -4,6 +4,7 @@ import { invalidatePortfolioCaches } from "../lib/portfolioCache";
 import { resolveProviderCredentials } from "../lib/broker/runBrokerSync";
 import { BinanceAuthError, ConfigurationError, ValidationError } from "../lib/errors";
 import { wrapJobExecution } from "../lib/jobs/wrapJobExecution";
+import { logger } from "../lib/logger";
 
 /** Port of _run_binance_spot_backfill. One-time, user-triggered full-history
  * Spot trade backfill for a single portfolio (resumable via
@@ -23,7 +24,7 @@ async function runBackfillBinanceSpot(portfolioId: string | null): Promise<void>
 
   const summary = await backfillBinanceSpot(portfolioId, client);
   await invalidatePortfolioCaches(portfolioId);
-  console.log(`backfill_binance_spot: portfolio=${portfolioId} ${JSON.stringify(summary)}`);
+  logger.info({ job: "backfill_binance_spot", portfolioId, ...summary }, "backfill completed");
 }
 
 /** Port of backfill_binance_spot_task. */
