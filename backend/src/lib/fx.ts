@@ -94,12 +94,12 @@ export async function getHistoricalFxToInr(currency: string, date: Date): Promis
   if (currency === "INR") return 1.0;
 
   const dateOnly = date.toISOString().slice(0, 10);
-  const existing = await prisma.fx_rate_history.findUnique({
-    where: { currency_date: { currency, date: new Date(dateOnly) } },
-  });
-  if (existing) return Number(existing.rate_to_inr);
-
   try {
+    const existing = await prisma.fx_rate_history.findUnique({
+      where: { currency_date: { currency, date: new Date(dateOnly) } },
+    });
+    if (existing) return Number(existing.rate_to_inr);
+
     const res = await fetch(`https://api.frankfurter.app/${dateOnly}?from=${currency}&to=INR`, {
       signal: AbortSignal.timeout(10_000),
     });
