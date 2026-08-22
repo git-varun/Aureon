@@ -117,18 +117,36 @@ export async function applyTradeCostBasis(tx: Tx, portfolioId: string, symbolRaw
   const pos = await tx.position.findFirst({ where: { portfolioId, symbol, wallet } });
   if (!pos) return;
 
-  const trades = await tx.transaction.findMany({
-    where: { portfolioId, symbol, kind: "broker_trade", transactionType: { in: ["BUY", "SELL"] } },
-    orderBy: [{ transactionDate: "asc" }, { id: "asc" }],
-  });
-  if (trades.length === 0) return;
+  const [trades, transfers] = await Promise.all([
+    tx.transaction.findMany({
+      where: { portfolioId, symbol, kind: "broker_trade", transactionType: { in: ["BUY", "SELL"] } },
+    }),
+    tx.transaction.findMany({
+      where: { portfolioId, symbol, kind: "broker_transfer", transactionType: { in: ["DEPOSIT", "WITHDRAWAL"] } },
+    }),
+  ]);
+  const ledger = [...trades, ...transfers].sort(
+    (a, b) => a.transactionDate.getTime() - b.transactionDate.getTime() || a.id.localeCompare(b.id),
+  );
+  if (ledger.length === 0) return;
 
   let netQty = 0;
   let runningAvg = 0;
-  for (const t of trades) {
+  for (const t of ledger) {
     const qty = Number(t.quantity);
     const price = Number(t.price);
-    if (t.transactionType.toUpperCase() === "BUY") {
+    const isBuySide = t.transactionType.toUpperCase() === "BUY" || t.transactionType.toUpperCase() === "DEPOSIT";
+    if (isBuySide) {
+      // A zero-priced deposit (historical price lookup failed at ingestion —
+      // see importBrokerTransfers) contributes real quantity via the live
+      // balance snapshot elsewhere, but has no cost basis to contribute
+      // here. It must be skipped entirely (not folded into netQty either),
+      // otherwise it would silently sit in netQty as zero-cost weight and
+      // drag the average down the moment the next priced BUY/DEPOSIT
+      // arrives — the exact outcome this branch exists to prevent.
+      if (price <= 0) {
+        continue;
+      }
       const newQty = netQty + qty;
       if (newQty > 0) runningAvg = (netQty * runningAvg + qty * price) / newQty;
       netQty = newQty;
