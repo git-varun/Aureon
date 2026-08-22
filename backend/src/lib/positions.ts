@@ -135,16 +135,22 @@ export async function applyTradeCostBasis(tx: Tx, portfolioId: string, symbolRaw
   for (const t of ledger) {
     const qty = Number(t.quantity);
     const price = Number(t.price);
-    const isBuySide = t.transactionType.toUpperCase() === "BUY" || t.transactionType.toUpperCase() === "DEPOSIT";
+    const txnType = t.transactionType.toUpperCase();
+    const isBuySide = txnType === "BUY" || txnType === "DEPOSIT";
     if (isBuySide) {
-      // A zero-priced deposit (historical price lookup failed at ingestion —
-      // see importBrokerTransfers) contributes real quantity via the live
+      // Zero-price skip is scoped to DEPOSIT only. A zero-priced deposit
+      // (historical price lookup failed at ingestion — see
+      // importBrokerTransfers) contributes real quantity via the live
       // balance snapshot elsewhere, but has no cost basis to contribute
-      // here. It must be skipped entirely (not folded into netQty either),
-      // otherwise it would silently sit in netQty as zero-cost weight and
-      // drag the average down the moment the next priced BUY/DEPOSIT
-      // arrives — the exact outcome this branch exists to prevent.
-      if (price <= 0) {
+      // here, so it must be skipped entirely (not folded into netQty
+      // either) — otherwise it would silently sit in netQty as zero-cost
+      // weight and drag the average down the moment the next priced
+      // BUY/DEPOSIT arrives. Ordinary broker_trade BUY rows never hit this
+      // guard: a zero-priced BUY has no equivalent "lookup failed, cost
+      // unknown" story — importBrokerTrades writes whatever price the
+      // exchange reported — so BUY rows keep the pre-existing unconditional
+      // fold-into-netQty/runningAvg behavior this task must leave untouched.
+      if (txnType === "DEPOSIT" && price <= 0) {
         continue;
       }
       const newQty = netQty + qty;
