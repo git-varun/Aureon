@@ -3,6 +3,7 @@ import type { Prisma } from "../../generated/prisma";
 import { prisma } from "../../prisma";
 import { ensureAssetExists } from "../assets";
 import { recalculatePosition, applyTradeCostBasis } from "../positions";
+import { getHistoricalPriceUsd } from "../market/historicalPrice";
 import { STABLECOIN_ASSETS, WALLET_SUFFIXES, splitQuoteAsset } from "./binanceConstants";
 import type { ZerodhaHolding } from "./zerodha/client";
 import type { GrowwHolding } from "./groww/client";
@@ -360,6 +361,267 @@ export async function importBrokerTrades(tx: Tx, portfolioId: string, broker: st
   return committed;
 }
 
+interface BrokerEventCandidate {
+  symbol: string;
+  transactionType: string;
+  quantity: number;
+  price: number;
+  transactionDate: Date;
+  fees: number;
+  brokerRef: string;
+  assetClass: string;
+}
+
+/** Shared dedup+create for the new ledger-event kinds (broker_income,
+ * broker_transfer, broker_dust, broker_dividend) — same
+ * (portfolio_id, broker, broker_reference) dedup pattern as
+ * importBrokerTrades, generalized since each event kind's raw Binance shape
+ * is different enough that a single mapping function per kind (rather than
+ * one shared mapper) keeps each one readable. */
+async function importBrokerEvents(
+  tx: Tx,
+  portfolioId: string,
+  broker: string,
+  kind: string,
+  wallet: string,
+  candidates: BrokerEventCandidate[],
+): Promise<number> {
+  if (candidates.length === 0) return 0;
+
+  const existingRows = await tx.transaction.findMany({
+    where: { portfolioId, broker, brokerReference: { in: candidates.map((c) => c.brokerRef) } },
+    select: { brokerReference: true },
+  });
+  const existingRefs = new Set(existingRows.map((r) => r.brokerReference));
+
+  let committed = 0;
+  const seenThisCall = new Set<string>();
+  for (const c of candidates) {
+    if (existingRefs.has(c.brokerRef) || seenThisCall.has(c.brokerRef)) continue;
+    seenThisCall.add(c.brokerRef);
+
+    const assetId = await ensureAssetExists(tx, c.symbol, c.symbol, c.assetClass);
+    await tx.transaction.create({
+      data: {
+        id: uuidv4(),
+        portfolioId,
+        symbol: c.symbol,
+        assetId,
+        transactionType: c.transactionType,
+        quantity: c.quantity,
+        price: c.price,
+        transactionDate: c.transactionDate,
+        fees: c.fees,
+        taxes: 0,
+        broker,
+        brokerReference: c.brokerRef,
+        kind,
+        wallet,
+        createdAt: new Date(),
+        updatedAt: new Date(),
+      },
+    });
+    committed += 1;
+  }
+  return committed;
+}
+
+/** Futures realized PnL / funding fee / commission / other income events
+ * (kind="broker_income"). Every incomeType Binance sends is imported
+ * unfiltered — generatePortfolioSnapshot decides which types count toward
+ * displayed P&L, not ingestion. price is always 1 since quantity is already
+ * in the settlement asset's own units (e.g. USDT), not a coin quantity
+ * needing a price to value. */
+export async function importBrokerIncome(
+  tx: Tx,
+  portfolioId: string,
+  broker: string,
+  incomeRows: Array<Record<string, unknown>>,
+  wallet: string,
+): Promise<number> {
+  const candidates: BrokerEventCandidate[] = [];
+  for (const r of incomeRows) {
+    const asset = String(r.asset ?? "").toUpperCase().trim();
+    const tranId = r.tranId;
+    if (!asset || tranId === undefined || tranId === null) continue;
+    candidates.push({
+      symbol: `${asset}-USD`,
+      transactionType: String(r.incomeType ?? "UNKNOWN"),
+      quantity: Number(r.income ?? 0),
+      price: 1,
+      transactionDate: new Date(Number(r.time ?? 0)),
+      fees: 0,
+      brokerRef: `${wallet}:income:${tranId}`,
+      assetClass: STABLECOIN_SET.has(asset) ? "stablecoin" : "crypto",
+    });
+  }
+  return importBrokerEvents(tx, portfolioId, broker, "broker_income", wallet, candidates);
+}
+
+/** External deposits/withdrawals (kind="broker_transfer"). Spot only —
+ * matches applyTradeCostBasis's spot-only cost-basis wiring. Stamps a
+ * historical USD price at ingestion time via getHistoricalPriceUsd (Task 3)
+ * so applyTradeCostBasis (Task 7) can treat these exactly like a BUY/SELL
+ * trade row without any dynamic lookup of its own. A deposit/withdrawal
+ * whose price can't be established (lookup failure) is still imported —
+ * with price=0 — so it doesn't silently vanish from the ledger, but it will
+ * not distort avgBuyPrice since applyTradeCostBasis skips zero-price rows
+ * from the running average (see Task 7). */
+export async function importBrokerTransfers(
+  tx: Tx,
+  portfolioId: string,
+  broker: string,
+  deposits: Array<Record<string, unknown>>,
+  withdrawals: Array<Record<string, unknown>>,
+): Promise<number> {
+  const candidates: BrokerEventCandidate[] = [];
+
+  async function buildCandidate(
+    r: Record<string, unknown>,
+    transactionType: "DEPOSIT" | "WITHDRAWAL",
+  ): Promise<BrokerEventCandidate | null> {
+    const asset = String(r.coin ?? "").toUpperCase().trim();
+    const txId = r.txId ?? r.id;
+    const timeMs = Number(transactionType === "DEPOSIT" ? r.insertTime : r.applyTime ?? r.insertTime ?? 0);
+    const amount = Number(r.amount ?? 0);
+    if (!asset || txId === undefined || txId === null || !amount || !timeMs) return null;
+
+    const symbol = `${asset}-USD`;
+    const assetClass = STABLECOIN_SET.has(asset) ? "stablecoin" : "crypto";
+    const assetId = await ensureAssetExists(tx, symbol, symbol, assetClass);
+    const date = new Date(timeMs);
+    const price = (await getHistoricalPriceUsd(assetId, symbol, date)) ?? 0;
+
+    return {
+      symbol,
+      transactionType,
+      quantity: amount,
+      price,
+      transactionDate: date,
+      fees: transactionType === "WITHDRAWAL" ? Number(r.transactionFee ?? 0) : 0,
+      brokerRef: `spot:transfer:${transactionType}:${txId}`,
+      assetClass,
+    };
+  }
+
+  for (const r of deposits) {
+    const c = await buildCandidate(r, "DEPOSIT");
+    if (c) candidates.push(c);
+  }
+  for (const r of withdrawals) {
+    const c = await buildCandidate(r, "WITHDRAWAL");
+    if (c) candidates.push(c);
+  }
+
+  return importBrokerEvents(tx, portfolioId, broker, "broker_transfer", "spot", candidates);
+}
+
+/** Dust-conversion auto-sweeps (kind="broker_dust"). Each flattened dust-log
+ * detail (see BinanceClient.getDustLog) produces two rows sharing the same
+ * broker_reference prefix: a SELL of fromAsset and a BUY of BNB — mirroring
+ * how a manual "sell small dust, buy BNB" trade pair would be recorded. */
+export async function importBrokerDust(
+  tx: Tx,
+  portfolioId: string,
+  broker: string,
+  dustRows: Array<Record<string, unknown>>,
+): Promise<number> {
+  const candidates: BrokerEventCandidate[] = [];
+  for (const r of dustRows) {
+    const fromAsset = String(r.fromAsset ?? "").toUpperCase().trim();
+    const transId = r.transId;
+    const operateTime = Number(r.operateTime ?? 0);
+    const fromAmount = Number(r.amount ?? 0);
+    const bnbAmount = Number(r.transferedAmount ?? 0);
+    if (!fromAsset || transId === undefined || transId === null || !operateTime) continue;
+    const date = new Date(operateTime);
+
+    if (fromAmount > 0) {
+      candidates.push({
+        symbol: `${fromAsset}-USD`,
+        transactionType: "SELL",
+        quantity: fromAmount,
+        price: 0, // the dust conversion rate isn't a real market price; recorded as 0 rather than fabricating one
+        transactionDate: date,
+        fees: 0,
+        brokerRef: `spot:dust:sell:${transId}`,
+        assetClass: STABLECOIN_SET.has(fromAsset) ? "stablecoin" : "crypto",
+      });
+    }
+    if (bnbAmount > 0) {
+      candidates.push({
+        symbol: "BNB-USD",
+        transactionType: "BUY",
+        quantity: bnbAmount,
+        price: 0,
+        transactionDate: date,
+        fees: 0,
+        brokerRef: `spot:dust:buy:${transId}`,
+        assetClass: "crypto",
+      });
+    }
+  }
+  return importBrokerEvents(tx, portfolioId, broker, "broker_dust", "spot", candidates);
+}
+
+/** Airdrops/dividends (kind="broker_dividend"). */
+export async function importBrokerDividends(
+  tx: Tx,
+  portfolioId: string,
+  broker: string,
+  dividendRows: Array<Record<string, unknown>>,
+): Promise<number> {
+  const candidates: BrokerEventCandidate[] = [];
+  for (const r of dividendRows) {
+    const asset = String(r.asset ?? "").toUpperCase().trim();
+    const tranId = r.tranId ?? r.id;
+    const amount = Number(r.amount ?? 0);
+    const timeMs = Number(r.divTime ?? 0);
+    if (!asset || tranId === undefined || tranId === null || !amount || !timeMs) continue;
+    candidates.push({
+      symbol: `${asset}-USD`,
+      transactionType: "DIVIDEND",
+      quantity: amount,
+      price: 0,
+      transactionDate: new Date(timeMs),
+      fees: 0,
+      brokerRef: `spot:dividend:${tranId}`,
+      assetClass: STABLECOIN_SET.has(asset) ? "stablecoin" : "crypto",
+    });
+  }
+  return importBrokerEvents(tx, portfolioId, broker, "broker_dividend", "spot", candidates);
+}
+
+/** Display-only snapshot of futures wallet cash/margin balance
+ * (broker_wallet_balances) — not fed into any P&L calculation, since margin
+ * balance is account-level per asset, not per-symbol like Position. */
+export async function upsertBrokerWalletBalances(
+  tx: Tx,
+  portfolioId: string,
+  broker: string,
+  wallet: string,
+  balances: Array<Record<string, unknown>>,
+): Promise<void> {
+  for (const b of balances) {
+    const asset = String(b.asset ?? "").toUpperCase().trim();
+    const balance = Number(b.balance ?? 0);
+    if (!asset) continue;
+    await tx.broker_wallet_balances.upsert({
+      where: { portfolio_id_broker_wallet_asset: { portfolio_id: portfolioId, broker, wallet, asset } },
+      create: {
+        id: uuidv4(),
+        portfolio_id: portfolioId,
+        broker,
+        wallet,
+        asset,
+        balance,
+        updated_at: new Date(),
+      },
+      update: { balance, updated_at: new Date() },
+    });
+  }
+}
+
 /** Port of PortfolioService.sync_binance_holdings. Spot and Earn are synced
  * as separate Positions (wallet="spot" / wallet="earn") sharing the same
  * symbol/Asset, since Earn is a real, distinct holding rather than merely
@@ -413,6 +675,33 @@ export async function syncBinanceHoldings(tx: Tx, portfolioId: string, holdings:
   await syncFuturesPositions(tx, portfolioId, "binance", "futures_coinm", holdings.futures_coinm ?? []);
   result.imported_trades += await importBrokerTrades(tx, portfolioId, "binance", trades.futures_usdm ?? [], "futures_usdm");
   result.imported_trades += await importBrokerTrades(tx, portfolioId, "binance", trades.futures_coinm ?? [], "futures_coinm");
+
+  const income = holdings.income ?? { futures_usdm: [], futures_coinm: [] };
+  result.imported_trades += await importBrokerIncome(tx, portfolioId, "binance", income.futures_usdm ?? [], "futures_usdm");
+  result.imported_trades += await importBrokerIncome(tx, portfolioId, "binance", income.futures_coinm ?? [], "futures_coinm");
+  result.imported_trades += await importBrokerTransfers(tx, portfolioId, "binance", holdings.deposits ?? [], holdings.withdrawals ?? []);
+  result.imported_trades += await importBrokerDust(tx, portfolioId, "binance", holdings.dust ?? []);
+  result.imported_trades += await importBrokerDividends(tx, portfolioId, "binance", holdings.dividends ?? []);
+
+  // Deposits/withdrawals affect spot cost basis — reapply per symbol touched
+  // by a transfer this run (a literal "reapply cost basis for spot" call
+  // makes no sense — applyTradeCostBasis operates on one symbol at a time).
+  const transferSymbols = new Set<string>();
+  for (const r of holdings.deposits ?? []) {
+    const asset = String(r.coin ?? "").toUpperCase().trim();
+    if (asset) transferSymbols.add(`${asset}-USD`);
+  }
+  for (const r of holdings.withdrawals ?? []) {
+    const asset = String(r.coin ?? "").toUpperCase().trim();
+    if (asset) transferSymbols.add(`${asset}-USD`);
+  }
+  for (const symbol of transferSymbols) {
+    await applyTradeCostBasis(tx, portfolioId, symbol, "spot");
+  }
+
+  const walletBalances = holdings.wallet_balances ?? { futures_usdm: [], futures_coinm: [] };
+  await upsertBrokerWalletBalances(tx, portfolioId, "binance", "futures_usdm", walletBalances.futures_usdm ?? []);
+  await upsertBrokerWalletBalances(tx, portfolioId, "binance", "futures_coinm", walletBalances.futures_coinm ?? []);
 
   return result;
 }
