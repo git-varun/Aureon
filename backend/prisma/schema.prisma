@@ -415,6 +415,17 @@ model binance_backfill_progress {
   @@schema("portfolio")
 }
 
+model fx_rate_history {
+  id          String   @id(map: "pk_fx_rate_history") @db.Uuid
+  currency    String   @db.VarChar
+  date        DateTime @db.Date
+  rate_to_inr Decimal  @db.Decimal
+  created_at  DateTime @db.Timestamp(6)
+
+  @@unique([currency, date], map: "uq_fx_rate_history_currency_date")
+  @@schema("market")
+}
+
 model import_runs {
   portfolio_id   String        @db.Uuid
   source         String        @db.VarChar
@@ -442,6 +453,7 @@ model Portfolio {
   updatedAt                 DateTime                    @db.Timestamp(6) @map("updated_at")
   isArchived                Boolean                     @default(false) @map("is_archived")
   binance_backfill_progress binance_backfill_progress[]
+  broker_wallet_balances    broker_wallet_balances[]
   import_runs               import_runs[]
   positions                 Position[]
   snapshot                  snapshots?
@@ -474,12 +486,27 @@ model Position {
   @@schema("portfolio")
 }
 
+model broker_wallet_balances {
+  id           String    @id(map: "pk_broker_wallet_balances") @db.Uuid
+  portfolio_id String    @db.Uuid
+  broker       String    @db.VarChar
+  wallet       String    @db.VarChar
+  asset        String    @db.VarChar
+  balance      Decimal   @db.Decimal
+  updated_at   DateTime  @db.Timestamp(6)
+  portfolio    Portfolio @relation(fields: [portfolio_id], references: [id], onDelete: Cascade, onUpdate: NoAction, map: "fk_broker_wallet_balances_portfolio_id")
+
+  @@unique([portfolio_id, broker, wallet, asset], map: "uq_broker_wallet_balances_portfolio_broker_wallet_asset")
+  @@schema("portfolio")
+}
+
 model snapshots {
   portfolio_id String    @id(map: "pk_snapshots") @db.Uuid
   market_value Decimal?  @db.Decimal
   cash_balance Decimal?  @db.Decimal
   daily_return Decimal?  @db.Decimal
   total_return Decimal?  @db.Decimal
+  realized_pnl Decimal?  @db.Decimal
   created_at   DateTime  @db.Timestamp(6)
   updated_at   DateTime  @db.Timestamp(6)
   portfolio    Portfolio @relation(fields: [portfolio_id], references: [id], onDelete: Cascade, onUpdate: NoAction, map: "fk_snapshots_portfolio_id")
