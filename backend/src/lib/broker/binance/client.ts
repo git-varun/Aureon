@@ -423,6 +423,30 @@ export interface BinanceSyncData {
     futures_usdm: Array<Record<string, unknown>>;
     futures_coinm: Array<Record<string, unknown>>;
   };
+  income: {
+    futures_usdm: Array<Record<string, unknown>>;
+    futures_coinm: Array<Record<string, unknown>>;
+  };
+  deposits: Array<Record<string, unknown>>;
+  withdrawals: Array<Record<string, unknown>>;
+  dust: Array<Record<string, unknown>>;
+  dividends: Array<Record<string, unknown>>;
+  wallet_balances: {
+    futures_usdm: Array<Record<string, unknown>>;
+    futures_coinm: Array<Record<string, unknown>>;
+  };
+}
+
+/** Per-kind "since last sync" watermarks — income/deposits/withdrawals/
+ * dividends each accumulate independently of trade activity, so they can't
+ * share fetchBinanceSyncData's single trade-derived `sinceMs`. undefined for
+ * a kind means "no prior sync of this kind" — falls through to Binance's
+ * own default window, same as sinceMs does for trades. */
+export interface BinanceSyncSince {
+  income?: number | null;
+  deposits?: number | null;
+  withdrawals?: number | null;
+  dividends?: number | null;
 }
 
 /** Binance API keys are permissioned per product — Earn/Futures may not be
@@ -443,7 +467,11 @@ async function tryFetch<T>(label: string, fn: () => Promise<T[]>): Promise<T[]> 
  * relying on Binance's defaults (Spot: most-recent-500-ever; Futures:
  * last-7-days-ever). Undefined on a first-ever sync — falls through to those
  * same Binance defaults, since fetching full history is backfill's job. */
-export async function fetchBinanceSyncData(client: BinanceClient, sinceMs?: number | null): Promise<BinanceSyncData> {
+export async function fetchBinanceSyncData(
+  client: BinanceClient,
+  sinceMs?: number | null,
+  since: BinanceSyncSince = {},
+): Promise<BinanceSyncData> {
   // Spot is the base credential check — if this fails, the key/secret itself
   // is bad, and the whole sync should fail (propagates uncaught).
   const spot = await client.getBalances();
@@ -478,11 +506,30 @@ export async function fetchBinanceSyncData(client: BinanceClient, sinceMs?: numb
     if (pair) futuresCoinmTrades.push(...(await client.getFuturesCoinmTrades(pair, sinceMs)));
   }
 
+  const income = {
+    futures_usdm: await tryFetch("USDⓈ-M Futures income", () => client.getFuturesUsdmIncome(since.income)),
+    futures_coinm: await tryFetch("COIN-M Futures income", () => client.getFuturesCoinmIncome(since.income)),
+  };
+  const deposits = await tryFetch("Deposit history", () => client.getDepositHistory(since.deposits));
+  const withdrawals = await tryFetch("Withdraw history", () => client.getWithdrawHistory(since.withdrawals));
+  const dust = await tryFetch("Dust log", () => client.getDustLog());
+  const dividends = await tryFetch("Asset dividend", () => client.getAssetDividend(since.dividends));
+  const walletBalances = {
+    futures_usdm: await tryFetch("USDⓈ-M Futures balance", () => client.getFuturesUsdmBalance()),
+    futures_coinm: await tryFetch("COIN-M Futures balance", () => client.getFuturesCoinmBalance()),
+  };
+
   return {
     spot,
     earn,
     futures_usdm: futuresUsdm,
     futures_coinm: futuresCoinm,
     trades: { spot: spotTrades, futures_usdm: futuresUsdmTrades, futures_coinm: futuresCoinmTrades },
+    income,
+    deposits,
+    withdrawals,
+    dust,
+    dividends,
+    wallet_balances: walletBalances,
   };
 }
