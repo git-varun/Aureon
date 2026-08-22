@@ -467,6 +467,13 @@ export async function importBrokerIncome(
  * with price=0 — so it doesn't silently vanish from the ledger, but it will
  * not distort avgBuyPrice since applyTradeCostBasis skips zero-price rows
  * from the running average (see Task 7). */
+function parseTimeMs(value: unknown): number {
+  const asNumber = Number(value);
+  if (Number.isFinite(asNumber) && asNumber > 0) return asNumber;
+  const parsed = Date.parse(String(value ?? ""));
+  return Number.isFinite(parsed) ? parsed : 0;
+}
+
 export async function importBrokerTransfers(
   tx: Tx,
   portfolioId: string,
@@ -482,7 +489,7 @@ export async function importBrokerTransfers(
   ): Promise<BrokerEventCandidate | null> {
     const asset = String(r.coin ?? "").toUpperCase().trim();
     const txId = r.txId ?? r.id;
-    const timeMs = Number(transactionType === "DEPOSIT" ? r.insertTime : r.applyTime ?? r.insertTime ?? 0);
+    const timeMs = parseTimeMs(transactionType === "DEPOSIT" ? r.insertTime : (r.applyTime ?? r.insertTime));
     const amount = Number(r.amount ?? 0);
     if (!asset || txId === undefined || txId === null || !amount || !timeMs) return null;
 
@@ -518,8 +525,13 @@ export async function importBrokerTransfers(
 
 /** Dust-conversion auto-sweeps (kind="broker_dust"). Each flattened dust-log
  * detail (see BinanceClient.getDustLog) produces two rows sharing the same
- * broker_reference prefix: a SELL of fromAsset and a BUY of BNB — mirroring
- * how a manual "sell small dust, buy BNB" trade pair would be recorded. */
+ * broker_reference prefix: a SELL of fromAsset and a BUY of the operation's
+ * targetAsset (BNB or USDT, per-detail share of the conversion, not the
+ * operation total) — mirroring how a manual "sell small dust, buy
+ * BNB/USDT" trade pair would be recorded. Both legs are keyed on
+ * (transId, fromAsset): a single dust operation can convert many source
+ * assets into the same target, so keying the BUY leg on targetAsset alone
+ * would still collapse multiple real rows into one. */
 export async function importBrokerDust(
   tx: Tx,
   portfolioId: string,
@@ -533,8 +545,10 @@ export async function importBrokerDust(
     const operateTime = Number(r.operateTime ?? 0);
     const fromAmount = Number(r.amount ?? 0);
     const bnbAmount = Number(r.transferedAmount ?? 0);
+    const serviceCharge = Number(r.serviceChargeAmount ?? 0);
     if (!fromAsset || transId === undefined || transId === null || !operateTime) continue;
     const date = new Date(operateTime);
+    const targetAsset = String(r.targetAsset ?? "BNB").toUpperCase().trim() || "BNB";
 
     if (fromAmount > 0) {
       candidates.push({
@@ -543,21 +557,26 @@ export async function importBrokerDust(
         quantity: fromAmount,
         price: 0, // the dust conversion rate isn't a real market price; recorded as 0 rather than fabricating one
         transactionDate: date,
-        fees: 0,
-        brokerRef: `spot:dust:sell:${transId}`,
+        fees: serviceCharge,
+        brokerRef: `spot:dust:sell:${transId}:${fromAsset}`,
         assetClass: STABLECOIN_SET.has(fromAsset) ? "stablecoin" : "crypto",
       });
     }
     if (bnbAmount > 0) {
       candidates.push({
-        symbol: "BNB-USD",
+        symbol: `${targetAsset}-USD`,
         transactionType: "BUY",
         quantity: bnbAmount,
         price: 0,
         transactionDate: date,
         fees: 0,
-        brokerRef: `spot:dust:buy:${transId}`,
-        assetClass: "crypto",
+        // Keyed on fromAsset (not targetAsset): a single dust operation can
+        // convert many source assets into the SAME target (BNB or USDT), so
+        // (transId, targetAsset) alone still collapses multiple real BUY legs
+        // into one row. (transId, fromAsset) is the dimension independently
+        // confirmed unique per detail row in this account's real dust log.
+        brokerRef: `spot:dust:buy:${transId}:${fromAsset}`,
+        assetClass: STABLECOIN_SET.has(targetAsset) ? "stablecoin" : "crypto",
       });
     }
   }
