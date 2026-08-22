@@ -234,6 +234,116 @@ export class BinanceClient {
     return this.getFuturesTradesWindowed("/dapi/v1/userTrades", "pair", pair, DAPI_URL, startTimeMs, endTimeMs);
   }
 
+  /** Binance income history (/fapi/v1/income, /dapi/v1/income) — realized
+   * PnL, funding fees, commission, and other account-level income events.
+   * Unlike userTrades, income history has no documented 7-day span cap, but
+   * is capped at 1000 rows per call — paginated forward by time when a page
+   * fills, since a long-idle app could have more than 1000 events in the
+   * gap since last sync. With no startTimeMs (first-ever sync), falls
+   * through to Binance's default (recent history only; full backfill is out
+   * of scope for this wave, matching backfillBinanceSpot's spot-only scope). */
+  async getFuturesUsdmIncome(startTimeMs?: number | null): Promise<Array<Record<string, unknown>>> {
+    return this.getIncomeHistoryPaged("/fapi/v1/income", FAPI_URL, startTimeMs);
+  }
+
+  async getFuturesCoinmIncome(startTimeMs?: number | null): Promise<Array<Record<string, unknown>>> {
+    return this.getIncomeHistoryPaged("/dapi/v1/income", DAPI_URL, startTimeMs);
+  }
+
+  private async getIncomeHistoryPaged(
+    path: string,
+    baseUrl: string,
+    startTimeMs: number | null | undefined,
+  ): Promise<Array<Record<string, unknown>>> {
+    const limit = 1000;
+    const events: Array<Record<string, unknown>> = [];
+    let windowStart = startTimeMs ?? undefined;
+    for (;;) {
+      const params: Record<string, string | number> = { limit };
+      if (windowStart !== undefined) params.startTime = windowStart;
+      const page = (await this.signedGetOptional(path, params, baseUrl)) as Array<Record<string, unknown>> | null;
+      const rows = page ?? [];
+      events.push(...rows);
+      if (rows.length < limit) break;
+      const lastTime = Math.max(...rows.map((r) => Number(r.time ?? 0)));
+      if (!Number.isFinite(lastTime) || lastTime <= 0) break;
+      windowStart = lastTime + 1;
+    }
+    return events;
+  }
+
+  /** /sapi/v1/capital/deposit/hisrec — external deposit history. Capped at
+   * 1000 rows per call by Binance; a gap with more than 1000 deposits since
+   * last sync would silently truncate (accepted limitation for this wave —
+   * deposits are comparatively rare events, unlike trades/income). */
+  async getDepositHistory(startTimeMs?: number | null): Promise<Array<Record<string, unknown>>> {
+    const params: Record<string, string | number> = { limit: 1000 };
+    if (startTimeMs !== undefined && startTimeMs !== null) params.startTime = startTimeMs;
+    const result = (await this.signedGetOptional("/sapi/v1/capital/deposit/hisrec", params)) as Array<
+      Record<string, unknown>
+    > | null;
+    return result ?? [];
+  }
+
+  /** /sapi/v1/capital/withdraw/history — external withdrawal history. Same
+   * 1000-row-per-call cap and accepted limitation as getDepositHistory. */
+  async getWithdrawHistory(startTimeMs?: number | null): Promise<Array<Record<string, unknown>>> {
+    const params: Record<string, string | number> = { limit: 1000 };
+    if (startTimeMs !== undefined && startTimeMs !== null) params.startTime = startTimeMs;
+    const result = (await this.signedGetOptional("/sapi/v1/capital/withdraw/history", params)) as Array<
+      Record<string, unknown>
+    > | null;
+    return result ?? [];
+  }
+
+  /** /sapi/v1/asset/dribblet — small-balance ("dust") auto-conversions to
+   * BNB. Flattens Binance's nested userAssetDribblets/userAssetDribbletDetails
+   * shape into one row per (operation, fromAsset) detail line, each carrying
+   * its parent operation's transId/operateTime so importBrokerEvents can
+   * derive both the SELL-fromAsset and BUY-BNB legs from it. */
+  async getDustLog(): Promise<Array<Record<string, unknown>>> {
+    const result = (await this.signedGet("/sapi/v1/asset/dribblet")) as {
+      userAssetDribblets?: Array<{
+        operateTime?: number;
+        transId?: number | string;
+        totalTransferedAmount?: string;
+        userAssetDribbletDetails?: Array<Record<string, unknown>>;
+      }>;
+    };
+    const flattened: Array<Record<string, unknown>> = [];
+    for (const op of result.userAssetDribblets ?? []) {
+      for (const detail of op.userAssetDribbletDetails ?? []) {
+        flattened.push({ ...detail, operateTime: op.operateTime, operationTransId: op.transId, totalTransferedAmount: op.totalTransferedAmount });
+      }
+    }
+    return flattened;
+  }
+
+  /** /sapi/v1/asset/assetDividend — airdrops/dividends credited to the
+   * account. Capped at 500 rows per call (Binance's max limit param); same
+   * accepted truncation limitation as deposit/withdraw history. */
+  async getAssetDividend(startTimeMs?: number | null): Promise<Array<Record<string, unknown>>> {
+    const params: Record<string, string | number> = { limit: 500 };
+    if (startTimeMs !== undefined && startTimeMs !== null) params.startTime = startTimeMs;
+    const result = (await this.signedGetOptional("/sapi/v1/asset/assetDividend", params)) as {
+      rows?: Array<Record<string, unknown>>;
+    } | null;
+    return result?.rows ?? [];
+  }
+
+  /** /fapi/v2/balance, /dapi/v1/balance — futures wallet cash/margin
+   * balance per asset. Display-only (see broker_wallet_balances), not fed
+   * into any P&L calculation. */
+  async getFuturesUsdmBalance(): Promise<Array<Record<string, unknown>>> {
+    const result = (await this.signedGet("/fapi/v2/balance", {}, FAPI_URL)) as Array<Record<string, unknown>>;
+    return result ?? [];
+  }
+
+  async getFuturesCoinmBalance(): Promise<Array<Record<string, unknown>>> {
+    const result = (await this.signedGet("/dapi/v1/balance", {}, DAPI_URL)) as Array<Record<string, unknown>>;
+    return result ?? [];
+  }
+
   /** {asset}{quote} for each common quote pair (SPOT_TRADE_QUOTES),
    * pre-filtered against exchangeInfo (fetched once per run) so only symbols
    * that actually exist on Binance are returned. */
