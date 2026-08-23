@@ -1,6 +1,7 @@
 import { prisma } from "../prisma";
 import { ProviderError } from "../lib/errors";
 import { getFundamentals } from "../lib/marketProviders/yahoo";
+import { getFundamentals as finnhubGetFundamentals } from "../lib/marketProviders/finnhub";
 import { listEquityAssetsWithQuotes, updateAssetSector } from "../lib/jobs/ingestionRepo";
 import { wrapJobExecution, skipIfDisabled } from "../lib/jobs/wrapJobExecution";
 import { logger } from "../lib/logger";
@@ -24,7 +25,13 @@ async function refreshFundamentals(): Promise<void> {
   const failed: string[] = [];
   for (const { id: assetId, symbol } of assets) {
     try {
-      const fundamentals = await getFundamentals(symbol);
+      let fundamentals: Record<string, unknown>;
+      try {
+        fundamentals = await getFundamentals(symbol);
+      } catch (e) {
+        if (!(e instanceof ProviderError)) throw e;
+        fundamentals = await finnhubGetFundamentals(symbol); // throws ProviderError up to the outer catch on failure too
+      }
       const now = new Date();
       await prisma.assetFundamentals.upsert({
         where: { assetId },
@@ -37,6 +44,15 @@ async function refreshFundamentals(): Promise<void> {
           profitMargin: (fundamentals.profit_margin as number | null) ?? null,
           revenueGrowth: (fundamentals.revenue_growth as number | null) ?? null,
           dividendYield: (fundamentals.dividend_yield as number | null) ?? null,
+          beta: (fundamentals.beta as number | null) ?? null,
+          eps: (fundamentals.eps as number | null) ?? null,
+          high52w: (fundamentals.high_52w as number | null) ?? null,
+          low52w: (fundamentals.low_52w as number | null) ?? null,
+          currentRatio: (fundamentals.current_ratio as number | null) ?? null,
+          quickRatio: (fundamentals.quick_ratio as number | null) ?? null,
+          grossMargin: (fundamentals.gross_margin as number | null) ?? null,
+          operatingMargin: (fundamentals.operating_margin as number | null) ?? null,
+          source: "yahoo",
           createdAt: now,
           updatedAt: now,
         },
@@ -48,6 +64,15 @@ async function refreshFundamentals(): Promise<void> {
           profitMargin: (fundamentals.profit_margin as number | null) ?? null,
           revenueGrowth: (fundamentals.revenue_growth as number | null) ?? null,
           dividendYield: (fundamentals.dividend_yield as number | null) ?? null,
+          beta: (fundamentals.beta as number | null) ?? null,
+          eps: (fundamentals.eps as number | null) ?? null,
+          high52w: (fundamentals.high_52w as number | null) ?? null,
+          low52w: (fundamentals.low_52w as number | null) ?? null,
+          currentRatio: (fundamentals.current_ratio as number | null) ?? null,
+          quickRatio: (fundamentals.quick_ratio as number | null) ?? null,
+          grossMargin: (fundamentals.gross_margin as number | null) ?? null,
+          operatingMargin: (fundamentals.operating_margin as number | null) ?? null,
+          source: "yahoo",
           updatedAt: now,
         },
       });
