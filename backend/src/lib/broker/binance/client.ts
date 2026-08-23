@@ -13,6 +13,11 @@ const DAPI_URL = "https://dapi.binance.com";
 // smaller when the app has been offline longer than that.
 const FUTURES_TRADE_WINDOW_MS = 7 * 24 * 60 * 60 * 1000;
 
+// Binance's /sapi/v1/asset/assetDividend endpoint rejects a startTime/endTime
+// span of "more than 180 days" (-1108) — using 179 days here to stay clear of
+// the exact boundary rather than betting on whether 180 is inclusive.
+const ASSET_DIVIDEND_WINDOW_MS = 179 * 24 * 60 * 60 * 1000;
+
 // Binance's "invalid symbol" error code — returned as HTTP 400 when a probed
 // candidate pair doesn't actually exist. Not an auth failure, safe to skip.
 const INVALID_SYMBOL_CODE = -1121;
@@ -324,17 +329,42 @@ export class BinanceClient {
    * accepted truncation limitation as deposit/withdraw history. Binance
    * rejects a startTime with no endTime (-1102 "Mandatory parameter
    * 'endTime' was not sent"), so endTime must always be sent alongside
-   * startTime. */
+   * startTime. Binance also rejects a startTime/endTime span over 180 days
+   * (-1108), so a gap since the last captured dividend longer than that is
+   * walked in <=179-day windows (ASSET_DIVIDEND_WINDOW_MS) and the rows from
+   * each window are concatenated. With no startTimeMs (first-ever sync),
+   * falls through to a single unwindowed call using Binance's default. */
   async getAssetDividend(startTimeMs?: number | null): Promise<Array<Record<string, unknown>>> {
-    const params: Record<string, string | number> = { limit: 500 };
-    if (startTimeMs !== undefined && startTimeMs !== null) {
-      params.startTime = startTimeMs;
-      params.endTime = Date.now();
+    if (startTimeMs === undefined || startTimeMs === null) {
+      const result = (await this.signedGetOptional("/sapi/v1/asset/assetDividend", { limit: 500 })) as {
+        rows?: Array<Record<string, unknown>>;
+      } | null;
+      return result?.rows ?? [];
     }
-    const result = (await this.signedGetOptional("/sapi/v1/asset/assetDividend", params)) as {
-      rows?: Array<Record<string, unknown>>;
-    } | null;
-    return result?.rows ?? [];
+
+    const end = Date.now();
+    if (end - startTimeMs <= ASSET_DIVIDEND_WINDOW_MS) {
+      const result = (await this.signedGetOptional("/sapi/v1/asset/assetDividend", {
+        limit: 500,
+        startTime: startTimeMs,
+        endTime: end,
+      })) as { rows?: Array<Record<string, unknown>> } | null;
+      return result?.rows ?? [];
+    }
+
+    const rows: Array<Record<string, unknown>> = [];
+    let windowStart = startTimeMs;
+    while (windowStart < end) {
+      const windowEnd = Math.min(windowStart + ASSET_DIVIDEND_WINDOW_MS, end);
+      const result = (await this.signedGetOptional("/sapi/v1/asset/assetDividend", {
+        limit: 500,
+        startTime: windowStart,
+        endTime: windowEnd,
+      })) as { rows?: Array<Record<string, unknown>> } | null;
+      rows.push(...(result?.rows ?? []));
+      windowStart = windowEnd;
+    }
+    return rows;
   }
 
   /** /fapi/v2/balance, /dapi/v1/balance — futures wallet cash/margin
