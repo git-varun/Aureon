@@ -1,9 +1,10 @@
 import { Router } from "express";
 import { prisma } from "../../prisma";
-import { NotFoundError } from "../../lib/errors";
+import { NotFoundError, ValidationError } from "../../lib/errors";
 import { getCachedQuote } from "../../lib/marketProviders/redisRateLimit";
 import { getChart } from "../../lib/marketProviders/chart";
 import { getFundamentals } from "../../lib/marketProviders/fundamentals";
+import { getStatement, type StatementType } from "../../lib/marketProviders/alphavantage";
 import { searchAssets, getBatch, getSignal, getAureonAsset } from "../../lib/market/assets";
 import { requireUuidParam, requireQueryParam } from "../../lib/validation";
 import { toPythonIsoString } from "../../lib/tz";
@@ -96,4 +97,20 @@ assetsRouter.get("/aureon/assets/:ticker", async (req, res) => {
     portfolioId = portfolioIdRaw;
   }
   res.json(await getAureonAsset(req.params.ticker, portfolioId));
+});
+
+// On-demand statement retrieval — explicitly user-triggered from the
+// Fundamentals tab's financials panel, never auto-fetched on tab mount
+// and never called from any job. See fundamentals.ts's equity chain for
+// why: AlphaVantage's 25/day budget is shared globally and this is the
+// most expensive path that touches it.
+const VALID_STATEMENT_TYPES: Set<string> = new Set(["earnings", "income_statement", "balance_sheet", "cash_flow", "dividends", "splits"]);
+
+assetsRouter.get("/assets/:symbol/statements/:type", async (req, res) => {
+  const type = req.params.type;
+  if (!VALID_STATEMENT_TYPES.has(type)) {
+    throw new ValidationError(`Unknown statement type: ${type}`);
+  }
+  const data = await getStatement(req.params.symbol.toUpperCase().trim(), type as StatementType);
+  res.json(data);
 });
