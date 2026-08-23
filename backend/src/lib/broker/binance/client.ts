@@ -321,10 +321,16 @@ export class BinanceClient {
 
   /** /sapi/v1/asset/assetDividend — airdrops/dividends credited to the
    * account. Capped at 500 rows per call (Binance's max limit param); same
-   * accepted truncation limitation as deposit/withdraw history. */
+   * accepted truncation limitation as deposit/withdraw history. Binance
+   * rejects a startTime with no endTime (-1102 "Mandatory parameter
+   * 'endTime' was not sent"), so endTime must always be sent alongside
+   * startTime. */
   async getAssetDividend(startTimeMs?: number | null): Promise<Array<Record<string, unknown>>> {
     const params: Record<string, string | number> = { limit: 500 };
-    if (startTimeMs !== undefined && startTimeMs !== null) params.startTime = startTimeMs;
+    if (startTimeMs !== undefined && startTimeMs !== null) {
+      params.startTime = startTimeMs;
+      params.endTime = Date.now();
+    }
     const result = (await this.signedGetOptional("/sapi/v1/asset/assetDividend", params)) as {
       rows?: Array<Record<string, unknown>>;
     } | null;
