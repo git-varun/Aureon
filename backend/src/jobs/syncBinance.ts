@@ -2,7 +2,7 @@ import { prisma } from "../prisma";
 import { BinanceClient, fetchBinanceSyncData } from "../lib/broker/binance/client";
 import { syncBinanceHoldings } from "../lib/broker/brokerSync";
 import { invalidatePortfolioCaches } from "../lib/portfolioCache";
-import { resolveProviderCredentials, applyHoldingsToAllPortfolios, refreshQuotesAndSnapshots, lastBrokerTradeAt } from "../lib/broker/runBrokerSync";
+import { resolveProviderCredentials, applyHoldingsToAllPortfolios, refreshQuotesAndSnapshots, lastBrokerTradeAt, lastTransactionAt } from "../lib/broker/runBrokerSync";
 import { BinanceAuthError } from "../lib/errors";
 import { wrapJobExecution } from "../lib/jobs/wrapJobExecution";
 import { logger } from "../lib/logger";
@@ -23,7 +23,18 @@ async function runSyncBinance(): Promise<void> {
   const client = new BinanceClient(creds.api_key, creds.api_secret);
 
   const since = await lastBrokerTradeAt("binance");
-  const holdings = await fetchBinanceSyncData(client, since ? since.getTime() : null); // raises BinanceAuthError("AUTH_REQUIRED: ...") if key/secret bad
+  const [incomeSince, depositsSince, withdrawalsSince, dividendsSince] = await Promise.all([
+    lastTransactionAt("binance", "broker_income"),
+    lastTransactionAt("binance", "broker_transfer"),
+    lastTransactionAt("binance", "broker_transfer"),
+    lastTransactionAt("binance", "broker_dividend"),
+  ]);
+  const holdings = await fetchBinanceSyncData(client, since ? since.getTime() : null, {
+    income: incomeSince ? incomeSince.getTime() : null,
+    deposits: depositsSince ? depositsSince.getTime() : null,
+    withdrawals: withdrawalsSince ? withdrawalsSince.getTime() : null,
+    dividends: dividendsSince ? dividendsSince.getTime() : null,
+  }); // raises BinanceAuthError("AUTH_REQUIRED: ...") if key/secret bad
 
   await applyHoldingsToAllPortfolios("sync_binance", async (portfolioId) => {
     const result = await prisma.$transaction((tx) => syncBinanceHoldings(tx, portfolioId, holdings));
