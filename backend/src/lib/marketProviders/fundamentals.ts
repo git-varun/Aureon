@@ -1,11 +1,21 @@
 import { prisma } from "../../prisma";
 import { NotFoundError, ProviderError } from "../errors";
+import { Prisma } from "../../generated/prisma";
 import * as yahoo from "./yahoo";
 import * as finnhub from "./finnhub";
 import * as alphavantage from "./alphavantage";
 import * as coingecko from "./coingecko";
 
 const CRYPTO_ASSET_CLASSES = new Set(["crypto", "crypto_futures", "stablecoin"]);
+
+/** AssetFundamentals.assetId FKs to AssetSnapshot.assetId, not Asset.id — an
+ * asset that has a LatestQuote row but no AssetSnapshot row yet (snapshot
+ * generation hasn't run for it) trips a real FK violation on upsert, not a
+ * ProviderError. Treated the same as a provider failure: swallow and keep
+ * serving whatever already exists, rather than a raw 500 out of getFundamentals. */
+function isFkViolation(e: unknown): boolean {
+  return e instanceof Prisma.PrismaClientKnownRequestError && e.code === "P2003";
+}
 
 type FundamentalsFields = {
   trailingPe?: number | null; priceToBook?: number | null; roe?: number | null;
@@ -73,7 +83,12 @@ async function refreshEquityFundamentals(symbol: string, assetId: string): Promi
   }
   if (Object.values(merged).every((v) => v == null)) return; // total failure, swallow like before
 
-  await upsertFundamentals(assetId, toFields(merged), source);
+  try {
+    await upsertFundamentals(assetId, toFields(merged), source);
+  } catch (e) {
+    if (!isFkViolation(e)) throw e;
+    // Swallowed — no AssetSnapshot row yet for this asset, same "keep serving existing data" behavior.
+  }
 }
 
 async function refreshCryptoFundamentals(symbol: string, assetId: string): Promise<void> {
@@ -81,7 +96,7 @@ async function refreshCryptoFundamentals(symbol: string, assetId: string): Promi
     const f = await coingecko.getFundamentals(symbol);
     await upsertFundamentals(assetId, toFields(f), "coingecko");
   } catch (e) {
-    if (!(e instanceof ProviderError)) throw e;
+    if (!(e instanceof ProviderError) && !isFkViolation(e)) throw e;
     // Swallowed, matches existing "keep serving existing data" behavior.
   }
 }
