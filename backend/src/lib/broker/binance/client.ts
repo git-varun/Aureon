@@ -13,6 +13,11 @@ const DAPI_URL = "https://dapi.binance.com";
 // smaller when the app has been offline longer than that.
 const FUTURES_TRADE_WINDOW_MS = 7 * 24 * 60 * 60 * 1000;
 
+// Binance's /sapi/v1/asset/assetDividend endpoint rejects a startTime/endTime
+// span of "more than 180 days" (-1108) — using 179 days here to stay clear of
+// the exact boundary rather than betting on whether 180 is inclusive.
+const ASSET_DIVIDEND_WINDOW_MS = 179 * 24 * 60 * 60 * 1000;
+
 // Binance's "invalid symbol" error code — returned as HTTP 400 when a probed
 // candidate pair doesn't actually exist. Not an auth failure, safe to skip.
 const INVALID_SYMBOL_CODE = -1121;
@@ -234,6 +239,147 @@ export class BinanceClient {
     return this.getFuturesTradesWindowed("/dapi/v1/userTrades", "pair", pair, DAPI_URL, startTimeMs, endTimeMs);
   }
 
+  /** Binance income history (/fapi/v1/income, /dapi/v1/income) — realized
+   * PnL, funding fees, commission, and other account-level income events.
+   * Unlike userTrades, income history has no documented 7-day span cap, but
+   * is capped at 1000 rows per call — paginated forward by time when a page
+   * fills, since a long-idle app could have more than 1000 events in the
+   * gap since last sync. With no startTimeMs (first-ever sync), falls
+   * through to Binance's default (recent history only; full backfill is out
+   * of scope for this wave, matching backfillBinanceSpot's spot-only scope). */
+  async getFuturesUsdmIncome(startTimeMs?: number | null): Promise<Array<Record<string, unknown>>> {
+    return this.getIncomeHistoryPaged("/fapi/v1/income", FAPI_URL, startTimeMs);
+  }
+
+  async getFuturesCoinmIncome(startTimeMs?: number | null): Promise<Array<Record<string, unknown>>> {
+    return this.getIncomeHistoryPaged("/dapi/v1/income", DAPI_URL, startTimeMs);
+  }
+
+  private async getIncomeHistoryPaged(
+    path: string,
+    baseUrl: string,
+    startTimeMs: number | null | undefined,
+  ): Promise<Array<Record<string, unknown>>> {
+    const limit = 1000;
+    const events: Array<Record<string, unknown>> = [];
+    let windowStart = startTimeMs ?? undefined;
+    for (;;) {
+      const params: Record<string, string | number> = { limit };
+      if (windowStart !== undefined) params.startTime = windowStart;
+      const page = (await this.signedGetOptional(path, params, baseUrl)) as Array<Record<string, unknown>> | null;
+      const rows = page ?? [];
+      events.push(...rows);
+      if (rows.length < limit) break;
+      const lastTime = Math.max(...rows.map((r) => Number(r.time ?? 0)));
+      if (!Number.isFinite(lastTime) || lastTime <= 0) break;
+      windowStart = lastTime + 1;
+    }
+    return events;
+  }
+
+  /** /sapi/v1/capital/deposit/hisrec — external deposit history. Capped at
+   * 1000 rows per call by Binance; a gap with more than 1000 deposits since
+   * last sync would silently truncate (accepted limitation for this wave —
+   * deposits are comparatively rare events, unlike trades/income). */
+  async getDepositHistory(startTimeMs?: number | null): Promise<Array<Record<string, unknown>>> {
+    const params: Record<string, string | number> = { limit: 1000 };
+    if (startTimeMs !== undefined && startTimeMs !== null) params.startTime = startTimeMs;
+    const result = (await this.signedGetOptional("/sapi/v1/capital/deposit/hisrec", params)) as Array<
+      Record<string, unknown>
+    > | null;
+    return result ?? [];
+  }
+
+  /** /sapi/v1/capital/withdraw/history — external withdrawal history. Same
+   * 1000-row-per-call cap and accepted limitation as getDepositHistory. */
+  async getWithdrawHistory(startTimeMs?: number | null): Promise<Array<Record<string, unknown>>> {
+    const params: Record<string, string | number> = { limit: 1000 };
+    if (startTimeMs !== undefined && startTimeMs !== null) params.startTime = startTimeMs;
+    const result = (await this.signedGetOptional("/sapi/v1/capital/withdraw/history", params)) as Array<
+      Record<string, unknown>
+    > | null;
+    return result ?? [];
+  }
+
+  /** /sapi/v1/asset/dribblet — small-balance ("dust") auto-conversions to
+   * BNB. Flattens Binance's nested userAssetDribblets/userAssetDribbletDetails
+   * shape into one row per (operation, fromAsset) detail line, each carrying
+   * its parent operation's transId/operateTime so importBrokerEvents can
+   * derive both the SELL-fromAsset and BUY-BNB legs from it. */
+  async getDustLog(): Promise<Array<Record<string, unknown>>> {
+    const result = (await this.signedGet("/sapi/v1/asset/dribblet")) as {
+      userAssetDribblets?: Array<{
+        operateTime?: number;
+        transId?: number | string;
+        totalTransferedAmount?: string;
+        userAssetDribbletDetails?: Array<Record<string, unknown>>;
+      }>;
+    };
+    const flattened: Array<Record<string, unknown>> = [];
+    for (const op of result.userAssetDribblets ?? []) {
+      for (const detail of op.userAssetDribbletDetails ?? []) {
+        flattened.push({ ...detail, operateTime: op.operateTime, operationTransId: op.transId, totalTransferedAmount: op.totalTransferedAmount });
+      }
+    }
+    return flattened;
+  }
+
+  /** /sapi/v1/asset/assetDividend — airdrops/dividends credited to the
+   * account. Capped at 500 rows per call (Binance's max limit param); same
+   * accepted truncation limitation as deposit/withdraw history. Binance
+   * rejects a startTime with no endTime (-1102 "Mandatory parameter
+   * 'endTime' was not sent"), so endTime must always be sent alongside
+   * startTime. Binance also rejects a startTime/endTime span over 180 days
+   * (-1108), so a gap since the last captured dividend longer than that is
+   * walked in <=179-day windows (ASSET_DIVIDEND_WINDOW_MS) and the rows from
+   * each window are concatenated. With no startTimeMs (first-ever sync),
+   * falls through to a single unwindowed call using Binance's default. */
+  async getAssetDividend(startTimeMs?: number | null): Promise<Array<Record<string, unknown>>> {
+    if (startTimeMs === undefined || startTimeMs === null) {
+      const result = (await this.signedGetOptional("/sapi/v1/asset/assetDividend", { limit: 500 })) as {
+        rows?: Array<Record<string, unknown>>;
+      } | null;
+      return result?.rows ?? [];
+    }
+
+    const end = Date.now();
+    if (end - startTimeMs <= ASSET_DIVIDEND_WINDOW_MS) {
+      const result = (await this.signedGetOptional("/sapi/v1/asset/assetDividend", {
+        limit: 500,
+        startTime: startTimeMs,
+        endTime: end,
+      })) as { rows?: Array<Record<string, unknown>> } | null;
+      return result?.rows ?? [];
+    }
+
+    const rows: Array<Record<string, unknown>> = [];
+    let windowStart = startTimeMs;
+    while (windowStart < end) {
+      const windowEnd = Math.min(windowStart + ASSET_DIVIDEND_WINDOW_MS, end);
+      const result = (await this.signedGetOptional("/sapi/v1/asset/assetDividend", {
+        limit: 500,
+        startTime: windowStart,
+        endTime: windowEnd,
+      })) as { rows?: Array<Record<string, unknown>> } | null;
+      rows.push(...(result?.rows ?? []));
+      windowStart = windowEnd;
+    }
+    return rows;
+  }
+
+  /** /fapi/v2/balance, /dapi/v1/balance — futures wallet cash/margin
+   * balance per asset. Display-only (see broker_wallet_balances), not fed
+   * into any P&L calculation. */
+  async getFuturesUsdmBalance(): Promise<Array<Record<string, unknown>>> {
+    const result = (await this.signedGet("/fapi/v2/balance", {}, FAPI_URL)) as Array<Record<string, unknown>>;
+    return result ?? [];
+  }
+
+  async getFuturesCoinmBalance(): Promise<Array<Record<string, unknown>>> {
+    const result = (await this.signedGet("/dapi/v1/balance", {}, DAPI_URL)) as Array<Record<string, unknown>>;
+    return result ?? [];
+  }
+
   /** {asset}{quote} for each common quote pair (SPOT_TRADE_QUOTES),
    * pre-filtered against exchangeInfo (fetched once per run) so only symbols
    * that actually exist on Binance are returned. */
@@ -313,6 +459,35 @@ export interface BinanceSyncData {
     futures_usdm: Array<Record<string, unknown>>;
     futures_coinm: Array<Record<string, unknown>>;
   };
+  income: {
+    futures_usdm: Array<Record<string, unknown>>;
+    futures_coinm: Array<Record<string, unknown>>;
+  };
+  deposits: Array<Record<string, unknown>>;
+  withdrawals: Array<Record<string, unknown>>;
+  dust: Array<Record<string, unknown>>;
+  dividends: Array<Record<string, unknown>>;
+  wallet_balances: {
+    futures_usdm: Array<Record<string, unknown>>;
+    futures_coinm: Array<Record<string, unknown>>;
+  };
+}
+
+/** Per-stream "since last sync" watermarks — each of these accumulates
+ * independently of trade activity, so they can't share
+ * fetchBinanceSyncData's single trade-derived `sinceMs`. USDⓈ-M and COIN-M
+ * income are separate wallets, and deposits/withdrawals are separate
+ * endpoints, so each gets its own watermark: a transient failure on one
+ * (swallowed by tryFetch) must not have its missed window closed by a
+ * sibling's newer rows. undefined for a stream means "no prior sync of this
+ * stream" — falls through to Binance's own default window, same as sinceMs
+ * does for trades. */
+export interface BinanceSyncSince {
+  incomeUsdm?: number | null;
+  incomeCoinm?: number | null;
+  deposits?: number | null;
+  withdrawals?: number | null;
+  dividends?: number | null;
 }
 
 /** Binance API keys are permissioned per product — Earn/Futures may not be
@@ -333,7 +508,11 @@ async function tryFetch<T>(label: string, fn: () => Promise<T[]>): Promise<T[]> 
  * relying on Binance's defaults (Spot: most-recent-500-ever; Futures:
  * last-7-days-ever). Undefined on a first-ever sync — falls through to those
  * same Binance defaults, since fetching full history is backfill's job. */
-export async function fetchBinanceSyncData(client: BinanceClient, sinceMs?: number | null): Promise<BinanceSyncData> {
+export async function fetchBinanceSyncData(
+  client: BinanceClient,
+  sinceMs?: number | null,
+  since: BinanceSyncSince = {},
+): Promise<BinanceSyncData> {
   // Spot is the base credential check — if this fails, the key/secret itself
   // is bad, and the whole sync should fail (propagates uncaught).
   const spot = await client.getBalances();
@@ -368,11 +547,30 @@ export async function fetchBinanceSyncData(client: BinanceClient, sinceMs?: numb
     if (pair) futuresCoinmTrades.push(...(await client.getFuturesCoinmTrades(pair, sinceMs)));
   }
 
+  const income = {
+    futures_usdm: await tryFetch("USDⓈ-M Futures income", () => client.getFuturesUsdmIncome(since.incomeUsdm)),
+    futures_coinm: await tryFetch("COIN-M Futures income", () => client.getFuturesCoinmIncome(since.incomeCoinm)),
+  };
+  const deposits = await tryFetch("Deposit history", () => client.getDepositHistory(since.deposits));
+  const withdrawals = await tryFetch("Withdraw history", () => client.getWithdrawHistory(since.withdrawals));
+  const dust = await tryFetch("Dust log", () => client.getDustLog());
+  const dividends = await tryFetch("Asset dividend", () => client.getAssetDividend(since.dividends));
+  const walletBalances = {
+    futures_usdm: await tryFetch("USDⓈ-M Futures balance", () => client.getFuturesUsdmBalance()),
+    futures_coinm: await tryFetch("COIN-M Futures balance", () => client.getFuturesCoinmBalance()),
+  };
+
   return {
     spot,
     earn,
     futures_usdm: futuresUsdm,
     futures_coinm: futuresCoinm,
     trades: { spot: spotTrades, futures_usdm: futuresUsdmTrades, futures_coinm: futuresCoinmTrades },
+    income,
+    deposits,
+    withdrawals,
+    dust,
+    dividends,
+    wallet_balances: walletBalances,
   };
 }

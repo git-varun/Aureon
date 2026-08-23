@@ -34,20 +34,38 @@ export async function resolveProviderCredentials(providerName: string, keyNames:
   return creds;
 }
 
-/** Port of _last_broker_trade_at. Most recent kind="broker_trade"
- * Transaction.transaction_date already captured for this broker, across all
- * portfolios — used as the "since last successful sync" watermark for
- * providers (Binance) whose trade-history endpoints default to a
- * narrow recent-only window. Returns null on a first-ever sync. */
-export async function lastBrokerTradeAt(providerName: string): Promise<Date | null> {
+/** Most recent Transaction.transaction_date already captured for this
+ * broker+kind, across all portfolios — used as the "since last successful
+ * sync" watermark for providers (Binance) whose history endpoints default
+ * to a narrow recent-only window. Each event kind (trades, income,
+ * deposits, withdrawals, dividends) accumulates independently, so each
+ * needs its own watermark rather than sharing one. `filters` narrows
+ * further where a single kind covers several independently-accumulating
+ * event streams — deposits vs withdrawals share kind="broker_transfer"
+ * (split by transactionType), and USDⓈ-M vs COIN-M income share
+ * kind="broker_income" (split by wallet). Without that split, a transient
+ * failure on one endpoint would have its missed window silently closed by
+ * its sibling's newer rows. Returns null on a first-ever sync of this
+ * kind. */
+export async function lastTransactionAt(
+  providerName: string,
+  kind: string,
+  filters: { transactionType?: string; wallet?: string } = {},
+): Promise<Date | null> {
   const result = await prisma.transaction.aggregate({
     _max: { transactionDate: true },
-    where: { broker: providerName, kind: "broker_trade" },
+    where: { broker: providerName, kind, ...filters },
   });
   const raw = result._max.transactionDate;
   if (!raw) return null;
   const tzName = await getSessionTimeZone();
   return naiveToUtc(raw, tzName);
+}
+
+/** Back-compat alias — trades specifically, the only kind that existed
+ * before this wave. */
+export async function lastBrokerTradeAt(providerName: string): Promise<Date | null> {
+  return lastTransactionAt(providerName, "broker_trade");
 }
 
 /** Port of _run_broker_sync's post-sync tail: refresh quotes for every

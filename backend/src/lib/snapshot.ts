@@ -9,6 +9,7 @@ export interface SnapshotResult {
   cash_balance: number | null;
   daily_return: number;
   total_return: number;
+  realized_pnl: number | null;
   updated_at: string;
 }
 
@@ -49,7 +50,25 @@ export async function generatePortfolioSnapshot(portfolioId: string): Promise<Sn
     totalInvested += await toInr(cost, pp.currency);
   }
 
-  const totalReturn = marketValue - totalInvested;
+  // All-time realized futures PnL/funding/commission — summed here rather
+  // than stored as a running total on Position, since Position rows are
+  // rebuilt from Binance's live state on every sync (see syncFuturesPositions
+  // in brokerSync.ts) and shouldn't hold a durable running total themselves.
+  // Scoped to wallet: "futures_usdm" only — COIN-M (`futures_coinm`) income
+  // rows are settlement-coin-denominated (e.g. BTC/ETH quantities, not USD),
+  // so summing them alongside USDM's USD-stablecoin amounts would silently
+  // corrupt the aggregate; converting COIN-M correctly needs a per-row
+  // historical price lookup, out of scope this wave. COIN-M income stays
+  // visible in the Transaction ledger, just excluded from this figure.
+  const REALIZED_PNL_TYPES = ["REALIZED_PNL", "FUNDING_FEE", "COMMISSION"];
+  const incomeAgg = await prisma.transaction.aggregate({
+    _sum: { quantity: true },
+    where: { portfolioId, kind: "broker_income", wallet: "futures_usdm", transactionType: { in: REALIZED_PNL_TYPES } },
+  });
+  const realizedPnlUsd = Number(incomeAgg._sum.quantity ?? 0);
+  const realizedPnlInr = await toInr(realizedPnlUsd, "USD");
+
+  const totalReturn = marketValue - totalInvested + realizedPnlInr;
   const dailyReturn = 0.0; // Placeholder — no historical daily metrics in quotes, matches Python
   const now = new Date();
 
@@ -61,6 +80,7 @@ export async function generatePortfolioSnapshot(portfolioId: string): Promise<Sn
       cash_balance: null,
       daily_return: dailyReturn,
       total_return: totalReturn,
+      realized_pnl: realizedPnlInr,
       created_at: now,
       updated_at: now,
     },
@@ -69,6 +89,7 @@ export async function generatePortfolioSnapshot(portfolioId: string): Promise<Sn
       cash_balance: null,
       daily_return: dailyReturn,
       total_return: totalReturn,
+      realized_pnl: realizedPnlInr,
       updated_at: now,
     },
   });
@@ -79,6 +100,7 @@ export async function generatePortfolioSnapshot(portfolioId: string): Promise<Sn
     cash_balance: saved.cash_balance !== null ? Number(saved.cash_balance) : null,
     daily_return: Number(saved.daily_return),
     total_return: Number(saved.total_return),
+    realized_pnl: saved.realized_pnl !== null ? Number(saved.realized_pnl) : null,
     updated_at: saved.updated_at.toISOString(),
   };
 }
@@ -91,6 +113,7 @@ export function serializeSnapshotForCache(snapshot: SnapshotResult): Record<stri
     cash_balance: snapshot.cash_balance,
     daily_return: snapshot.daily_return,
     total_return: snapshot.total_return,
+    realized_pnl: snapshot.realized_pnl,
     updated_at: snapshot.updated_at,
   };
 }

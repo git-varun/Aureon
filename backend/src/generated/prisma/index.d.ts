@@ -134,6 +134,11 @@ export type web_notifications = $Result.DefaultSelection<Prisma.$web_notificatio
  */
 export type binance_backfill_progress = $Result.DefaultSelection<Prisma.$binance_backfill_progressPayload>
 /**
+ * Model fx_rate_history
+ * 
+ */
+export type fx_rate_history = $Result.DefaultSelection<Prisma.$fx_rate_historyPayload>
+/**
  * Model import_runs
  * 
  */
@@ -148,6 +153,11 @@ export type Portfolio = $Result.DefaultSelection<Prisma.$PortfolioPayload>
  * 
  */
 export type Position = $Result.DefaultSelection<Prisma.$PositionPayload>
+/**
+ * Model broker_wallet_balances
+ * 
+ */
+export type broker_wallet_balances = $Result.DefaultSelection<Prisma.$broker_wallet_balancesPayload>
 /**
  * Model snapshots
  * 
@@ -615,6 +625,16 @@ export class PrismaClient<
   get binance_backfill_progress(): Prisma.binance_backfill_progressDelegate<ExtArgs, ClientOptions>;
 
   /**
+   * `prisma.fx_rate_history`: Exposes CRUD operations for the **fx_rate_history** model.
+    * Example usage:
+    * ```ts
+    * // Fetch zero or more Fx_rate_histories
+    * const fx_rate_histories = await prisma.fx_rate_history.findMany()
+    * ```
+    */
+  get fx_rate_history(): Prisma.fx_rate_historyDelegate<ExtArgs, ClientOptions>;
+
+  /**
    * `prisma.import_runs`: Exposes CRUD operations for the **import_runs** model.
     * Example usage:
     * ```ts
@@ -643,6 +663,16 @@ export class PrismaClient<
     * ```
     */
   get position(): Prisma.PositionDelegate<ExtArgs, ClientOptions>;
+
+  /**
+   * `prisma.broker_wallet_balances`: Exposes CRUD operations for the **broker_wallet_balances** model.
+    * Example usage:
+    * ```ts
+    * // Fetch zero or more Broker_wallet_balances
+    * const broker_wallet_balances = await prisma.broker_wallet_balances.findMany()
+    * ```
+    */
+  get broker_wallet_balances(): Prisma.broker_wallet_balancesDelegate<ExtArgs, ClientOptions>;
 
   /**
    * `prisma.snapshots`: Exposes CRUD operations for the **snapshots** model.
@@ -1258,9 +1288,11 @@ export namespace Prisma {
     news_assets: 'news_assets',
     web_notifications: 'web_notifications',
     binance_backfill_progress: 'binance_backfill_progress',
+    fx_rate_history: 'fx_rate_history',
     import_runs: 'import_runs',
     Portfolio: 'Portfolio',
     Position: 'Position',
+    broker_wallet_balances: 'broker_wallet_balances',
     snapshots: 'snapshots',
     Transaction: 'Transaction',
     alembic_version: 'alembic_version',
@@ -1294,7 +1326,7 @@ export namespace Prisma {
       omit: GlobalOmitOptions
     }
     meta: {
-      modelProps: "ai_briefings" | "ai_evaluations" | "ai_feedback" | "ai_generations" | "allocation_targets" | "jobConfig" | "jobLog" | "providerConfig" | "assetScore" | "feature_snapshots" | "asset_features" | "assetFundamentals" | "asset_health" | "assetSnapshot" | "asset" | "latestQuote" | "market_themes" | "priceHistory" | "theme_weights" | "asset_sentiment_snapshots" | "news" | "news_assets" | "web_notifications" | "binance_backfill_progress" | "import_runs" | "portfolio" | "position" | "snapshots" | "transaction" | "alembic_version" | "recommendation_explanations" | "recommendation_outcomes" | "recommendations" | "auditLog" | "failedIngestion" | "providerUsage" | "provider" | "task_runs" | "user_preferences" | "user" | "watchlistSymbol" | "watchlists"
+      modelProps: "ai_briefings" | "ai_evaluations" | "ai_feedback" | "ai_generations" | "allocation_targets" | "jobConfig" | "jobLog" | "providerConfig" | "assetScore" | "feature_snapshots" | "asset_features" | "assetFundamentals" | "asset_health" | "assetSnapshot" | "asset" | "latestQuote" | "market_themes" | "priceHistory" | "theme_weights" | "asset_sentiment_snapshots" | "news" | "news_assets" | "web_notifications" | "binance_backfill_progress" | "fx_rate_history" | "import_runs" | "portfolio" | "position" | "broker_wallet_balances" | "snapshots" | "transaction" | "alembic_version" | "recommendation_explanations" | "recommendation_outcomes" | "recommendations" | "auditLog" | "failedIngestion" | "providerUsage" | "provider" | "task_runs" | "user_preferences" | "user" | "watchlistSymbol" | "watchlists"
       txIsolationLevel: Prisma.TransactionIsolationLevel
     }
     model: {
@@ -3074,6 +3106,80 @@ export namespace Prisma {
           }
         }
       }
+      fx_rate_history: {
+        payload: Prisma.$fx_rate_historyPayload<ExtArgs>
+        fields: Prisma.fx_rate_historyFieldRefs
+        operations: {
+          findUnique: {
+            args: Prisma.fx_rate_historyFindUniqueArgs<ExtArgs>
+            result: $Utils.PayloadToResult<Prisma.$fx_rate_historyPayload> | null
+          }
+          findUniqueOrThrow: {
+            args: Prisma.fx_rate_historyFindUniqueOrThrowArgs<ExtArgs>
+            result: $Utils.PayloadToResult<Prisma.$fx_rate_historyPayload>
+          }
+          findFirst: {
+            args: Prisma.fx_rate_historyFindFirstArgs<ExtArgs>
+            result: $Utils.PayloadToResult<Prisma.$fx_rate_historyPayload> | null
+          }
+          findFirstOrThrow: {
+            args: Prisma.fx_rate_historyFindFirstOrThrowArgs<ExtArgs>
+            result: $Utils.PayloadToResult<Prisma.$fx_rate_historyPayload>
+          }
+          findMany: {
+            args: Prisma.fx_rate_historyFindManyArgs<ExtArgs>
+            result: $Utils.PayloadToResult<Prisma.$fx_rate_historyPayload>[]
+          }
+          create: {
+            args: Prisma.fx_rate_historyCreateArgs<ExtArgs>
+            result: $Utils.PayloadToResult<Prisma.$fx_rate_historyPayload>
+          }
+          createMany: {
+            args: Prisma.fx_rate_historyCreateManyArgs<ExtArgs>
+            result: BatchPayload
+          }
+          createManyAndReturn: {
+            args: Prisma.fx_rate_historyCreateManyAndReturnArgs<ExtArgs>
+            result: $Utils.PayloadToResult<Prisma.$fx_rate_historyPayload>[]
+          }
+          delete: {
+            args: Prisma.fx_rate_historyDeleteArgs<ExtArgs>
+            result: $Utils.PayloadToResult<Prisma.$fx_rate_historyPayload>
+          }
+          update: {
+            args: Prisma.fx_rate_historyUpdateArgs<ExtArgs>
+            result: $Utils.PayloadToResult<Prisma.$fx_rate_historyPayload>
+          }
+          deleteMany: {
+            args: Prisma.fx_rate_historyDeleteManyArgs<ExtArgs>
+            result: BatchPayload
+          }
+          updateMany: {
+            args: Prisma.fx_rate_historyUpdateManyArgs<ExtArgs>
+            result: BatchPayload
+          }
+          updateManyAndReturn: {
+            args: Prisma.fx_rate_historyUpdateManyAndReturnArgs<ExtArgs>
+            result: $Utils.PayloadToResult<Prisma.$fx_rate_historyPayload>[]
+          }
+          upsert: {
+            args: Prisma.fx_rate_historyUpsertArgs<ExtArgs>
+            result: $Utils.PayloadToResult<Prisma.$fx_rate_historyPayload>
+          }
+          aggregate: {
+            args: Prisma.Fx_rate_historyAggregateArgs<ExtArgs>
+            result: $Utils.Optional<AggregateFx_rate_history>
+          }
+          groupBy: {
+            args: Prisma.fx_rate_historyGroupByArgs<ExtArgs>
+            result: $Utils.Optional<Fx_rate_historyGroupByOutputType>[]
+          }
+          count: {
+            args: Prisma.fx_rate_historyCountArgs<ExtArgs>
+            result: $Utils.Optional<Fx_rate_historyCountAggregateOutputType> | number
+          }
+        }
+      }
       import_runs: {
         payload: Prisma.$import_runsPayload<ExtArgs>
         fields: Prisma.import_runsFieldRefs
@@ -3293,6 +3399,80 @@ export namespace Prisma {
           count: {
             args: Prisma.PositionCountArgs<ExtArgs>
             result: $Utils.Optional<PositionCountAggregateOutputType> | number
+          }
+        }
+      }
+      broker_wallet_balances: {
+        payload: Prisma.$broker_wallet_balancesPayload<ExtArgs>
+        fields: Prisma.broker_wallet_balancesFieldRefs
+        operations: {
+          findUnique: {
+            args: Prisma.broker_wallet_balancesFindUniqueArgs<ExtArgs>
+            result: $Utils.PayloadToResult<Prisma.$broker_wallet_balancesPayload> | null
+          }
+          findUniqueOrThrow: {
+            args: Prisma.broker_wallet_balancesFindUniqueOrThrowArgs<ExtArgs>
+            result: $Utils.PayloadToResult<Prisma.$broker_wallet_balancesPayload>
+          }
+          findFirst: {
+            args: Prisma.broker_wallet_balancesFindFirstArgs<ExtArgs>
+            result: $Utils.PayloadToResult<Prisma.$broker_wallet_balancesPayload> | null
+          }
+          findFirstOrThrow: {
+            args: Prisma.broker_wallet_balancesFindFirstOrThrowArgs<ExtArgs>
+            result: $Utils.PayloadToResult<Prisma.$broker_wallet_balancesPayload>
+          }
+          findMany: {
+            args: Prisma.broker_wallet_balancesFindManyArgs<ExtArgs>
+            result: $Utils.PayloadToResult<Prisma.$broker_wallet_balancesPayload>[]
+          }
+          create: {
+            args: Prisma.broker_wallet_balancesCreateArgs<ExtArgs>
+            result: $Utils.PayloadToResult<Prisma.$broker_wallet_balancesPayload>
+          }
+          createMany: {
+            args: Prisma.broker_wallet_balancesCreateManyArgs<ExtArgs>
+            result: BatchPayload
+          }
+          createManyAndReturn: {
+            args: Prisma.broker_wallet_balancesCreateManyAndReturnArgs<ExtArgs>
+            result: $Utils.PayloadToResult<Prisma.$broker_wallet_balancesPayload>[]
+          }
+          delete: {
+            args: Prisma.broker_wallet_balancesDeleteArgs<ExtArgs>
+            result: $Utils.PayloadToResult<Prisma.$broker_wallet_balancesPayload>
+          }
+          update: {
+            args: Prisma.broker_wallet_balancesUpdateArgs<ExtArgs>
+            result: $Utils.PayloadToResult<Prisma.$broker_wallet_balancesPayload>
+          }
+          deleteMany: {
+            args: Prisma.broker_wallet_balancesDeleteManyArgs<ExtArgs>
+            result: BatchPayload
+          }
+          updateMany: {
+            args: Prisma.broker_wallet_balancesUpdateManyArgs<ExtArgs>
+            result: BatchPayload
+          }
+          updateManyAndReturn: {
+            args: Prisma.broker_wallet_balancesUpdateManyAndReturnArgs<ExtArgs>
+            result: $Utils.PayloadToResult<Prisma.$broker_wallet_balancesPayload>[]
+          }
+          upsert: {
+            args: Prisma.broker_wallet_balancesUpsertArgs<ExtArgs>
+            result: $Utils.PayloadToResult<Prisma.$broker_wallet_balancesPayload>
+          }
+          aggregate: {
+            args: Prisma.Broker_wallet_balancesAggregateArgs<ExtArgs>
+            result: $Utils.Optional<AggregateBroker_wallet_balances>
+          }
+          groupBy: {
+            args: Prisma.broker_wallet_balancesGroupByArgs<ExtArgs>
+            result: $Utils.Optional<Broker_wallet_balancesGroupByOutputType>[]
+          }
+          count: {
+            args: Prisma.broker_wallet_balancesCountArgs<ExtArgs>
+            result: $Utils.Optional<Broker_wallet_balancesCountAggregateOutputType> | number
           }
         }
       }
@@ -4526,9 +4706,11 @@ export namespace Prisma {
     news_assets?: news_assetsOmit
     web_notifications?: web_notificationsOmit
     binance_backfill_progress?: binance_backfill_progressOmit
+    fx_rate_history?: fx_rate_historyOmit
     import_runs?: import_runsOmit
     portfolio?: PortfolioOmit
     position?: PositionOmit
+    broker_wallet_balances?: broker_wallet_balancesOmit
     snapshots?: snapshotsOmit
     transaction?: TransactionOmit
     alembic_version?: alembic_versionOmit
@@ -4852,6 +5034,7 @@ export namespace Prisma {
 
   export type PortfolioCountOutputType = {
     binance_backfill_progress: number
+    broker_wallet_balances: number
     import_runs: number
     positions: number
     transactions: number
@@ -4859,6 +5042,7 @@ export namespace Prisma {
 
   export type PortfolioCountOutputTypeSelect<ExtArgs extends $Extensions.InternalArgs = $Extensions.DefaultArgs> = {
     binance_backfill_progress?: boolean | PortfolioCountOutputTypeCountBinance_backfill_progressArgs
+    broker_wallet_balances?: boolean | PortfolioCountOutputTypeCountBroker_wallet_balancesArgs
     import_runs?: boolean | PortfolioCountOutputTypeCountImport_runsArgs
     positions?: boolean | PortfolioCountOutputTypeCountPositionsArgs
     transactions?: boolean | PortfolioCountOutputTypeCountTransactionsArgs
@@ -4880,6 +5064,13 @@ export namespace Prisma {
    */
   export type PortfolioCountOutputTypeCountBinance_backfill_progressArgs<ExtArgs extends $Extensions.InternalArgs = $Extensions.DefaultArgs> = {
     where?: binance_backfill_progressWhereInput
+  }
+
+  /**
+   * PortfolioCountOutputType without action
+   */
+  export type PortfolioCountOutputTypeCountBroker_wallet_balancesArgs<ExtArgs extends $Extensions.InternalArgs = $Extensions.DefaultArgs> = {
+    where?: broker_wallet_balancesWhereInput
   }
 
   /**
@@ -32639,6 +32830,1035 @@ export namespace Prisma {
 
 
   /**
+   * Model fx_rate_history
+   */
+
+  export type AggregateFx_rate_history = {
+    _count: Fx_rate_historyCountAggregateOutputType | null
+    _avg: Fx_rate_historyAvgAggregateOutputType | null
+    _sum: Fx_rate_historySumAggregateOutputType | null
+    _min: Fx_rate_historyMinAggregateOutputType | null
+    _max: Fx_rate_historyMaxAggregateOutputType | null
+  }
+
+  export type Fx_rate_historyAvgAggregateOutputType = {
+    rate_to_inr: Decimal | null
+  }
+
+  export type Fx_rate_historySumAggregateOutputType = {
+    rate_to_inr: Decimal | null
+  }
+
+  export type Fx_rate_historyMinAggregateOutputType = {
+    id: string | null
+    currency: string | null
+    date: Date | null
+    rate_to_inr: Decimal | null
+    created_at: Date | null
+  }
+
+  export type Fx_rate_historyMaxAggregateOutputType = {
+    id: string | null
+    currency: string | null
+    date: Date | null
+    rate_to_inr: Decimal | null
+    created_at: Date | null
+  }
+
+  export type Fx_rate_historyCountAggregateOutputType = {
+    id: number
+    currency: number
+    date: number
+    rate_to_inr: number
+    created_at: number
+    _all: number
+  }
+
+
+  export type Fx_rate_historyAvgAggregateInputType = {
+    rate_to_inr?: true
+  }
+
+  export type Fx_rate_historySumAggregateInputType = {
+    rate_to_inr?: true
+  }
+
+  export type Fx_rate_historyMinAggregateInputType = {
+    id?: true
+    currency?: true
+    date?: true
+    rate_to_inr?: true
+    created_at?: true
+  }
+
+  export type Fx_rate_historyMaxAggregateInputType = {
+    id?: true
+    currency?: true
+    date?: true
+    rate_to_inr?: true
+    created_at?: true
+  }
+
+  export type Fx_rate_historyCountAggregateInputType = {
+    id?: true
+    currency?: true
+    date?: true
+    rate_to_inr?: true
+    created_at?: true
+    _all?: true
+  }
+
+  export type Fx_rate_historyAggregateArgs<ExtArgs extends $Extensions.InternalArgs = $Extensions.DefaultArgs> = {
+    /**
+     * Filter which fx_rate_history to aggregate.
+     */
+    where?: fx_rate_historyWhereInput
+    /**
+     * {@link https://www.prisma.io/docs/concepts/components/prisma-client/sorting Sorting Docs}
+     * 
+     * Determine the order of fx_rate_histories to fetch.
+     */
+    orderBy?: fx_rate_historyOrderByWithRelationInput | fx_rate_historyOrderByWithRelationInput[]
+    /**
+     * {@link https://www.prisma.io/docs/concepts/components/prisma-client/pagination#cursor-based-pagination Cursor Docs}
+     * 
+     * Sets the start position
+     */
+    cursor?: fx_rate_historyWhereUniqueInput
+    /**
+     * {@link https://www.prisma.io/docs/concepts/components/prisma-client/pagination Pagination Docs}
+     * 
+     * Take `±n` fx_rate_histories from the position of the cursor.
+     */
+    take?: number
+    /**
+     * {@link https://www.prisma.io/docs/concepts/components/prisma-client/pagination Pagination Docs}
+     * 
+     * Skip the first `n` fx_rate_histories.
+     */
+    skip?: number
+    /**
+     * {@link https://www.prisma.io/docs/concepts/components/prisma-client/aggregations Aggregation Docs}
+     * 
+     * Count returned fx_rate_histories
+    **/
+    _count?: true | Fx_rate_historyCountAggregateInputType
+    /**
+     * {@link https://www.prisma.io/docs/concepts/components/prisma-client/aggregations Aggregation Docs}
+     * 
+     * Select which fields to average
+    **/
+    _avg?: Fx_rate_historyAvgAggregateInputType
+    /**
+     * {@link https://www.prisma.io/docs/concepts/components/prisma-client/aggregations Aggregation Docs}
+     * 
+     * Select which fields to sum
+    **/
+    _sum?: Fx_rate_historySumAggregateInputType
+    /**
+     * {@link https://www.prisma.io/docs/concepts/components/prisma-client/aggregations Aggregation Docs}
+     * 
+     * Select which fields to find the minimum value
+    **/
+    _min?: Fx_rate_historyMinAggregateInputType
+    /**
+     * {@link https://www.prisma.io/docs/concepts/components/prisma-client/aggregations Aggregation Docs}
+     * 
+     * Select which fields to find the maximum value
+    **/
+    _max?: Fx_rate_historyMaxAggregateInputType
+  }
+
+  export type GetFx_rate_historyAggregateType<T extends Fx_rate_historyAggregateArgs> = {
+        [P in keyof T & keyof AggregateFx_rate_history]: P extends '_count' | 'count'
+      ? T[P] extends true
+        ? number
+        : GetScalarType<T[P], AggregateFx_rate_history[P]>
+      : GetScalarType<T[P], AggregateFx_rate_history[P]>
+  }
+
+
+
+
+  export type fx_rate_historyGroupByArgs<ExtArgs extends $Extensions.InternalArgs = $Extensions.DefaultArgs> = {
+    where?: fx_rate_historyWhereInput
+    orderBy?: fx_rate_historyOrderByWithAggregationInput | fx_rate_historyOrderByWithAggregationInput[]
+    by: Fx_rate_historyScalarFieldEnum[] | Fx_rate_historyScalarFieldEnum
+    having?: fx_rate_historyScalarWhereWithAggregatesInput
+    take?: number
+    skip?: number
+    _count?: Fx_rate_historyCountAggregateInputType | true
+    _avg?: Fx_rate_historyAvgAggregateInputType
+    _sum?: Fx_rate_historySumAggregateInputType
+    _min?: Fx_rate_historyMinAggregateInputType
+    _max?: Fx_rate_historyMaxAggregateInputType
+  }
+
+  export type Fx_rate_historyGroupByOutputType = {
+    id: string
+    currency: string
+    date: Date
+    rate_to_inr: Decimal
+    created_at: Date
+    _count: Fx_rate_historyCountAggregateOutputType | null
+    _avg: Fx_rate_historyAvgAggregateOutputType | null
+    _sum: Fx_rate_historySumAggregateOutputType | null
+    _min: Fx_rate_historyMinAggregateOutputType | null
+    _max: Fx_rate_historyMaxAggregateOutputType | null
+  }
+
+  type GetFx_rate_historyGroupByPayload<T extends fx_rate_historyGroupByArgs> = Prisma.PrismaPromise<
+    Array<
+      PickEnumerable<Fx_rate_historyGroupByOutputType, T['by']> &
+        {
+          [P in ((keyof T) & (keyof Fx_rate_historyGroupByOutputType))]: P extends '_count'
+            ? T[P] extends boolean
+              ? number
+              : GetScalarType<T[P], Fx_rate_historyGroupByOutputType[P]>
+            : GetScalarType<T[P], Fx_rate_historyGroupByOutputType[P]>
+        }
+      >
+    >
+
+
+  export type fx_rate_historySelect<ExtArgs extends $Extensions.InternalArgs = $Extensions.DefaultArgs> = $Extensions.GetSelect<{
+    id?: boolean
+    currency?: boolean
+    date?: boolean
+    rate_to_inr?: boolean
+    created_at?: boolean
+  }, ExtArgs["result"]["fx_rate_history"]>
+
+  export type fx_rate_historySelectCreateManyAndReturn<ExtArgs extends $Extensions.InternalArgs = $Extensions.DefaultArgs> = $Extensions.GetSelect<{
+    id?: boolean
+    currency?: boolean
+    date?: boolean
+    rate_to_inr?: boolean
+    created_at?: boolean
+  }, ExtArgs["result"]["fx_rate_history"]>
+
+  export type fx_rate_historySelectUpdateManyAndReturn<ExtArgs extends $Extensions.InternalArgs = $Extensions.DefaultArgs> = $Extensions.GetSelect<{
+    id?: boolean
+    currency?: boolean
+    date?: boolean
+    rate_to_inr?: boolean
+    created_at?: boolean
+  }, ExtArgs["result"]["fx_rate_history"]>
+
+  export type fx_rate_historySelectScalar = {
+    id?: boolean
+    currency?: boolean
+    date?: boolean
+    rate_to_inr?: boolean
+    created_at?: boolean
+  }
+
+  export type fx_rate_historyOmit<ExtArgs extends $Extensions.InternalArgs = $Extensions.DefaultArgs> = $Extensions.GetOmit<"id" | "currency" | "date" | "rate_to_inr" | "created_at", ExtArgs["result"]["fx_rate_history"]>
+
+  export type $fx_rate_historyPayload<ExtArgs extends $Extensions.InternalArgs = $Extensions.DefaultArgs> = {
+    name: "fx_rate_history"
+    objects: {}
+    scalars: $Extensions.GetPayloadResult<{
+      id: string
+      currency: string
+      date: Date
+      rate_to_inr: Prisma.Decimal
+      created_at: Date
+    }, ExtArgs["result"]["fx_rate_history"]>
+    composites: {}
+  }
+
+  type fx_rate_historyGetPayload<S extends boolean | null | undefined | fx_rate_historyDefaultArgs> = $Result.GetResult<Prisma.$fx_rate_historyPayload, S>
+
+  type fx_rate_historyCountArgs<ExtArgs extends $Extensions.InternalArgs = $Extensions.DefaultArgs> =
+    Omit<fx_rate_historyFindManyArgs, 'select' | 'include' | 'distinct' | 'omit'> & {
+      select?: Fx_rate_historyCountAggregateInputType | true
+    }
+
+  export interface fx_rate_historyDelegate<ExtArgs extends $Extensions.InternalArgs = $Extensions.DefaultArgs, GlobalOmitOptions = {}> {
+    [K: symbol]: { types: Prisma.TypeMap<ExtArgs>['model']['fx_rate_history'], meta: { name: 'fx_rate_history' } }
+    /**
+     * Find zero or one Fx_rate_history that matches the filter.
+     * @param {fx_rate_historyFindUniqueArgs} args - Arguments to find a Fx_rate_history
+     * @example
+     * // Get one Fx_rate_history
+     * const fx_rate_history = await prisma.fx_rate_history.findUnique({
+     *   where: {
+     *     // ... provide filter here
+     *   }
+     * })
+     */
+    findUnique<T extends fx_rate_historyFindUniqueArgs>(args: SelectSubset<T, fx_rate_historyFindUniqueArgs<ExtArgs>>): Prisma__fx_rate_historyClient<$Result.GetResult<Prisma.$fx_rate_historyPayload<ExtArgs>, T, "findUnique", GlobalOmitOptions> | null, null, ExtArgs, GlobalOmitOptions>
+
+    /**
+     * Find one Fx_rate_history that matches the filter or throw an error with `error.code='P2025'`
+     * if no matches were found.
+     * @param {fx_rate_historyFindUniqueOrThrowArgs} args - Arguments to find a Fx_rate_history
+     * @example
+     * // Get one Fx_rate_history
+     * const fx_rate_history = await prisma.fx_rate_history.findUniqueOrThrow({
+     *   where: {
+     *     // ... provide filter here
+     *   }
+     * })
+     */
+    findUniqueOrThrow<T extends fx_rate_historyFindUniqueOrThrowArgs>(args: SelectSubset<T, fx_rate_historyFindUniqueOrThrowArgs<ExtArgs>>): Prisma__fx_rate_historyClient<$Result.GetResult<Prisma.$fx_rate_historyPayload<ExtArgs>, T, "findUniqueOrThrow", GlobalOmitOptions>, never, ExtArgs, GlobalOmitOptions>
+
+    /**
+     * Find the first Fx_rate_history that matches the filter.
+     * Note, that providing `undefined` is treated as the value not being there.
+     * Read more here: https://pris.ly/d/null-undefined
+     * @param {fx_rate_historyFindFirstArgs} args - Arguments to find a Fx_rate_history
+     * @example
+     * // Get one Fx_rate_history
+     * const fx_rate_history = await prisma.fx_rate_history.findFirst({
+     *   where: {
+     *     // ... provide filter here
+     *   }
+     * })
+     */
+    findFirst<T extends fx_rate_historyFindFirstArgs>(args?: SelectSubset<T, fx_rate_historyFindFirstArgs<ExtArgs>>): Prisma__fx_rate_historyClient<$Result.GetResult<Prisma.$fx_rate_historyPayload<ExtArgs>, T, "findFirst", GlobalOmitOptions> | null, null, ExtArgs, GlobalOmitOptions>
+
+    /**
+     * Find the first Fx_rate_history that matches the filter or
+     * throw `PrismaKnownClientError` with `P2025` code if no matches were found.
+     * Note, that providing `undefined` is treated as the value not being there.
+     * Read more here: https://pris.ly/d/null-undefined
+     * @param {fx_rate_historyFindFirstOrThrowArgs} args - Arguments to find a Fx_rate_history
+     * @example
+     * // Get one Fx_rate_history
+     * const fx_rate_history = await prisma.fx_rate_history.findFirstOrThrow({
+     *   where: {
+     *     // ... provide filter here
+     *   }
+     * })
+     */
+    findFirstOrThrow<T extends fx_rate_historyFindFirstOrThrowArgs>(args?: SelectSubset<T, fx_rate_historyFindFirstOrThrowArgs<ExtArgs>>): Prisma__fx_rate_historyClient<$Result.GetResult<Prisma.$fx_rate_historyPayload<ExtArgs>, T, "findFirstOrThrow", GlobalOmitOptions>, never, ExtArgs, GlobalOmitOptions>
+
+    /**
+     * Find zero or more Fx_rate_histories that matches the filter.
+     * Note, that providing `undefined` is treated as the value not being there.
+     * Read more here: https://pris.ly/d/null-undefined
+     * @param {fx_rate_historyFindManyArgs} args - Arguments to filter and select certain fields only.
+     * @example
+     * // Get all Fx_rate_histories
+     * const fx_rate_histories = await prisma.fx_rate_history.findMany()
+     * 
+     * // Get first 10 Fx_rate_histories
+     * const fx_rate_histories = await prisma.fx_rate_history.findMany({ take: 10 })
+     * 
+     * // Only select the `id`
+     * const fx_rate_historyWithIdOnly = await prisma.fx_rate_history.findMany({ select: { id: true } })
+     * 
+     */
+    findMany<T extends fx_rate_historyFindManyArgs>(args?: SelectSubset<T, fx_rate_historyFindManyArgs<ExtArgs>>): Prisma.PrismaPromise<$Result.GetResult<Prisma.$fx_rate_historyPayload<ExtArgs>, T, "findMany", GlobalOmitOptions>>
+
+    /**
+     * Create a Fx_rate_history.
+     * @param {fx_rate_historyCreateArgs} args - Arguments to create a Fx_rate_history.
+     * @example
+     * // Create one Fx_rate_history
+     * const Fx_rate_history = await prisma.fx_rate_history.create({
+     *   data: {
+     *     // ... data to create a Fx_rate_history
+     *   }
+     * })
+     * 
+     */
+    create<T extends fx_rate_historyCreateArgs>(args: SelectSubset<T, fx_rate_historyCreateArgs<ExtArgs>>): Prisma__fx_rate_historyClient<$Result.GetResult<Prisma.$fx_rate_historyPayload<ExtArgs>, T, "create", GlobalOmitOptions>, never, ExtArgs, GlobalOmitOptions>
+
+    /**
+     * Create many Fx_rate_histories.
+     * @param {fx_rate_historyCreateManyArgs} args - Arguments to create many Fx_rate_histories.
+     * @example
+     * // Create many Fx_rate_histories
+     * const fx_rate_history = await prisma.fx_rate_history.createMany({
+     *   data: [
+     *     // ... provide data here
+     *   ]
+     * })
+     *     
+     */
+    createMany<T extends fx_rate_historyCreateManyArgs>(args?: SelectSubset<T, fx_rate_historyCreateManyArgs<ExtArgs>>): Prisma.PrismaPromise<BatchPayload>
+
+    /**
+     * Create many Fx_rate_histories and returns the data saved in the database.
+     * @param {fx_rate_historyCreateManyAndReturnArgs} args - Arguments to create many Fx_rate_histories.
+     * @example
+     * // Create many Fx_rate_histories
+     * const fx_rate_history = await prisma.fx_rate_history.createManyAndReturn({
+     *   data: [
+     *     // ... provide data here
+     *   ]
+     * })
+     * 
+     * // Create many Fx_rate_histories and only return the `id`
+     * const fx_rate_historyWithIdOnly = await prisma.fx_rate_history.createManyAndReturn({
+     *   select: { id: true },
+     *   data: [
+     *     // ... provide data here
+     *   ]
+     * })
+     * Note, that providing `undefined` is treated as the value not being there.
+     * Read more here: https://pris.ly/d/null-undefined
+     * 
+     */
+    createManyAndReturn<T extends fx_rate_historyCreateManyAndReturnArgs>(args?: SelectSubset<T, fx_rate_historyCreateManyAndReturnArgs<ExtArgs>>): Prisma.PrismaPromise<$Result.GetResult<Prisma.$fx_rate_historyPayload<ExtArgs>, T, "createManyAndReturn", GlobalOmitOptions>>
+
+    /**
+     * Delete a Fx_rate_history.
+     * @param {fx_rate_historyDeleteArgs} args - Arguments to delete one Fx_rate_history.
+     * @example
+     * // Delete one Fx_rate_history
+     * const Fx_rate_history = await prisma.fx_rate_history.delete({
+     *   where: {
+     *     // ... filter to delete one Fx_rate_history
+     *   }
+     * })
+     * 
+     */
+    delete<T extends fx_rate_historyDeleteArgs>(args: SelectSubset<T, fx_rate_historyDeleteArgs<ExtArgs>>): Prisma__fx_rate_historyClient<$Result.GetResult<Prisma.$fx_rate_historyPayload<ExtArgs>, T, "delete", GlobalOmitOptions>, never, ExtArgs, GlobalOmitOptions>
+
+    /**
+     * Update one Fx_rate_history.
+     * @param {fx_rate_historyUpdateArgs} args - Arguments to update one Fx_rate_history.
+     * @example
+     * // Update one Fx_rate_history
+     * const fx_rate_history = await prisma.fx_rate_history.update({
+     *   where: {
+     *     // ... provide filter here
+     *   },
+     *   data: {
+     *     // ... provide data here
+     *   }
+     * })
+     * 
+     */
+    update<T extends fx_rate_historyUpdateArgs>(args: SelectSubset<T, fx_rate_historyUpdateArgs<ExtArgs>>): Prisma__fx_rate_historyClient<$Result.GetResult<Prisma.$fx_rate_historyPayload<ExtArgs>, T, "update", GlobalOmitOptions>, never, ExtArgs, GlobalOmitOptions>
+
+    /**
+     * Delete zero or more Fx_rate_histories.
+     * @param {fx_rate_historyDeleteManyArgs} args - Arguments to filter Fx_rate_histories to delete.
+     * @example
+     * // Delete a few Fx_rate_histories
+     * const { count } = await prisma.fx_rate_history.deleteMany({
+     *   where: {
+     *     // ... provide filter here
+     *   }
+     * })
+     * 
+     */
+    deleteMany<T extends fx_rate_historyDeleteManyArgs>(args?: SelectSubset<T, fx_rate_historyDeleteManyArgs<ExtArgs>>): Prisma.PrismaPromise<BatchPayload>
+
+    /**
+     * Update zero or more Fx_rate_histories.
+     * Note, that providing `undefined` is treated as the value not being there.
+     * Read more here: https://pris.ly/d/null-undefined
+     * @param {fx_rate_historyUpdateManyArgs} args - Arguments to update one or more rows.
+     * @example
+     * // Update many Fx_rate_histories
+     * const fx_rate_history = await prisma.fx_rate_history.updateMany({
+     *   where: {
+     *     // ... provide filter here
+     *   },
+     *   data: {
+     *     // ... provide data here
+     *   }
+     * })
+     * 
+     */
+    updateMany<T extends fx_rate_historyUpdateManyArgs>(args: SelectSubset<T, fx_rate_historyUpdateManyArgs<ExtArgs>>): Prisma.PrismaPromise<BatchPayload>
+
+    /**
+     * Update zero or more Fx_rate_histories and returns the data updated in the database.
+     * @param {fx_rate_historyUpdateManyAndReturnArgs} args - Arguments to update many Fx_rate_histories.
+     * @example
+     * // Update many Fx_rate_histories
+     * const fx_rate_history = await prisma.fx_rate_history.updateManyAndReturn({
+     *   where: {
+     *     // ... provide filter here
+     *   },
+     *   data: [
+     *     // ... provide data here
+     *   ]
+     * })
+     * 
+     * // Update zero or more Fx_rate_histories and only return the `id`
+     * const fx_rate_historyWithIdOnly = await prisma.fx_rate_history.updateManyAndReturn({
+     *   select: { id: true },
+     *   where: {
+     *     // ... provide filter here
+     *   },
+     *   data: [
+     *     // ... provide data here
+     *   ]
+     * })
+     * Note, that providing `undefined` is treated as the value not being there.
+     * Read more here: https://pris.ly/d/null-undefined
+     * 
+     */
+    updateManyAndReturn<T extends fx_rate_historyUpdateManyAndReturnArgs>(args: SelectSubset<T, fx_rate_historyUpdateManyAndReturnArgs<ExtArgs>>): Prisma.PrismaPromise<$Result.GetResult<Prisma.$fx_rate_historyPayload<ExtArgs>, T, "updateManyAndReturn", GlobalOmitOptions>>
+
+    /**
+     * Create or update one Fx_rate_history.
+     * @param {fx_rate_historyUpsertArgs} args - Arguments to update or create a Fx_rate_history.
+     * @example
+     * // Update or create a Fx_rate_history
+     * const fx_rate_history = await prisma.fx_rate_history.upsert({
+     *   create: {
+     *     // ... data to create a Fx_rate_history
+     *   },
+     *   update: {
+     *     // ... in case it already exists, update
+     *   },
+     *   where: {
+     *     // ... the filter for the Fx_rate_history we want to update
+     *   }
+     * })
+     */
+    upsert<T extends fx_rate_historyUpsertArgs>(args: SelectSubset<T, fx_rate_historyUpsertArgs<ExtArgs>>): Prisma__fx_rate_historyClient<$Result.GetResult<Prisma.$fx_rate_historyPayload<ExtArgs>, T, "upsert", GlobalOmitOptions>, never, ExtArgs, GlobalOmitOptions>
+
+
+    /**
+     * Count the number of Fx_rate_histories.
+     * Note, that providing `undefined` is treated as the value not being there.
+     * Read more here: https://pris.ly/d/null-undefined
+     * @param {fx_rate_historyCountArgs} args - Arguments to filter Fx_rate_histories to count.
+     * @example
+     * // Count the number of Fx_rate_histories
+     * const count = await prisma.fx_rate_history.count({
+     *   where: {
+     *     // ... the filter for the Fx_rate_histories we want to count
+     *   }
+     * })
+    **/
+    count<T extends fx_rate_historyCountArgs>(
+      args?: Subset<T, fx_rate_historyCountArgs>,
+    ): Prisma.PrismaPromise<
+      T extends $Utils.Record<'select', any>
+        ? T['select'] extends true
+          ? number
+          : GetScalarType<T['select'], Fx_rate_historyCountAggregateOutputType>
+        : number
+    >
+
+    /**
+     * Allows you to perform aggregations operations on a Fx_rate_history.
+     * Note, that providing `undefined` is treated as the value not being there.
+     * Read more here: https://pris.ly/d/null-undefined
+     * @param {Fx_rate_historyAggregateArgs} args - Select which aggregations you would like to apply and on what fields.
+     * @example
+     * // Ordered by age ascending
+     * // Where email contains prisma.io
+     * // Limited to the 10 users
+     * const aggregations = await prisma.user.aggregate({
+     *   _avg: {
+     *     age: true,
+     *   },
+     *   where: {
+     *     email: {
+     *       contains: "prisma.io",
+     *     },
+     *   },
+     *   orderBy: {
+     *     age: "asc",
+     *   },
+     *   take: 10,
+     * })
+    **/
+    aggregate<T extends Fx_rate_historyAggregateArgs>(args: Subset<T, Fx_rate_historyAggregateArgs>): Prisma.PrismaPromise<GetFx_rate_historyAggregateType<T>>
+
+    /**
+     * Group by Fx_rate_history.
+     * Note, that providing `undefined` is treated as the value not being there.
+     * Read more here: https://pris.ly/d/null-undefined
+     * @param {fx_rate_historyGroupByArgs} args - Group by arguments.
+     * @example
+     * // Group by city, order by createdAt, get count
+     * const result = await prisma.user.groupBy({
+     *   by: ['city', 'createdAt'],
+     *   orderBy: {
+     *     createdAt: true
+     *   },
+     *   _count: {
+     *     _all: true
+     *   },
+     * })
+     * 
+    **/
+    groupBy<
+      T extends fx_rate_historyGroupByArgs,
+      HasSelectOrTake extends Or<
+        Extends<'skip', Keys<T>>,
+        Extends<'take', Keys<T>>
+      >,
+      OrderByArg extends True extends HasSelectOrTake
+        ? { orderBy: fx_rate_historyGroupByArgs['orderBy'] }
+        : { orderBy?: fx_rate_historyGroupByArgs['orderBy'] },
+      OrderFields extends ExcludeUnderscoreKeys<Keys<MaybeTupleToUnion<T['orderBy']>>>,
+      ByFields extends MaybeTupleToUnion<T['by']>,
+      ByValid extends Has<ByFields, OrderFields>,
+      HavingFields extends GetHavingFields<T['having']>,
+      HavingValid extends Has<ByFields, HavingFields>,
+      ByEmpty extends T['by'] extends never[] ? True : False,
+      InputErrors extends ByEmpty extends True
+      ? `Error: "by" must not be empty.`
+      : HavingValid extends False
+      ? {
+          [P in HavingFields]: P extends ByFields
+            ? never
+            : P extends string
+            ? `Error: Field "${P}" used in "having" needs to be provided in "by".`
+            : [
+                Error,
+                'Field ',
+                P,
+                ` in "having" needs to be provided in "by"`,
+              ]
+        }[HavingFields]
+      : 'take' extends Keys<T>
+      ? 'orderBy' extends Keys<T>
+        ? ByValid extends True
+          ? {}
+          : {
+              [P in OrderFields]: P extends ByFields
+                ? never
+                : `Error: Field "${P}" in "orderBy" needs to be provided in "by"`
+            }[OrderFields]
+        : 'Error: If you provide "take", you also need to provide "orderBy"'
+      : 'skip' extends Keys<T>
+      ? 'orderBy' extends Keys<T>
+        ? ByValid extends True
+          ? {}
+          : {
+              [P in OrderFields]: P extends ByFields
+                ? never
+                : `Error: Field "${P}" in "orderBy" needs to be provided in "by"`
+            }[OrderFields]
+        : 'Error: If you provide "skip", you also need to provide "orderBy"'
+      : ByValid extends True
+      ? {}
+      : {
+          [P in OrderFields]: P extends ByFields
+            ? never
+            : `Error: Field "${P}" in "orderBy" needs to be provided in "by"`
+        }[OrderFields]
+    >(args: SubsetIntersection<T, fx_rate_historyGroupByArgs, OrderByArg> & InputErrors): {} extends InputErrors ? GetFx_rate_historyGroupByPayload<T> : Prisma.PrismaPromise<InputErrors>
+  /**
+   * Fields of the fx_rate_history model
+   */
+  readonly fields: fx_rate_historyFieldRefs;
+  }
+
+  /**
+   * The delegate class that acts as a "Promise-like" for fx_rate_history.
+   * Why is this prefixed with `Prisma__`?
+   * Because we want to prevent naming conflicts as mentioned in
+   * https://github.com/prisma/prisma-client-js/issues/707
+   */
+  export interface Prisma__fx_rate_historyClient<T, Null = never, ExtArgs extends $Extensions.InternalArgs = $Extensions.DefaultArgs, GlobalOmitOptions = {}> extends Prisma.PrismaPromise<T> {
+    readonly [Symbol.toStringTag]: "PrismaPromise"
+    /**
+     * Attaches callbacks for the resolution and/or rejection of the Promise.
+     * @param onfulfilled The callback to execute when the Promise is resolved.
+     * @param onrejected The callback to execute when the Promise is rejected.
+     * @returns A Promise for the completion of which ever callback is executed.
+     */
+    then<TResult1 = T, TResult2 = never>(onfulfilled?: ((value: T) => TResult1 | PromiseLike<TResult1>) | undefined | null, onrejected?: ((reason: any) => TResult2 | PromiseLike<TResult2>) | undefined | null): $Utils.JsPromise<TResult1 | TResult2>
+    /**
+     * Attaches a callback for only the rejection of the Promise.
+     * @param onrejected The callback to execute when the Promise is rejected.
+     * @returns A Promise for the completion of the callback.
+     */
+    catch<TResult = never>(onrejected?: ((reason: any) => TResult | PromiseLike<TResult>) | undefined | null): $Utils.JsPromise<T | TResult>
+    /**
+     * Attaches a callback that is invoked when the Promise is settled (fulfilled or rejected). The
+     * resolved value cannot be modified from the callback.
+     * @param onfinally The callback to execute when the Promise is settled (fulfilled or rejected).
+     * @returns A Promise for the completion of the callback.
+     */
+    finally(onfinally?: (() => void) | undefined | null): $Utils.JsPromise<T>
+  }
+
+
+
+
+  /**
+   * Fields of the fx_rate_history model
+   */
+  interface fx_rate_historyFieldRefs {
+    readonly id: FieldRef<"fx_rate_history", 'String'>
+    readonly currency: FieldRef<"fx_rate_history", 'String'>
+    readonly date: FieldRef<"fx_rate_history", 'DateTime'>
+    readonly rate_to_inr: FieldRef<"fx_rate_history", 'Decimal'>
+    readonly created_at: FieldRef<"fx_rate_history", 'DateTime'>
+  }
+    
+
+  // Custom InputTypes
+  /**
+   * fx_rate_history findUnique
+   */
+  export type fx_rate_historyFindUniqueArgs<ExtArgs extends $Extensions.InternalArgs = $Extensions.DefaultArgs> = {
+    /**
+     * Select specific fields to fetch from the fx_rate_history
+     */
+    select?: fx_rate_historySelect<ExtArgs> | null
+    /**
+     * Omit specific fields from the fx_rate_history
+     */
+    omit?: fx_rate_historyOmit<ExtArgs> | null
+    /**
+     * Filter, which fx_rate_history to fetch.
+     */
+    where: fx_rate_historyWhereUniqueInput
+  }
+
+  /**
+   * fx_rate_history findUniqueOrThrow
+   */
+  export type fx_rate_historyFindUniqueOrThrowArgs<ExtArgs extends $Extensions.InternalArgs = $Extensions.DefaultArgs> = {
+    /**
+     * Select specific fields to fetch from the fx_rate_history
+     */
+    select?: fx_rate_historySelect<ExtArgs> | null
+    /**
+     * Omit specific fields from the fx_rate_history
+     */
+    omit?: fx_rate_historyOmit<ExtArgs> | null
+    /**
+     * Filter, which fx_rate_history to fetch.
+     */
+    where: fx_rate_historyWhereUniqueInput
+  }
+
+  /**
+   * fx_rate_history findFirst
+   */
+  export type fx_rate_historyFindFirstArgs<ExtArgs extends $Extensions.InternalArgs = $Extensions.DefaultArgs> = {
+    /**
+     * Select specific fields to fetch from the fx_rate_history
+     */
+    select?: fx_rate_historySelect<ExtArgs> | null
+    /**
+     * Omit specific fields from the fx_rate_history
+     */
+    omit?: fx_rate_historyOmit<ExtArgs> | null
+    /**
+     * Filter, which fx_rate_history to fetch.
+     */
+    where?: fx_rate_historyWhereInput
+    /**
+     * {@link https://www.prisma.io/docs/concepts/components/prisma-client/sorting Sorting Docs}
+     * 
+     * Determine the order of fx_rate_histories to fetch.
+     */
+    orderBy?: fx_rate_historyOrderByWithRelationInput | fx_rate_historyOrderByWithRelationInput[]
+    /**
+     * {@link https://www.prisma.io/docs/concepts/components/prisma-client/pagination#cursor-based-pagination Cursor Docs}
+     * 
+     * Sets the position for searching for fx_rate_histories.
+     */
+    cursor?: fx_rate_historyWhereUniqueInput
+    /**
+     * {@link https://www.prisma.io/docs/concepts/components/prisma-client/pagination Pagination Docs}
+     * 
+     * Take `±n` fx_rate_histories from the position of the cursor.
+     */
+    take?: number
+    /**
+     * {@link https://www.prisma.io/docs/concepts/components/prisma-client/pagination Pagination Docs}
+     * 
+     * Skip the first `n` fx_rate_histories.
+     */
+    skip?: number
+    /**
+     * {@link https://www.prisma.io/docs/concepts/components/prisma-client/distinct Distinct Docs}
+     * 
+     * Filter by unique combinations of fx_rate_histories.
+     */
+    distinct?: Fx_rate_historyScalarFieldEnum | Fx_rate_historyScalarFieldEnum[]
+  }
+
+  /**
+   * fx_rate_history findFirstOrThrow
+   */
+  export type fx_rate_historyFindFirstOrThrowArgs<ExtArgs extends $Extensions.InternalArgs = $Extensions.DefaultArgs> = {
+    /**
+     * Select specific fields to fetch from the fx_rate_history
+     */
+    select?: fx_rate_historySelect<ExtArgs> | null
+    /**
+     * Omit specific fields from the fx_rate_history
+     */
+    omit?: fx_rate_historyOmit<ExtArgs> | null
+    /**
+     * Filter, which fx_rate_history to fetch.
+     */
+    where?: fx_rate_historyWhereInput
+    /**
+     * {@link https://www.prisma.io/docs/concepts/components/prisma-client/sorting Sorting Docs}
+     * 
+     * Determine the order of fx_rate_histories to fetch.
+     */
+    orderBy?: fx_rate_historyOrderByWithRelationInput | fx_rate_historyOrderByWithRelationInput[]
+    /**
+     * {@link https://www.prisma.io/docs/concepts/components/prisma-client/pagination#cursor-based-pagination Cursor Docs}
+     * 
+     * Sets the position for searching for fx_rate_histories.
+     */
+    cursor?: fx_rate_historyWhereUniqueInput
+    /**
+     * {@link https://www.prisma.io/docs/concepts/components/prisma-client/pagination Pagination Docs}
+     * 
+     * Take `±n` fx_rate_histories from the position of the cursor.
+     */
+    take?: number
+    /**
+     * {@link https://www.prisma.io/docs/concepts/components/prisma-client/pagination Pagination Docs}
+     * 
+     * Skip the first `n` fx_rate_histories.
+     */
+    skip?: number
+    /**
+     * {@link https://www.prisma.io/docs/concepts/components/prisma-client/distinct Distinct Docs}
+     * 
+     * Filter by unique combinations of fx_rate_histories.
+     */
+    distinct?: Fx_rate_historyScalarFieldEnum | Fx_rate_historyScalarFieldEnum[]
+  }
+
+  /**
+   * fx_rate_history findMany
+   */
+  export type fx_rate_historyFindManyArgs<ExtArgs extends $Extensions.InternalArgs = $Extensions.DefaultArgs> = {
+    /**
+     * Select specific fields to fetch from the fx_rate_history
+     */
+    select?: fx_rate_historySelect<ExtArgs> | null
+    /**
+     * Omit specific fields from the fx_rate_history
+     */
+    omit?: fx_rate_historyOmit<ExtArgs> | null
+    /**
+     * Filter, which fx_rate_histories to fetch.
+     */
+    where?: fx_rate_historyWhereInput
+    /**
+     * {@link https://www.prisma.io/docs/concepts/components/prisma-client/sorting Sorting Docs}
+     * 
+     * Determine the order of fx_rate_histories to fetch.
+     */
+    orderBy?: fx_rate_historyOrderByWithRelationInput | fx_rate_historyOrderByWithRelationInput[]
+    /**
+     * {@link https://www.prisma.io/docs/concepts/components/prisma-client/pagination#cursor-based-pagination Cursor Docs}
+     * 
+     * Sets the position for listing fx_rate_histories.
+     */
+    cursor?: fx_rate_historyWhereUniqueInput
+    /**
+     * {@link https://www.prisma.io/docs/concepts/components/prisma-client/pagination Pagination Docs}
+     * 
+     * Take `±n` fx_rate_histories from the position of the cursor.
+     */
+    take?: number
+    /**
+     * {@link https://www.prisma.io/docs/concepts/components/prisma-client/pagination Pagination Docs}
+     * 
+     * Skip the first `n` fx_rate_histories.
+     */
+    skip?: number
+    distinct?: Fx_rate_historyScalarFieldEnum | Fx_rate_historyScalarFieldEnum[]
+  }
+
+  /**
+   * fx_rate_history create
+   */
+  export type fx_rate_historyCreateArgs<ExtArgs extends $Extensions.InternalArgs = $Extensions.DefaultArgs> = {
+    /**
+     * Select specific fields to fetch from the fx_rate_history
+     */
+    select?: fx_rate_historySelect<ExtArgs> | null
+    /**
+     * Omit specific fields from the fx_rate_history
+     */
+    omit?: fx_rate_historyOmit<ExtArgs> | null
+    /**
+     * The data needed to create a fx_rate_history.
+     */
+    data: XOR<fx_rate_historyCreateInput, fx_rate_historyUncheckedCreateInput>
+  }
+
+  /**
+   * fx_rate_history createMany
+   */
+  export type fx_rate_historyCreateManyArgs<ExtArgs extends $Extensions.InternalArgs = $Extensions.DefaultArgs> = {
+    /**
+     * The data used to create many fx_rate_histories.
+     */
+    data: fx_rate_historyCreateManyInput | fx_rate_historyCreateManyInput[]
+    skipDuplicates?: boolean
+  }
+
+  /**
+   * fx_rate_history createManyAndReturn
+   */
+  export type fx_rate_historyCreateManyAndReturnArgs<ExtArgs extends $Extensions.InternalArgs = $Extensions.DefaultArgs> = {
+    /**
+     * Select specific fields to fetch from the fx_rate_history
+     */
+    select?: fx_rate_historySelectCreateManyAndReturn<ExtArgs> | null
+    /**
+     * Omit specific fields from the fx_rate_history
+     */
+    omit?: fx_rate_historyOmit<ExtArgs> | null
+    /**
+     * The data used to create many fx_rate_histories.
+     */
+    data: fx_rate_historyCreateManyInput | fx_rate_historyCreateManyInput[]
+    skipDuplicates?: boolean
+  }
+
+  /**
+   * fx_rate_history update
+   */
+  export type fx_rate_historyUpdateArgs<ExtArgs extends $Extensions.InternalArgs = $Extensions.DefaultArgs> = {
+    /**
+     * Select specific fields to fetch from the fx_rate_history
+     */
+    select?: fx_rate_historySelect<ExtArgs> | null
+    /**
+     * Omit specific fields from the fx_rate_history
+     */
+    omit?: fx_rate_historyOmit<ExtArgs> | null
+    /**
+     * The data needed to update a fx_rate_history.
+     */
+    data: XOR<fx_rate_historyUpdateInput, fx_rate_historyUncheckedUpdateInput>
+    /**
+     * Choose, which fx_rate_history to update.
+     */
+    where: fx_rate_historyWhereUniqueInput
+  }
+
+  /**
+   * fx_rate_history updateMany
+   */
+  export type fx_rate_historyUpdateManyArgs<ExtArgs extends $Extensions.InternalArgs = $Extensions.DefaultArgs> = {
+    /**
+     * The data used to update fx_rate_histories.
+     */
+    data: XOR<fx_rate_historyUpdateManyMutationInput, fx_rate_historyUncheckedUpdateManyInput>
+    /**
+     * Filter which fx_rate_histories to update
+     */
+    where?: fx_rate_historyWhereInput
+    /**
+     * Limit how many fx_rate_histories to update.
+     */
+    limit?: number
+  }
+
+  /**
+   * fx_rate_history updateManyAndReturn
+   */
+  export type fx_rate_historyUpdateManyAndReturnArgs<ExtArgs extends $Extensions.InternalArgs = $Extensions.DefaultArgs> = {
+    /**
+     * Select specific fields to fetch from the fx_rate_history
+     */
+    select?: fx_rate_historySelectUpdateManyAndReturn<ExtArgs> | null
+    /**
+     * Omit specific fields from the fx_rate_history
+     */
+    omit?: fx_rate_historyOmit<ExtArgs> | null
+    /**
+     * The data used to update fx_rate_histories.
+     */
+    data: XOR<fx_rate_historyUpdateManyMutationInput, fx_rate_historyUncheckedUpdateManyInput>
+    /**
+     * Filter which fx_rate_histories to update
+     */
+    where?: fx_rate_historyWhereInput
+    /**
+     * Limit how many fx_rate_histories to update.
+     */
+    limit?: number
+  }
+
+  /**
+   * fx_rate_history upsert
+   */
+  export type fx_rate_historyUpsertArgs<ExtArgs extends $Extensions.InternalArgs = $Extensions.DefaultArgs> = {
+    /**
+     * Select specific fields to fetch from the fx_rate_history
+     */
+    select?: fx_rate_historySelect<ExtArgs> | null
+    /**
+     * Omit specific fields from the fx_rate_history
+     */
+    omit?: fx_rate_historyOmit<ExtArgs> | null
+    /**
+     * The filter to search for the fx_rate_history to update in case it exists.
+     */
+    where: fx_rate_historyWhereUniqueInput
+    /**
+     * In case the fx_rate_history found by the `where` argument doesn't exist, create a new fx_rate_history with this data.
+     */
+    create: XOR<fx_rate_historyCreateInput, fx_rate_historyUncheckedCreateInput>
+    /**
+     * In case the fx_rate_history was found with the provided `where` argument, update it with this data.
+     */
+    update: XOR<fx_rate_historyUpdateInput, fx_rate_historyUncheckedUpdateInput>
+  }
+
+  /**
+   * fx_rate_history delete
+   */
+  export type fx_rate_historyDeleteArgs<ExtArgs extends $Extensions.InternalArgs = $Extensions.DefaultArgs> = {
+    /**
+     * Select specific fields to fetch from the fx_rate_history
+     */
+    select?: fx_rate_historySelect<ExtArgs> | null
+    /**
+     * Omit specific fields from the fx_rate_history
+     */
+    omit?: fx_rate_historyOmit<ExtArgs> | null
+    /**
+     * Filter which fx_rate_history to delete.
+     */
+    where: fx_rate_historyWhereUniqueInput
+  }
+
+  /**
+   * fx_rate_history deleteMany
+   */
+  export type fx_rate_historyDeleteManyArgs<ExtArgs extends $Extensions.InternalArgs = $Extensions.DefaultArgs> = {
+    /**
+     * Filter which fx_rate_histories to delete
+     */
+    where?: fx_rate_historyWhereInput
+    /**
+     * Limit how many fx_rate_histories to delete.
+     */
+    limit?: number
+  }
+
+  /**
+   * fx_rate_history without action
+   */
+  export type fx_rate_historyDefaultArgs<ExtArgs extends $Extensions.InternalArgs = $Extensions.DefaultArgs> = {
+    /**
+     * Select specific fields to fetch from the fx_rate_history
+     */
+    select?: fx_rate_historySelect<ExtArgs> | null
+    /**
+     * Omit specific fields from the fx_rate_history
+     */
+    omit?: fx_rate_historyOmit<ExtArgs> | null
+  }
+
+
+  /**
    * Model import_runs
    */
 
@@ -34024,6 +35244,7 @@ export namespace Prisma {
     updatedAt?: boolean
     isArchived?: boolean
     binance_backfill_progress?: boolean | Portfolio$binance_backfill_progressArgs<ExtArgs>
+    broker_wallet_balances?: boolean | Portfolio$broker_wallet_balancesArgs<ExtArgs>
     import_runs?: boolean | Portfolio$import_runsArgs<ExtArgs>
     positions?: boolean | Portfolio$positionsArgs<ExtArgs>
     snapshot?: boolean | Portfolio$snapshotArgs<ExtArgs>
@@ -34058,6 +35279,7 @@ export namespace Prisma {
   export type PortfolioOmit<ExtArgs extends $Extensions.InternalArgs = $Extensions.DefaultArgs> = $Extensions.GetOmit<"name" | "id" | "createdAt" | "updatedAt" | "isArchived", ExtArgs["result"]["portfolio"]>
   export type PortfolioInclude<ExtArgs extends $Extensions.InternalArgs = $Extensions.DefaultArgs> = {
     binance_backfill_progress?: boolean | Portfolio$binance_backfill_progressArgs<ExtArgs>
+    broker_wallet_balances?: boolean | Portfolio$broker_wallet_balancesArgs<ExtArgs>
     import_runs?: boolean | Portfolio$import_runsArgs<ExtArgs>
     positions?: boolean | Portfolio$positionsArgs<ExtArgs>
     snapshot?: boolean | Portfolio$snapshotArgs<ExtArgs>
@@ -34071,6 +35293,7 @@ export namespace Prisma {
     name: "Portfolio"
     objects: {
       binance_backfill_progress: Prisma.$binance_backfill_progressPayload<ExtArgs>[]
+      broker_wallet_balances: Prisma.$broker_wallet_balancesPayload<ExtArgs>[]
       import_runs: Prisma.$import_runsPayload<ExtArgs>[]
       positions: Prisma.$PositionPayload<ExtArgs>[]
       snapshot: Prisma.$snapshotsPayload<ExtArgs> | null
@@ -34477,6 +35700,7 @@ export namespace Prisma {
   export interface Prisma__PortfolioClient<T, Null = never, ExtArgs extends $Extensions.InternalArgs = $Extensions.DefaultArgs, GlobalOmitOptions = {}> extends Prisma.PrismaPromise<T> {
     readonly [Symbol.toStringTag]: "PrismaPromise"
     binance_backfill_progress<T extends Portfolio$binance_backfill_progressArgs<ExtArgs> = {}>(args?: Subset<T, Portfolio$binance_backfill_progressArgs<ExtArgs>>): Prisma.PrismaPromise<$Result.GetResult<Prisma.$binance_backfill_progressPayload<ExtArgs>, T, "findMany", GlobalOmitOptions> | Null>
+    broker_wallet_balances<T extends Portfolio$broker_wallet_balancesArgs<ExtArgs> = {}>(args?: Subset<T, Portfolio$broker_wallet_balancesArgs<ExtArgs>>): Prisma.PrismaPromise<$Result.GetResult<Prisma.$broker_wallet_balancesPayload<ExtArgs>, T, "findMany", GlobalOmitOptions> | Null>
     import_runs<T extends Portfolio$import_runsArgs<ExtArgs> = {}>(args?: Subset<T, Portfolio$import_runsArgs<ExtArgs>>): Prisma.PrismaPromise<$Result.GetResult<Prisma.$import_runsPayload<ExtArgs>, T, "findMany", GlobalOmitOptions> | Null>
     positions<T extends Portfolio$positionsArgs<ExtArgs> = {}>(args?: Subset<T, Portfolio$positionsArgs<ExtArgs>>): Prisma.PrismaPromise<$Result.GetResult<Prisma.$PositionPayload<ExtArgs>, T, "findMany", GlobalOmitOptions> | Null>
     snapshot<T extends Portfolio$snapshotArgs<ExtArgs> = {}>(args?: Subset<T, Portfolio$snapshotArgs<ExtArgs>>): Prisma__snapshotsClient<$Result.GetResult<Prisma.$snapshotsPayload<ExtArgs>, T, "findUniqueOrThrow", GlobalOmitOptions> | null, null, ExtArgs, GlobalOmitOptions>
@@ -34924,6 +36148,30 @@ export namespace Prisma {
     take?: number
     skip?: number
     distinct?: Binance_backfill_progressScalarFieldEnum | Binance_backfill_progressScalarFieldEnum[]
+  }
+
+  /**
+   * Portfolio.broker_wallet_balances
+   */
+  export type Portfolio$broker_wallet_balancesArgs<ExtArgs extends $Extensions.InternalArgs = $Extensions.DefaultArgs> = {
+    /**
+     * Select specific fields to fetch from the broker_wallet_balances
+     */
+    select?: broker_wallet_balancesSelect<ExtArgs> | null
+    /**
+     * Omit specific fields from the broker_wallet_balances
+     */
+    omit?: broker_wallet_balancesOmit<ExtArgs> | null
+    /**
+     * Choose, which related nodes to fetch as well
+     */
+    include?: broker_wallet_balancesInclude<ExtArgs> | null
+    where?: broker_wallet_balancesWhereInput
+    orderBy?: broker_wallet_balancesOrderByWithRelationInput | broker_wallet_balancesOrderByWithRelationInput[]
+    cursor?: broker_wallet_balancesWhereUniqueInput
+    take?: number
+    skip?: number
+    distinct?: Broker_wallet_balancesScalarFieldEnum | Broker_wallet_balancesScalarFieldEnum[]
   }
 
   /**
@@ -36293,6 +37541,1124 @@ export namespace Prisma {
 
 
   /**
+   * Model broker_wallet_balances
+   */
+
+  export type AggregateBroker_wallet_balances = {
+    _count: Broker_wallet_balancesCountAggregateOutputType | null
+    _avg: Broker_wallet_balancesAvgAggregateOutputType | null
+    _sum: Broker_wallet_balancesSumAggregateOutputType | null
+    _min: Broker_wallet_balancesMinAggregateOutputType | null
+    _max: Broker_wallet_balancesMaxAggregateOutputType | null
+  }
+
+  export type Broker_wallet_balancesAvgAggregateOutputType = {
+    balance: Decimal | null
+  }
+
+  export type Broker_wallet_balancesSumAggregateOutputType = {
+    balance: Decimal | null
+  }
+
+  export type Broker_wallet_balancesMinAggregateOutputType = {
+    id: string | null
+    portfolio_id: string | null
+    broker: string | null
+    wallet: string | null
+    asset: string | null
+    balance: Decimal | null
+    updated_at: Date | null
+  }
+
+  export type Broker_wallet_balancesMaxAggregateOutputType = {
+    id: string | null
+    portfolio_id: string | null
+    broker: string | null
+    wallet: string | null
+    asset: string | null
+    balance: Decimal | null
+    updated_at: Date | null
+  }
+
+  export type Broker_wallet_balancesCountAggregateOutputType = {
+    id: number
+    portfolio_id: number
+    broker: number
+    wallet: number
+    asset: number
+    balance: number
+    updated_at: number
+    _all: number
+  }
+
+
+  export type Broker_wallet_balancesAvgAggregateInputType = {
+    balance?: true
+  }
+
+  export type Broker_wallet_balancesSumAggregateInputType = {
+    balance?: true
+  }
+
+  export type Broker_wallet_balancesMinAggregateInputType = {
+    id?: true
+    portfolio_id?: true
+    broker?: true
+    wallet?: true
+    asset?: true
+    balance?: true
+    updated_at?: true
+  }
+
+  export type Broker_wallet_balancesMaxAggregateInputType = {
+    id?: true
+    portfolio_id?: true
+    broker?: true
+    wallet?: true
+    asset?: true
+    balance?: true
+    updated_at?: true
+  }
+
+  export type Broker_wallet_balancesCountAggregateInputType = {
+    id?: true
+    portfolio_id?: true
+    broker?: true
+    wallet?: true
+    asset?: true
+    balance?: true
+    updated_at?: true
+    _all?: true
+  }
+
+  export type Broker_wallet_balancesAggregateArgs<ExtArgs extends $Extensions.InternalArgs = $Extensions.DefaultArgs> = {
+    /**
+     * Filter which broker_wallet_balances to aggregate.
+     */
+    where?: broker_wallet_balancesWhereInput
+    /**
+     * {@link https://www.prisma.io/docs/concepts/components/prisma-client/sorting Sorting Docs}
+     * 
+     * Determine the order of broker_wallet_balances to fetch.
+     */
+    orderBy?: broker_wallet_balancesOrderByWithRelationInput | broker_wallet_balancesOrderByWithRelationInput[]
+    /**
+     * {@link https://www.prisma.io/docs/concepts/components/prisma-client/pagination#cursor-based-pagination Cursor Docs}
+     * 
+     * Sets the start position
+     */
+    cursor?: broker_wallet_balancesWhereUniqueInput
+    /**
+     * {@link https://www.prisma.io/docs/concepts/components/prisma-client/pagination Pagination Docs}
+     * 
+     * Take `±n` broker_wallet_balances from the position of the cursor.
+     */
+    take?: number
+    /**
+     * {@link https://www.prisma.io/docs/concepts/components/prisma-client/pagination Pagination Docs}
+     * 
+     * Skip the first `n` broker_wallet_balances.
+     */
+    skip?: number
+    /**
+     * {@link https://www.prisma.io/docs/concepts/components/prisma-client/aggregations Aggregation Docs}
+     * 
+     * Count returned broker_wallet_balances
+    **/
+    _count?: true | Broker_wallet_balancesCountAggregateInputType
+    /**
+     * {@link https://www.prisma.io/docs/concepts/components/prisma-client/aggregations Aggregation Docs}
+     * 
+     * Select which fields to average
+    **/
+    _avg?: Broker_wallet_balancesAvgAggregateInputType
+    /**
+     * {@link https://www.prisma.io/docs/concepts/components/prisma-client/aggregations Aggregation Docs}
+     * 
+     * Select which fields to sum
+    **/
+    _sum?: Broker_wallet_balancesSumAggregateInputType
+    /**
+     * {@link https://www.prisma.io/docs/concepts/components/prisma-client/aggregations Aggregation Docs}
+     * 
+     * Select which fields to find the minimum value
+    **/
+    _min?: Broker_wallet_balancesMinAggregateInputType
+    /**
+     * {@link https://www.prisma.io/docs/concepts/components/prisma-client/aggregations Aggregation Docs}
+     * 
+     * Select which fields to find the maximum value
+    **/
+    _max?: Broker_wallet_balancesMaxAggregateInputType
+  }
+
+  export type GetBroker_wallet_balancesAggregateType<T extends Broker_wallet_balancesAggregateArgs> = {
+        [P in keyof T & keyof AggregateBroker_wallet_balances]: P extends '_count' | 'count'
+      ? T[P] extends true
+        ? number
+        : GetScalarType<T[P], AggregateBroker_wallet_balances[P]>
+      : GetScalarType<T[P], AggregateBroker_wallet_balances[P]>
+  }
+
+
+
+
+  export type broker_wallet_balancesGroupByArgs<ExtArgs extends $Extensions.InternalArgs = $Extensions.DefaultArgs> = {
+    where?: broker_wallet_balancesWhereInput
+    orderBy?: broker_wallet_balancesOrderByWithAggregationInput | broker_wallet_balancesOrderByWithAggregationInput[]
+    by: Broker_wallet_balancesScalarFieldEnum[] | Broker_wallet_balancesScalarFieldEnum
+    having?: broker_wallet_balancesScalarWhereWithAggregatesInput
+    take?: number
+    skip?: number
+    _count?: Broker_wallet_balancesCountAggregateInputType | true
+    _avg?: Broker_wallet_balancesAvgAggregateInputType
+    _sum?: Broker_wallet_balancesSumAggregateInputType
+    _min?: Broker_wallet_balancesMinAggregateInputType
+    _max?: Broker_wallet_balancesMaxAggregateInputType
+  }
+
+  export type Broker_wallet_balancesGroupByOutputType = {
+    id: string
+    portfolio_id: string
+    broker: string
+    wallet: string
+    asset: string
+    balance: Decimal
+    updated_at: Date
+    _count: Broker_wallet_balancesCountAggregateOutputType | null
+    _avg: Broker_wallet_balancesAvgAggregateOutputType | null
+    _sum: Broker_wallet_balancesSumAggregateOutputType | null
+    _min: Broker_wallet_balancesMinAggregateOutputType | null
+    _max: Broker_wallet_balancesMaxAggregateOutputType | null
+  }
+
+  type GetBroker_wallet_balancesGroupByPayload<T extends broker_wallet_balancesGroupByArgs> = Prisma.PrismaPromise<
+    Array<
+      PickEnumerable<Broker_wallet_balancesGroupByOutputType, T['by']> &
+        {
+          [P in ((keyof T) & (keyof Broker_wallet_balancesGroupByOutputType))]: P extends '_count'
+            ? T[P] extends boolean
+              ? number
+              : GetScalarType<T[P], Broker_wallet_balancesGroupByOutputType[P]>
+            : GetScalarType<T[P], Broker_wallet_balancesGroupByOutputType[P]>
+        }
+      >
+    >
+
+
+  export type broker_wallet_balancesSelect<ExtArgs extends $Extensions.InternalArgs = $Extensions.DefaultArgs> = $Extensions.GetSelect<{
+    id?: boolean
+    portfolio_id?: boolean
+    broker?: boolean
+    wallet?: boolean
+    asset?: boolean
+    balance?: boolean
+    updated_at?: boolean
+    portfolio?: boolean | PortfolioDefaultArgs<ExtArgs>
+  }, ExtArgs["result"]["broker_wallet_balances"]>
+
+  export type broker_wallet_balancesSelectCreateManyAndReturn<ExtArgs extends $Extensions.InternalArgs = $Extensions.DefaultArgs> = $Extensions.GetSelect<{
+    id?: boolean
+    portfolio_id?: boolean
+    broker?: boolean
+    wallet?: boolean
+    asset?: boolean
+    balance?: boolean
+    updated_at?: boolean
+    portfolio?: boolean | PortfolioDefaultArgs<ExtArgs>
+  }, ExtArgs["result"]["broker_wallet_balances"]>
+
+  export type broker_wallet_balancesSelectUpdateManyAndReturn<ExtArgs extends $Extensions.InternalArgs = $Extensions.DefaultArgs> = $Extensions.GetSelect<{
+    id?: boolean
+    portfolio_id?: boolean
+    broker?: boolean
+    wallet?: boolean
+    asset?: boolean
+    balance?: boolean
+    updated_at?: boolean
+    portfolio?: boolean | PortfolioDefaultArgs<ExtArgs>
+  }, ExtArgs["result"]["broker_wallet_balances"]>
+
+  export type broker_wallet_balancesSelectScalar = {
+    id?: boolean
+    portfolio_id?: boolean
+    broker?: boolean
+    wallet?: boolean
+    asset?: boolean
+    balance?: boolean
+    updated_at?: boolean
+  }
+
+  export type broker_wallet_balancesOmit<ExtArgs extends $Extensions.InternalArgs = $Extensions.DefaultArgs> = $Extensions.GetOmit<"id" | "portfolio_id" | "broker" | "wallet" | "asset" | "balance" | "updated_at", ExtArgs["result"]["broker_wallet_balances"]>
+  export type broker_wallet_balancesInclude<ExtArgs extends $Extensions.InternalArgs = $Extensions.DefaultArgs> = {
+    portfolio?: boolean | PortfolioDefaultArgs<ExtArgs>
+  }
+  export type broker_wallet_balancesIncludeCreateManyAndReturn<ExtArgs extends $Extensions.InternalArgs = $Extensions.DefaultArgs> = {
+    portfolio?: boolean | PortfolioDefaultArgs<ExtArgs>
+  }
+  export type broker_wallet_balancesIncludeUpdateManyAndReturn<ExtArgs extends $Extensions.InternalArgs = $Extensions.DefaultArgs> = {
+    portfolio?: boolean | PortfolioDefaultArgs<ExtArgs>
+  }
+
+  export type $broker_wallet_balancesPayload<ExtArgs extends $Extensions.InternalArgs = $Extensions.DefaultArgs> = {
+    name: "broker_wallet_balances"
+    objects: {
+      portfolio: Prisma.$PortfolioPayload<ExtArgs>
+    }
+    scalars: $Extensions.GetPayloadResult<{
+      id: string
+      portfolio_id: string
+      broker: string
+      wallet: string
+      asset: string
+      balance: Prisma.Decimal
+      updated_at: Date
+    }, ExtArgs["result"]["broker_wallet_balances"]>
+    composites: {}
+  }
+
+  type broker_wallet_balancesGetPayload<S extends boolean | null | undefined | broker_wallet_balancesDefaultArgs> = $Result.GetResult<Prisma.$broker_wallet_balancesPayload, S>
+
+  type broker_wallet_balancesCountArgs<ExtArgs extends $Extensions.InternalArgs = $Extensions.DefaultArgs> =
+    Omit<broker_wallet_balancesFindManyArgs, 'select' | 'include' | 'distinct' | 'omit'> & {
+      select?: Broker_wallet_balancesCountAggregateInputType | true
+    }
+
+  export interface broker_wallet_balancesDelegate<ExtArgs extends $Extensions.InternalArgs = $Extensions.DefaultArgs, GlobalOmitOptions = {}> {
+    [K: symbol]: { types: Prisma.TypeMap<ExtArgs>['model']['broker_wallet_balances'], meta: { name: 'broker_wallet_balances' } }
+    /**
+     * Find zero or one Broker_wallet_balances that matches the filter.
+     * @param {broker_wallet_balancesFindUniqueArgs} args - Arguments to find a Broker_wallet_balances
+     * @example
+     * // Get one Broker_wallet_balances
+     * const broker_wallet_balances = await prisma.broker_wallet_balances.findUnique({
+     *   where: {
+     *     // ... provide filter here
+     *   }
+     * })
+     */
+    findUnique<T extends broker_wallet_balancesFindUniqueArgs>(args: SelectSubset<T, broker_wallet_balancesFindUniqueArgs<ExtArgs>>): Prisma__broker_wallet_balancesClient<$Result.GetResult<Prisma.$broker_wallet_balancesPayload<ExtArgs>, T, "findUnique", GlobalOmitOptions> | null, null, ExtArgs, GlobalOmitOptions>
+
+    /**
+     * Find one Broker_wallet_balances that matches the filter or throw an error with `error.code='P2025'`
+     * if no matches were found.
+     * @param {broker_wallet_balancesFindUniqueOrThrowArgs} args - Arguments to find a Broker_wallet_balances
+     * @example
+     * // Get one Broker_wallet_balances
+     * const broker_wallet_balances = await prisma.broker_wallet_balances.findUniqueOrThrow({
+     *   where: {
+     *     // ... provide filter here
+     *   }
+     * })
+     */
+    findUniqueOrThrow<T extends broker_wallet_balancesFindUniqueOrThrowArgs>(args: SelectSubset<T, broker_wallet_balancesFindUniqueOrThrowArgs<ExtArgs>>): Prisma__broker_wallet_balancesClient<$Result.GetResult<Prisma.$broker_wallet_balancesPayload<ExtArgs>, T, "findUniqueOrThrow", GlobalOmitOptions>, never, ExtArgs, GlobalOmitOptions>
+
+    /**
+     * Find the first Broker_wallet_balances that matches the filter.
+     * Note, that providing `undefined` is treated as the value not being there.
+     * Read more here: https://pris.ly/d/null-undefined
+     * @param {broker_wallet_balancesFindFirstArgs} args - Arguments to find a Broker_wallet_balances
+     * @example
+     * // Get one Broker_wallet_balances
+     * const broker_wallet_balances = await prisma.broker_wallet_balances.findFirst({
+     *   where: {
+     *     // ... provide filter here
+     *   }
+     * })
+     */
+    findFirst<T extends broker_wallet_balancesFindFirstArgs>(args?: SelectSubset<T, broker_wallet_balancesFindFirstArgs<ExtArgs>>): Prisma__broker_wallet_balancesClient<$Result.GetResult<Prisma.$broker_wallet_balancesPayload<ExtArgs>, T, "findFirst", GlobalOmitOptions> | null, null, ExtArgs, GlobalOmitOptions>
+
+    /**
+     * Find the first Broker_wallet_balances that matches the filter or
+     * throw `PrismaKnownClientError` with `P2025` code if no matches were found.
+     * Note, that providing `undefined` is treated as the value not being there.
+     * Read more here: https://pris.ly/d/null-undefined
+     * @param {broker_wallet_balancesFindFirstOrThrowArgs} args - Arguments to find a Broker_wallet_balances
+     * @example
+     * // Get one Broker_wallet_balances
+     * const broker_wallet_balances = await prisma.broker_wallet_balances.findFirstOrThrow({
+     *   where: {
+     *     // ... provide filter here
+     *   }
+     * })
+     */
+    findFirstOrThrow<T extends broker_wallet_balancesFindFirstOrThrowArgs>(args?: SelectSubset<T, broker_wallet_balancesFindFirstOrThrowArgs<ExtArgs>>): Prisma__broker_wallet_balancesClient<$Result.GetResult<Prisma.$broker_wallet_balancesPayload<ExtArgs>, T, "findFirstOrThrow", GlobalOmitOptions>, never, ExtArgs, GlobalOmitOptions>
+
+    /**
+     * Find zero or more Broker_wallet_balances that matches the filter.
+     * Note, that providing `undefined` is treated as the value not being there.
+     * Read more here: https://pris.ly/d/null-undefined
+     * @param {broker_wallet_balancesFindManyArgs} args - Arguments to filter and select certain fields only.
+     * @example
+     * // Get all Broker_wallet_balances
+     * const broker_wallet_balances = await prisma.broker_wallet_balances.findMany()
+     * 
+     * // Get first 10 Broker_wallet_balances
+     * const broker_wallet_balances = await prisma.broker_wallet_balances.findMany({ take: 10 })
+     * 
+     * // Only select the `id`
+     * const broker_wallet_balancesWithIdOnly = await prisma.broker_wallet_balances.findMany({ select: { id: true } })
+     * 
+     */
+    findMany<T extends broker_wallet_balancesFindManyArgs>(args?: SelectSubset<T, broker_wallet_balancesFindManyArgs<ExtArgs>>): Prisma.PrismaPromise<$Result.GetResult<Prisma.$broker_wallet_balancesPayload<ExtArgs>, T, "findMany", GlobalOmitOptions>>
+
+    /**
+     * Create a Broker_wallet_balances.
+     * @param {broker_wallet_balancesCreateArgs} args - Arguments to create a Broker_wallet_balances.
+     * @example
+     * // Create one Broker_wallet_balances
+     * const Broker_wallet_balances = await prisma.broker_wallet_balances.create({
+     *   data: {
+     *     // ... data to create a Broker_wallet_balances
+     *   }
+     * })
+     * 
+     */
+    create<T extends broker_wallet_balancesCreateArgs>(args: SelectSubset<T, broker_wallet_balancesCreateArgs<ExtArgs>>): Prisma__broker_wallet_balancesClient<$Result.GetResult<Prisma.$broker_wallet_balancesPayload<ExtArgs>, T, "create", GlobalOmitOptions>, never, ExtArgs, GlobalOmitOptions>
+
+    /**
+     * Create many Broker_wallet_balances.
+     * @param {broker_wallet_balancesCreateManyArgs} args - Arguments to create many Broker_wallet_balances.
+     * @example
+     * // Create many Broker_wallet_balances
+     * const broker_wallet_balances = await prisma.broker_wallet_balances.createMany({
+     *   data: [
+     *     // ... provide data here
+     *   ]
+     * })
+     *     
+     */
+    createMany<T extends broker_wallet_balancesCreateManyArgs>(args?: SelectSubset<T, broker_wallet_balancesCreateManyArgs<ExtArgs>>): Prisma.PrismaPromise<BatchPayload>
+
+    /**
+     * Create many Broker_wallet_balances and returns the data saved in the database.
+     * @param {broker_wallet_balancesCreateManyAndReturnArgs} args - Arguments to create many Broker_wallet_balances.
+     * @example
+     * // Create many Broker_wallet_balances
+     * const broker_wallet_balances = await prisma.broker_wallet_balances.createManyAndReturn({
+     *   data: [
+     *     // ... provide data here
+     *   ]
+     * })
+     * 
+     * // Create many Broker_wallet_balances and only return the `id`
+     * const broker_wallet_balancesWithIdOnly = await prisma.broker_wallet_balances.createManyAndReturn({
+     *   select: { id: true },
+     *   data: [
+     *     // ... provide data here
+     *   ]
+     * })
+     * Note, that providing `undefined` is treated as the value not being there.
+     * Read more here: https://pris.ly/d/null-undefined
+     * 
+     */
+    createManyAndReturn<T extends broker_wallet_balancesCreateManyAndReturnArgs>(args?: SelectSubset<T, broker_wallet_balancesCreateManyAndReturnArgs<ExtArgs>>): Prisma.PrismaPromise<$Result.GetResult<Prisma.$broker_wallet_balancesPayload<ExtArgs>, T, "createManyAndReturn", GlobalOmitOptions>>
+
+    /**
+     * Delete a Broker_wallet_balances.
+     * @param {broker_wallet_balancesDeleteArgs} args - Arguments to delete one Broker_wallet_balances.
+     * @example
+     * // Delete one Broker_wallet_balances
+     * const Broker_wallet_balances = await prisma.broker_wallet_balances.delete({
+     *   where: {
+     *     // ... filter to delete one Broker_wallet_balances
+     *   }
+     * })
+     * 
+     */
+    delete<T extends broker_wallet_balancesDeleteArgs>(args: SelectSubset<T, broker_wallet_balancesDeleteArgs<ExtArgs>>): Prisma__broker_wallet_balancesClient<$Result.GetResult<Prisma.$broker_wallet_balancesPayload<ExtArgs>, T, "delete", GlobalOmitOptions>, never, ExtArgs, GlobalOmitOptions>
+
+    /**
+     * Update one Broker_wallet_balances.
+     * @param {broker_wallet_balancesUpdateArgs} args - Arguments to update one Broker_wallet_balances.
+     * @example
+     * // Update one Broker_wallet_balances
+     * const broker_wallet_balances = await prisma.broker_wallet_balances.update({
+     *   where: {
+     *     // ... provide filter here
+     *   },
+     *   data: {
+     *     // ... provide data here
+     *   }
+     * })
+     * 
+     */
+    update<T extends broker_wallet_balancesUpdateArgs>(args: SelectSubset<T, broker_wallet_balancesUpdateArgs<ExtArgs>>): Prisma__broker_wallet_balancesClient<$Result.GetResult<Prisma.$broker_wallet_balancesPayload<ExtArgs>, T, "update", GlobalOmitOptions>, never, ExtArgs, GlobalOmitOptions>
+
+    /**
+     * Delete zero or more Broker_wallet_balances.
+     * @param {broker_wallet_balancesDeleteManyArgs} args - Arguments to filter Broker_wallet_balances to delete.
+     * @example
+     * // Delete a few Broker_wallet_balances
+     * const { count } = await prisma.broker_wallet_balances.deleteMany({
+     *   where: {
+     *     // ... provide filter here
+     *   }
+     * })
+     * 
+     */
+    deleteMany<T extends broker_wallet_balancesDeleteManyArgs>(args?: SelectSubset<T, broker_wallet_balancesDeleteManyArgs<ExtArgs>>): Prisma.PrismaPromise<BatchPayload>
+
+    /**
+     * Update zero or more Broker_wallet_balances.
+     * Note, that providing `undefined` is treated as the value not being there.
+     * Read more here: https://pris.ly/d/null-undefined
+     * @param {broker_wallet_balancesUpdateManyArgs} args - Arguments to update one or more rows.
+     * @example
+     * // Update many Broker_wallet_balances
+     * const broker_wallet_balances = await prisma.broker_wallet_balances.updateMany({
+     *   where: {
+     *     // ... provide filter here
+     *   },
+     *   data: {
+     *     // ... provide data here
+     *   }
+     * })
+     * 
+     */
+    updateMany<T extends broker_wallet_balancesUpdateManyArgs>(args: SelectSubset<T, broker_wallet_balancesUpdateManyArgs<ExtArgs>>): Prisma.PrismaPromise<BatchPayload>
+
+    /**
+     * Update zero or more Broker_wallet_balances and returns the data updated in the database.
+     * @param {broker_wallet_balancesUpdateManyAndReturnArgs} args - Arguments to update many Broker_wallet_balances.
+     * @example
+     * // Update many Broker_wallet_balances
+     * const broker_wallet_balances = await prisma.broker_wallet_balances.updateManyAndReturn({
+     *   where: {
+     *     // ... provide filter here
+     *   },
+     *   data: [
+     *     // ... provide data here
+     *   ]
+     * })
+     * 
+     * // Update zero or more Broker_wallet_balances and only return the `id`
+     * const broker_wallet_balancesWithIdOnly = await prisma.broker_wallet_balances.updateManyAndReturn({
+     *   select: { id: true },
+     *   where: {
+     *     // ... provide filter here
+     *   },
+     *   data: [
+     *     // ... provide data here
+     *   ]
+     * })
+     * Note, that providing `undefined` is treated as the value not being there.
+     * Read more here: https://pris.ly/d/null-undefined
+     * 
+     */
+    updateManyAndReturn<T extends broker_wallet_balancesUpdateManyAndReturnArgs>(args: SelectSubset<T, broker_wallet_balancesUpdateManyAndReturnArgs<ExtArgs>>): Prisma.PrismaPromise<$Result.GetResult<Prisma.$broker_wallet_balancesPayload<ExtArgs>, T, "updateManyAndReturn", GlobalOmitOptions>>
+
+    /**
+     * Create or update one Broker_wallet_balances.
+     * @param {broker_wallet_balancesUpsertArgs} args - Arguments to update or create a Broker_wallet_balances.
+     * @example
+     * // Update or create a Broker_wallet_balances
+     * const broker_wallet_balances = await prisma.broker_wallet_balances.upsert({
+     *   create: {
+     *     // ... data to create a Broker_wallet_balances
+     *   },
+     *   update: {
+     *     // ... in case it already exists, update
+     *   },
+     *   where: {
+     *     // ... the filter for the Broker_wallet_balances we want to update
+     *   }
+     * })
+     */
+    upsert<T extends broker_wallet_balancesUpsertArgs>(args: SelectSubset<T, broker_wallet_balancesUpsertArgs<ExtArgs>>): Prisma__broker_wallet_balancesClient<$Result.GetResult<Prisma.$broker_wallet_balancesPayload<ExtArgs>, T, "upsert", GlobalOmitOptions>, never, ExtArgs, GlobalOmitOptions>
+
+
+    /**
+     * Count the number of Broker_wallet_balances.
+     * Note, that providing `undefined` is treated as the value not being there.
+     * Read more here: https://pris.ly/d/null-undefined
+     * @param {broker_wallet_balancesCountArgs} args - Arguments to filter Broker_wallet_balances to count.
+     * @example
+     * // Count the number of Broker_wallet_balances
+     * const count = await prisma.broker_wallet_balances.count({
+     *   where: {
+     *     // ... the filter for the Broker_wallet_balances we want to count
+     *   }
+     * })
+    **/
+    count<T extends broker_wallet_balancesCountArgs>(
+      args?: Subset<T, broker_wallet_balancesCountArgs>,
+    ): Prisma.PrismaPromise<
+      T extends $Utils.Record<'select', any>
+        ? T['select'] extends true
+          ? number
+          : GetScalarType<T['select'], Broker_wallet_balancesCountAggregateOutputType>
+        : number
+    >
+
+    /**
+     * Allows you to perform aggregations operations on a Broker_wallet_balances.
+     * Note, that providing `undefined` is treated as the value not being there.
+     * Read more here: https://pris.ly/d/null-undefined
+     * @param {Broker_wallet_balancesAggregateArgs} args - Select which aggregations you would like to apply and on what fields.
+     * @example
+     * // Ordered by age ascending
+     * // Where email contains prisma.io
+     * // Limited to the 10 users
+     * const aggregations = await prisma.user.aggregate({
+     *   _avg: {
+     *     age: true,
+     *   },
+     *   where: {
+     *     email: {
+     *       contains: "prisma.io",
+     *     },
+     *   },
+     *   orderBy: {
+     *     age: "asc",
+     *   },
+     *   take: 10,
+     * })
+    **/
+    aggregate<T extends Broker_wallet_balancesAggregateArgs>(args: Subset<T, Broker_wallet_balancesAggregateArgs>): Prisma.PrismaPromise<GetBroker_wallet_balancesAggregateType<T>>
+
+    /**
+     * Group by Broker_wallet_balances.
+     * Note, that providing `undefined` is treated as the value not being there.
+     * Read more here: https://pris.ly/d/null-undefined
+     * @param {broker_wallet_balancesGroupByArgs} args - Group by arguments.
+     * @example
+     * // Group by city, order by createdAt, get count
+     * const result = await prisma.user.groupBy({
+     *   by: ['city', 'createdAt'],
+     *   orderBy: {
+     *     createdAt: true
+     *   },
+     *   _count: {
+     *     _all: true
+     *   },
+     * })
+     * 
+    **/
+    groupBy<
+      T extends broker_wallet_balancesGroupByArgs,
+      HasSelectOrTake extends Or<
+        Extends<'skip', Keys<T>>,
+        Extends<'take', Keys<T>>
+      >,
+      OrderByArg extends True extends HasSelectOrTake
+        ? { orderBy: broker_wallet_balancesGroupByArgs['orderBy'] }
+        : { orderBy?: broker_wallet_balancesGroupByArgs['orderBy'] },
+      OrderFields extends ExcludeUnderscoreKeys<Keys<MaybeTupleToUnion<T['orderBy']>>>,
+      ByFields extends MaybeTupleToUnion<T['by']>,
+      ByValid extends Has<ByFields, OrderFields>,
+      HavingFields extends GetHavingFields<T['having']>,
+      HavingValid extends Has<ByFields, HavingFields>,
+      ByEmpty extends T['by'] extends never[] ? True : False,
+      InputErrors extends ByEmpty extends True
+      ? `Error: "by" must not be empty.`
+      : HavingValid extends False
+      ? {
+          [P in HavingFields]: P extends ByFields
+            ? never
+            : P extends string
+            ? `Error: Field "${P}" used in "having" needs to be provided in "by".`
+            : [
+                Error,
+                'Field ',
+                P,
+                ` in "having" needs to be provided in "by"`,
+              ]
+        }[HavingFields]
+      : 'take' extends Keys<T>
+      ? 'orderBy' extends Keys<T>
+        ? ByValid extends True
+          ? {}
+          : {
+              [P in OrderFields]: P extends ByFields
+                ? never
+                : `Error: Field "${P}" in "orderBy" needs to be provided in "by"`
+            }[OrderFields]
+        : 'Error: If you provide "take", you also need to provide "orderBy"'
+      : 'skip' extends Keys<T>
+      ? 'orderBy' extends Keys<T>
+        ? ByValid extends True
+          ? {}
+          : {
+              [P in OrderFields]: P extends ByFields
+                ? never
+                : `Error: Field "${P}" in "orderBy" needs to be provided in "by"`
+            }[OrderFields]
+        : 'Error: If you provide "skip", you also need to provide "orderBy"'
+      : ByValid extends True
+      ? {}
+      : {
+          [P in OrderFields]: P extends ByFields
+            ? never
+            : `Error: Field "${P}" in "orderBy" needs to be provided in "by"`
+        }[OrderFields]
+    >(args: SubsetIntersection<T, broker_wallet_balancesGroupByArgs, OrderByArg> & InputErrors): {} extends InputErrors ? GetBroker_wallet_balancesGroupByPayload<T> : Prisma.PrismaPromise<InputErrors>
+  /**
+   * Fields of the broker_wallet_balances model
+   */
+  readonly fields: broker_wallet_balancesFieldRefs;
+  }
+
+  /**
+   * The delegate class that acts as a "Promise-like" for broker_wallet_balances.
+   * Why is this prefixed with `Prisma__`?
+   * Because we want to prevent naming conflicts as mentioned in
+   * https://github.com/prisma/prisma-client-js/issues/707
+   */
+  export interface Prisma__broker_wallet_balancesClient<T, Null = never, ExtArgs extends $Extensions.InternalArgs = $Extensions.DefaultArgs, GlobalOmitOptions = {}> extends Prisma.PrismaPromise<T> {
+    readonly [Symbol.toStringTag]: "PrismaPromise"
+    portfolio<T extends PortfolioDefaultArgs<ExtArgs> = {}>(args?: Subset<T, PortfolioDefaultArgs<ExtArgs>>): Prisma__PortfolioClient<$Result.GetResult<Prisma.$PortfolioPayload<ExtArgs>, T, "findUniqueOrThrow", GlobalOmitOptions> | Null, Null, ExtArgs, GlobalOmitOptions>
+    /**
+     * Attaches callbacks for the resolution and/or rejection of the Promise.
+     * @param onfulfilled The callback to execute when the Promise is resolved.
+     * @param onrejected The callback to execute when the Promise is rejected.
+     * @returns A Promise for the completion of which ever callback is executed.
+     */
+    then<TResult1 = T, TResult2 = never>(onfulfilled?: ((value: T) => TResult1 | PromiseLike<TResult1>) | undefined | null, onrejected?: ((reason: any) => TResult2 | PromiseLike<TResult2>) | undefined | null): $Utils.JsPromise<TResult1 | TResult2>
+    /**
+     * Attaches a callback for only the rejection of the Promise.
+     * @param onrejected The callback to execute when the Promise is rejected.
+     * @returns A Promise for the completion of the callback.
+     */
+    catch<TResult = never>(onrejected?: ((reason: any) => TResult | PromiseLike<TResult>) | undefined | null): $Utils.JsPromise<T | TResult>
+    /**
+     * Attaches a callback that is invoked when the Promise is settled (fulfilled or rejected). The
+     * resolved value cannot be modified from the callback.
+     * @param onfinally The callback to execute when the Promise is settled (fulfilled or rejected).
+     * @returns A Promise for the completion of the callback.
+     */
+    finally(onfinally?: (() => void) | undefined | null): $Utils.JsPromise<T>
+  }
+
+
+
+
+  /**
+   * Fields of the broker_wallet_balances model
+   */
+  interface broker_wallet_balancesFieldRefs {
+    readonly id: FieldRef<"broker_wallet_balances", 'String'>
+    readonly portfolio_id: FieldRef<"broker_wallet_balances", 'String'>
+    readonly broker: FieldRef<"broker_wallet_balances", 'String'>
+    readonly wallet: FieldRef<"broker_wallet_balances", 'String'>
+    readonly asset: FieldRef<"broker_wallet_balances", 'String'>
+    readonly balance: FieldRef<"broker_wallet_balances", 'Decimal'>
+    readonly updated_at: FieldRef<"broker_wallet_balances", 'DateTime'>
+  }
+    
+
+  // Custom InputTypes
+  /**
+   * broker_wallet_balances findUnique
+   */
+  export type broker_wallet_balancesFindUniqueArgs<ExtArgs extends $Extensions.InternalArgs = $Extensions.DefaultArgs> = {
+    /**
+     * Select specific fields to fetch from the broker_wallet_balances
+     */
+    select?: broker_wallet_balancesSelect<ExtArgs> | null
+    /**
+     * Omit specific fields from the broker_wallet_balances
+     */
+    omit?: broker_wallet_balancesOmit<ExtArgs> | null
+    /**
+     * Choose, which related nodes to fetch as well
+     */
+    include?: broker_wallet_balancesInclude<ExtArgs> | null
+    /**
+     * Filter, which broker_wallet_balances to fetch.
+     */
+    where: broker_wallet_balancesWhereUniqueInput
+  }
+
+  /**
+   * broker_wallet_balances findUniqueOrThrow
+   */
+  export type broker_wallet_balancesFindUniqueOrThrowArgs<ExtArgs extends $Extensions.InternalArgs = $Extensions.DefaultArgs> = {
+    /**
+     * Select specific fields to fetch from the broker_wallet_balances
+     */
+    select?: broker_wallet_balancesSelect<ExtArgs> | null
+    /**
+     * Omit specific fields from the broker_wallet_balances
+     */
+    omit?: broker_wallet_balancesOmit<ExtArgs> | null
+    /**
+     * Choose, which related nodes to fetch as well
+     */
+    include?: broker_wallet_balancesInclude<ExtArgs> | null
+    /**
+     * Filter, which broker_wallet_balances to fetch.
+     */
+    where: broker_wallet_balancesWhereUniqueInput
+  }
+
+  /**
+   * broker_wallet_balances findFirst
+   */
+  export type broker_wallet_balancesFindFirstArgs<ExtArgs extends $Extensions.InternalArgs = $Extensions.DefaultArgs> = {
+    /**
+     * Select specific fields to fetch from the broker_wallet_balances
+     */
+    select?: broker_wallet_balancesSelect<ExtArgs> | null
+    /**
+     * Omit specific fields from the broker_wallet_balances
+     */
+    omit?: broker_wallet_balancesOmit<ExtArgs> | null
+    /**
+     * Choose, which related nodes to fetch as well
+     */
+    include?: broker_wallet_balancesInclude<ExtArgs> | null
+    /**
+     * Filter, which broker_wallet_balances to fetch.
+     */
+    where?: broker_wallet_balancesWhereInput
+    /**
+     * {@link https://www.prisma.io/docs/concepts/components/prisma-client/sorting Sorting Docs}
+     * 
+     * Determine the order of broker_wallet_balances to fetch.
+     */
+    orderBy?: broker_wallet_balancesOrderByWithRelationInput | broker_wallet_balancesOrderByWithRelationInput[]
+    /**
+     * {@link https://www.prisma.io/docs/concepts/components/prisma-client/pagination#cursor-based-pagination Cursor Docs}
+     * 
+     * Sets the position for searching for broker_wallet_balances.
+     */
+    cursor?: broker_wallet_balancesWhereUniqueInput
+    /**
+     * {@link https://www.prisma.io/docs/concepts/components/prisma-client/pagination Pagination Docs}
+     * 
+     * Take `±n` broker_wallet_balances from the position of the cursor.
+     */
+    take?: number
+    /**
+     * {@link https://www.prisma.io/docs/concepts/components/prisma-client/pagination Pagination Docs}
+     * 
+     * Skip the first `n` broker_wallet_balances.
+     */
+    skip?: number
+    /**
+     * {@link https://www.prisma.io/docs/concepts/components/prisma-client/distinct Distinct Docs}
+     * 
+     * Filter by unique combinations of broker_wallet_balances.
+     */
+    distinct?: Broker_wallet_balancesScalarFieldEnum | Broker_wallet_balancesScalarFieldEnum[]
+  }
+
+  /**
+   * broker_wallet_balances findFirstOrThrow
+   */
+  export type broker_wallet_balancesFindFirstOrThrowArgs<ExtArgs extends $Extensions.InternalArgs = $Extensions.DefaultArgs> = {
+    /**
+     * Select specific fields to fetch from the broker_wallet_balances
+     */
+    select?: broker_wallet_balancesSelect<ExtArgs> | null
+    /**
+     * Omit specific fields from the broker_wallet_balances
+     */
+    omit?: broker_wallet_balancesOmit<ExtArgs> | null
+    /**
+     * Choose, which related nodes to fetch as well
+     */
+    include?: broker_wallet_balancesInclude<ExtArgs> | null
+    /**
+     * Filter, which broker_wallet_balances to fetch.
+     */
+    where?: broker_wallet_balancesWhereInput
+    /**
+     * {@link https://www.prisma.io/docs/concepts/components/prisma-client/sorting Sorting Docs}
+     * 
+     * Determine the order of broker_wallet_balances to fetch.
+     */
+    orderBy?: broker_wallet_balancesOrderByWithRelationInput | broker_wallet_balancesOrderByWithRelationInput[]
+    /**
+     * {@link https://www.prisma.io/docs/concepts/components/prisma-client/pagination#cursor-based-pagination Cursor Docs}
+     * 
+     * Sets the position for searching for broker_wallet_balances.
+     */
+    cursor?: broker_wallet_balancesWhereUniqueInput
+    /**
+     * {@link https://www.prisma.io/docs/concepts/components/prisma-client/pagination Pagination Docs}
+     * 
+     * Take `±n` broker_wallet_balances from the position of the cursor.
+     */
+    take?: number
+    /**
+     * {@link https://www.prisma.io/docs/concepts/components/prisma-client/pagination Pagination Docs}
+     * 
+     * Skip the first `n` broker_wallet_balances.
+     */
+    skip?: number
+    /**
+     * {@link https://www.prisma.io/docs/concepts/components/prisma-client/distinct Distinct Docs}
+     * 
+     * Filter by unique combinations of broker_wallet_balances.
+     */
+    distinct?: Broker_wallet_balancesScalarFieldEnum | Broker_wallet_balancesScalarFieldEnum[]
+  }
+
+  /**
+   * broker_wallet_balances findMany
+   */
+  export type broker_wallet_balancesFindManyArgs<ExtArgs extends $Extensions.InternalArgs = $Extensions.DefaultArgs> = {
+    /**
+     * Select specific fields to fetch from the broker_wallet_balances
+     */
+    select?: broker_wallet_balancesSelect<ExtArgs> | null
+    /**
+     * Omit specific fields from the broker_wallet_balances
+     */
+    omit?: broker_wallet_balancesOmit<ExtArgs> | null
+    /**
+     * Choose, which related nodes to fetch as well
+     */
+    include?: broker_wallet_balancesInclude<ExtArgs> | null
+    /**
+     * Filter, which broker_wallet_balances to fetch.
+     */
+    where?: broker_wallet_balancesWhereInput
+    /**
+     * {@link https://www.prisma.io/docs/concepts/components/prisma-client/sorting Sorting Docs}
+     * 
+     * Determine the order of broker_wallet_balances to fetch.
+     */
+    orderBy?: broker_wallet_balancesOrderByWithRelationInput | broker_wallet_balancesOrderByWithRelationInput[]
+    /**
+     * {@link https://www.prisma.io/docs/concepts/components/prisma-client/pagination#cursor-based-pagination Cursor Docs}
+     * 
+     * Sets the position for listing broker_wallet_balances.
+     */
+    cursor?: broker_wallet_balancesWhereUniqueInput
+    /**
+     * {@link https://www.prisma.io/docs/concepts/components/prisma-client/pagination Pagination Docs}
+     * 
+     * Take `±n` broker_wallet_balances from the position of the cursor.
+     */
+    take?: number
+    /**
+     * {@link https://www.prisma.io/docs/concepts/components/prisma-client/pagination Pagination Docs}
+     * 
+     * Skip the first `n` broker_wallet_balances.
+     */
+    skip?: number
+    distinct?: Broker_wallet_balancesScalarFieldEnum | Broker_wallet_balancesScalarFieldEnum[]
+  }
+
+  /**
+   * broker_wallet_balances create
+   */
+  export type broker_wallet_balancesCreateArgs<ExtArgs extends $Extensions.InternalArgs = $Extensions.DefaultArgs> = {
+    /**
+     * Select specific fields to fetch from the broker_wallet_balances
+     */
+    select?: broker_wallet_balancesSelect<ExtArgs> | null
+    /**
+     * Omit specific fields from the broker_wallet_balances
+     */
+    omit?: broker_wallet_balancesOmit<ExtArgs> | null
+    /**
+     * Choose, which related nodes to fetch as well
+     */
+    include?: broker_wallet_balancesInclude<ExtArgs> | null
+    /**
+     * The data needed to create a broker_wallet_balances.
+     */
+    data: XOR<broker_wallet_balancesCreateInput, broker_wallet_balancesUncheckedCreateInput>
+  }
+
+  /**
+   * broker_wallet_balances createMany
+   */
+  export type broker_wallet_balancesCreateManyArgs<ExtArgs extends $Extensions.InternalArgs = $Extensions.DefaultArgs> = {
+    /**
+     * The data used to create many broker_wallet_balances.
+     */
+    data: broker_wallet_balancesCreateManyInput | broker_wallet_balancesCreateManyInput[]
+    skipDuplicates?: boolean
+  }
+
+  /**
+   * broker_wallet_balances createManyAndReturn
+   */
+  export type broker_wallet_balancesCreateManyAndReturnArgs<ExtArgs extends $Extensions.InternalArgs = $Extensions.DefaultArgs> = {
+    /**
+     * Select specific fields to fetch from the broker_wallet_balances
+     */
+    select?: broker_wallet_balancesSelectCreateManyAndReturn<ExtArgs> | null
+    /**
+     * Omit specific fields from the broker_wallet_balances
+     */
+    omit?: broker_wallet_balancesOmit<ExtArgs> | null
+    /**
+     * The data used to create many broker_wallet_balances.
+     */
+    data: broker_wallet_balancesCreateManyInput | broker_wallet_balancesCreateManyInput[]
+    skipDuplicates?: boolean
+    /**
+     * Choose, which related nodes to fetch as well
+     */
+    include?: broker_wallet_balancesIncludeCreateManyAndReturn<ExtArgs> | null
+  }
+
+  /**
+   * broker_wallet_balances update
+   */
+  export type broker_wallet_balancesUpdateArgs<ExtArgs extends $Extensions.InternalArgs = $Extensions.DefaultArgs> = {
+    /**
+     * Select specific fields to fetch from the broker_wallet_balances
+     */
+    select?: broker_wallet_balancesSelect<ExtArgs> | null
+    /**
+     * Omit specific fields from the broker_wallet_balances
+     */
+    omit?: broker_wallet_balancesOmit<ExtArgs> | null
+    /**
+     * Choose, which related nodes to fetch as well
+     */
+    include?: broker_wallet_balancesInclude<ExtArgs> | null
+    /**
+     * The data needed to update a broker_wallet_balances.
+     */
+    data: XOR<broker_wallet_balancesUpdateInput, broker_wallet_balancesUncheckedUpdateInput>
+    /**
+     * Choose, which broker_wallet_balances to update.
+     */
+    where: broker_wallet_balancesWhereUniqueInput
+  }
+
+  /**
+   * broker_wallet_balances updateMany
+   */
+  export type broker_wallet_balancesUpdateManyArgs<ExtArgs extends $Extensions.InternalArgs = $Extensions.DefaultArgs> = {
+    /**
+     * The data used to update broker_wallet_balances.
+     */
+    data: XOR<broker_wallet_balancesUpdateManyMutationInput, broker_wallet_balancesUncheckedUpdateManyInput>
+    /**
+     * Filter which broker_wallet_balances to update
+     */
+    where?: broker_wallet_balancesWhereInput
+    /**
+     * Limit how many broker_wallet_balances to update.
+     */
+    limit?: number
+  }
+
+  /**
+   * broker_wallet_balances updateManyAndReturn
+   */
+  export type broker_wallet_balancesUpdateManyAndReturnArgs<ExtArgs extends $Extensions.InternalArgs = $Extensions.DefaultArgs> = {
+    /**
+     * Select specific fields to fetch from the broker_wallet_balances
+     */
+    select?: broker_wallet_balancesSelectUpdateManyAndReturn<ExtArgs> | null
+    /**
+     * Omit specific fields from the broker_wallet_balances
+     */
+    omit?: broker_wallet_balancesOmit<ExtArgs> | null
+    /**
+     * The data used to update broker_wallet_balances.
+     */
+    data: XOR<broker_wallet_balancesUpdateManyMutationInput, broker_wallet_balancesUncheckedUpdateManyInput>
+    /**
+     * Filter which broker_wallet_balances to update
+     */
+    where?: broker_wallet_balancesWhereInput
+    /**
+     * Limit how many broker_wallet_balances to update.
+     */
+    limit?: number
+    /**
+     * Choose, which related nodes to fetch as well
+     */
+    include?: broker_wallet_balancesIncludeUpdateManyAndReturn<ExtArgs> | null
+  }
+
+  /**
+   * broker_wallet_balances upsert
+   */
+  export type broker_wallet_balancesUpsertArgs<ExtArgs extends $Extensions.InternalArgs = $Extensions.DefaultArgs> = {
+    /**
+     * Select specific fields to fetch from the broker_wallet_balances
+     */
+    select?: broker_wallet_balancesSelect<ExtArgs> | null
+    /**
+     * Omit specific fields from the broker_wallet_balances
+     */
+    omit?: broker_wallet_balancesOmit<ExtArgs> | null
+    /**
+     * Choose, which related nodes to fetch as well
+     */
+    include?: broker_wallet_balancesInclude<ExtArgs> | null
+    /**
+     * The filter to search for the broker_wallet_balances to update in case it exists.
+     */
+    where: broker_wallet_balancesWhereUniqueInput
+    /**
+     * In case the broker_wallet_balances found by the `where` argument doesn't exist, create a new broker_wallet_balances with this data.
+     */
+    create: XOR<broker_wallet_balancesCreateInput, broker_wallet_balancesUncheckedCreateInput>
+    /**
+     * In case the broker_wallet_balances was found with the provided `where` argument, update it with this data.
+     */
+    update: XOR<broker_wallet_balancesUpdateInput, broker_wallet_balancesUncheckedUpdateInput>
+  }
+
+  /**
+   * broker_wallet_balances delete
+   */
+  export type broker_wallet_balancesDeleteArgs<ExtArgs extends $Extensions.InternalArgs = $Extensions.DefaultArgs> = {
+    /**
+     * Select specific fields to fetch from the broker_wallet_balances
+     */
+    select?: broker_wallet_balancesSelect<ExtArgs> | null
+    /**
+     * Omit specific fields from the broker_wallet_balances
+     */
+    omit?: broker_wallet_balancesOmit<ExtArgs> | null
+    /**
+     * Choose, which related nodes to fetch as well
+     */
+    include?: broker_wallet_balancesInclude<ExtArgs> | null
+    /**
+     * Filter which broker_wallet_balances to delete.
+     */
+    where: broker_wallet_balancesWhereUniqueInput
+  }
+
+  /**
+   * broker_wallet_balances deleteMany
+   */
+  export type broker_wallet_balancesDeleteManyArgs<ExtArgs extends $Extensions.InternalArgs = $Extensions.DefaultArgs> = {
+    /**
+     * Filter which broker_wallet_balances to delete
+     */
+    where?: broker_wallet_balancesWhereInput
+    /**
+     * Limit how many broker_wallet_balances to delete.
+     */
+    limit?: number
+  }
+
+  /**
+   * broker_wallet_balances without action
+   */
+  export type broker_wallet_balancesDefaultArgs<ExtArgs extends $Extensions.InternalArgs = $Extensions.DefaultArgs> = {
+    /**
+     * Select specific fields to fetch from the broker_wallet_balances
+     */
+    select?: broker_wallet_balancesSelect<ExtArgs> | null
+    /**
+     * Omit specific fields from the broker_wallet_balances
+     */
+    omit?: broker_wallet_balancesOmit<ExtArgs> | null
+    /**
+     * Choose, which related nodes to fetch as well
+     */
+    include?: broker_wallet_balancesInclude<ExtArgs> | null
+  }
+
+
+  /**
    * Model snapshots
    */
 
@@ -36309,6 +38675,7 @@ export namespace Prisma {
     cash_balance: Decimal | null
     daily_return: Decimal | null
     total_return: Decimal | null
+    realized_pnl: Decimal | null
   }
 
   export type SnapshotsSumAggregateOutputType = {
@@ -36316,6 +38683,7 @@ export namespace Prisma {
     cash_balance: Decimal | null
     daily_return: Decimal | null
     total_return: Decimal | null
+    realized_pnl: Decimal | null
   }
 
   export type SnapshotsMinAggregateOutputType = {
@@ -36324,6 +38692,7 @@ export namespace Prisma {
     cash_balance: Decimal | null
     daily_return: Decimal | null
     total_return: Decimal | null
+    realized_pnl: Decimal | null
     created_at: Date | null
     updated_at: Date | null
   }
@@ -36334,6 +38703,7 @@ export namespace Prisma {
     cash_balance: Decimal | null
     daily_return: Decimal | null
     total_return: Decimal | null
+    realized_pnl: Decimal | null
     created_at: Date | null
     updated_at: Date | null
   }
@@ -36344,6 +38714,7 @@ export namespace Prisma {
     cash_balance: number
     daily_return: number
     total_return: number
+    realized_pnl: number
     created_at: number
     updated_at: number
     _all: number
@@ -36355,6 +38726,7 @@ export namespace Prisma {
     cash_balance?: true
     daily_return?: true
     total_return?: true
+    realized_pnl?: true
   }
 
   export type SnapshotsSumAggregateInputType = {
@@ -36362,6 +38734,7 @@ export namespace Prisma {
     cash_balance?: true
     daily_return?: true
     total_return?: true
+    realized_pnl?: true
   }
 
   export type SnapshotsMinAggregateInputType = {
@@ -36370,6 +38743,7 @@ export namespace Prisma {
     cash_balance?: true
     daily_return?: true
     total_return?: true
+    realized_pnl?: true
     created_at?: true
     updated_at?: true
   }
@@ -36380,6 +38754,7 @@ export namespace Prisma {
     cash_balance?: true
     daily_return?: true
     total_return?: true
+    realized_pnl?: true
     created_at?: true
     updated_at?: true
   }
@@ -36390,6 +38765,7 @@ export namespace Prisma {
     cash_balance?: true
     daily_return?: true
     total_return?: true
+    realized_pnl?: true
     created_at?: true
     updated_at?: true
     _all?: true
@@ -36487,6 +38863,7 @@ export namespace Prisma {
     cash_balance: Decimal | null
     daily_return: Decimal | null
     total_return: Decimal | null
+    realized_pnl: Decimal | null
     created_at: Date
     updated_at: Date
     _count: SnapshotsCountAggregateOutputType | null
@@ -36516,6 +38893,7 @@ export namespace Prisma {
     cash_balance?: boolean
     daily_return?: boolean
     total_return?: boolean
+    realized_pnl?: boolean
     created_at?: boolean
     updated_at?: boolean
     portfolio?: boolean | PortfolioDefaultArgs<ExtArgs>
@@ -36527,6 +38905,7 @@ export namespace Prisma {
     cash_balance?: boolean
     daily_return?: boolean
     total_return?: boolean
+    realized_pnl?: boolean
     created_at?: boolean
     updated_at?: boolean
     portfolio?: boolean | PortfolioDefaultArgs<ExtArgs>
@@ -36538,6 +38917,7 @@ export namespace Prisma {
     cash_balance?: boolean
     daily_return?: boolean
     total_return?: boolean
+    realized_pnl?: boolean
     created_at?: boolean
     updated_at?: boolean
     portfolio?: boolean | PortfolioDefaultArgs<ExtArgs>
@@ -36549,11 +38929,12 @@ export namespace Prisma {
     cash_balance?: boolean
     daily_return?: boolean
     total_return?: boolean
+    realized_pnl?: boolean
     created_at?: boolean
     updated_at?: boolean
   }
 
-  export type snapshotsOmit<ExtArgs extends $Extensions.InternalArgs = $Extensions.DefaultArgs> = $Extensions.GetOmit<"portfolio_id" | "market_value" | "cash_balance" | "daily_return" | "total_return" | "created_at" | "updated_at", ExtArgs["result"]["snapshots"]>
+  export type snapshotsOmit<ExtArgs extends $Extensions.InternalArgs = $Extensions.DefaultArgs> = $Extensions.GetOmit<"portfolio_id" | "market_value" | "cash_balance" | "daily_return" | "total_return" | "realized_pnl" | "created_at" | "updated_at", ExtArgs["result"]["snapshots"]>
   export type snapshotsInclude<ExtArgs extends $Extensions.InternalArgs = $Extensions.DefaultArgs> = {
     portfolio?: boolean | PortfolioDefaultArgs<ExtArgs>
   }
@@ -36575,6 +38956,7 @@ export namespace Prisma {
       cash_balance: Prisma.Decimal | null
       daily_return: Prisma.Decimal | null
       total_return: Prisma.Decimal | null
+      realized_pnl: Prisma.Decimal | null
       created_at: Date
       updated_at: Date
     }, ExtArgs["result"]["snapshots"]>
@@ -37006,6 +39388,7 @@ export namespace Prisma {
     readonly cash_balance: FieldRef<"snapshots", 'Decimal'>
     readonly daily_return: FieldRef<"snapshots", 'Decimal'>
     readonly total_return: FieldRef<"snapshots", 'Decimal'>
+    readonly realized_pnl: FieldRef<"snapshots", 'Decimal'>
     readonly created_at: FieldRef<"snapshots", 'DateTime'>
     readonly updated_at: FieldRef<"snapshots", 'DateTime'>
   }
@@ -53706,6 +56089,17 @@ export namespace Prisma {
   export type Binance_backfill_progressScalarFieldEnum = (typeof Binance_backfill_progressScalarFieldEnum)[keyof typeof Binance_backfill_progressScalarFieldEnum]
 
 
+  export const Fx_rate_historyScalarFieldEnum: {
+    id: 'id',
+    currency: 'currency',
+    date: 'date',
+    rate_to_inr: 'rate_to_inr',
+    created_at: 'created_at'
+  };
+
+  export type Fx_rate_historyScalarFieldEnum = (typeof Fx_rate_historyScalarFieldEnum)[keyof typeof Fx_rate_historyScalarFieldEnum]
+
+
   export const Import_runsScalarFieldEnum: {
     portfolio_id: 'portfolio_id',
     source: 'source',
@@ -53755,12 +56149,26 @@ export namespace Prisma {
   export type PositionScalarFieldEnum = (typeof PositionScalarFieldEnum)[keyof typeof PositionScalarFieldEnum]
 
 
+  export const Broker_wallet_balancesScalarFieldEnum: {
+    id: 'id',
+    portfolio_id: 'portfolio_id',
+    broker: 'broker',
+    wallet: 'wallet',
+    asset: 'asset',
+    balance: 'balance',
+    updated_at: 'updated_at'
+  };
+
+  export type Broker_wallet_balancesScalarFieldEnum = (typeof Broker_wallet_balancesScalarFieldEnum)[keyof typeof Broker_wallet_balancesScalarFieldEnum]
+
+
   export const SnapshotsScalarFieldEnum: {
     portfolio_id: 'portfolio_id',
     market_value: 'market_value',
     cash_balance: 'cash_balance',
     daily_return: 'daily_return',
     total_return: 'total_return',
+    realized_pnl: 'realized_pnl',
     created_at: 'created_at',
     updated_at: 'updated_at'
   };
@@ -56033,6 +58441,61 @@ export namespace Prisma {
     updated_at?: DateTimeWithAggregatesFilter<"binance_backfill_progress"> | Date | string
   }
 
+  export type fx_rate_historyWhereInput = {
+    AND?: fx_rate_historyWhereInput | fx_rate_historyWhereInput[]
+    OR?: fx_rate_historyWhereInput[]
+    NOT?: fx_rate_historyWhereInput | fx_rate_historyWhereInput[]
+    id?: UuidFilter<"fx_rate_history"> | string
+    currency?: StringFilter<"fx_rate_history"> | string
+    date?: DateTimeFilter<"fx_rate_history"> | Date | string
+    rate_to_inr?: DecimalFilter<"fx_rate_history"> | Decimal | DecimalJsLike | number | string
+    created_at?: DateTimeFilter<"fx_rate_history"> | Date | string
+  }
+
+  export type fx_rate_historyOrderByWithRelationInput = {
+    id?: SortOrder
+    currency?: SortOrder
+    date?: SortOrder
+    rate_to_inr?: SortOrder
+    created_at?: SortOrder
+  }
+
+  export type fx_rate_historyWhereUniqueInput = Prisma.AtLeast<{
+    id?: string
+    currency_date?: fx_rate_historyCurrencyDateCompoundUniqueInput
+    AND?: fx_rate_historyWhereInput | fx_rate_historyWhereInput[]
+    OR?: fx_rate_historyWhereInput[]
+    NOT?: fx_rate_historyWhereInput | fx_rate_historyWhereInput[]
+    currency?: StringFilter<"fx_rate_history"> | string
+    date?: DateTimeFilter<"fx_rate_history"> | Date | string
+    rate_to_inr?: DecimalFilter<"fx_rate_history"> | Decimal | DecimalJsLike | number | string
+    created_at?: DateTimeFilter<"fx_rate_history"> | Date | string
+  }, "id" | "currency_date">
+
+  export type fx_rate_historyOrderByWithAggregationInput = {
+    id?: SortOrder
+    currency?: SortOrder
+    date?: SortOrder
+    rate_to_inr?: SortOrder
+    created_at?: SortOrder
+    _count?: fx_rate_historyCountOrderByAggregateInput
+    _avg?: fx_rate_historyAvgOrderByAggregateInput
+    _max?: fx_rate_historyMaxOrderByAggregateInput
+    _min?: fx_rate_historyMinOrderByAggregateInput
+    _sum?: fx_rate_historySumOrderByAggregateInput
+  }
+
+  export type fx_rate_historyScalarWhereWithAggregatesInput = {
+    AND?: fx_rate_historyScalarWhereWithAggregatesInput | fx_rate_historyScalarWhereWithAggregatesInput[]
+    OR?: fx_rate_historyScalarWhereWithAggregatesInput[]
+    NOT?: fx_rate_historyScalarWhereWithAggregatesInput | fx_rate_historyScalarWhereWithAggregatesInput[]
+    id?: UuidWithAggregatesFilter<"fx_rate_history"> | string
+    currency?: StringWithAggregatesFilter<"fx_rate_history"> | string
+    date?: DateTimeWithAggregatesFilter<"fx_rate_history"> | Date | string
+    rate_to_inr?: DecimalWithAggregatesFilter<"fx_rate_history"> | Decimal | DecimalJsLike | number | string
+    created_at?: DateTimeWithAggregatesFilter<"fx_rate_history"> | Date | string
+  }
+
   export type import_runsWhereInput = {
     AND?: import_runsWhereInput | import_runsWhereInput[]
     OR?: import_runsWhereInput[]
@@ -56138,6 +58601,7 @@ export namespace Prisma {
     updatedAt?: DateTimeFilter<"Portfolio"> | Date | string
     isArchived?: BoolFilter<"Portfolio"> | boolean
     binance_backfill_progress?: Binance_backfill_progressListRelationFilter
+    broker_wallet_balances?: Broker_wallet_balancesListRelationFilter
     import_runs?: Import_runsListRelationFilter
     positions?: PositionListRelationFilter
     snapshot?: XOR<SnapshotsNullableScalarRelationFilter, snapshotsWhereInput> | null
@@ -56151,6 +58615,7 @@ export namespace Prisma {
     updatedAt?: SortOrder
     isArchived?: SortOrder
     binance_backfill_progress?: binance_backfill_progressOrderByRelationAggregateInput
+    broker_wallet_balances?: broker_wallet_balancesOrderByRelationAggregateInput
     import_runs?: import_runsOrderByRelationAggregateInput
     positions?: PositionOrderByRelationAggregateInput
     snapshot?: snapshotsOrderByWithRelationInput
@@ -56167,6 +58632,7 @@ export namespace Prisma {
     updatedAt?: DateTimeFilter<"Portfolio"> | Date | string
     isArchived?: BoolFilter<"Portfolio"> | boolean
     binance_backfill_progress?: Binance_backfill_progressListRelationFilter
+    broker_wallet_balances?: Broker_wallet_balancesListRelationFilter
     import_runs?: Import_runsListRelationFilter
     positions?: PositionListRelationFilter
     snapshot?: XOR<SnapshotsNullableScalarRelationFilter, snapshotsWhereInput> | null
@@ -56301,6 +58767,74 @@ export namespace Prisma {
     marginUsd?: DecimalNullableWithAggregatesFilter<"Position"> | Decimal | DecimalJsLike | number | string | null
   }
 
+  export type broker_wallet_balancesWhereInput = {
+    AND?: broker_wallet_balancesWhereInput | broker_wallet_balancesWhereInput[]
+    OR?: broker_wallet_balancesWhereInput[]
+    NOT?: broker_wallet_balancesWhereInput | broker_wallet_balancesWhereInput[]
+    id?: UuidFilter<"broker_wallet_balances"> | string
+    portfolio_id?: UuidFilter<"broker_wallet_balances"> | string
+    broker?: StringFilter<"broker_wallet_balances"> | string
+    wallet?: StringFilter<"broker_wallet_balances"> | string
+    asset?: StringFilter<"broker_wallet_balances"> | string
+    balance?: DecimalFilter<"broker_wallet_balances"> | Decimal | DecimalJsLike | number | string
+    updated_at?: DateTimeFilter<"broker_wallet_balances"> | Date | string
+    portfolio?: XOR<PortfolioScalarRelationFilter, PortfolioWhereInput>
+  }
+
+  export type broker_wallet_balancesOrderByWithRelationInput = {
+    id?: SortOrder
+    portfolio_id?: SortOrder
+    broker?: SortOrder
+    wallet?: SortOrder
+    asset?: SortOrder
+    balance?: SortOrder
+    updated_at?: SortOrder
+    portfolio?: PortfolioOrderByWithRelationInput
+  }
+
+  export type broker_wallet_balancesWhereUniqueInput = Prisma.AtLeast<{
+    id?: string
+    portfolio_id_broker_wallet_asset?: broker_wallet_balancesPortfolio_idBrokerWalletAssetCompoundUniqueInput
+    AND?: broker_wallet_balancesWhereInput | broker_wallet_balancesWhereInput[]
+    OR?: broker_wallet_balancesWhereInput[]
+    NOT?: broker_wallet_balancesWhereInput | broker_wallet_balancesWhereInput[]
+    portfolio_id?: UuidFilter<"broker_wallet_balances"> | string
+    broker?: StringFilter<"broker_wallet_balances"> | string
+    wallet?: StringFilter<"broker_wallet_balances"> | string
+    asset?: StringFilter<"broker_wallet_balances"> | string
+    balance?: DecimalFilter<"broker_wallet_balances"> | Decimal | DecimalJsLike | number | string
+    updated_at?: DateTimeFilter<"broker_wallet_balances"> | Date | string
+    portfolio?: XOR<PortfolioScalarRelationFilter, PortfolioWhereInput>
+  }, "id" | "portfolio_id_broker_wallet_asset">
+
+  export type broker_wallet_balancesOrderByWithAggregationInput = {
+    id?: SortOrder
+    portfolio_id?: SortOrder
+    broker?: SortOrder
+    wallet?: SortOrder
+    asset?: SortOrder
+    balance?: SortOrder
+    updated_at?: SortOrder
+    _count?: broker_wallet_balancesCountOrderByAggregateInput
+    _avg?: broker_wallet_balancesAvgOrderByAggregateInput
+    _max?: broker_wallet_balancesMaxOrderByAggregateInput
+    _min?: broker_wallet_balancesMinOrderByAggregateInput
+    _sum?: broker_wallet_balancesSumOrderByAggregateInput
+  }
+
+  export type broker_wallet_balancesScalarWhereWithAggregatesInput = {
+    AND?: broker_wallet_balancesScalarWhereWithAggregatesInput | broker_wallet_balancesScalarWhereWithAggregatesInput[]
+    OR?: broker_wallet_balancesScalarWhereWithAggregatesInput[]
+    NOT?: broker_wallet_balancesScalarWhereWithAggregatesInput | broker_wallet_balancesScalarWhereWithAggregatesInput[]
+    id?: UuidWithAggregatesFilter<"broker_wallet_balances"> | string
+    portfolio_id?: UuidWithAggregatesFilter<"broker_wallet_balances"> | string
+    broker?: StringWithAggregatesFilter<"broker_wallet_balances"> | string
+    wallet?: StringWithAggregatesFilter<"broker_wallet_balances"> | string
+    asset?: StringWithAggregatesFilter<"broker_wallet_balances"> | string
+    balance?: DecimalWithAggregatesFilter<"broker_wallet_balances"> | Decimal | DecimalJsLike | number | string
+    updated_at?: DateTimeWithAggregatesFilter<"broker_wallet_balances"> | Date | string
+  }
+
   export type snapshotsWhereInput = {
     AND?: snapshotsWhereInput | snapshotsWhereInput[]
     OR?: snapshotsWhereInput[]
@@ -56310,6 +58844,7 @@ export namespace Prisma {
     cash_balance?: DecimalNullableFilter<"snapshots"> | Decimal | DecimalJsLike | number | string | null
     daily_return?: DecimalNullableFilter<"snapshots"> | Decimal | DecimalJsLike | number | string | null
     total_return?: DecimalNullableFilter<"snapshots"> | Decimal | DecimalJsLike | number | string | null
+    realized_pnl?: DecimalNullableFilter<"snapshots"> | Decimal | DecimalJsLike | number | string | null
     created_at?: DateTimeFilter<"snapshots"> | Date | string
     updated_at?: DateTimeFilter<"snapshots"> | Date | string
     portfolio?: XOR<PortfolioScalarRelationFilter, PortfolioWhereInput>
@@ -56321,6 +58856,7 @@ export namespace Prisma {
     cash_balance?: SortOrderInput | SortOrder
     daily_return?: SortOrderInput | SortOrder
     total_return?: SortOrderInput | SortOrder
+    realized_pnl?: SortOrderInput | SortOrder
     created_at?: SortOrder
     updated_at?: SortOrder
     portfolio?: PortfolioOrderByWithRelationInput
@@ -56335,6 +58871,7 @@ export namespace Prisma {
     cash_balance?: DecimalNullableFilter<"snapshots"> | Decimal | DecimalJsLike | number | string | null
     daily_return?: DecimalNullableFilter<"snapshots"> | Decimal | DecimalJsLike | number | string | null
     total_return?: DecimalNullableFilter<"snapshots"> | Decimal | DecimalJsLike | number | string | null
+    realized_pnl?: DecimalNullableFilter<"snapshots"> | Decimal | DecimalJsLike | number | string | null
     created_at?: DateTimeFilter<"snapshots"> | Date | string
     updated_at?: DateTimeFilter<"snapshots"> | Date | string
     portfolio?: XOR<PortfolioScalarRelationFilter, PortfolioWhereInput>
@@ -56346,6 +58883,7 @@ export namespace Prisma {
     cash_balance?: SortOrderInput | SortOrder
     daily_return?: SortOrderInput | SortOrder
     total_return?: SortOrderInput | SortOrder
+    realized_pnl?: SortOrderInput | SortOrder
     created_at?: SortOrder
     updated_at?: SortOrder
     _count?: snapshotsCountOrderByAggregateInput
@@ -56364,6 +58902,7 @@ export namespace Prisma {
     cash_balance?: DecimalNullableWithAggregatesFilter<"snapshots"> | Decimal | DecimalJsLike | number | string | null
     daily_return?: DecimalNullableWithAggregatesFilter<"snapshots"> | Decimal | DecimalJsLike | number | string | null
     total_return?: DecimalNullableWithAggregatesFilter<"snapshots"> | Decimal | DecimalJsLike | number | string | null
+    realized_pnl?: DecimalNullableWithAggregatesFilter<"snapshots"> | Decimal | DecimalJsLike | number | string | null
     created_at?: DateTimeWithAggregatesFilter<"snapshots"> | Date | string
     updated_at?: DateTimeWithAggregatesFilter<"snapshots"> | Date | string
   }
@@ -59454,6 +61993,62 @@ export namespace Prisma {
     updated_at?: DateTimeFieldUpdateOperationsInput | Date | string
   }
 
+  export type fx_rate_historyCreateInput = {
+    id: string
+    currency: string
+    date: Date | string
+    rate_to_inr: Decimal | DecimalJsLike | number | string
+    created_at: Date | string
+  }
+
+  export type fx_rate_historyUncheckedCreateInput = {
+    id: string
+    currency: string
+    date: Date | string
+    rate_to_inr: Decimal | DecimalJsLike | number | string
+    created_at: Date | string
+  }
+
+  export type fx_rate_historyUpdateInput = {
+    id?: StringFieldUpdateOperationsInput | string
+    currency?: StringFieldUpdateOperationsInput | string
+    date?: DateTimeFieldUpdateOperationsInput | Date | string
+    rate_to_inr?: DecimalFieldUpdateOperationsInput | Decimal | DecimalJsLike | number | string
+    created_at?: DateTimeFieldUpdateOperationsInput | Date | string
+  }
+
+  export type fx_rate_historyUncheckedUpdateInput = {
+    id?: StringFieldUpdateOperationsInput | string
+    currency?: StringFieldUpdateOperationsInput | string
+    date?: DateTimeFieldUpdateOperationsInput | Date | string
+    rate_to_inr?: DecimalFieldUpdateOperationsInput | Decimal | DecimalJsLike | number | string
+    created_at?: DateTimeFieldUpdateOperationsInput | Date | string
+  }
+
+  export type fx_rate_historyCreateManyInput = {
+    id: string
+    currency: string
+    date: Date | string
+    rate_to_inr: Decimal | DecimalJsLike | number | string
+    created_at: Date | string
+  }
+
+  export type fx_rate_historyUpdateManyMutationInput = {
+    id?: StringFieldUpdateOperationsInput | string
+    currency?: StringFieldUpdateOperationsInput | string
+    date?: DateTimeFieldUpdateOperationsInput | Date | string
+    rate_to_inr?: DecimalFieldUpdateOperationsInput | Decimal | DecimalJsLike | number | string
+    created_at?: DateTimeFieldUpdateOperationsInput | Date | string
+  }
+
+  export type fx_rate_historyUncheckedUpdateManyInput = {
+    id?: StringFieldUpdateOperationsInput | string
+    currency?: StringFieldUpdateOperationsInput | string
+    date?: DateTimeFieldUpdateOperationsInput | Date | string
+    rate_to_inr?: DecimalFieldUpdateOperationsInput | Decimal | DecimalJsLike | number | string
+    created_at?: DateTimeFieldUpdateOperationsInput | Date | string
+  }
+
   export type import_runsCreateInput = {
     source: string
     filename: string
@@ -59569,6 +62164,7 @@ export namespace Prisma {
     updatedAt: Date | string
     isArchived?: boolean
     binance_backfill_progress?: binance_backfill_progressCreateNestedManyWithoutPortfolioInput
+    broker_wallet_balances?: broker_wallet_balancesCreateNestedManyWithoutPortfolioInput
     import_runs?: import_runsCreateNestedManyWithoutPortfolioInput
     positions?: PositionCreateNestedManyWithoutPortfolioInput
     snapshot?: snapshotsCreateNestedOneWithoutPortfolioInput
@@ -59582,6 +62178,7 @@ export namespace Prisma {
     updatedAt: Date | string
     isArchived?: boolean
     binance_backfill_progress?: binance_backfill_progressUncheckedCreateNestedManyWithoutPortfolioInput
+    broker_wallet_balances?: broker_wallet_balancesUncheckedCreateNestedManyWithoutPortfolioInput
     import_runs?: import_runsUncheckedCreateNestedManyWithoutPortfolioInput
     positions?: PositionUncheckedCreateNestedManyWithoutPortfolioInput
     snapshot?: snapshotsUncheckedCreateNestedOneWithoutPortfolioInput
@@ -59595,6 +62192,7 @@ export namespace Prisma {
     updatedAt?: DateTimeFieldUpdateOperationsInput | Date | string
     isArchived?: BoolFieldUpdateOperationsInput | boolean
     binance_backfill_progress?: binance_backfill_progressUpdateManyWithoutPortfolioNestedInput
+    broker_wallet_balances?: broker_wallet_balancesUpdateManyWithoutPortfolioNestedInput
     import_runs?: import_runsUpdateManyWithoutPortfolioNestedInput
     positions?: PositionUpdateManyWithoutPortfolioNestedInput
     snapshot?: snapshotsUpdateOneWithoutPortfolioNestedInput
@@ -59608,6 +62206,7 @@ export namespace Prisma {
     updatedAt?: DateTimeFieldUpdateOperationsInput | Date | string
     isArchived?: BoolFieldUpdateOperationsInput | boolean
     binance_backfill_progress?: binance_backfill_progressUncheckedUpdateManyWithoutPortfolioNestedInput
+    broker_wallet_balances?: broker_wallet_balancesUncheckedUpdateManyWithoutPortfolioNestedInput
     import_runs?: import_runsUncheckedUpdateManyWithoutPortfolioNestedInput
     positions?: PositionUncheckedUpdateManyWithoutPortfolioNestedInput
     snapshot?: snapshotsUncheckedUpdateOneWithoutPortfolioNestedInput
@@ -59755,11 +62354,81 @@ export namespace Prisma {
     marginUsd?: NullableDecimalFieldUpdateOperationsInput | Decimal | DecimalJsLike | number | string | null
   }
 
+  export type broker_wallet_balancesCreateInput = {
+    id: string
+    broker: string
+    wallet: string
+    asset: string
+    balance: Decimal | DecimalJsLike | number | string
+    updated_at: Date | string
+    portfolio: PortfolioCreateNestedOneWithoutBroker_wallet_balancesInput
+  }
+
+  export type broker_wallet_balancesUncheckedCreateInput = {
+    id: string
+    portfolio_id: string
+    broker: string
+    wallet: string
+    asset: string
+    balance: Decimal | DecimalJsLike | number | string
+    updated_at: Date | string
+  }
+
+  export type broker_wallet_balancesUpdateInput = {
+    id?: StringFieldUpdateOperationsInput | string
+    broker?: StringFieldUpdateOperationsInput | string
+    wallet?: StringFieldUpdateOperationsInput | string
+    asset?: StringFieldUpdateOperationsInput | string
+    balance?: DecimalFieldUpdateOperationsInput | Decimal | DecimalJsLike | number | string
+    updated_at?: DateTimeFieldUpdateOperationsInput | Date | string
+    portfolio?: PortfolioUpdateOneRequiredWithoutBroker_wallet_balancesNestedInput
+  }
+
+  export type broker_wallet_balancesUncheckedUpdateInput = {
+    id?: StringFieldUpdateOperationsInput | string
+    portfolio_id?: StringFieldUpdateOperationsInput | string
+    broker?: StringFieldUpdateOperationsInput | string
+    wallet?: StringFieldUpdateOperationsInput | string
+    asset?: StringFieldUpdateOperationsInput | string
+    balance?: DecimalFieldUpdateOperationsInput | Decimal | DecimalJsLike | number | string
+    updated_at?: DateTimeFieldUpdateOperationsInput | Date | string
+  }
+
+  export type broker_wallet_balancesCreateManyInput = {
+    id: string
+    portfolio_id: string
+    broker: string
+    wallet: string
+    asset: string
+    balance: Decimal | DecimalJsLike | number | string
+    updated_at: Date | string
+  }
+
+  export type broker_wallet_balancesUpdateManyMutationInput = {
+    id?: StringFieldUpdateOperationsInput | string
+    broker?: StringFieldUpdateOperationsInput | string
+    wallet?: StringFieldUpdateOperationsInput | string
+    asset?: StringFieldUpdateOperationsInput | string
+    balance?: DecimalFieldUpdateOperationsInput | Decimal | DecimalJsLike | number | string
+    updated_at?: DateTimeFieldUpdateOperationsInput | Date | string
+  }
+
+  export type broker_wallet_balancesUncheckedUpdateManyInput = {
+    id?: StringFieldUpdateOperationsInput | string
+    portfolio_id?: StringFieldUpdateOperationsInput | string
+    broker?: StringFieldUpdateOperationsInput | string
+    wallet?: StringFieldUpdateOperationsInput | string
+    asset?: StringFieldUpdateOperationsInput | string
+    balance?: DecimalFieldUpdateOperationsInput | Decimal | DecimalJsLike | number | string
+    updated_at?: DateTimeFieldUpdateOperationsInput | Date | string
+  }
+
   export type snapshotsCreateInput = {
     market_value?: Decimal | DecimalJsLike | number | string | null
     cash_balance?: Decimal | DecimalJsLike | number | string | null
     daily_return?: Decimal | DecimalJsLike | number | string | null
     total_return?: Decimal | DecimalJsLike | number | string | null
+    realized_pnl?: Decimal | DecimalJsLike | number | string | null
     created_at: Date | string
     updated_at: Date | string
     portfolio: PortfolioCreateNestedOneWithoutSnapshotInput
@@ -59771,6 +62440,7 @@ export namespace Prisma {
     cash_balance?: Decimal | DecimalJsLike | number | string | null
     daily_return?: Decimal | DecimalJsLike | number | string | null
     total_return?: Decimal | DecimalJsLike | number | string | null
+    realized_pnl?: Decimal | DecimalJsLike | number | string | null
     created_at: Date | string
     updated_at: Date | string
   }
@@ -59780,6 +62450,7 @@ export namespace Prisma {
     cash_balance?: NullableDecimalFieldUpdateOperationsInput | Decimal | DecimalJsLike | number | string | null
     daily_return?: NullableDecimalFieldUpdateOperationsInput | Decimal | DecimalJsLike | number | string | null
     total_return?: NullableDecimalFieldUpdateOperationsInput | Decimal | DecimalJsLike | number | string | null
+    realized_pnl?: NullableDecimalFieldUpdateOperationsInput | Decimal | DecimalJsLike | number | string | null
     created_at?: DateTimeFieldUpdateOperationsInput | Date | string
     updated_at?: DateTimeFieldUpdateOperationsInput | Date | string
     portfolio?: PortfolioUpdateOneRequiredWithoutSnapshotNestedInput
@@ -59791,6 +62462,7 @@ export namespace Prisma {
     cash_balance?: NullableDecimalFieldUpdateOperationsInput | Decimal | DecimalJsLike | number | string | null
     daily_return?: NullableDecimalFieldUpdateOperationsInput | Decimal | DecimalJsLike | number | string | null
     total_return?: NullableDecimalFieldUpdateOperationsInput | Decimal | DecimalJsLike | number | string | null
+    realized_pnl?: NullableDecimalFieldUpdateOperationsInput | Decimal | DecimalJsLike | number | string | null
     created_at?: DateTimeFieldUpdateOperationsInput | Date | string
     updated_at?: DateTimeFieldUpdateOperationsInput | Date | string
   }
@@ -59801,6 +62473,7 @@ export namespace Prisma {
     cash_balance?: Decimal | DecimalJsLike | number | string | null
     daily_return?: Decimal | DecimalJsLike | number | string | null
     total_return?: Decimal | DecimalJsLike | number | string | null
+    realized_pnl?: Decimal | DecimalJsLike | number | string | null
     created_at: Date | string
     updated_at: Date | string
   }
@@ -59810,6 +62483,7 @@ export namespace Prisma {
     cash_balance?: NullableDecimalFieldUpdateOperationsInput | Decimal | DecimalJsLike | number | string | null
     daily_return?: NullableDecimalFieldUpdateOperationsInput | Decimal | DecimalJsLike | number | string | null
     total_return?: NullableDecimalFieldUpdateOperationsInput | Decimal | DecimalJsLike | number | string | null
+    realized_pnl?: NullableDecimalFieldUpdateOperationsInput | Decimal | DecimalJsLike | number | string | null
     created_at?: DateTimeFieldUpdateOperationsInput | Date | string
     updated_at?: DateTimeFieldUpdateOperationsInput | Date | string
   }
@@ -59820,6 +62494,7 @@ export namespace Prisma {
     cash_balance?: NullableDecimalFieldUpdateOperationsInput | Decimal | DecimalJsLike | number | string | null
     daily_return?: NullableDecimalFieldUpdateOperationsInput | Decimal | DecimalJsLike | number | string | null
     total_return?: NullableDecimalFieldUpdateOperationsInput | Decimal | DecimalJsLike | number | string | null
+    realized_pnl?: NullableDecimalFieldUpdateOperationsInput | Decimal | DecimalJsLike | number | string | null
     created_at?: DateTimeFieldUpdateOperationsInput | Date | string
     updated_at?: DateTimeFieldUpdateOperationsInput | Date | string
   }
@@ -62674,6 +65349,43 @@ export namespace Prisma {
     _max?: NestedBigIntNullableFilter<$PrismaModel>
   }
 
+  export type fx_rate_historyCurrencyDateCompoundUniqueInput = {
+    currency: string
+    date: Date | string
+  }
+
+  export type fx_rate_historyCountOrderByAggregateInput = {
+    id?: SortOrder
+    currency?: SortOrder
+    date?: SortOrder
+    rate_to_inr?: SortOrder
+    created_at?: SortOrder
+  }
+
+  export type fx_rate_historyAvgOrderByAggregateInput = {
+    rate_to_inr?: SortOrder
+  }
+
+  export type fx_rate_historyMaxOrderByAggregateInput = {
+    id?: SortOrder
+    currency?: SortOrder
+    date?: SortOrder
+    rate_to_inr?: SortOrder
+    created_at?: SortOrder
+  }
+
+  export type fx_rate_historyMinOrderByAggregateInput = {
+    id?: SortOrder
+    currency?: SortOrder
+    date?: SortOrder
+    rate_to_inr?: SortOrder
+    created_at?: SortOrder
+  }
+
+  export type fx_rate_historySumOrderByAggregateInput = {
+    rate_to_inr?: SortOrder
+  }
+
   export type import_runsCountOrderByAggregateInput = {
     portfolio_id?: SortOrder
     source?: SortOrder
@@ -62737,6 +65449,12 @@ export namespace Prisma {
     none?: binance_backfill_progressWhereInput
   }
 
+  export type Broker_wallet_balancesListRelationFilter = {
+    every?: broker_wallet_balancesWhereInput
+    some?: broker_wallet_balancesWhereInput
+    none?: broker_wallet_balancesWhereInput
+  }
+
   export type Import_runsListRelationFilter = {
     every?: import_runsWhereInput
     some?: import_runsWhereInput
@@ -62749,6 +65467,10 @@ export namespace Prisma {
   }
 
   export type binance_backfill_progressOrderByRelationAggregateInput = {
+    _count?: SortOrder
+  }
+
+  export type broker_wallet_balancesOrderByRelationAggregateInput = {
     _count?: SortOrder
   }
 
@@ -62860,12 +65582,58 @@ export namespace Prisma {
     marginUsd?: SortOrder
   }
 
+  export type broker_wallet_balancesPortfolio_idBrokerWalletAssetCompoundUniqueInput = {
+    portfolio_id: string
+    broker: string
+    wallet: string
+    asset: string
+  }
+
+  export type broker_wallet_balancesCountOrderByAggregateInput = {
+    id?: SortOrder
+    portfolio_id?: SortOrder
+    broker?: SortOrder
+    wallet?: SortOrder
+    asset?: SortOrder
+    balance?: SortOrder
+    updated_at?: SortOrder
+  }
+
+  export type broker_wallet_balancesAvgOrderByAggregateInput = {
+    balance?: SortOrder
+  }
+
+  export type broker_wallet_balancesMaxOrderByAggregateInput = {
+    id?: SortOrder
+    portfolio_id?: SortOrder
+    broker?: SortOrder
+    wallet?: SortOrder
+    asset?: SortOrder
+    balance?: SortOrder
+    updated_at?: SortOrder
+  }
+
+  export type broker_wallet_balancesMinOrderByAggregateInput = {
+    id?: SortOrder
+    portfolio_id?: SortOrder
+    broker?: SortOrder
+    wallet?: SortOrder
+    asset?: SortOrder
+    balance?: SortOrder
+    updated_at?: SortOrder
+  }
+
+  export type broker_wallet_balancesSumOrderByAggregateInput = {
+    balance?: SortOrder
+  }
+
   export type snapshotsCountOrderByAggregateInput = {
     portfolio_id?: SortOrder
     market_value?: SortOrder
     cash_balance?: SortOrder
     daily_return?: SortOrder
     total_return?: SortOrder
+    realized_pnl?: SortOrder
     created_at?: SortOrder
     updated_at?: SortOrder
   }
@@ -62875,6 +65643,7 @@ export namespace Prisma {
     cash_balance?: SortOrder
     daily_return?: SortOrder
     total_return?: SortOrder
+    realized_pnl?: SortOrder
   }
 
   export type snapshotsMaxOrderByAggregateInput = {
@@ -62883,6 +65652,7 @@ export namespace Prisma {
     cash_balance?: SortOrder
     daily_return?: SortOrder
     total_return?: SortOrder
+    realized_pnl?: SortOrder
     created_at?: SortOrder
     updated_at?: SortOrder
   }
@@ -62893,6 +65663,7 @@ export namespace Prisma {
     cash_balance?: SortOrder
     daily_return?: SortOrder
     total_return?: SortOrder
+    realized_pnl?: SortOrder
     created_at?: SortOrder
     updated_at?: SortOrder
   }
@@ -62902,6 +65673,7 @@ export namespace Prisma {
     cash_balance?: SortOrder
     daily_return?: SortOrder
     total_return?: SortOrder
+    realized_pnl?: SortOrder
   }
 
   export type Import_runsNullableScalarRelationFilter = {
@@ -64528,6 +67300,13 @@ export namespace Prisma {
     connect?: binance_backfill_progressWhereUniqueInput | binance_backfill_progressWhereUniqueInput[]
   }
 
+  export type broker_wallet_balancesCreateNestedManyWithoutPortfolioInput = {
+    create?: XOR<broker_wallet_balancesCreateWithoutPortfolioInput, broker_wallet_balancesUncheckedCreateWithoutPortfolioInput> | broker_wallet_balancesCreateWithoutPortfolioInput[] | broker_wallet_balancesUncheckedCreateWithoutPortfolioInput[]
+    connectOrCreate?: broker_wallet_balancesCreateOrConnectWithoutPortfolioInput | broker_wallet_balancesCreateOrConnectWithoutPortfolioInput[]
+    createMany?: broker_wallet_balancesCreateManyPortfolioInputEnvelope
+    connect?: broker_wallet_balancesWhereUniqueInput | broker_wallet_balancesWhereUniqueInput[]
+  }
+
   export type import_runsCreateNestedManyWithoutPortfolioInput = {
     create?: XOR<import_runsCreateWithoutPortfolioInput, import_runsUncheckedCreateWithoutPortfolioInput> | import_runsCreateWithoutPortfolioInput[] | import_runsUncheckedCreateWithoutPortfolioInput[]
     connectOrCreate?: import_runsCreateOrConnectWithoutPortfolioInput | import_runsCreateOrConnectWithoutPortfolioInput[]
@@ -64560,6 +67339,13 @@ export namespace Prisma {
     connectOrCreate?: binance_backfill_progressCreateOrConnectWithoutPortfolioInput | binance_backfill_progressCreateOrConnectWithoutPortfolioInput[]
     createMany?: binance_backfill_progressCreateManyPortfolioInputEnvelope
     connect?: binance_backfill_progressWhereUniqueInput | binance_backfill_progressWhereUniqueInput[]
+  }
+
+  export type broker_wallet_balancesUncheckedCreateNestedManyWithoutPortfolioInput = {
+    create?: XOR<broker_wallet_balancesCreateWithoutPortfolioInput, broker_wallet_balancesUncheckedCreateWithoutPortfolioInput> | broker_wallet_balancesCreateWithoutPortfolioInput[] | broker_wallet_balancesUncheckedCreateWithoutPortfolioInput[]
+    connectOrCreate?: broker_wallet_balancesCreateOrConnectWithoutPortfolioInput | broker_wallet_balancesCreateOrConnectWithoutPortfolioInput[]
+    createMany?: broker_wallet_balancesCreateManyPortfolioInputEnvelope
+    connect?: broker_wallet_balancesWhereUniqueInput | broker_wallet_balancesWhereUniqueInput[]
   }
 
   export type import_runsUncheckedCreateNestedManyWithoutPortfolioInput = {
@@ -64601,6 +67387,20 @@ export namespace Prisma {
     update?: binance_backfill_progressUpdateWithWhereUniqueWithoutPortfolioInput | binance_backfill_progressUpdateWithWhereUniqueWithoutPortfolioInput[]
     updateMany?: binance_backfill_progressUpdateManyWithWhereWithoutPortfolioInput | binance_backfill_progressUpdateManyWithWhereWithoutPortfolioInput[]
     deleteMany?: binance_backfill_progressScalarWhereInput | binance_backfill_progressScalarWhereInput[]
+  }
+
+  export type broker_wallet_balancesUpdateManyWithoutPortfolioNestedInput = {
+    create?: XOR<broker_wallet_balancesCreateWithoutPortfolioInput, broker_wallet_balancesUncheckedCreateWithoutPortfolioInput> | broker_wallet_balancesCreateWithoutPortfolioInput[] | broker_wallet_balancesUncheckedCreateWithoutPortfolioInput[]
+    connectOrCreate?: broker_wallet_balancesCreateOrConnectWithoutPortfolioInput | broker_wallet_balancesCreateOrConnectWithoutPortfolioInput[]
+    upsert?: broker_wallet_balancesUpsertWithWhereUniqueWithoutPortfolioInput | broker_wallet_balancesUpsertWithWhereUniqueWithoutPortfolioInput[]
+    createMany?: broker_wallet_balancesCreateManyPortfolioInputEnvelope
+    set?: broker_wallet_balancesWhereUniqueInput | broker_wallet_balancesWhereUniqueInput[]
+    disconnect?: broker_wallet_balancesWhereUniqueInput | broker_wallet_balancesWhereUniqueInput[]
+    delete?: broker_wallet_balancesWhereUniqueInput | broker_wallet_balancesWhereUniqueInput[]
+    connect?: broker_wallet_balancesWhereUniqueInput | broker_wallet_balancesWhereUniqueInput[]
+    update?: broker_wallet_balancesUpdateWithWhereUniqueWithoutPortfolioInput | broker_wallet_balancesUpdateWithWhereUniqueWithoutPortfolioInput[]
+    updateMany?: broker_wallet_balancesUpdateManyWithWhereWithoutPortfolioInput | broker_wallet_balancesUpdateManyWithWhereWithoutPortfolioInput[]
+    deleteMany?: broker_wallet_balancesScalarWhereInput | broker_wallet_balancesScalarWhereInput[]
   }
 
   export type import_runsUpdateManyWithoutPortfolioNestedInput = {
@@ -64667,6 +67467,20 @@ export namespace Prisma {
     update?: binance_backfill_progressUpdateWithWhereUniqueWithoutPortfolioInput | binance_backfill_progressUpdateWithWhereUniqueWithoutPortfolioInput[]
     updateMany?: binance_backfill_progressUpdateManyWithWhereWithoutPortfolioInput | binance_backfill_progressUpdateManyWithWhereWithoutPortfolioInput[]
     deleteMany?: binance_backfill_progressScalarWhereInput | binance_backfill_progressScalarWhereInput[]
+  }
+
+  export type broker_wallet_balancesUncheckedUpdateManyWithoutPortfolioNestedInput = {
+    create?: XOR<broker_wallet_balancesCreateWithoutPortfolioInput, broker_wallet_balancesUncheckedCreateWithoutPortfolioInput> | broker_wallet_balancesCreateWithoutPortfolioInput[] | broker_wallet_balancesUncheckedCreateWithoutPortfolioInput[]
+    connectOrCreate?: broker_wallet_balancesCreateOrConnectWithoutPortfolioInput | broker_wallet_balancesCreateOrConnectWithoutPortfolioInput[]
+    upsert?: broker_wallet_balancesUpsertWithWhereUniqueWithoutPortfolioInput | broker_wallet_balancesUpsertWithWhereUniqueWithoutPortfolioInput[]
+    createMany?: broker_wallet_balancesCreateManyPortfolioInputEnvelope
+    set?: broker_wallet_balancesWhereUniqueInput | broker_wallet_balancesWhereUniqueInput[]
+    disconnect?: broker_wallet_balancesWhereUniqueInput | broker_wallet_balancesWhereUniqueInput[]
+    delete?: broker_wallet_balancesWhereUniqueInput | broker_wallet_balancesWhereUniqueInput[]
+    connect?: broker_wallet_balancesWhereUniqueInput | broker_wallet_balancesWhereUniqueInput[]
+    update?: broker_wallet_balancesUpdateWithWhereUniqueWithoutPortfolioInput | broker_wallet_balancesUpdateWithWhereUniqueWithoutPortfolioInput[]
+    updateMany?: broker_wallet_balancesUpdateManyWithWhereWithoutPortfolioInput | broker_wallet_balancesUpdateManyWithWhereWithoutPortfolioInput[]
+    deleteMany?: broker_wallet_balancesScalarWhereInput | broker_wallet_balancesScalarWhereInput[]
   }
 
   export type import_runsUncheckedUpdateManyWithoutPortfolioNestedInput = {
@@ -64749,6 +67563,20 @@ export namespace Prisma {
     upsert?: PortfolioUpsertWithoutPositionsInput
     connect?: PortfolioWhereUniqueInput
     update?: XOR<XOR<PortfolioUpdateToOneWithWhereWithoutPositionsInput, PortfolioUpdateWithoutPositionsInput>, PortfolioUncheckedUpdateWithoutPositionsInput>
+  }
+
+  export type PortfolioCreateNestedOneWithoutBroker_wallet_balancesInput = {
+    create?: XOR<PortfolioCreateWithoutBroker_wallet_balancesInput, PortfolioUncheckedCreateWithoutBroker_wallet_balancesInput>
+    connectOrCreate?: PortfolioCreateOrConnectWithoutBroker_wallet_balancesInput
+    connect?: PortfolioWhereUniqueInput
+  }
+
+  export type PortfolioUpdateOneRequiredWithoutBroker_wallet_balancesNestedInput = {
+    create?: XOR<PortfolioCreateWithoutBroker_wallet_balancesInput, PortfolioUncheckedCreateWithoutBroker_wallet_balancesInput>
+    connectOrCreate?: PortfolioCreateOrConnectWithoutBroker_wallet_balancesInput
+    upsert?: PortfolioUpsertWithoutBroker_wallet_balancesInput
+    connect?: PortfolioWhereUniqueInput
+    update?: XOR<XOR<PortfolioUpdateToOneWithWhereWithoutBroker_wallet_balancesInput, PortfolioUpdateWithoutBroker_wallet_balancesInput>, PortfolioUncheckedUpdateWithoutBroker_wallet_balancesInput>
   }
 
   export type PortfolioCreateNestedOneWithoutSnapshotInput = {
@@ -68155,6 +70983,7 @@ export namespace Prisma {
     createdAt: Date | string
     updatedAt: Date | string
     isArchived?: boolean
+    broker_wallet_balances?: broker_wallet_balancesCreateNestedManyWithoutPortfolioInput
     import_runs?: import_runsCreateNestedManyWithoutPortfolioInput
     positions?: PositionCreateNestedManyWithoutPortfolioInput
     snapshot?: snapshotsCreateNestedOneWithoutPortfolioInput
@@ -68167,6 +70996,7 @@ export namespace Prisma {
     createdAt: Date | string
     updatedAt: Date | string
     isArchived?: boolean
+    broker_wallet_balances?: broker_wallet_balancesUncheckedCreateNestedManyWithoutPortfolioInput
     import_runs?: import_runsUncheckedCreateNestedManyWithoutPortfolioInput
     positions?: PositionUncheckedCreateNestedManyWithoutPortfolioInput
     snapshot?: snapshotsUncheckedCreateNestedOneWithoutPortfolioInput
@@ -68195,6 +71025,7 @@ export namespace Prisma {
     createdAt?: DateTimeFieldUpdateOperationsInput | Date | string
     updatedAt?: DateTimeFieldUpdateOperationsInput | Date | string
     isArchived?: BoolFieldUpdateOperationsInput | boolean
+    broker_wallet_balances?: broker_wallet_balancesUpdateManyWithoutPortfolioNestedInput
     import_runs?: import_runsUpdateManyWithoutPortfolioNestedInput
     positions?: PositionUpdateManyWithoutPortfolioNestedInput
     snapshot?: snapshotsUpdateOneWithoutPortfolioNestedInput
@@ -68207,6 +71038,7 @@ export namespace Prisma {
     createdAt?: DateTimeFieldUpdateOperationsInput | Date | string
     updatedAt?: DateTimeFieldUpdateOperationsInput | Date | string
     isArchived?: BoolFieldUpdateOperationsInput | boolean
+    broker_wallet_balances?: broker_wallet_balancesUncheckedUpdateManyWithoutPortfolioNestedInput
     import_runs?: import_runsUncheckedUpdateManyWithoutPortfolioNestedInput
     positions?: PositionUncheckedUpdateManyWithoutPortfolioNestedInput
     snapshot?: snapshotsUncheckedUpdateOneWithoutPortfolioNestedInput
@@ -68220,6 +71052,7 @@ export namespace Prisma {
     updatedAt: Date | string
     isArchived?: boolean
     binance_backfill_progress?: binance_backfill_progressCreateNestedManyWithoutPortfolioInput
+    broker_wallet_balances?: broker_wallet_balancesCreateNestedManyWithoutPortfolioInput
     positions?: PositionCreateNestedManyWithoutPortfolioInput
     snapshot?: snapshotsCreateNestedOneWithoutPortfolioInput
     transactions?: TransactionCreateNestedManyWithoutPortfolioInput
@@ -68232,6 +71065,7 @@ export namespace Prisma {
     updatedAt: Date | string
     isArchived?: boolean
     binance_backfill_progress?: binance_backfill_progressUncheckedCreateNestedManyWithoutPortfolioInput
+    broker_wallet_balances?: broker_wallet_balancesUncheckedCreateNestedManyWithoutPortfolioInput
     positions?: PositionUncheckedCreateNestedManyWithoutPortfolioInput
     snapshot?: snapshotsUncheckedCreateNestedOneWithoutPortfolioInput
     transactions?: TransactionUncheckedCreateNestedManyWithoutPortfolioInput
@@ -68314,6 +71148,7 @@ export namespace Prisma {
     updatedAt?: DateTimeFieldUpdateOperationsInput | Date | string
     isArchived?: BoolFieldUpdateOperationsInput | boolean
     binance_backfill_progress?: binance_backfill_progressUpdateManyWithoutPortfolioNestedInput
+    broker_wallet_balances?: broker_wallet_balancesUpdateManyWithoutPortfolioNestedInput
     positions?: PositionUpdateManyWithoutPortfolioNestedInput
     snapshot?: snapshotsUpdateOneWithoutPortfolioNestedInput
     transactions?: TransactionUpdateManyWithoutPortfolioNestedInput
@@ -68326,6 +71161,7 @@ export namespace Prisma {
     updatedAt?: DateTimeFieldUpdateOperationsInput | Date | string
     isArchived?: BoolFieldUpdateOperationsInput | boolean
     binance_backfill_progress?: binance_backfill_progressUncheckedUpdateManyWithoutPortfolioNestedInput
+    broker_wallet_balances?: broker_wallet_balancesUncheckedUpdateManyWithoutPortfolioNestedInput
     positions?: PositionUncheckedUpdateManyWithoutPortfolioNestedInput
     snapshot?: snapshotsUncheckedUpdateOneWithoutPortfolioNestedInput
     transactions?: TransactionUncheckedUpdateManyWithoutPortfolioNestedInput
@@ -68376,6 +71212,34 @@ export namespace Prisma {
 
   export type binance_backfill_progressCreateManyPortfolioInputEnvelope = {
     data: binance_backfill_progressCreateManyPortfolioInput | binance_backfill_progressCreateManyPortfolioInput[]
+    skipDuplicates?: boolean
+  }
+
+  export type broker_wallet_balancesCreateWithoutPortfolioInput = {
+    id: string
+    broker: string
+    wallet: string
+    asset: string
+    balance: Decimal | DecimalJsLike | number | string
+    updated_at: Date | string
+  }
+
+  export type broker_wallet_balancesUncheckedCreateWithoutPortfolioInput = {
+    id: string
+    broker: string
+    wallet: string
+    asset: string
+    balance: Decimal | DecimalJsLike | number | string
+    updated_at: Date | string
+  }
+
+  export type broker_wallet_balancesCreateOrConnectWithoutPortfolioInput = {
+    where: broker_wallet_balancesWhereUniqueInput
+    create: XOR<broker_wallet_balancesCreateWithoutPortfolioInput, broker_wallet_balancesUncheckedCreateWithoutPortfolioInput>
+  }
+
+  export type broker_wallet_balancesCreateManyPortfolioInputEnvelope = {
+    data: broker_wallet_balancesCreateManyPortfolioInput | broker_wallet_balancesCreateManyPortfolioInput[]
     skipDuplicates?: boolean
   }
 
@@ -68466,6 +71330,7 @@ export namespace Prisma {
     cash_balance?: Decimal | DecimalJsLike | number | string | null
     daily_return?: Decimal | DecimalJsLike | number | string | null
     total_return?: Decimal | DecimalJsLike | number | string | null
+    realized_pnl?: Decimal | DecimalJsLike | number | string | null
     created_at: Date | string
     updated_at: Date | string
   }
@@ -68475,6 +71340,7 @@ export namespace Prisma {
     cash_balance?: Decimal | DecimalJsLike | number | string | null
     daily_return?: Decimal | DecimalJsLike | number | string | null
     total_return?: Decimal | DecimalJsLike | number | string | null
+    realized_pnl?: Decimal | DecimalJsLike | number | string | null
     created_at: Date | string
     updated_at: Date | string
   }
@@ -68569,6 +71435,35 @@ export namespace Prisma {
     updated_at?: DateTimeFilter<"binance_backfill_progress"> | Date | string
   }
 
+  export type broker_wallet_balancesUpsertWithWhereUniqueWithoutPortfolioInput = {
+    where: broker_wallet_balancesWhereUniqueInput
+    update: XOR<broker_wallet_balancesUpdateWithoutPortfolioInput, broker_wallet_balancesUncheckedUpdateWithoutPortfolioInput>
+    create: XOR<broker_wallet_balancesCreateWithoutPortfolioInput, broker_wallet_balancesUncheckedCreateWithoutPortfolioInput>
+  }
+
+  export type broker_wallet_balancesUpdateWithWhereUniqueWithoutPortfolioInput = {
+    where: broker_wallet_balancesWhereUniqueInput
+    data: XOR<broker_wallet_balancesUpdateWithoutPortfolioInput, broker_wallet_balancesUncheckedUpdateWithoutPortfolioInput>
+  }
+
+  export type broker_wallet_balancesUpdateManyWithWhereWithoutPortfolioInput = {
+    where: broker_wallet_balancesScalarWhereInput
+    data: XOR<broker_wallet_balancesUpdateManyMutationInput, broker_wallet_balancesUncheckedUpdateManyWithoutPortfolioInput>
+  }
+
+  export type broker_wallet_balancesScalarWhereInput = {
+    AND?: broker_wallet_balancesScalarWhereInput | broker_wallet_balancesScalarWhereInput[]
+    OR?: broker_wallet_balancesScalarWhereInput[]
+    NOT?: broker_wallet_balancesScalarWhereInput | broker_wallet_balancesScalarWhereInput[]
+    id?: UuidFilter<"broker_wallet_balances"> | string
+    portfolio_id?: UuidFilter<"broker_wallet_balances"> | string
+    broker?: StringFilter<"broker_wallet_balances"> | string
+    wallet?: StringFilter<"broker_wallet_balances"> | string
+    asset?: StringFilter<"broker_wallet_balances"> | string
+    balance?: DecimalFilter<"broker_wallet_balances"> | Decimal | DecimalJsLike | number | string
+    updated_at?: DateTimeFilter<"broker_wallet_balances"> | Date | string
+  }
+
   export type import_runsUpsertWithWhereUniqueWithoutPortfolioInput = {
     where: import_runsWhereUniqueInput
     update: XOR<import_runsUpdateWithoutPortfolioInput, import_runsUncheckedUpdateWithoutPortfolioInput>
@@ -68635,6 +71530,7 @@ export namespace Prisma {
     cash_balance?: NullableDecimalFieldUpdateOperationsInput | Decimal | DecimalJsLike | number | string | null
     daily_return?: NullableDecimalFieldUpdateOperationsInput | Decimal | DecimalJsLike | number | string | null
     total_return?: NullableDecimalFieldUpdateOperationsInput | Decimal | DecimalJsLike | number | string | null
+    realized_pnl?: NullableDecimalFieldUpdateOperationsInput | Decimal | DecimalJsLike | number | string | null
     created_at?: DateTimeFieldUpdateOperationsInput | Date | string
     updated_at?: DateTimeFieldUpdateOperationsInput | Date | string
   }
@@ -68644,6 +71540,7 @@ export namespace Prisma {
     cash_balance?: NullableDecimalFieldUpdateOperationsInput | Decimal | DecimalJsLike | number | string | null
     daily_return?: NullableDecimalFieldUpdateOperationsInput | Decimal | DecimalJsLike | number | string | null
     total_return?: NullableDecimalFieldUpdateOperationsInput | Decimal | DecimalJsLike | number | string | null
+    realized_pnl?: NullableDecimalFieldUpdateOperationsInput | Decimal | DecimalJsLike | number | string | null
     created_at?: DateTimeFieldUpdateOperationsInput | Date | string
     updated_at?: DateTimeFieldUpdateOperationsInput | Date | string
   }
@@ -68718,6 +71615,7 @@ export namespace Prisma {
     updatedAt: Date | string
     isArchived?: boolean
     binance_backfill_progress?: binance_backfill_progressCreateNestedManyWithoutPortfolioInput
+    broker_wallet_balances?: broker_wallet_balancesCreateNestedManyWithoutPortfolioInput
     import_runs?: import_runsCreateNestedManyWithoutPortfolioInput
     snapshot?: snapshotsCreateNestedOneWithoutPortfolioInput
     transactions?: TransactionCreateNestedManyWithoutPortfolioInput
@@ -68730,6 +71628,7 @@ export namespace Prisma {
     updatedAt: Date | string
     isArchived?: boolean
     binance_backfill_progress?: binance_backfill_progressUncheckedCreateNestedManyWithoutPortfolioInput
+    broker_wallet_balances?: broker_wallet_balancesUncheckedCreateNestedManyWithoutPortfolioInput
     import_runs?: import_runsUncheckedCreateNestedManyWithoutPortfolioInput
     snapshot?: snapshotsUncheckedCreateNestedOneWithoutPortfolioInput
     transactions?: TransactionUncheckedCreateNestedManyWithoutPortfolioInput
@@ -68811,6 +71710,7 @@ export namespace Prisma {
     updatedAt?: DateTimeFieldUpdateOperationsInput | Date | string
     isArchived?: BoolFieldUpdateOperationsInput | boolean
     binance_backfill_progress?: binance_backfill_progressUpdateManyWithoutPortfolioNestedInput
+    broker_wallet_balances?: broker_wallet_balancesUpdateManyWithoutPortfolioNestedInput
     import_runs?: import_runsUpdateManyWithoutPortfolioNestedInput
     snapshot?: snapshotsUpdateOneWithoutPortfolioNestedInput
     transactions?: TransactionUpdateManyWithoutPortfolioNestedInput
@@ -68823,7 +71723,76 @@ export namespace Prisma {
     updatedAt?: DateTimeFieldUpdateOperationsInput | Date | string
     isArchived?: BoolFieldUpdateOperationsInput | boolean
     binance_backfill_progress?: binance_backfill_progressUncheckedUpdateManyWithoutPortfolioNestedInput
+    broker_wallet_balances?: broker_wallet_balancesUncheckedUpdateManyWithoutPortfolioNestedInput
     import_runs?: import_runsUncheckedUpdateManyWithoutPortfolioNestedInput
+    snapshot?: snapshotsUncheckedUpdateOneWithoutPortfolioNestedInput
+    transactions?: TransactionUncheckedUpdateManyWithoutPortfolioNestedInput
+  }
+
+  export type PortfolioCreateWithoutBroker_wallet_balancesInput = {
+    name: string
+    id: string
+    createdAt: Date | string
+    updatedAt: Date | string
+    isArchived?: boolean
+    binance_backfill_progress?: binance_backfill_progressCreateNestedManyWithoutPortfolioInput
+    import_runs?: import_runsCreateNestedManyWithoutPortfolioInput
+    positions?: PositionCreateNestedManyWithoutPortfolioInput
+    snapshot?: snapshotsCreateNestedOneWithoutPortfolioInput
+    transactions?: TransactionCreateNestedManyWithoutPortfolioInput
+  }
+
+  export type PortfolioUncheckedCreateWithoutBroker_wallet_balancesInput = {
+    name: string
+    id: string
+    createdAt: Date | string
+    updatedAt: Date | string
+    isArchived?: boolean
+    binance_backfill_progress?: binance_backfill_progressUncheckedCreateNestedManyWithoutPortfolioInput
+    import_runs?: import_runsUncheckedCreateNestedManyWithoutPortfolioInput
+    positions?: PositionUncheckedCreateNestedManyWithoutPortfolioInput
+    snapshot?: snapshotsUncheckedCreateNestedOneWithoutPortfolioInput
+    transactions?: TransactionUncheckedCreateNestedManyWithoutPortfolioInput
+  }
+
+  export type PortfolioCreateOrConnectWithoutBroker_wallet_balancesInput = {
+    where: PortfolioWhereUniqueInput
+    create: XOR<PortfolioCreateWithoutBroker_wallet_balancesInput, PortfolioUncheckedCreateWithoutBroker_wallet_balancesInput>
+  }
+
+  export type PortfolioUpsertWithoutBroker_wallet_balancesInput = {
+    update: XOR<PortfolioUpdateWithoutBroker_wallet_balancesInput, PortfolioUncheckedUpdateWithoutBroker_wallet_balancesInput>
+    create: XOR<PortfolioCreateWithoutBroker_wallet_balancesInput, PortfolioUncheckedCreateWithoutBroker_wallet_balancesInput>
+    where?: PortfolioWhereInput
+  }
+
+  export type PortfolioUpdateToOneWithWhereWithoutBroker_wallet_balancesInput = {
+    where?: PortfolioWhereInput
+    data: XOR<PortfolioUpdateWithoutBroker_wallet_balancesInput, PortfolioUncheckedUpdateWithoutBroker_wallet_balancesInput>
+  }
+
+  export type PortfolioUpdateWithoutBroker_wallet_balancesInput = {
+    name?: StringFieldUpdateOperationsInput | string
+    id?: StringFieldUpdateOperationsInput | string
+    createdAt?: DateTimeFieldUpdateOperationsInput | Date | string
+    updatedAt?: DateTimeFieldUpdateOperationsInput | Date | string
+    isArchived?: BoolFieldUpdateOperationsInput | boolean
+    binance_backfill_progress?: binance_backfill_progressUpdateManyWithoutPortfolioNestedInput
+    import_runs?: import_runsUpdateManyWithoutPortfolioNestedInput
+    positions?: PositionUpdateManyWithoutPortfolioNestedInput
+    snapshot?: snapshotsUpdateOneWithoutPortfolioNestedInput
+    transactions?: TransactionUpdateManyWithoutPortfolioNestedInput
+  }
+
+  export type PortfolioUncheckedUpdateWithoutBroker_wallet_balancesInput = {
+    name?: StringFieldUpdateOperationsInput | string
+    id?: StringFieldUpdateOperationsInput | string
+    createdAt?: DateTimeFieldUpdateOperationsInput | Date | string
+    updatedAt?: DateTimeFieldUpdateOperationsInput | Date | string
+    isArchived?: BoolFieldUpdateOperationsInput | boolean
+    binance_backfill_progress?: binance_backfill_progressUncheckedUpdateManyWithoutPortfolioNestedInput
+    import_runs?: import_runsUncheckedUpdateManyWithoutPortfolioNestedInput
+    positions?: PositionUncheckedUpdateManyWithoutPortfolioNestedInput
     snapshot?: snapshotsUncheckedUpdateOneWithoutPortfolioNestedInput
     transactions?: TransactionUncheckedUpdateManyWithoutPortfolioNestedInput
   }
@@ -68835,6 +71804,7 @@ export namespace Prisma {
     updatedAt: Date | string
     isArchived?: boolean
     binance_backfill_progress?: binance_backfill_progressCreateNestedManyWithoutPortfolioInput
+    broker_wallet_balances?: broker_wallet_balancesCreateNestedManyWithoutPortfolioInput
     import_runs?: import_runsCreateNestedManyWithoutPortfolioInput
     positions?: PositionCreateNestedManyWithoutPortfolioInput
     transactions?: TransactionCreateNestedManyWithoutPortfolioInput
@@ -68847,6 +71817,7 @@ export namespace Prisma {
     updatedAt: Date | string
     isArchived?: boolean
     binance_backfill_progress?: binance_backfill_progressUncheckedCreateNestedManyWithoutPortfolioInput
+    broker_wallet_balances?: broker_wallet_balancesUncheckedCreateNestedManyWithoutPortfolioInput
     import_runs?: import_runsUncheckedCreateNestedManyWithoutPortfolioInput
     positions?: PositionUncheckedCreateNestedManyWithoutPortfolioInput
     transactions?: TransactionUncheckedCreateNestedManyWithoutPortfolioInput
@@ -68875,6 +71846,7 @@ export namespace Prisma {
     updatedAt?: DateTimeFieldUpdateOperationsInput | Date | string
     isArchived?: BoolFieldUpdateOperationsInput | boolean
     binance_backfill_progress?: binance_backfill_progressUpdateManyWithoutPortfolioNestedInput
+    broker_wallet_balances?: broker_wallet_balancesUpdateManyWithoutPortfolioNestedInput
     import_runs?: import_runsUpdateManyWithoutPortfolioNestedInput
     positions?: PositionUpdateManyWithoutPortfolioNestedInput
     transactions?: TransactionUpdateManyWithoutPortfolioNestedInput
@@ -68887,6 +71859,7 @@ export namespace Prisma {
     updatedAt?: DateTimeFieldUpdateOperationsInput | Date | string
     isArchived?: BoolFieldUpdateOperationsInput | boolean
     binance_backfill_progress?: binance_backfill_progressUncheckedUpdateManyWithoutPortfolioNestedInput
+    broker_wallet_balances?: broker_wallet_balancesUncheckedUpdateManyWithoutPortfolioNestedInput
     import_runs?: import_runsUncheckedUpdateManyWithoutPortfolioNestedInput
     positions?: PositionUncheckedUpdateManyWithoutPortfolioNestedInput
     transactions?: TransactionUncheckedUpdateManyWithoutPortfolioNestedInput
@@ -68981,6 +71954,7 @@ export namespace Prisma {
     updatedAt: Date | string
     isArchived?: boolean
     binance_backfill_progress?: binance_backfill_progressCreateNestedManyWithoutPortfolioInput
+    broker_wallet_balances?: broker_wallet_balancesCreateNestedManyWithoutPortfolioInput
     import_runs?: import_runsCreateNestedManyWithoutPortfolioInput
     positions?: PositionCreateNestedManyWithoutPortfolioInput
     snapshot?: snapshotsCreateNestedOneWithoutPortfolioInput
@@ -68993,6 +71967,7 @@ export namespace Prisma {
     updatedAt: Date | string
     isArchived?: boolean
     binance_backfill_progress?: binance_backfill_progressUncheckedCreateNestedManyWithoutPortfolioInput
+    broker_wallet_balances?: broker_wallet_balancesUncheckedCreateNestedManyWithoutPortfolioInput
     import_runs?: import_runsUncheckedCreateNestedManyWithoutPortfolioInput
     positions?: PositionUncheckedCreateNestedManyWithoutPortfolioInput
     snapshot?: snapshotsUncheckedCreateNestedOneWithoutPortfolioInput
@@ -69174,6 +72149,7 @@ export namespace Prisma {
     updatedAt?: DateTimeFieldUpdateOperationsInput | Date | string
     isArchived?: BoolFieldUpdateOperationsInput | boolean
     binance_backfill_progress?: binance_backfill_progressUpdateManyWithoutPortfolioNestedInput
+    broker_wallet_balances?: broker_wallet_balancesUpdateManyWithoutPortfolioNestedInput
     import_runs?: import_runsUpdateManyWithoutPortfolioNestedInput
     positions?: PositionUpdateManyWithoutPortfolioNestedInput
     snapshot?: snapshotsUpdateOneWithoutPortfolioNestedInput
@@ -69186,6 +72162,7 @@ export namespace Prisma {
     updatedAt?: DateTimeFieldUpdateOperationsInput | Date | string
     isArchived?: BoolFieldUpdateOperationsInput | boolean
     binance_backfill_progress?: binance_backfill_progressUncheckedUpdateManyWithoutPortfolioNestedInput
+    broker_wallet_balances?: broker_wallet_balancesUncheckedUpdateManyWithoutPortfolioNestedInput
     import_runs?: import_runsUncheckedUpdateManyWithoutPortfolioNestedInput
     positions?: PositionUncheckedUpdateManyWithoutPortfolioNestedInput
     snapshot?: snapshotsUncheckedUpdateOneWithoutPortfolioNestedInput
@@ -71292,6 +74269,15 @@ export namespace Prisma {
     updated_at: Date | string
   }
 
+  export type broker_wallet_balancesCreateManyPortfolioInput = {
+    id: string
+    broker: string
+    wallet: string
+    asset: string
+    balance: Decimal | DecimalJsLike | number | string
+    updated_at: Date | string
+  }
+
   export type import_runsCreateManyPortfolioInput = {
     source: string
     filename: string
@@ -71373,6 +74359,33 @@ export namespace Prisma {
     done?: BoolFieldUpdateOperationsInput | boolean
     id?: StringFieldUpdateOperationsInput | string
     created_at?: DateTimeFieldUpdateOperationsInput | Date | string
+    updated_at?: DateTimeFieldUpdateOperationsInput | Date | string
+  }
+
+  export type broker_wallet_balancesUpdateWithoutPortfolioInput = {
+    id?: StringFieldUpdateOperationsInput | string
+    broker?: StringFieldUpdateOperationsInput | string
+    wallet?: StringFieldUpdateOperationsInput | string
+    asset?: StringFieldUpdateOperationsInput | string
+    balance?: DecimalFieldUpdateOperationsInput | Decimal | DecimalJsLike | number | string
+    updated_at?: DateTimeFieldUpdateOperationsInput | Date | string
+  }
+
+  export type broker_wallet_balancesUncheckedUpdateWithoutPortfolioInput = {
+    id?: StringFieldUpdateOperationsInput | string
+    broker?: StringFieldUpdateOperationsInput | string
+    wallet?: StringFieldUpdateOperationsInput | string
+    asset?: StringFieldUpdateOperationsInput | string
+    balance?: DecimalFieldUpdateOperationsInput | Decimal | DecimalJsLike | number | string
+    updated_at?: DateTimeFieldUpdateOperationsInput | Date | string
+  }
+
+  export type broker_wallet_balancesUncheckedUpdateManyWithoutPortfolioInput = {
+    id?: StringFieldUpdateOperationsInput | string
+    broker?: StringFieldUpdateOperationsInput | string
+    wallet?: StringFieldUpdateOperationsInput | string
+    asset?: StringFieldUpdateOperationsInput | string
+    balance?: DecimalFieldUpdateOperationsInput | Decimal | DecimalJsLike | number | string
     updated_at?: DateTimeFieldUpdateOperationsInput | Date | string
   }
 

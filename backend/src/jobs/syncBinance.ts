@@ -1,8 +1,8 @@
 import { prisma } from "../prisma";
 import { BinanceClient, fetchBinanceSyncData } from "../lib/broker/binance/client";
-import { syncBinanceHoldings } from "../lib/broker/brokerSync";
+import { syncBinanceHoldings, resolveTransferPrices } from "../lib/broker/brokerSync";
 import { invalidatePortfolioCaches } from "../lib/portfolioCache";
-import { resolveProviderCredentials, applyHoldingsToAllPortfolios, refreshQuotesAndSnapshots, lastBrokerTradeAt } from "../lib/broker/runBrokerSync";
+import { resolveProviderCredentials, applyHoldingsToAllPortfolios, refreshQuotesAndSnapshots, lastBrokerTradeAt, lastTransactionAt } from "../lib/broker/runBrokerSync";
 import { BinanceAuthError } from "../lib/errors";
 import { wrapJobExecution } from "../lib/jobs/wrapJobExecution";
 import { logger } from "../lib/logger";
@@ -23,10 +23,33 @@ async function runSyncBinance(): Promise<void> {
   const client = new BinanceClient(creds.api_key, creds.api_secret);
 
   const since = await lastBrokerTradeAt("binance");
-  const holdings = await fetchBinanceSyncData(client, since ? since.getTime() : null); // raises BinanceAuthError("AUTH_REQUIRED: ...") if key/secret bad
+  // One watermark per independently-accumulating stream. Deposits and
+  // withdrawals share kind="broker_transfer" and USDⓈ-M/COIN-M income share
+  // kind="broker_income", so those must be narrowed further — otherwise a
+  // transient failure on one endpoint has its missed window permanently
+  // closed by its sibling's newer rows.
+  const [incomeUsdmSince, incomeCoinmSince, depositsSince, withdrawalsSince, dividendsSince] = await Promise.all([
+    lastTransactionAt("binance", "broker_income", { wallet: "futures_usdm" }),
+    lastTransactionAt("binance", "broker_income", { wallet: "futures_coinm" }),
+    lastTransactionAt("binance", "broker_transfer", { transactionType: "DEPOSIT" }),
+    lastTransactionAt("binance", "broker_transfer", { transactionType: "WITHDRAWAL" }),
+    lastTransactionAt("binance", "broker_dividend"),
+  ]);
+  const holdings = await fetchBinanceSyncData(client, since ? since.getTime() : null, {
+    incomeUsdm: incomeUsdmSince ? incomeUsdmSince.getTime() : null,
+    incomeCoinm: incomeCoinmSince ? incomeCoinmSince.getTime() : null,
+    deposits: depositsSince ? depositsSince.getTime() : null,
+    withdrawals: withdrawalsSince ? withdrawalsSince.getTime() : null,
+    dividends: dividendsSince ? dividendsSince.getTime() : null,
+  }); // raises BinanceAuthError("AUTH_REQUIRED: ...") if key/secret bad
+
+  // Resolved once, outside every transaction: these are throttled CoinGecko
+  // network calls that would otherwise run per-portfolio inside
+  // prisma.$transaction's 5s window.
+  const transferPrices = await resolveTransferPrices(holdings.deposits ?? [], holdings.withdrawals ?? []);
 
   await applyHoldingsToAllPortfolios("sync_binance", async (portfolioId) => {
-    const result = await prisma.$transaction((tx) => syncBinanceHoldings(tx, portfolioId, holdings));
+    const result = await prisma.$transaction((tx) => syncBinanceHoldings(tx, portfolioId, holdings, transferPrices));
     await invalidatePortfolioCaches(portfolioId);
     return result;
   });

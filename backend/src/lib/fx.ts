@@ -1,5 +1,7 @@
 import Redis from "ioredis";
 import { logger } from "./logger";
+import { prisma } from "../prisma";
+import { v4 as uuidv4 } from "uuid";
 
 // Own client, same pattern as portfolioCache.ts / queue.ts.
 const redis = new Redis(process.env.REDIS_URL!);
@@ -79,4 +81,39 @@ async function getFxRates(): Promise<Record<string, number>> {
 export async function toInr(amount: number, currency: string): Promise<number> {
   const rates = await getFxRates();
   return amount * (rates[currency] ?? FX_TO_INR[currency] ?? 1.0);
+}
+
+/** Point-in-time INR rate for `currency` on `date` — unlike toInr (always
+ * today's live/cached rate), this looks up what the rate actually was on a
+ * specific past date, via Frankfurter (free, no key, ECB rates back to
+ * 1999, includes INR). Persisted into fx_rate_history for reuse. Returns
+ * null (never throws) if the date has no rate (e.g. before Frankfurter's
+ * coverage starts, or a weekend/holiday with no ECB fixing) or the request
+ * fails — callers must degrade explicitly, not assume a rate exists. */
+export async function getHistoricalFxToInr(currency: string, date: Date): Promise<number | null> {
+  if (currency === "INR") return 1.0;
+
+  const dateOnly = date.toISOString().slice(0, 10);
+  try {
+    const existing = await prisma.fx_rate_history.findUnique({
+      where: { currency_date: { currency, date: new Date(dateOnly) } },
+    });
+    if (existing) return Number(existing.rate_to_inr);
+
+    const res = await fetch(`https://api.frankfurter.app/${dateOnly}?from=${currency}&to=INR`, {
+      signal: AbortSignal.timeout(10_000),
+    });
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    const data = (await res.json()) as { rates?: Record<string, number> };
+    const rate = data.rates?.INR;
+    if (!rate) throw new Error(`Frankfurter returned no INR rate for ${currency} on ${dateOnly}`);
+
+    await prisma.fx_rate_history.create({
+      data: { id: uuidv4(), currency, date: new Date(dateOnly), rate_to_inr: rate, created_at: new Date() },
+    });
+    return rate;
+  } catch (e) {
+    logger.warn({ operation: "get_historical_fx_to_inr", currency, date: dateOnly, err: e }, "historical_fx_lookup_failed");
+    return null;
+  }
 }

@@ -201,3 +201,34 @@ export async function healthCheck(): Promise<boolean> {
     return false;
   }
 }
+
+/** Point-in-time price via /coins/{id}/history — unlike getPriceHistory
+ * (a rolling period/interval window), this returns the single close price
+ * CoinGecko recorded for `date`. CoinGecko's date param is DD-MM-YYYY, not
+ * ISO. */
+export async function getHistoricalPrice(symbol: string, date: Date): Promise<number> {
+  const id = coinId(PROVIDER_NAME, symbol);
+  const dd = String(date.getUTCDate()).padStart(2, "0");
+  const mm = String(date.getUTCMonth() + 1).padStart(2, "0");
+  const yyyy = date.getUTCFullYear();
+  await checkBudget();
+  try {
+    const res = await get(`/coins/${id}/history`, { date: `${dd}-${mm}-${yyyy}`, localization: "false" });
+    const data = (await res.json()) as { market_data?: { current_price?: Record<string, number> } };
+    const price = data.market_data?.current_price?.usd;
+    if (!price) throw new ProviderError(`No historical price returned by CoinGecko for ${symbol} on ${dd}-${mm}-${yyyy}`);
+    return price;
+  } catch (e) {
+    if (e instanceof ProviderError) throw e;
+    throw new ProviderError(`CoinGecko get_historical_price failed for ${symbol}: ${(e as Error).message}`);
+  }
+}
+
+export const coingeckoProvider = {
+  getQuote,
+  getFundamentals,
+  getQuotesByIds,
+  getTopMarketCapCoins,
+  healthCheck,
+  getHistoricalPrice,
+};

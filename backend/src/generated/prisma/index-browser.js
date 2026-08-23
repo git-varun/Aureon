@@ -412,6 +412,14 @@ exports.Prisma.Binance_backfill_progressScalarFieldEnum = {
   updated_at: 'updated_at'
 };
 
+exports.Prisma.Fx_rate_historyScalarFieldEnum = {
+  id: 'id',
+  currency: 'currency',
+  date: 'date',
+  rate_to_inr: 'rate_to_inr',
+  created_at: 'created_at'
+};
+
 exports.Prisma.Import_runsScalarFieldEnum = {
   portfolio_id: 'portfolio_id',
   source: 'source',
@@ -452,12 +460,23 @@ exports.Prisma.PositionScalarFieldEnum = {
   marginUsd: 'marginUsd'
 };
 
+exports.Prisma.Broker_wallet_balancesScalarFieldEnum = {
+  id: 'id',
+  portfolio_id: 'portfolio_id',
+  broker: 'broker',
+  wallet: 'wallet',
+  asset: 'asset',
+  balance: 'balance',
+  updated_at: 'updated_at'
+};
+
 exports.Prisma.SnapshotsScalarFieldEnum = {
   portfolio_id: 'portfolio_id',
   market_value: 'market_value',
   cash_balance: 'cash_balance',
   daily_return: 'daily_return',
   total_return: 'total_return',
+  realized_pnl: 'realized_pnl',
   created_at: 'created_at',
   updated_at: 'updated_at'
 };
@@ -681,9 +700,11 @@ exports.Prisma.ModelName = {
   news_assets: 'news_assets',
   web_notifications: 'web_notifications',
   binance_backfill_progress: 'binance_backfill_progress',
+  fx_rate_history: 'fx_rate_history',
   import_runs: 'import_runs',
   Portfolio: 'Portfolio',
   Position: 'Position',
+  broker_wallet_balances: 'broker_wallet_balances',
   snapshots: 'snapshots',
   Transaction: 'Transaction',
   alembic_version: 'alembic_version',
