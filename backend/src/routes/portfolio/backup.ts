@@ -39,7 +39,7 @@ function txnToBackup(t: Transaction) {
   return {
     id: t.id, symbol: t.symbol, type: t.transactionType, qty: Number(t.quantity), price: Number(t.price),
     date: t.transactionDate.toISOString(), fees: Number(t.fees), taxes: Number(t.taxes), notes: t.notes,
-    broker: t.broker, broker_reference: t.brokerReference, kind: t.kind,
+    broker: t.broker, broker_reference: t.brokerReference, kind: t.kind, wallet: t.wallet,
     asset_id: t.assetId, recommendation_id: t.recommendationId,
     created_at: iso(t.createdAt), updated_at: iso(t.updatedAt),
   };
@@ -153,7 +153,7 @@ backupRouter.get("/backup", async (_req, res) => {
 interface BackupTransaction {
   id?: string; symbol: string; type: string; qty: number; price: number; date: string;
   fees?: number; taxes?: number; notes?: string; broker?: string; broker_reference?: string;
-  kind?: string; recommendation_id?: string; created_at?: string; updated_at?: string;
+  kind?: string; wallet?: string; recommendation_id?: string; created_at?: string; updated_at?: string;
 }
 interface BackupPortfolioEntry { name: string; transactions: BackupTransaction[] }
 
@@ -278,6 +278,7 @@ backupRouter.post("/restore", upload.single("file"), async (req, res) => {
       await tx.snapshots.deleteMany({ where: { portfolio_id: portfolioId } });
       await tx.import_runs.deleteMany({ where: { portfolio_id: portfolioId } });
       await tx.binance_backfill_progress.deleteMany({ where: { portfolio_id: portfolioId } });
+      await tx.broker_wallet_balances.deleteMany({ where: { portfolio_id: portfolioId } });
 
       const symbolsTouched = new Set<string>();
       for (const t of entry.transactions ?? []) {
@@ -289,7 +290,11 @@ backupRouter.post("/restore", upload.single("file"), async (req, res) => {
             transactionType: t.type.toUpperCase().trim(), quantity: t.qty, price: t.price,
             transactionDate: parseBackupDate(t.date), fees: t.fees ?? 0, taxes: t.taxes ?? 0,
             notes: t.notes ?? null, broker: t.broker ?? null, brokerReference: t.broker_reference ?? null,
-            kind: t.kind ?? "trade", recommendationId: t.recommendation_id ?? null,
+            // wallet must round-trip: broker-sync dedup keys on
+            // broker_reference alone, so a restored row that silently
+            // defaulted to "spot" would never be re-synced and its wrong
+            // wallet would be permanent.
+            kind: t.kind ?? "trade", wallet: t.wallet ?? "spot", recommendationId: t.recommendation_id ?? null,
             createdAt: t.created_at ? parseBackupDate(t.created_at) : new Date(),
             updatedAt: t.updated_at ? parseBackupDate(t.updated_at) : new Date(),
           },

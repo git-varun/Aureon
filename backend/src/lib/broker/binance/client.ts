@@ -473,13 +473,18 @@ export interface BinanceSyncData {
   };
 }
 
-/** Per-kind "since last sync" watermarks — income/deposits/withdrawals/
- * dividends each accumulate independently of trade activity, so they can't
- * share fetchBinanceSyncData's single trade-derived `sinceMs`. undefined for
- * a kind means "no prior sync of this kind" — falls through to Binance's
- * own default window, same as sinceMs does for trades. */
+/** Per-stream "since last sync" watermarks — each of these accumulates
+ * independently of trade activity, so they can't share
+ * fetchBinanceSyncData's single trade-derived `sinceMs`. USDⓈ-M and COIN-M
+ * income are separate wallets, and deposits/withdrawals are separate
+ * endpoints, so each gets its own watermark: a transient failure on one
+ * (swallowed by tryFetch) must not have its missed window closed by a
+ * sibling's newer rows. undefined for a stream means "no prior sync of this
+ * stream" — falls through to Binance's own default window, same as sinceMs
+ * does for trades. */
 export interface BinanceSyncSince {
-  income?: number | null;
+  incomeUsdm?: number | null;
+  incomeCoinm?: number | null;
   deposits?: number | null;
   withdrawals?: number | null;
   dividends?: number | null;
@@ -543,8 +548,8 @@ export async function fetchBinanceSyncData(
   }
 
   const income = {
-    futures_usdm: await tryFetch("USDⓈ-M Futures income", () => client.getFuturesUsdmIncome(since.income)),
-    futures_coinm: await tryFetch("COIN-M Futures income", () => client.getFuturesCoinmIncome(since.income)),
+    futures_usdm: await tryFetch("USDⓈ-M Futures income", () => client.getFuturesUsdmIncome(since.incomeUsdm)),
+    futures_coinm: await tryFetch("COIN-M Futures income", () => client.getFuturesCoinmIncome(since.incomeCoinm)),
   };
   const deposits = await tryFetch("Deposit history", () => client.getDepositHistory(since.deposits));
   const withdrawals = await tryFetch("Withdraw history", () => client.getWithdrawHistory(since.withdrawals));

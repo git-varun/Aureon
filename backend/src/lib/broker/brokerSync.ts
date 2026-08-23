@@ -460,8 +460,9 @@ export async function importBrokerIncome(
 
 /** External deposits/withdrawals (kind="broker_transfer"). Spot only —
  * matches applyTradeCostBasis's spot-only cost-basis wiring. Stamps a
- * historical USD price at ingestion time via getHistoricalPriceUsd (Task 3)
- * so applyTradeCostBasis (Task 7) can treat these exactly like a BUY/SELL
+ * historical USD price at ingestion time, taken from the `transferPrices`
+ * map resolved by resolveTransferPrices before the transaction opened, so
+ * applyTradeCostBasis (Task 7) can treat these exactly like a BUY/SELL
  * trade row without any dynamic lookup of its own. A deposit/withdrawal
  * whose price can't be established (lookup failure) is still imported —
  * with price=0 — so it doesn't silently vanish from the ledger, but it will
@@ -474,12 +475,81 @@ function parseTimeMs(value: unknown): number {
   return Number.isFinite(parsed) ? parsed : 0;
 }
 
+/** The shape a transfer row reduces to for pricing purposes. Shared by
+ * resolveTransferPrices (the pre-pass) and importBrokerTransfers so the map
+ * key can never drift between producer and consumer — a mismatch would
+ * silently price every transfer at 0. */
+function parseTransferRow(
+  r: Record<string, unknown>,
+  transactionType: "DEPOSIT" | "WITHDRAWAL",
+): { asset: string; symbol: string; assetClass: string; date: Date; amount: number; txId: unknown; priceKey: string } | null {
+  const asset = String(r.coin ?? "").toUpperCase().trim();
+  const txId = r.txId ?? r.id;
+  const timeMs = parseTimeMs(transactionType === "DEPOSIT" ? r.insertTime : (r.applyTime ?? r.insertTime));
+  const amount = Number(r.amount ?? 0);
+  if (!asset || txId === undefined || txId === null || !amount || !timeMs) return null;
+
+  const symbol = `${asset}-USD`;
+  const date = new Date(timeMs);
+  return {
+    asset,
+    symbol,
+    assetClass: STABLECOIN_SET.has(asset) ? "stablecoin" : "crypto",
+    date,
+    amount,
+    txId,
+    priceKey: `${symbol}|${date.toISOString().slice(0, 10)}`,
+  };
+}
+
+/** Resolves the historical USD price for every (symbol, day) a
+ * deposit/withdrawal row needs, BEFORE the sync transaction opens.
+ *
+ * getHistoricalPriceUsd can do a real network fetch (CoinGecko, 15s timeout)
+ * throttled to a small per-minute budget; running it once per transfer row
+ * inside prisma.$transaction (5s default timeout) reliably blew the
+ * transaction clock. Hoisting it out removes that race entirely. A
+ * (symbol, day) that still can't be resolved is simply absent from the map,
+ * and importBrokerTransfers degrades it to price 0 exactly as before — no
+ * fabricated prices. */
+export async function resolveTransferPrices(
+  deposits: Array<Record<string, unknown>>,
+  withdrawals: Array<Record<string, unknown>>,
+): Promise<Map<string, number>> {
+  const prices = new Map<string, number>();
+  const wanted = new Map<string, { symbol: string; assetClass: string; date: Date }>();
+
+  for (const [rows, type] of [[deposits, "DEPOSIT"], [withdrawals, "WITHDRAWAL"]] as const) {
+    for (const r of rows) {
+      const parsed = parseTransferRow(r, type);
+      if (parsed && !wanted.has(parsed.priceKey)) {
+        wanted.set(parsed.priceKey, { symbol: parsed.symbol, assetClass: parsed.assetClass, date: parsed.date });
+      }
+    }
+  }
+
+  for (const [key, { symbol, assetClass, date }] of wanted) {
+    const assetId = await ensureAssetExists(prisma, symbol, symbol, assetClass);
+    const price = await getHistoricalPriceUsd(assetId, symbol, date);
+    if (price !== null) prices.set(key, price);
+  }
+
+  if (wanted.size > 0) {
+    logger.info(
+      { operation: "resolve_transfer_prices", requested: wanted.size, resolved: prices.size, unresolved: wanted.size - prices.size },
+      "historical transfer prices resolved",
+    );
+  }
+  return prices;
+}
+
 export async function importBrokerTransfers(
   tx: Tx,
   portfolioId: string,
   broker: string,
   deposits: Array<Record<string, unknown>>,
   withdrawals: Array<Record<string, unknown>>,
+  transferPrices: Map<string, number>,
 ): Promise<number> {
   const candidates: BrokerEventCandidate[] = [];
 
@@ -487,17 +557,11 @@ export async function importBrokerTransfers(
     r: Record<string, unknown>,
     transactionType: "DEPOSIT" | "WITHDRAWAL",
   ): Promise<BrokerEventCandidate | null> {
-    const asset = String(r.coin ?? "").toUpperCase().trim();
-    const txId = r.txId ?? r.id;
-    const timeMs = parseTimeMs(transactionType === "DEPOSIT" ? r.insertTime : (r.applyTime ?? r.insertTime));
-    const amount = Number(r.amount ?? 0);
-    if (!asset || txId === undefined || txId === null || !amount || !timeMs) return null;
+    const parsed = parseTransferRow(r, transactionType);
+    if (!parsed) return null;
+    const { symbol, assetClass, date, amount, txId } = parsed;
 
-    const symbol = `${asset}-USD`;
-    const assetClass = STABLECOIN_SET.has(asset) ? "stablecoin" : "crypto";
-    const assetId = await ensureAssetExists(tx, symbol, symbol, assetClass);
-    const date = new Date(timeMs);
-    const price = (await getHistoricalPriceUsd(assetId, symbol, date)) ?? 0;
+    const price = transferPrices.get(parsed.priceKey) ?? 0;
 
     return {
       symbol,
@@ -647,7 +711,14 @@ export async function upsertBrokerWalletBalances(
  * "the same coin as spot". Futures positions are leveraged derivatives with
  * no cost-basis ledger, so they're upserted directly from Binance's own
  * position snapshot. */
-export async function syncBinanceHoldings(tx: Tx, portfolioId: string, holdings: BinanceSyncData): Promise<SyncResult> {
+export async function syncBinanceHoldings(
+  tx: Tx,
+  portfolioId: string,
+  holdings: BinanceSyncData,
+  // Required, deliberately not defaulted: an omitted map would price every
+  // transfer at 0, and dedup would make that permanent.
+  transferPrices: Map<string, number>,
+): Promise<SyncResult> {
   const spotQuantities = new Map<string, number>();
   for (const b of holdings.spot ?? []) {
     let asset = String(b.asset ?? "").toUpperCase().trim();
@@ -698,7 +769,7 @@ export async function syncBinanceHoldings(tx: Tx, portfolioId: string, holdings:
   const income = holdings.income ?? { futures_usdm: [], futures_coinm: [] };
   result.imported_trades += await importBrokerIncome(tx, portfolioId, "binance", income.futures_usdm ?? [], "futures_usdm");
   result.imported_trades += await importBrokerIncome(tx, portfolioId, "binance", income.futures_coinm ?? [], "futures_coinm");
-  result.imported_trades += await importBrokerTransfers(tx, portfolioId, "binance", holdings.deposits ?? [], holdings.withdrawals ?? []);
+  result.imported_trades += await importBrokerTransfers(tx, portfolioId, "binance", holdings.deposits ?? [], holdings.withdrawals ?? [], transferPrices);
   result.imported_trades += await importBrokerDust(tx, portfolioId, "binance", holdings.dust ?? []);
   result.imported_trades += await importBrokerDividends(tx, portfolioId, "binance", holdings.dividends ?? []);
 

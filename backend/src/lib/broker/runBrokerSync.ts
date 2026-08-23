@@ -39,12 +39,22 @@ export async function resolveProviderCredentials(providerName: string, keyNames:
  * sync" watermark for providers (Binance) whose history endpoints default
  * to a narrow recent-only window. Each event kind (trades, income,
  * deposits, withdrawals, dividends) accumulates independently, so each
- * needs its own watermark rather than sharing one. Returns null on a
- * first-ever sync of this kind. */
-export async function lastTransactionAt(providerName: string, kind: string): Promise<Date | null> {
+ * needs its own watermark rather than sharing one. `filters` narrows
+ * further where a single kind covers several independently-accumulating
+ * event streams — deposits vs withdrawals share kind="broker_transfer"
+ * (split by transactionType), and USDⓈ-M vs COIN-M income share
+ * kind="broker_income" (split by wallet). Without that split, a transient
+ * failure on one endpoint would have its missed window silently closed by
+ * its sibling's newer rows. Returns null on a first-ever sync of this
+ * kind. */
+export async function lastTransactionAt(
+  providerName: string,
+  kind: string,
+  filters: { transactionType?: string; wallet?: string } = {},
+): Promise<Date | null> {
   const result = await prisma.transaction.aggregate({
     _max: { transactionDate: true },
-    where: { broker: providerName, kind },
+    where: { broker: providerName, kind, ...filters },
   });
   const raw = result._max.transactionDate;
   if (!raw) return null;
