@@ -1413,6 +1413,48 @@
           ]
         },
         {
+          "name": "Get asset financial statement",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/assets/{{symbol}}/statements/{{type}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "assets",
+                "{{symbol}}",
+                "statements",
+                "{{type}}"
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const expectedStatuses = [200, 400];",
+                  "pm.test(\"status is one of [200, 400]\", function () {",
+                  "  if (expectedStatuses.length === 1) {",
+                  "    pm.response.to.have.status(expectedStatuses[0]);",
+                  "  } else {",
+                  "    pm.expect(expectedStatuses).to.include(pm.response.code);",
+                  "  }",
+                  "});",
+                  "pm.test(\"responds within 5s\", function () {",
+                  "  pm.expect(pm.response.responseTime).to.be.below(5000);",
+                  "});"
+                ]
+              }
+            }
+          ]
+        },
+        {
           "name": "Get asset quote",
           "request": {
             "method": "GET",

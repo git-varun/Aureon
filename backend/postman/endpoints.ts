@@ -58,6 +58,7 @@ export const ENDPOINTS: Endpoint[] = [
   { method: "GET", path: "/api/v1/assets", folder: "assets", name: "Search assets", query: { search: "AAPL" }, expectStatus: [200] },
   { method: "GET", path: "/api/v1/assets/{{symbol}}/chart", folder: "assets", name: "Get asset chart", query: { days: "365" }, expectStatus: [200] },
   { method: "GET", path: "/api/v1/assets/{{symbol}}/fundamentals", folder: "assets", name: "Get asset fundamentals", expectStatus: [200] },
+  { method: "GET", path: "/api/v1/assets/{{symbol}}/statements/{{type}}", folder: "assets", name: "Get asset financial statement", expectStatus: [200, 400] },
   { method: "GET", path: "/api/v1/assets/{{symbol}}/quote", folder: "assets", name: "Get asset quote", expectStatus: [200, 404] },
   { method: "GET", path: "/api/v1/assets/batch", folder: "assets", name: "Get assets batch", query: { symbols: "{{symbol}}" }, expectStatus: [200] },
   { method: "GET", path: "/api/v1/aureon/assets/{{ticker}}", folder: "assets", name: "Get Aureon asset", query: { portfolio_id: "{{portfolioId}}" }, expectStatus: [200] },
