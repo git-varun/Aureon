@@ -1,0 +1,16 @@
+-- AlterTable
+ALTER TABLE "market"."asset_fundamentals" ADD COLUMN     "ath" DECIMAL,
+ADD COLUMN     "atl" DECIMAL,
+ADD COLUMN     "beta" DECIMAL,
+ADD COLUMN     "circulating_supply" DECIMAL,
+ADD COLUMN     "current_ratio" DECIMAL,
+ADD COLUMN     "eps" DECIMAL,
+ADD COLUMN     "gross_margin" DECIMAL,
+ADD COLUMN     "high_52w" DECIMAL,
+ADD COLUMN     "low_52w" DECIMAL,
+ADD COLUMN     "market_cap" DECIMAL,
+ADD COLUMN     "max_supply" DECIMAL,
+ADD COLUMN     "operating_margin" DECIMAL,
+ADD COLUMN     "quick_ratio" DECIMAL,
+ADD COLUMN     "source" VARCHAR,
+ADD COLUMN     "total_supply" DECIMAL;

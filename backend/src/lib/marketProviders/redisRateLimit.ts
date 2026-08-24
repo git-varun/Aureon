@@ -129,3 +129,30 @@ export async function getCachedAssetFeatures(assetId: string): Promise<Record<st
   }
   return null;
 }
+
+const STATEMENT_CACHE_TTL_SECONDS = 86_400;
+
+function getStatementCacheKey(symbol: string, statementType: string): string {
+  return `av:statement:${statementType}:${symbol.toUpperCase().trim()}`;
+}
+
+export async function cacheStatement(symbol: string, statementType: string, data: Record<string, unknown>): Promise<void> {
+  try {
+    await redis.setex(getStatementCacheKey(symbol, statementType), STATEMENT_CACHE_TTL_SECONDS, JSON.stringify(data));
+  } catch {
+    // Best-effort, matches cacheQuote's swallow.
+  }
+}
+
+export async function getCachedStatement(symbol: string, statementType: string): Promise<Record<string, unknown> | null> {
+  try {
+    const data = await redis.get(getStatementCacheKey(symbol, statementType));
+    if (data) {
+      const result = JSON.parse(data);
+      if (result && typeof result === "object" && !Array.isArray(result)) return result;
+    }
+  } catch {
+    // Best-effort, matches getCachedQuote's swallow.
+  }
+  return null;
+}

@@ -42,25 +42,55 @@ export async function getQuote(symbol: string): Promise<NormalizedQuote> {
   }
 }
 
-/** Port of FinnhubAdapter.get_fundamentals — stock/profile2, company-profile
- * fields only, no valuation ratios. finnhubIndustry is the closest thing to
- * a sector field this endpoint offers. */
+/** Port target: real ratio depth via /stock/metric?metric=all, replacing
+ * the old profile2-only stub (market_cap/sector/industry only). Values are
+ * pre-scaled here to match asset_fundamentals's on-disk convention (see
+ * fundamentals.ts unit-normalization table) so every caller can write
+ * straight through with no further math. */
 export async function getFundamentals(symbol: string): Promise<Record<string, unknown>> {
   const apiKey = requireKey();
   try {
-    const url = new URL("https://finnhub.io/api/v1/stock/profile2");
-    url.searchParams.set("symbol", symbol);
-    url.searchParams.set("token", apiKey);
-    const res = await fetch(url, { signal: AbortSignal.timeout(10_000) });
-    if (!res.ok) throw new Error(`HTTP ${res.status}`);
-    const data = (await res.json()) as { marketCapitalization?: number; finnhubIndustry?: string };
-    if (!data || Object.keys(data).length === 0) {
+    const profileUrl = new URL("https://finnhub.io/api/v1/stock/profile2");
+    profileUrl.searchParams.set("symbol", symbol);
+    profileUrl.searchParams.set("token", apiKey);
+    const profileRes = await fetch(profileUrl, { signal: AbortSignal.timeout(10_000) });
+    if (!profileRes.ok) throw new Error(`HTTP ${profileRes.status}`);
+    const profile = (await profileRes.json()) as { marketCapitalization?: number; finnhubIndustry?: string };
+
+    const metricUrl = new URL("https://finnhub.io/api/v1/stock/metric");
+    metricUrl.searchParams.set("symbol", symbol);
+    metricUrl.searchParams.set("metric", "all");
+    metricUrl.searchParams.set("token", apiKey);
+    const metricRes = await fetch(metricUrl, { signal: AbortSignal.timeout(10_000) });
+    if (!metricRes.ok) throw new Error(`HTTP ${metricRes.status}`);
+    const metricData = (await metricRes.json()) as { metric?: Record<string, number | undefined> };
+    const m = metricData.metric ?? {};
+
+    if (!profile || Object.keys(profile).length === 0) {
       throw new ProviderError(`No fundamentals returned from Finnhub for symbol ${symbol}`);
     }
+
+    const pct = (v: number | undefined): number | null => (v == null ? null : v / 100);
+
     return {
-      market_cap: data.marketCapitalization ?? null,
-      sector: data.finnhubIndustry ?? null,
-      industry: data.finnhubIndustry ?? null,
+      market_cap: profile.marketCapitalization ?? null,
+      sector: profile.finnhubIndustry ?? null,
+      industry: profile.finnhubIndustry ?? null,
+      trailing_pe: m.peTTM ?? m.peExclExtraTTM ?? null,
+      price_to_book: m.pbAnnual ?? null,
+      roe: pct(m.roeTTM),
+      profit_margin: pct(m.netProfitMarginTTM),
+      revenue_growth: pct(m.revenueGrowthTTMYoy),
+      debt_to_equity: m["totalDebt/totalEquityAnnual"] != null ? m["totalDebt/totalEquityAnnual"] * 100 : null,
+      dividend_yield: m.dividendYieldIndicatedAnnual ?? null,
+      current_ratio: m.currentRatioAnnual ?? null,
+      quick_ratio: m.quickRatioAnnual ?? null,
+      gross_margin: pct(m.grossMarginTTM),
+      operating_margin: pct(m.operatingMarginTTM),
+      eps: m.epsTTM ?? null,
+      beta: m.beta ?? null,
+      high_52w: m["52WeekHigh"] ?? null,
+      low_52w: m["52WeekLow"] ?? null,
     };
   } catch (e) {
     if (e instanceof ProviderError) throw e;

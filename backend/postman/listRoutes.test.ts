@@ -2,7 +2,7 @@ import { describe, it, expect } from "vitest";
 import { listRoutes, mergeAndValidateRoutes } from "./listRoutes";
 
 describe("listRoutes", () => {
-  it("finds all 131 registered endpoints with fully-qualified paths", () => {
+  it("finds all 132 registered endpoints with fully-qualified paths", () => {
     // 131, not the "95" in the plan's prose header — that arithmetic is wrong.
     // The plan's enumerated Full Route Inventory (23 groups) sums to 131 and
     // matches this scanner group-for-group: portfolios 7, positions 4,
@@ -10,8 +10,10 @@ describe("listRoutes", () => {
     // market 8, themes 8, watchlist 8, users 2, providers 9, jobs 5,
     // reset 3, ai 11, intelligence 9, recommendations 7, news 3, evaluation 1,
     // health 2, monitoring 8, notifications 4. See task-1-report.md.
+    // 132 as of the fundamentals-expansion-wave-c branch, which added
+    // GET /assets/{symbol}/statements/{type} (assets group: 8 -> 9).
     const routes = listRoutes();
-    expect(routes.length).toBe(131);
+    expect(routes.length).toBe(132);
     expect(routes).toContainEqual({
       method: "GET",
       fullPath: "/api/v1/portfolio/portfolios/:id/positions",

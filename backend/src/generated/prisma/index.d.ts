@@ -17794,6 +17794,20 @@ export namespace Prisma {
     profitMargin: Decimal | null
     revenueGrowth: Decimal | null
     dividendYield: Decimal | null
+    currentRatio: Decimal | null
+    quickRatio: Decimal | null
+    grossMargin: Decimal | null
+    operatingMargin: Decimal | null
+    eps: Decimal | null
+    beta: Decimal | null
+    high52w: Decimal | null
+    low52w: Decimal | null
+    marketCap: Decimal | null
+    circulatingSupply: Decimal | null
+    totalSupply: Decimal | null
+    maxSupply: Decimal | null
+    ath: Decimal | null
+    atl: Decimal | null
   }
 
   export type AssetFundamentalsSumAggregateOutputType = {
@@ -17804,6 +17818,20 @@ export namespace Prisma {
     profitMargin: Decimal | null
     revenueGrowth: Decimal | null
     dividendYield: Decimal | null
+    currentRatio: Decimal | null
+    quickRatio: Decimal | null
+    grossMargin: Decimal | null
+    operatingMargin: Decimal | null
+    eps: Decimal | null
+    beta: Decimal | null
+    high52w: Decimal | null
+    low52w: Decimal | null
+    marketCap: Decimal | null
+    circulatingSupply: Decimal | null
+    totalSupply: Decimal | null
+    maxSupply: Decimal | null
+    ath: Decimal | null
+    atl: Decimal | null
   }
 
   export type AssetFundamentalsMinAggregateOutputType = {
@@ -17815,6 +17843,21 @@ export namespace Prisma {
     profitMargin: Decimal | null
     revenueGrowth: Decimal | null
     dividendYield: Decimal | null
+    currentRatio: Decimal | null
+    quickRatio: Decimal | null
+    grossMargin: Decimal | null
+    operatingMargin: Decimal | null
+    eps: Decimal | null
+    beta: Decimal | null
+    high52w: Decimal | null
+    low52w: Decimal | null
+    marketCap: Decimal | null
+    circulatingSupply: Decimal | null
+    totalSupply: Decimal | null
+    maxSupply: Decimal | null
+    ath: Decimal | null
+    atl: Decimal | null
+    source: string | null
     createdAt: Date | null
     updatedAt: Date | null
   }
@@ -17828,6 +17871,21 @@ export namespace Prisma {
     profitMargin: Decimal | null
     revenueGrowth: Decimal | null
     dividendYield: Decimal | null
+    currentRatio: Decimal | null
+    quickRatio: Decimal | null
+    grossMargin: Decimal | null
+    operatingMargin: Decimal | null
+    eps: Decimal | null
+    beta: Decimal | null
+    high52w: Decimal | null
+    low52w: Decimal | null
+    marketCap: Decimal | null
+    circulatingSupply: Decimal | null
+    totalSupply: Decimal | null
+    maxSupply: Decimal | null
+    ath: Decimal | null
+    atl: Decimal | null
+    source: string | null
     createdAt: Date | null
     updatedAt: Date | null
   }
@@ -17841,6 +17899,21 @@ export namespace Prisma {
     profitMargin: number
     revenueGrowth: number
     dividendYield: number
+    currentRatio: number
+    quickRatio: number
+    grossMargin: number
+    operatingMargin: number
+    eps: number
+    beta: number
+    high52w: number
+    low52w: number
+    marketCap: number
+    circulatingSupply: number
+    totalSupply: number
+    maxSupply: number
+    ath: number
+    atl: number
+    source: number
     createdAt: number
     updatedAt: number
     _all: number
@@ -17855,6 +17928,20 @@ export namespace Prisma {
     profitMargin?: true
     revenueGrowth?: true
     dividendYield?: true
+    currentRatio?: true
+    quickRatio?: true
+    grossMargin?: true
+    operatingMargin?: true
+    eps?: true
+    beta?: true
+    high52w?: true
+    low52w?: true
+    marketCap?: true
+    circulatingSupply?: true
+    totalSupply?: true
+    maxSupply?: true
+    ath?: true
+    atl?: true
   }
 
   export type AssetFundamentalsSumAggregateInputType = {
@@ -17865,6 +17952,20 @@ export namespace Prisma {
     profitMargin?: true
     revenueGrowth?: true
     dividendYield?: true
+    currentRatio?: true
+    quickRatio?: true
+    grossMargin?: true
+    operatingMargin?: true
+    eps?: true
+    beta?: true
+    high52w?: true
+    low52w?: true
+    marketCap?: true
+    circulatingSupply?: true
+    totalSupply?: true
+    maxSupply?: true
+    ath?: true
+    atl?: true
   }
 
   export type AssetFundamentalsMinAggregateInputType = {
@@ -17876,6 +17977,21 @@ export namespace Prisma {
     profitMargin?: true
     revenueGrowth?: true
     dividendYield?: true
+    currentRatio?: true
+    quickRatio?: true
+    grossMargin?: true
+    operatingMargin?: true
+    eps?: true
+    beta?: true
+    high52w?: true
+    low52w?: true
+    marketCap?: true
+    circulatingSupply?: true
+    totalSupply?: true
+    maxSupply?: true
+    ath?: true
+    atl?: true
+    source?: true
     createdAt?: true
     updatedAt?: true
   }
@@ -17889,6 +18005,21 @@ export namespace Prisma {
     profitMargin?: true
     revenueGrowth?: true
     dividendYield?: true
+    currentRatio?: true
+    quickRatio?: true
+    grossMargin?: true
+    operatingMargin?: true
+    eps?: true
+    beta?: true
+    high52w?: true
+    low52w?: true
+    marketCap?: true
+    circulatingSupply?: true
+    totalSupply?: true
+    maxSupply?: true
+    ath?: true
+    atl?: true
+    source?: true
     createdAt?: true
     updatedAt?: true
   }
@@ -17902,6 +18033,21 @@ export namespace Prisma {
     profitMargin?: true
     revenueGrowth?: true
     dividendYield?: true
+    currentRatio?: true
+    quickRatio?: true
+    grossMargin?: true
+    operatingMargin?: true
+    eps?: true
+    beta?: true
+    high52w?: true
+    low52w?: true
+    marketCap?: true
+    circulatingSupply?: true
+    totalSupply?: true
+    maxSupply?: true
+    ath?: true
+    atl?: true
+    source?: true
     createdAt?: true
     updatedAt?: true
     _all?: true
@@ -18002,6 +18148,21 @@ export namespace Prisma {
     profitMargin: Decimal | null
     revenueGrowth: Decimal | null
     dividendYield: Decimal | null
+    currentRatio: Decimal | null
+    quickRatio: Decimal | null
+    grossMargin: Decimal | null
+    operatingMargin: Decimal | null
+    eps: Decimal | null
+    beta: Decimal | null
+    high52w: Decimal | null
+    low52w: Decimal | null
+    marketCap: Decimal | null
+    circulatingSupply: Decimal | null
+    totalSupply: Decimal | null
+    maxSupply: Decimal | null
+    ath: Decimal | null
+    atl: Decimal | null
+    source: string | null
     createdAt: Date
     updatedAt: Date
     _count: AssetFundamentalsCountAggregateOutputType | null
@@ -18034,6 +18195,21 @@ export namespace Prisma {
     profitMargin?: boolean
     revenueGrowth?: boolean
     dividendYield?: boolean
+    currentRatio?: boolean
+    quickRatio?: boolean
+    grossMargin?: boolean
+    operatingMargin?: boolean
+    eps?: boolean
+    beta?: boolean
+    high52w?: boolean
+    low52w?: boolean
+    marketCap?: boolean
+    circulatingSupply?: boolean
+    totalSupply?: boolean
+    maxSupply?: boolean
+    ath?: boolean
+    atl?: boolean
+    source?: boolean
     createdAt?: boolean
     updatedAt?: boolean
     assetSnapshot?: boolean | AssetSnapshotDefaultArgs<ExtArgs>
@@ -18048,6 +18224,21 @@ export namespace Prisma {
     profitMargin?: boolean
     revenueGrowth?: boolean
     dividendYield?: boolean
+    currentRatio?: boolean
+    quickRatio?: boolean
+    grossMargin?: boolean
+    operatingMargin?: boolean
+    eps?: boolean
+    beta?: boolean
+    high52w?: boolean
+    low52w?: boolean
+    marketCap?: boolean
+    circulatingSupply?: boolean
+    totalSupply?: boolean
+    maxSupply?: boolean
+    ath?: boolean
+    atl?: boolean
+    source?: boolean
     createdAt?: boolean
     updatedAt?: boolean
     assetSnapshot?: boolean | AssetSnapshotDefaultArgs<ExtArgs>
@@ -18062,6 +18253,21 @@ export namespace Prisma {
     profitMargin?: boolean
     revenueGrowth?: boolean
     dividendYield?: boolean
+    currentRatio?: boolean
+    quickRatio?: boolean
+    grossMargin?: boolean
+    operatingMargin?: boolean
+    eps?: boolean
+    beta?: boolean
+    high52w?: boolean
+    low52w?: boolean
+    marketCap?: boolean
+    circulatingSupply?: boolean
+    totalSupply?: boolean
+    maxSupply?: boolean
+    ath?: boolean
+    atl?: boolean
+    source?: boolean
     createdAt?: boolean
     updatedAt?: boolean
     assetSnapshot?: boolean | AssetSnapshotDefaultArgs<ExtArgs>
@@ -18076,11 +18282,26 @@ export namespace Prisma {
     profitMargin?: boolean
     revenueGrowth?: boolean
     dividendYield?: boolean
+    currentRatio?: boolean
+    quickRatio?: boolean
+    grossMargin?: boolean
+    operatingMargin?: boolean
+    eps?: boolean
+    beta?: boolean
+    high52w?: boolean
+    low52w?: boolean
+    marketCap?: boolean
+    circulatingSupply?: boolean
+    totalSupply?: boolean
+    maxSupply?: boolean
+    ath?: boolean
+    atl?: boolean
+    source?: boolean
     createdAt?: boolean
     updatedAt?: boolean
   }
 
-  export type AssetFundamentalsOmit<ExtArgs extends $Extensions.InternalArgs = $Extensions.DefaultArgs> = $Extensions.GetOmit<"assetId" | "trailingPe" | "priceToBook" | "roe" | "debtToEquity" | "profitMargin" | "revenueGrowth" | "dividendYield" | "createdAt" | "updatedAt", ExtArgs["result"]["assetFundamentals"]>
+  export type AssetFundamentalsOmit<ExtArgs extends $Extensions.InternalArgs = $Extensions.DefaultArgs> = $Extensions.GetOmit<"assetId" | "trailingPe" | "priceToBook" | "roe" | "debtToEquity" | "profitMargin" | "revenueGrowth" | "dividendYield" | "currentRatio" | "quickRatio" | "grossMargin" | "operatingMargin" | "eps" | "beta" | "high52w" | "low52w" | "marketCap" | "circulatingSupply" | "totalSupply" | "maxSupply" | "ath" | "atl" | "source" | "createdAt" | "updatedAt", ExtArgs["result"]["assetFundamentals"]>
   export type AssetFundamentalsInclude<ExtArgs extends $Extensions.InternalArgs = $Extensions.DefaultArgs> = {
     assetSnapshot?: boolean | AssetSnapshotDefaultArgs<ExtArgs>
   }
@@ -18105,6 +18326,21 @@ export namespace Prisma {
       profitMargin: Prisma.Decimal | null
       revenueGrowth: Prisma.Decimal | null
       dividendYield: Prisma.Decimal | null
+      currentRatio: Prisma.Decimal | null
+      quickRatio: Prisma.Decimal | null
+      grossMargin: Prisma.Decimal | null
+      operatingMargin: Prisma.Decimal | null
+      eps: Prisma.Decimal | null
+      beta: Prisma.Decimal | null
+      high52w: Prisma.Decimal | null
+      low52w: Prisma.Decimal | null
+      marketCap: Prisma.Decimal | null
+      circulatingSupply: Prisma.Decimal | null
+      totalSupply: Prisma.Decimal | null
+      maxSupply: Prisma.Decimal | null
+      ath: Prisma.Decimal | null
+      atl: Prisma.Decimal | null
+      source: string | null
       createdAt: Date
       updatedAt: Date
     }, ExtArgs["result"]["assetFundamentals"]>
@@ -18539,6 +18775,21 @@ export namespace Prisma {
     readonly profitMargin: FieldRef<"AssetFundamentals", 'Decimal'>
     readonly revenueGrowth: FieldRef<"AssetFundamentals", 'Decimal'>
     readonly dividendYield: FieldRef<"AssetFundamentals", 'Decimal'>
+    readonly currentRatio: FieldRef<"AssetFundamentals", 'Decimal'>
+    readonly quickRatio: FieldRef<"AssetFundamentals", 'Decimal'>
+    readonly grossMargin: FieldRef<"AssetFundamentals", 'Decimal'>
+    readonly operatingMargin: FieldRef<"AssetFundamentals", 'Decimal'>
+    readonly eps: FieldRef<"AssetFundamentals", 'Decimal'>
+    readonly beta: FieldRef<"AssetFundamentals", 'Decimal'>
+    readonly high52w: FieldRef<"AssetFundamentals", 'Decimal'>
+    readonly low52w: FieldRef<"AssetFundamentals", 'Decimal'>
+    readonly marketCap: FieldRef<"AssetFundamentals", 'Decimal'>
+    readonly circulatingSupply: FieldRef<"AssetFundamentals", 'Decimal'>
+    readonly totalSupply: FieldRef<"AssetFundamentals", 'Decimal'>
+    readonly maxSupply: FieldRef<"AssetFundamentals", 'Decimal'>
+    readonly ath: FieldRef<"AssetFundamentals", 'Decimal'>
+    readonly atl: FieldRef<"AssetFundamentals", 'Decimal'>
+    readonly source: FieldRef<"AssetFundamentals", 'String'>
     readonly createdAt: FieldRef<"AssetFundamentals", 'DateTime'>
     readonly updatedAt: FieldRef<"AssetFundamentals", 'DateTime'>
   }
@@ -55908,6 +56159,21 @@ export namespace Prisma {
     profitMargin: 'profitMargin',
     revenueGrowth: 'revenueGrowth',
     dividendYield: 'dividendYield',
+    currentRatio: 'currentRatio',
+    quickRatio: 'quickRatio',
+    grossMargin: 'grossMargin',
+    operatingMargin: 'operatingMargin',
+    eps: 'eps',
+    beta: 'beta',
+    high52w: 'high52w',
+    low52w: 'low52w',
+    marketCap: 'marketCap',
+    circulatingSupply: 'circulatingSupply',
+    totalSupply: 'totalSupply',
+    maxSupply: 'maxSupply',
+    ath: 'ath',
+    atl: 'atl',
+    source: 'source',
     createdAt: 'createdAt',
     updatedAt: 'updatedAt'
   };
@@ -57451,6 +57717,21 @@ export namespace Prisma {
     profitMargin?: DecimalNullableFilter<"AssetFundamentals"> | Decimal | DecimalJsLike | number | string | null
     revenueGrowth?: DecimalNullableFilter<"AssetFundamentals"> | Decimal | DecimalJsLike | number | string | null
     dividendYield?: DecimalNullableFilter<"AssetFundamentals"> | Decimal | DecimalJsLike | number | string | null
+    currentRatio?: DecimalNullableFilter<"AssetFundamentals"> | Decimal | DecimalJsLike | number | string | null
+    quickRatio?: DecimalNullableFilter<"AssetFundamentals"> | Decimal | DecimalJsLike | number | string | null
+    grossMargin?: DecimalNullableFilter<"AssetFundamentals"> | Decimal | DecimalJsLike | number | string | null
+    operatingMargin?: DecimalNullableFilter<"AssetFundamentals"> | Decimal | DecimalJsLike | number | string | null
+    eps?: DecimalNullableFilter<"AssetFundamentals"> | Decimal | DecimalJsLike | number | string | null
+    beta?: DecimalNullableFilter<"AssetFundamentals"> | Decimal | DecimalJsLike | number | string | null
+    high52w?: DecimalNullableFilter<"AssetFundamentals"> | Decimal | DecimalJsLike | number | string | null
+    low52w?: DecimalNullableFilter<"AssetFundamentals"> | Decimal | DecimalJsLike | number | string | null
+    marketCap?: DecimalNullableFilter<"AssetFundamentals"> | Decimal | DecimalJsLike | number | string | null
+    circulatingSupply?: DecimalNullableFilter<"AssetFundamentals"> | Decimal | DecimalJsLike | number | string | null
+    totalSupply?: DecimalNullableFilter<"AssetFundamentals"> | Decimal | DecimalJsLike | number | string | null
+    maxSupply?: DecimalNullableFilter<"AssetFundamentals"> | Decimal | DecimalJsLike | number | string | null
+    ath?: DecimalNullableFilter<"AssetFundamentals"> | Decimal | DecimalJsLike | number | string | null
+    atl?: DecimalNullableFilter<"AssetFundamentals"> | Decimal | DecimalJsLike | number | string | null
+    source?: StringNullableFilter<"AssetFundamentals"> | string | null
     createdAt?: DateTimeFilter<"AssetFundamentals"> | Date | string
     updatedAt?: DateTimeFilter<"AssetFundamentals"> | Date | string
     assetSnapshot?: XOR<AssetSnapshotScalarRelationFilter, AssetSnapshotWhereInput>
@@ -57465,6 +57746,21 @@ export namespace Prisma {
     profitMargin?: SortOrderInput | SortOrder
     revenueGrowth?: SortOrderInput | SortOrder
     dividendYield?: SortOrderInput | SortOrder
+    currentRatio?: SortOrderInput | SortOrder
+    quickRatio?: SortOrderInput | SortOrder
+    grossMargin?: SortOrderInput | SortOrder
+    operatingMargin?: SortOrderInput | SortOrder
+    eps?: SortOrderInput | SortOrder
+    beta?: SortOrderInput | SortOrder
+    high52w?: SortOrderInput | SortOrder
+    low52w?: SortOrderInput | SortOrder
+    marketCap?: SortOrderInput | SortOrder
+    circulatingSupply?: SortOrderInput | SortOrder
+    totalSupply?: SortOrderInput | SortOrder
+    maxSupply?: SortOrderInput | SortOrder
+    ath?: SortOrderInput | SortOrder
+    atl?: SortOrderInput | SortOrder
+    source?: SortOrderInput | SortOrder
     createdAt?: SortOrder
     updatedAt?: SortOrder
     assetSnapshot?: AssetSnapshotOrderByWithRelationInput
@@ -57482,6 +57778,21 @@ export namespace Prisma {
     profitMargin?: DecimalNullableFilter<"AssetFundamentals"> | Decimal | DecimalJsLike | number | string | null
     revenueGrowth?: DecimalNullableFilter<"AssetFundamentals"> | Decimal | DecimalJsLike | number | string | null
     dividendYield?: DecimalNullableFilter<"AssetFundamentals"> | Decimal | DecimalJsLike | number | string | null
+    currentRatio?: DecimalNullableFilter<"AssetFundamentals"> | Decimal | DecimalJsLike | number | string | null
+    quickRatio?: DecimalNullableFilter<"AssetFundamentals"> | Decimal | DecimalJsLike | number | string | null
+    grossMargin?: DecimalNullableFilter<"AssetFundamentals"> | Decimal | DecimalJsLike | number | string | null
+    operatingMargin?: DecimalNullableFilter<"AssetFundamentals"> | Decimal | DecimalJsLike | number | string | null
+    eps?: DecimalNullableFilter<"AssetFundamentals"> | Decimal | DecimalJsLike | number | string | null
+    beta?: DecimalNullableFilter<"AssetFundamentals"> | Decimal | DecimalJsLike | number | string | null
+    high52w?: DecimalNullableFilter<"AssetFundamentals"> | Decimal | DecimalJsLike | number | string | null
+    low52w?: DecimalNullableFilter<"AssetFundamentals"> | Decimal | DecimalJsLike | number | string | null
+    marketCap?: DecimalNullableFilter<"AssetFundamentals"> | Decimal | DecimalJsLike | number | string | null
+    circulatingSupply?: DecimalNullableFilter<"AssetFundamentals"> | Decimal | DecimalJsLike | number | string | null
+    totalSupply?: DecimalNullableFilter<"AssetFundamentals"> | Decimal | DecimalJsLike | number | string | null
+    maxSupply?: DecimalNullableFilter<"AssetFundamentals"> | Decimal | DecimalJsLike | number | string | null
+    ath?: DecimalNullableFilter<"AssetFundamentals"> | Decimal | DecimalJsLike | number | string | null
+    atl?: DecimalNullableFilter<"AssetFundamentals"> | Decimal | DecimalJsLike | number | string | null
+    source?: StringNullableFilter<"AssetFundamentals"> | string | null
     createdAt?: DateTimeFilter<"AssetFundamentals"> | Date | string
     updatedAt?: DateTimeFilter<"AssetFundamentals"> | Date | string
     assetSnapshot?: XOR<AssetSnapshotScalarRelationFilter, AssetSnapshotWhereInput>
@@ -57496,6 +57807,21 @@ export namespace Prisma {
     profitMargin?: SortOrderInput | SortOrder
     revenueGrowth?: SortOrderInput | SortOrder
     dividendYield?: SortOrderInput | SortOrder
+    currentRatio?: SortOrderInput | SortOrder
+    quickRatio?: SortOrderInput | SortOrder
+    grossMargin?: SortOrderInput | SortOrder
+    operatingMargin?: SortOrderInput | SortOrder
+    eps?: SortOrderInput | SortOrder
+    beta?: SortOrderInput | SortOrder
+    high52w?: SortOrderInput | SortOrder
+    low52w?: SortOrderInput | SortOrder
+    marketCap?: SortOrderInput | SortOrder
+    circulatingSupply?: SortOrderInput | SortOrder
+    totalSupply?: SortOrderInput | SortOrder
+    maxSupply?: SortOrderInput | SortOrder
+    ath?: SortOrderInput | SortOrder
+    atl?: SortOrderInput | SortOrder
+    source?: SortOrderInput | SortOrder
     createdAt?: SortOrder
     updatedAt?: SortOrder
     _count?: AssetFundamentalsCountOrderByAggregateInput
@@ -57517,6 +57843,21 @@ export namespace Prisma {
     profitMargin?: DecimalNullableWithAggregatesFilter<"AssetFundamentals"> | Decimal | DecimalJsLike | number | string | null
     revenueGrowth?: DecimalNullableWithAggregatesFilter<"AssetFundamentals"> | Decimal | DecimalJsLike | number | string | null
     dividendYield?: DecimalNullableWithAggregatesFilter<"AssetFundamentals"> | Decimal | DecimalJsLike | number | string | null
+    currentRatio?: DecimalNullableWithAggregatesFilter<"AssetFundamentals"> | Decimal | DecimalJsLike | number | string | null
+    quickRatio?: DecimalNullableWithAggregatesFilter<"AssetFundamentals"> | Decimal | DecimalJsLike | number | string | null
+    grossMargin?: DecimalNullableWithAggregatesFilter<"AssetFundamentals"> | Decimal | DecimalJsLike | number | string | null
+    operatingMargin?: DecimalNullableWithAggregatesFilter<"AssetFundamentals"> | Decimal | DecimalJsLike | number | string | null
+    eps?: DecimalNullableWithAggregatesFilter<"AssetFundamentals"> | Decimal | DecimalJsLike | number | string | null
+    beta?: DecimalNullableWithAggregatesFilter<"AssetFundamentals"> | Decimal | DecimalJsLike | number | string | null
+    high52w?: DecimalNullableWithAggregatesFilter<"AssetFundamentals"> | Decimal | DecimalJsLike | number | string | null
+    low52w?: DecimalNullableWithAggregatesFilter<"AssetFundamentals"> | Decimal | DecimalJsLike | number | string | null
+    marketCap?: DecimalNullableWithAggregatesFilter<"AssetFundamentals"> | Decimal | DecimalJsLike | number | string | null
+    circulatingSupply?: DecimalNullableWithAggregatesFilter<"AssetFundamentals"> | Decimal | DecimalJsLike | number | string | null
+    totalSupply?: DecimalNullableWithAggregatesFilter<"AssetFundamentals"> | Decimal | DecimalJsLike | number | string | null
+    maxSupply?: DecimalNullableWithAggregatesFilter<"AssetFundamentals"> | Decimal | DecimalJsLike | number | string | null
+    ath?: DecimalNullableWithAggregatesFilter<"AssetFundamentals"> | Decimal | DecimalJsLike | number | string | null
+    atl?: DecimalNullableWithAggregatesFilter<"AssetFundamentals"> | Decimal | DecimalJsLike | number | string | null
+    source?: StringNullableWithAggregatesFilter<"AssetFundamentals"> | string | null
     createdAt?: DateTimeWithAggregatesFilter<"AssetFundamentals"> | Date | string
     updatedAt?: DateTimeWithAggregatesFilter<"AssetFundamentals"> | Date | string
   }
@@ -60910,6 +61251,21 @@ export namespace Prisma {
     profitMargin?: Decimal | DecimalJsLike | number | string | null
     revenueGrowth?: Decimal | DecimalJsLike | number | string | null
     dividendYield?: Decimal | DecimalJsLike | number | string | null
+    currentRatio?: Decimal | DecimalJsLike | number | string | null
+    quickRatio?: Decimal | DecimalJsLike | number | string | null
+    grossMargin?: Decimal | DecimalJsLike | number | string | null
+    operatingMargin?: Decimal | DecimalJsLike | number | string | null
+    eps?: Decimal | DecimalJsLike | number | string | null
+    beta?: Decimal | DecimalJsLike | number | string | null
+    high52w?: Decimal | DecimalJsLike | number | string | null
+    low52w?: Decimal | DecimalJsLike | number | string | null
+    marketCap?: Decimal | DecimalJsLike | number | string | null
+    circulatingSupply?: Decimal | DecimalJsLike | number | string | null
+    totalSupply?: Decimal | DecimalJsLike | number | string | null
+    maxSupply?: Decimal | DecimalJsLike | number | string | null
+    ath?: Decimal | DecimalJsLike | number | string | null
+    atl?: Decimal | DecimalJsLike | number | string | null
+    source?: string | null
     createdAt: Date | string
     updatedAt: Date | string
     assetSnapshot: AssetSnapshotCreateNestedOneWithoutAssetFundamentalsInput
@@ -60924,6 +61280,21 @@ export namespace Prisma {
     profitMargin?: Decimal | DecimalJsLike | number | string | null
     revenueGrowth?: Decimal | DecimalJsLike | number | string | null
     dividendYield?: Decimal | DecimalJsLike | number | string | null
+    currentRatio?: Decimal | DecimalJsLike | number | string | null
+    quickRatio?: Decimal | DecimalJsLike | number | string | null
+    grossMargin?: Decimal | DecimalJsLike | number | string | null
+    operatingMargin?: Decimal | DecimalJsLike | number | string | null
+    eps?: Decimal | DecimalJsLike | number | string | null
+    beta?: Decimal | DecimalJsLike | number | string | null
+    high52w?: Decimal | DecimalJsLike | number | string | null
+    low52w?: Decimal | DecimalJsLike | number | string | null
+    marketCap?: Decimal | DecimalJsLike | number | string | null
+    circulatingSupply?: Decimal | DecimalJsLike | number | string | null
+    totalSupply?: Decimal | DecimalJsLike | number | string | null
+    maxSupply?: Decimal | DecimalJsLike | number | string | null
+    ath?: Decimal | DecimalJsLike | number | string | null
+    atl?: Decimal | DecimalJsLike | number | string | null
+    source?: string | null
     createdAt: Date | string
     updatedAt: Date | string
   }
@@ -60936,6 +61307,21 @@ export namespace Prisma {
     profitMargin?: NullableDecimalFieldUpdateOperationsInput | Decimal | DecimalJsLike | number | string | null
     revenueGrowth?: NullableDecimalFieldUpdateOperationsInput | Decimal | DecimalJsLike | number | string | null
     dividendYield?: NullableDecimalFieldUpdateOperationsInput | Decimal | DecimalJsLike | number | string | null
+    currentRatio?: NullableDecimalFieldUpdateOperationsInput | Decimal | DecimalJsLike | number | string | null
+    quickRatio?: NullableDecimalFieldUpdateOperationsInput | Decimal | DecimalJsLike | number | string | null
+    grossMargin?: NullableDecimalFieldUpdateOperationsInput | Decimal | DecimalJsLike | number | string | null
+    operatingMargin?: NullableDecimalFieldUpdateOperationsInput | Decimal | DecimalJsLike | number | string | null
+    eps?: NullableDecimalFieldUpdateOperationsInput | Decimal | DecimalJsLike | number | string | null
+    beta?: NullableDecimalFieldUpdateOperationsInput | Decimal | DecimalJsLike | number | string | null
+    high52w?: NullableDecimalFieldUpdateOperationsInput | Decimal | DecimalJsLike | number | string | null
+    low52w?: NullableDecimalFieldUpdateOperationsInput | Decimal | DecimalJsLike | number | string | null
+    marketCap?: NullableDecimalFieldUpdateOperationsInput | Decimal | DecimalJsLike | number | string | null
+    circulatingSupply?: NullableDecimalFieldUpdateOperationsInput | Decimal | DecimalJsLike | number | string | null
+    totalSupply?: NullableDecimalFieldUpdateOperationsInput | Decimal | DecimalJsLike | number | string | null
+    maxSupply?: NullableDecimalFieldUpdateOperationsInput | Decimal | DecimalJsLike | number | string | null
+    ath?: NullableDecimalFieldUpdateOperationsInput | Decimal | DecimalJsLike | number | string | null
+    atl?: NullableDecimalFieldUpdateOperationsInput | Decimal | DecimalJsLike | number | string | null
+    source?: NullableStringFieldUpdateOperationsInput | string | null
     createdAt?: DateTimeFieldUpdateOperationsInput | Date | string
     updatedAt?: DateTimeFieldUpdateOperationsInput | Date | string
     assetSnapshot?: AssetSnapshotUpdateOneRequiredWithoutAssetFundamentalsNestedInput
@@ -60950,6 +61336,21 @@ export namespace Prisma {
     profitMargin?: NullableDecimalFieldUpdateOperationsInput | Decimal | DecimalJsLike | number | string | null
     revenueGrowth?: NullableDecimalFieldUpdateOperationsInput | Decimal | DecimalJsLike | number | string | null
     dividendYield?: NullableDecimalFieldUpdateOperationsInput | Decimal | DecimalJsLike | number | string | null
+    currentRatio?: NullableDecimalFieldUpdateOperationsInput | Decimal | DecimalJsLike | number | string | null
+    quickRatio?: NullableDecimalFieldUpdateOperationsInput | Decimal | DecimalJsLike | number | string | null
+    grossMargin?: NullableDecimalFieldUpdateOperationsInput | Decimal | DecimalJsLike | number | string | null
+    operatingMargin?: NullableDecimalFieldUpdateOperationsInput | Decimal | DecimalJsLike | number | string | null
+    eps?: NullableDecimalFieldUpdateOperationsInput | Decimal | DecimalJsLike | number | string | null
+    beta?: NullableDecimalFieldUpdateOperationsInput | Decimal | DecimalJsLike | number | string | null
+    high52w?: NullableDecimalFieldUpdateOperationsInput | Decimal | DecimalJsLike | number | string | null
+    low52w?: NullableDecimalFieldUpdateOperationsInput | Decimal | DecimalJsLike | number | string | null
+    marketCap?: NullableDecimalFieldUpdateOperationsInput | Decimal | DecimalJsLike | number | string | null
+    circulatingSupply?: NullableDecimalFieldUpdateOperationsInput | Decimal | DecimalJsLike | number | string | null
+    totalSupply?: NullableDecimalFieldUpdateOperationsInput | Decimal | DecimalJsLike | number | string | null
+    maxSupply?: NullableDecimalFieldUpdateOperationsInput | Decimal | DecimalJsLike | number | string | null
+    ath?: NullableDecimalFieldUpdateOperationsInput | Decimal | DecimalJsLike | number | string | null
+    atl?: NullableDecimalFieldUpdateOperationsInput | Decimal | DecimalJsLike | number | string | null
+    source?: NullableStringFieldUpdateOperationsInput | string | null
     createdAt?: DateTimeFieldUpdateOperationsInput | Date | string
     updatedAt?: DateTimeFieldUpdateOperationsInput | Date | string
   }
@@ -60963,6 +61364,21 @@ export namespace Prisma {
     profitMargin?: Decimal | DecimalJsLike | number | string | null
     revenueGrowth?: Decimal | DecimalJsLike | number | string | null
     dividendYield?: Decimal | DecimalJsLike | number | string | null
+    currentRatio?: Decimal | DecimalJsLike | number | string | null
+    quickRatio?: Decimal | DecimalJsLike | number | string | null
+    grossMargin?: Decimal | DecimalJsLike | number | string | null
+    operatingMargin?: Decimal | DecimalJsLike | number | string | null
+    eps?: Decimal | DecimalJsLike | number | string | null
+    beta?: Decimal | DecimalJsLike | number | string | null
+    high52w?: Decimal | DecimalJsLike | number | string | null
+    low52w?: Decimal | DecimalJsLike | number | string | null
+    marketCap?: Decimal | DecimalJsLike | number | string | null
+    circulatingSupply?: Decimal | DecimalJsLike | number | string | null
+    totalSupply?: Decimal | DecimalJsLike | number | string | null
+    maxSupply?: Decimal | DecimalJsLike | number | string | null
+    ath?: Decimal | DecimalJsLike | number | string | null
+    atl?: Decimal | DecimalJsLike | number | string | null
+    source?: string | null
     createdAt: Date | string
     updatedAt: Date | string
   }
@@ -60975,6 +61391,21 @@ export namespace Prisma {
     profitMargin?: NullableDecimalFieldUpdateOperationsInput | Decimal | DecimalJsLike | number | string | null
     revenueGrowth?: NullableDecimalFieldUpdateOperationsInput | Decimal | DecimalJsLike | number | string | null
     dividendYield?: NullableDecimalFieldUpdateOperationsInput | Decimal | DecimalJsLike | number | string | null
+    currentRatio?: NullableDecimalFieldUpdateOperationsInput | Decimal | DecimalJsLike | number | string | null
+    quickRatio?: NullableDecimalFieldUpdateOperationsInput | Decimal | DecimalJsLike | number | string | null
+    grossMargin?: NullableDecimalFieldUpdateOperationsInput | Decimal | DecimalJsLike | number | string | null
+    operatingMargin?: NullableDecimalFieldUpdateOperationsInput | Decimal | DecimalJsLike | number | string | null
+    eps?: NullableDecimalFieldUpdateOperationsInput | Decimal | DecimalJsLike | number | string | null
+    beta?: NullableDecimalFieldUpdateOperationsInput | Decimal | DecimalJsLike | number | string | null
+    high52w?: NullableDecimalFieldUpdateOperationsInput | Decimal | DecimalJsLike | number | string | null
+    low52w?: NullableDecimalFieldUpdateOperationsInput | Decimal | DecimalJsLike | number | string | null
+    marketCap?: NullableDecimalFieldUpdateOperationsInput | Decimal | DecimalJsLike | number | string | null
+    circulatingSupply?: NullableDecimalFieldUpdateOperationsInput | Decimal | DecimalJsLike | number | string | null
+    totalSupply?: NullableDecimalFieldUpdateOperationsInput | Decimal | DecimalJsLike | number | string | null
+    maxSupply?: NullableDecimalFieldUpdateOperationsInput | Decimal | DecimalJsLike | number | string | null
+    ath?: NullableDecimalFieldUpdateOperationsInput | Decimal | DecimalJsLike | number | string | null
+    atl?: NullableDecimalFieldUpdateOperationsInput | Decimal | DecimalJsLike | number | string | null
+    source?: NullableStringFieldUpdateOperationsInput | string | null
     createdAt?: DateTimeFieldUpdateOperationsInput | Date | string
     updatedAt?: DateTimeFieldUpdateOperationsInput | Date | string
   }
@@ -60988,6 +61419,21 @@ export namespace Prisma {
     profitMargin?: NullableDecimalFieldUpdateOperationsInput | Decimal | DecimalJsLike | number | string | null
     revenueGrowth?: NullableDecimalFieldUpdateOperationsInput | Decimal | DecimalJsLike | number | string | null
     dividendYield?: NullableDecimalFieldUpdateOperationsInput | Decimal | DecimalJsLike | number | string | null
+    currentRatio?: NullableDecimalFieldUpdateOperationsInput | Decimal | DecimalJsLike | number | string | null
+    quickRatio?: NullableDecimalFieldUpdateOperationsInput | Decimal | DecimalJsLike | number | string | null
+    grossMargin?: NullableDecimalFieldUpdateOperationsInput | Decimal | DecimalJsLike | number | string | null
+    operatingMargin?: NullableDecimalFieldUpdateOperationsInput | Decimal | DecimalJsLike | number | string | null
+    eps?: NullableDecimalFieldUpdateOperationsInput | Decimal | DecimalJsLike | number | string | null
+    beta?: NullableDecimalFieldUpdateOperationsInput | Decimal | DecimalJsLike | number | string | null
+    high52w?: NullableDecimalFieldUpdateOperationsInput | Decimal | DecimalJsLike | number | string | null
+    low52w?: NullableDecimalFieldUpdateOperationsInput | Decimal | DecimalJsLike | number | string | null
+    marketCap?: NullableDecimalFieldUpdateOperationsInput | Decimal | DecimalJsLike | number | string | null
+    circulatingSupply?: NullableDecimalFieldUpdateOperationsInput | Decimal | DecimalJsLike | number | string | null
+    totalSupply?: NullableDecimalFieldUpdateOperationsInput | Decimal | DecimalJsLike | number | string | null
+    maxSupply?: NullableDecimalFieldUpdateOperationsInput | Decimal | DecimalJsLike | number | string | null
+    ath?: NullableDecimalFieldUpdateOperationsInput | Decimal | DecimalJsLike | number | string | null
+    atl?: NullableDecimalFieldUpdateOperationsInput | Decimal | DecimalJsLike | number | string | null
+    source?: NullableStringFieldUpdateOperationsInput | string | null
     createdAt?: DateTimeFieldUpdateOperationsInput | Date | string
     updatedAt?: DateTimeFieldUpdateOperationsInput | Date | string
   }
@@ -64551,6 +64997,21 @@ export namespace Prisma {
     profitMargin?: SortOrder
     revenueGrowth?: SortOrder
     dividendYield?: SortOrder
+    currentRatio?: SortOrder
+    quickRatio?: SortOrder
+    grossMargin?: SortOrder
+    operatingMargin?: SortOrder
+    eps?: SortOrder
+    beta?: SortOrder
+    high52w?: SortOrder
+    low52w?: SortOrder
+    marketCap?: SortOrder
+    circulatingSupply?: SortOrder
+    totalSupply?: SortOrder
+    maxSupply?: SortOrder
+    ath?: SortOrder
+    atl?: SortOrder
+    source?: SortOrder
     createdAt?: SortOrder
     updatedAt?: SortOrder
   }
@@ -64563,6 +65024,20 @@ export namespace Prisma {
     profitMargin?: SortOrder
     revenueGrowth?: SortOrder
     dividendYield?: SortOrder
+    currentRatio?: SortOrder
+    quickRatio?: SortOrder
+    grossMargin?: SortOrder
+    operatingMargin?: SortOrder
+    eps?: SortOrder
+    beta?: SortOrder
+    high52w?: SortOrder
+    low52w?: SortOrder
+    marketCap?: SortOrder
+    circulatingSupply?: SortOrder
+    totalSupply?: SortOrder
+    maxSupply?: SortOrder
+    ath?: SortOrder
+    atl?: SortOrder
   }
 
   export type AssetFundamentalsMaxOrderByAggregateInput = {
@@ -64574,6 +65049,21 @@ export namespace Prisma {
     profitMargin?: SortOrder
     revenueGrowth?: SortOrder
     dividendYield?: SortOrder
+    currentRatio?: SortOrder
+    quickRatio?: SortOrder
+    grossMargin?: SortOrder
+    operatingMargin?: SortOrder
+    eps?: SortOrder
+    beta?: SortOrder
+    high52w?: SortOrder
+    low52w?: SortOrder
+    marketCap?: SortOrder
+    circulatingSupply?: SortOrder
+    totalSupply?: SortOrder
+    maxSupply?: SortOrder
+    ath?: SortOrder
+    atl?: SortOrder
+    source?: SortOrder
     createdAt?: SortOrder
     updatedAt?: SortOrder
   }
@@ -64587,6 +65077,21 @@ export namespace Prisma {
     profitMargin?: SortOrder
     revenueGrowth?: SortOrder
     dividendYield?: SortOrder
+    currentRatio?: SortOrder
+    quickRatio?: SortOrder
+    grossMargin?: SortOrder
+    operatingMargin?: SortOrder
+    eps?: SortOrder
+    beta?: SortOrder
+    high52w?: SortOrder
+    low52w?: SortOrder
+    marketCap?: SortOrder
+    circulatingSupply?: SortOrder
+    totalSupply?: SortOrder
+    maxSupply?: SortOrder
+    ath?: SortOrder
+    atl?: SortOrder
+    source?: SortOrder
     createdAt?: SortOrder
     updatedAt?: SortOrder
   }
@@ -64599,6 +65104,20 @@ export namespace Prisma {
     profitMargin?: SortOrder
     revenueGrowth?: SortOrder
     dividendYield?: SortOrder
+    currentRatio?: SortOrder
+    quickRatio?: SortOrder
+    grossMargin?: SortOrder
+    operatingMargin?: SortOrder
+    eps?: SortOrder
+    beta?: SortOrder
+    high52w?: SortOrder
+    low52w?: SortOrder
+    marketCap?: SortOrder
+    circulatingSupply?: SortOrder
+    totalSupply?: SortOrder
+    maxSupply?: SortOrder
+    ath?: SortOrder
+    atl?: SortOrder
   }
 
   export type asset_healthAsset_idProvider_nameCompoundUniqueInput = {
@@ -69853,6 +70372,21 @@ export namespace Prisma {
     profitMargin?: Decimal | DecimalJsLike | number | string | null
     revenueGrowth?: Decimal | DecimalJsLike | number | string | null
     dividendYield?: Decimal | DecimalJsLike | number | string | null
+    currentRatio?: Decimal | DecimalJsLike | number | string | null
+    quickRatio?: Decimal | DecimalJsLike | number | string | null
+    grossMargin?: Decimal | DecimalJsLike | number | string | null
+    operatingMargin?: Decimal | DecimalJsLike | number | string | null
+    eps?: Decimal | DecimalJsLike | number | string | null
+    beta?: Decimal | DecimalJsLike | number | string | null
+    high52w?: Decimal | DecimalJsLike | number | string | null
+    low52w?: Decimal | DecimalJsLike | number | string | null
+    marketCap?: Decimal | DecimalJsLike | number | string | null
+    circulatingSupply?: Decimal | DecimalJsLike | number | string | null
+    totalSupply?: Decimal | DecimalJsLike | number | string | null
+    maxSupply?: Decimal | DecimalJsLike | number | string | null
+    ath?: Decimal | DecimalJsLike | number | string | null
+    atl?: Decimal | DecimalJsLike | number | string | null
+    source?: string | null
     createdAt: Date | string
     updatedAt: Date | string
   }
@@ -69865,6 +70399,21 @@ export namespace Prisma {
     profitMargin?: Decimal | DecimalJsLike | number | string | null
     revenueGrowth?: Decimal | DecimalJsLike | number | string | null
     dividendYield?: Decimal | DecimalJsLike | number | string | null
+    currentRatio?: Decimal | DecimalJsLike | number | string | null
+    quickRatio?: Decimal | DecimalJsLike | number | string | null
+    grossMargin?: Decimal | DecimalJsLike | number | string | null
+    operatingMargin?: Decimal | DecimalJsLike | number | string | null
+    eps?: Decimal | DecimalJsLike | number | string | null
+    beta?: Decimal | DecimalJsLike | number | string | null
+    high52w?: Decimal | DecimalJsLike | number | string | null
+    low52w?: Decimal | DecimalJsLike | number | string | null
+    marketCap?: Decimal | DecimalJsLike | number | string | null
+    circulatingSupply?: Decimal | DecimalJsLike | number | string | null
+    totalSupply?: Decimal | DecimalJsLike | number | string | null
+    maxSupply?: Decimal | DecimalJsLike | number | string | null
+    ath?: Decimal | DecimalJsLike | number | string | null
+    atl?: Decimal | DecimalJsLike | number | string | null
+    source?: string | null
     createdAt: Date | string
     updatedAt: Date | string
   }
@@ -70147,6 +70696,21 @@ export namespace Prisma {
     profitMargin?: NullableDecimalFieldUpdateOperationsInput | Decimal | DecimalJsLike | number | string | null
     revenueGrowth?: NullableDecimalFieldUpdateOperationsInput | Decimal | DecimalJsLike | number | string | null
     dividendYield?: NullableDecimalFieldUpdateOperationsInput | Decimal | DecimalJsLike | number | string | null
+    currentRatio?: NullableDecimalFieldUpdateOperationsInput | Decimal | DecimalJsLike | number | string | null
+    quickRatio?: NullableDecimalFieldUpdateOperationsInput | Decimal | DecimalJsLike | number | string | null
+    grossMargin?: NullableDecimalFieldUpdateOperationsInput | Decimal | DecimalJsLike | number | string | null
+    operatingMargin?: NullableDecimalFieldUpdateOperationsInput | Decimal | DecimalJsLike | number | string | null
+    eps?: NullableDecimalFieldUpdateOperationsInput | Decimal | DecimalJsLike | number | string | null
+    beta?: NullableDecimalFieldUpdateOperationsInput | Decimal | DecimalJsLike | number | string | null
+    high52w?: NullableDecimalFieldUpdateOperationsInput | Decimal | DecimalJsLike | number | string | null
+    low52w?: NullableDecimalFieldUpdateOperationsInput | Decimal | DecimalJsLike | number | string | null
+    marketCap?: NullableDecimalFieldUpdateOperationsInput | Decimal | DecimalJsLike | number | string | null
+    circulatingSupply?: NullableDecimalFieldUpdateOperationsInput | Decimal | DecimalJsLike | number | string | null
+    totalSupply?: NullableDecimalFieldUpdateOperationsInput | Decimal | DecimalJsLike | number | string | null
+    maxSupply?: NullableDecimalFieldUpdateOperationsInput | Decimal | DecimalJsLike | number | string | null
+    ath?: NullableDecimalFieldUpdateOperationsInput | Decimal | DecimalJsLike | number | string | null
+    atl?: NullableDecimalFieldUpdateOperationsInput | Decimal | DecimalJsLike | number | string | null
+    source?: NullableStringFieldUpdateOperationsInput | string | null
     createdAt?: DateTimeFieldUpdateOperationsInput | Date | string
     updatedAt?: DateTimeFieldUpdateOperationsInput | Date | string
   }
@@ -70159,6 +70723,21 @@ export namespace Prisma {
     profitMargin?: NullableDecimalFieldUpdateOperationsInput | Decimal | DecimalJsLike | number | string | null
     revenueGrowth?: NullableDecimalFieldUpdateOperationsInput | Decimal | DecimalJsLike | number | string | null
     dividendYield?: NullableDecimalFieldUpdateOperationsInput | Decimal | DecimalJsLike | number | string | null
+    currentRatio?: NullableDecimalFieldUpdateOperationsInput | Decimal | DecimalJsLike | number | string | null
+    quickRatio?: NullableDecimalFieldUpdateOperationsInput | Decimal | DecimalJsLike | number | string | null
+    grossMargin?: NullableDecimalFieldUpdateOperationsInput | Decimal | DecimalJsLike | number | string | null
+    operatingMargin?: NullableDecimalFieldUpdateOperationsInput | Decimal | DecimalJsLike | number | string | null
+    eps?: NullableDecimalFieldUpdateOperationsInput | Decimal | DecimalJsLike | number | string | null
+    beta?: NullableDecimalFieldUpdateOperationsInput | Decimal | DecimalJsLike | number | string | null
+    high52w?: NullableDecimalFieldUpdateOperationsInput | Decimal | DecimalJsLike | number | string | null
+    low52w?: NullableDecimalFieldUpdateOperationsInput | Decimal | DecimalJsLike | number | string | null
+    marketCap?: NullableDecimalFieldUpdateOperationsInput | Decimal | DecimalJsLike | number | string | null
+    circulatingSupply?: NullableDecimalFieldUpdateOperationsInput | Decimal | DecimalJsLike | number | string | null
+    totalSupply?: NullableDecimalFieldUpdateOperationsInput | Decimal | DecimalJsLike | number | string | null
+    maxSupply?: NullableDecimalFieldUpdateOperationsInput | Decimal | DecimalJsLike | number | string | null
+    ath?: NullableDecimalFieldUpdateOperationsInput | Decimal | DecimalJsLike | number | string | null
+    atl?: NullableDecimalFieldUpdateOperationsInput | Decimal | DecimalJsLike | number | string | null
+    source?: NullableStringFieldUpdateOperationsInput | string | null
     createdAt?: DateTimeFieldUpdateOperationsInput | Date | string
     updatedAt?: DateTimeFieldUpdateOperationsInput | Date | string
   }

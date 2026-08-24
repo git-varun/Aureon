@@ -1,44 +1,116 @@
 import { prisma } from "../../prisma";
 import { NotFoundError, ProviderError } from "../errors";
+import { Prisma } from "../../generated/prisma";
 import * as yahoo from "./yahoo";
+import * as finnhub from "./finnhub";
+import * as alphavantage from "./alphavantage";
+import * as coingecko from "./coingecko";
 
-/** Port of AssetsService._refresh_fundamentals. Swallows ProviderError (e.g.
- * yfinance has no coverage for this symbol, or it's a mutual fund/crypto
- * asset yahoo-finance2 can't resolve) so a refresh attempt on an
- * unsupported symbol doesn't 500 the whole page — the response just keeps
- * serving whatever real data already exists. */
-async function refreshFundamentals(symbol: string, assetId: string): Promise<void> {
+const CRYPTO_ASSET_CLASSES = new Set(["crypto", "crypto_futures", "stablecoin"]);
+
+/** AssetFundamentals.assetId FKs to AssetSnapshot.assetId, not Asset.id — an
+ * asset that has a LatestQuote row but no AssetSnapshot row yet (snapshot
+ * generation hasn't run for it) trips a real FK violation on upsert, not a
+ * ProviderError. Treated the same as a provider failure: swallow and keep
+ * serving whatever already exists, rather than a raw 500 out of getFundamentals. */
+function isFkViolation(e: unknown): boolean {
+  return e instanceof Prisma.PrismaClientKnownRequestError && e.code === "P2003";
+}
+
+type FundamentalsFields = {
+  trailingPe?: number | null; priceToBook?: number | null; roe?: number | null;
+  debtToEquity?: number | null; profitMargin?: number | null; revenueGrowth?: number | null;
+  dividendYield?: number | null; currentRatio?: number | null; quickRatio?: number | null;
+  grossMargin?: number | null; operatingMargin?: number | null; eps?: number | null;
+  beta?: number | null; high52w?: number | null; low52w?: number | null;
+  marketCap?: number | null; circulatingSupply?: number | null; totalSupply?: number | null;
+  maxSupply?: number | null; ath?: number | null; atl?: number | null;
+};
+
+function toFields(f: Record<string, unknown>): FundamentalsFields {
+  const n = (v: unknown): number | null => (v == null ? null : Number(v));
+  return {
+    trailingPe: n(f.trailing_pe), priceToBook: n(f.price_to_book), roe: n(f.roe),
+    debtToEquity: n(f.debt_to_equity), profitMargin: n(f.profit_margin), revenueGrowth: n(f.revenue_growth),
+    dividendYield: n(f.dividend_yield), currentRatio: n(f.current_ratio), quickRatio: n(f.quick_ratio),
+    grossMargin: n(f.gross_margin), operatingMargin: n(f.operating_margin), eps: n(f.eps),
+    beta: n(f.beta), high52w: n(f.high_52w), low52w: n(f.low_52w),
+    marketCap: n(f.market_cap), circulatingSupply: n(f.circulating_supply), totalSupply: n(f.total_supply),
+    maxSupply: n(f.max_supply), ath: n(f.ath), atl: n(f.atl),
+  };
+}
+
+async function upsertFundamentals(assetId: string, fields: FundamentalsFields, source: string): Promise<void> {
+  const now = new Date();
+  await prisma.assetFundamentals.upsert({
+    where: { assetId },
+    create: { assetId, ...fields, source, createdAt: now, updatedAt: now },
+    update: { ...fields, source, updatedAt: now },
+  });
+}
+
+/** Equity chain: Yahoo (unlimited, primary) -> Finnhub (60/min, generous) ->
+ * AlphaVantage OVERVIEW (25/day, last resort — only reached when both
+ * upstream calls fail). Each stage merges onto the previous partial result
+ * rather than overwriting wholesale, so a Yahoo success with a few nulls
+ * still benefits from Finnhub filling gaps (e.g. beta/eps/52w range Yahoo's
+ * adapter doesn't extract). Yahoo's own beta (already fetched, previously
+ * dropped) is included as a fallback under Finnhub's. */
+async function refreshEquityFundamentals(symbol: string, assetId: string): Promise<void> {
+  let merged: Record<string, unknown> = {};
+  let source = "none";
   try {
-    const f = await yahoo.getFundamentals(symbol);
-    const now = new Date();
-    await prisma.assetFundamentals.upsert({
-      where: { assetId },
-      create: {
-        assetId,
-        trailingPe: f.trailing_pe as number | null,
-        priceToBook: f.price_to_book as number | null,
-        roe: f.roe as number | null,
-        debtToEquity: f.debt_to_equity as number | null,
-        profitMargin: f.profit_margin as number | null,
-        revenueGrowth: f.revenue_growth as number | null,
-        dividendYield: f.dividend_yield as number | null,
-        createdAt: now,
-        updatedAt: now,
-      },
-      update: {
-        trailingPe: f.trailing_pe as number | null,
-        priceToBook: f.price_to_book as number | null,
-        roe: f.roe as number | null,
-        debtToEquity: f.debt_to_equity as number | null,
-        profitMargin: f.profit_margin as number | null,
-        revenueGrowth: f.revenue_growth as number | null,
-        dividendYield: f.dividend_yield as number | null,
-        updatedAt: now,
-      },
-    });
+    merged = { ...(await yahoo.getFundamentals(symbol)) };
+    source = "yahoo";
   } catch (e) {
     if (!(e instanceof ProviderError)) throw e;
-    // Swallowed — matches Python's except ProviderError: rollback and keep serving existing data.
+  }
+  try {
+    const fh = await finnhub.getFundamentals(symbol);
+    merged = { ...fh, ...Object.fromEntries(Object.entries(merged).filter(([, v]) => v != null)) };
+    if (source === "none") source = "finnhub";
+    else source = `${source}+finnhub`;
+  } catch (e) {
+    if (!(e instanceof ProviderError)) throw e;
+  }
+  if (Object.values(merged).every((v) => v == null)) {
+    try {
+      merged = await alphavantage.getFundamentals(symbol);
+      source = "alphavantage";
+    } catch (e) {
+      if (!(e instanceof ProviderError)) throw e;
+    }
+  }
+  if (Object.values(merged).every((v) => v == null)) return; // total failure, swallow like before
+
+  try {
+    await upsertFundamentals(assetId, toFields(merged), source);
+  } catch (e) {
+    if (!isFkViolation(e)) throw e;
+    // Swallowed — no AssetSnapshot row yet for this asset, same "keep serving existing data" behavior.
+  }
+}
+
+async function refreshCryptoFundamentals(symbol: string, assetId: string): Promise<void> {
+  try {
+    const f = await coingecko.getFundamentals(symbol);
+    await upsertFundamentals(assetId, toFields(f), "coingecko");
+  } catch (e) {
+    if (!(e instanceof ProviderError) && !isFkViolation(e)) throw e;
+    // Swallowed, matches existing "keep serving existing data" behavior.
+  }
+}
+
+/** Port of AssetsService._refresh_fundamentals, extended with a real
+ * per-asset-class routing decision (previously Yahoo-only regardless of
+ * class). CoinGecko is on-demand only (2 calls/60s budget) — never called
+ * from a loop/job, only from this explicit ?refresh=true path. */
+async function refreshFundamentals(symbol: string, assetId: string): Promise<void> {
+  const asset = await prisma.asset.findUnique({ where: { id: assetId }, select: { assetClass: true } });
+  if (asset && CRYPTO_ASSET_CLASSES.has(asset.assetClass)) {
+    await refreshCryptoFundamentals(symbol, assetId);
+  } else {
+    await refreshEquityFundamentals(symbol, assetId);
   }
 }
 
@@ -48,8 +120,8 @@ async function refreshFundamentals(symbol: string, assetId: string): Promise<voi
  * to true fractions (yfinance's raw convention — see yahoo.ts's dividend_yield
  * comment for why Node's adapter re-scales *100 before storage so this
  * read-time /100 stays correct regardless of which backend refreshed the row).
- * Exactly 6 fields are hardcoded null (no backing source anywhere in Aureon
- * today): eps, beta, vol_30d, high_52w, low_52w, graham_number. */
+ * vol_30d and graham_number stay hardcoded null (no backing source anywhere
+ * in Aureon today). */
 export async function getFundamentals(symbolRaw: string, refresh = false): Promise<Record<string, unknown>> {
   const symbol = symbolRaw.toUpperCase().trim();
   const quote = await prisma.latestQuote.findUnique({ where: { symbol } });
@@ -77,7 +149,7 @@ export async function getFundamentals(symbolRaw: string, refresh = false): Promi
     symbol,
     pe_ratio: peRatio,
     rsi: snap?.rsi != null ? Number(snap.rsi) : null,
-    market_cap: snap?.marketCap != null ? Number(snap.marketCap) : null,
+    market_cap: fund?.marketCap != null ? Number(fund.marketCap) : snap?.marketCap != null ? Number(snap.marketCap) : null,
     momentum_score: snap?.momentumScore != null ? Number(snap.momentumScore) : null,
     volatility_score: snap?.volatilityScore != null ? Number(snap.volatilityScore) : null,
     sentiment_score: snap?.sentimentScore != null ? Number(snap.sentimentScore) : null,
@@ -87,12 +159,20 @@ export async function getFundamentals(symbolRaw: string, refresh = false): Promi
     roe: fund?.roe != null ? Number(fund.roe) : null,
     de_ratio: fund?.debtToEquity != null ? Number(fund.debtToEquity) / 100 : null,
     dividend_yield: fund?.dividendYield != null ? Number(fund.dividendYield) / 100 : null,
-    eps: null,
-    beta: null,
+    current_ratio: fund?.currentRatio != null ? Number(fund.currentRatio) : null,
+    quick_ratio: fund?.quickRatio != null ? Number(fund.quickRatio) : null,
+    gross_margin: fund?.grossMargin != null ? Number(fund.grossMargin) : null,
+    operating_margin: fund?.operatingMargin != null ? Number(fund.operatingMargin) : null,
+    eps: fund?.eps != null ? Number(fund.eps) : null,
+    beta: fund?.beta != null ? Number(fund.beta) : null,
     vol_30d: null,
-    high_52w: null,
-    low_52w: null,
+    high_52w: fund?.high52w != null ? Number(fund.high52w) : null,
+    low_52w: fund?.low52w != null ? Number(fund.low52w) : null,
     graham_number: null,
+    circulating_supply: fund?.circulatingSupply != null ? Number(fund.circulatingSupply) : null,
+    total_supply: fund?.totalSupply != null ? Number(fund.totalSupply) : null,
+    ath: fund?.ath != null ? Number(fund.ath) : null,
+    atl: fund?.atl != null ? Number(fund.atl) : null,
     data_source: dataSource,
   };
 }

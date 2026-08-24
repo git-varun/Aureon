@@ -200,17 +200,32 @@ model asset_features {
 }
 
 model AssetFundamentals {
-  assetId        String        @id(map: "pk_asset_fundamentals") @db.Uuid @map("asset_id")
-  trailingPe     Decimal?      @db.Decimal @map("trailing_pe")
-  priceToBook    Decimal?      @db.Decimal @map("price_to_book")
-  roe            Decimal?      @db.Decimal
-  debtToEquity   Decimal?      @db.Decimal @map("debt_to_equity")
-  profitMargin   Decimal?      @db.Decimal @map("profit_margin")
-  revenueGrowth  Decimal?      @db.Decimal @map("revenue_growth")
-  dividendYield  Decimal?      @db.Decimal @map("dividend_yield")
-  createdAt      DateTime      @db.Timestamp(6) @map("created_at")
-  updatedAt      DateTime      @db.Timestamp(6) @map("updated_at")
-  assetSnapshot  AssetSnapshot @relation(fields: [assetId], references: [assetId], onDelete: Cascade, onUpdate: NoAction, map: "fk_asset_fundamentals_asset_id")
+  assetId          String        @id(map: "pk_asset_fundamentals") @db.Uuid @map("asset_id")
+  trailingPe       Decimal?      @db.Decimal @map("trailing_pe")
+  priceToBook      Decimal?      @db.Decimal @map("price_to_book")
+  roe              Decimal?      @db.Decimal
+  debtToEquity     Decimal?      @db.Decimal @map("debt_to_equity")
+  profitMargin     Decimal?      @db.Decimal @map("profit_margin")
+  revenueGrowth    Decimal?      @db.Decimal @map("revenue_growth")
+  dividendYield    Decimal?      @db.Decimal @map("dividend_yield")
+  currentRatio     Decimal?      @db.Decimal @map("current_ratio")
+  quickRatio       Decimal?      @db.Decimal @map("quick_ratio")
+  grossMargin      Decimal?      @db.Decimal @map("gross_margin")
+  operatingMargin  Decimal?      @db.Decimal @map("operating_margin")
+  eps              Decimal?      @db.Decimal
+  beta             Decimal?      @db.Decimal
+  high52w          Decimal?      @db.Decimal @map("high_52w")
+  low52w           Decimal?      @db.Decimal @map("low_52w")
+  marketCap        Decimal?      @db.Decimal @map("market_cap")
+  circulatingSupply Decimal?     @db.Decimal @map("circulating_supply")
+  totalSupply      Decimal?      @db.Decimal @map("total_supply")
+  maxSupply        Decimal?      @db.Decimal @map("max_supply")
+  ath              Decimal?      @db.Decimal
+  atl              Decimal?      @db.Decimal
+  source           String?       @db.VarChar
+  createdAt        DateTime      @db.Timestamp(6) @map("created_at")
+  updatedAt        DateTime      @db.Timestamp(6) @map("updated_at")
+  assetSnapshot    AssetSnapshot @relation(fields: [assetId], references: [assetId], onDelete: Cascade, onUpdate: NoAction, map: "fk_asset_fundamentals_asset_id")
 
   @@map("asset_fundamentals")
   @@schema("market")

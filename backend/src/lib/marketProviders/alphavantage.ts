@@ -1,6 +1,17 @@
 import { ConfigurationError, ProviderError } from "../errors";
-import { tryConsumeProviderBudget } from "./redisRateLimit";
+import { tryConsumeProviderBudget, getCachedStatement, cacheStatement } from "./redisRateLimit";
 import type { NormalizedQuote } from "./types";
+
+export type StatementType = "earnings" | "income_statement" | "balance_sheet" | "cash_flow" | "dividends" | "splits";
+
+const STATEMENT_FUNCTION: Record<StatementType, string> = {
+  earnings: "EARNINGS",
+  income_statement: "INCOME_STATEMENT",
+  balance_sheet: "BALANCE_SHEET",
+  cash_flow: "CASH_FLOW",
+  dividends: "DIVIDENDS",
+  splits: "SPLITS",
+};
 
 const BASE_URL = "https://www.alphavantage.co/query";
 const PROVIDER_NAME = "alphavantage";
@@ -86,7 +97,10 @@ export async function getFundamentals(symbol: string): Promise<Record<string, un
       price_to_book: num(data, "PriceToBookRatio"),
       roe: num(data, "ReturnOnEquityTTM"),
       profit_margin: num(data, "ProfitMargin"),
-      dividend_yield: num(data, "DividendYield"),
+      // AlphaVantage's DividendYield is a true fraction (0.0034 = 0.34%),
+      // but asset_fundamentals.dividend_yield stores the percent-scale
+      // convention (0.34) — see fundamentals.ts's unit-normalization table.
+      dividend_yield: num(data, "DividendYield") != null ? (num(data, "DividendYield") as number) * 100 : null,
       market_cap: num(data, "MarketCapitalization"),
       sector: data.Sector ?? null,
       industry: data.Industry ?? null,
@@ -95,6 +109,24 @@ export async function getFundamentals(symbol: string): Promise<Record<string, un
     if (e instanceof ProviderError) throw e;
     throw new ProviderError(`Alpha Vantage get_fundamentals failed for ${symbol}: ${(e as Error).message}`);
   }
+}
+
+/** On-demand only — never called from a job. Checks the 24h Redis cache
+ * before touching the 25/day budget, since a user re-opening the same
+ * asset's financials tab within a day shouldn't cost a real call. One
+ * AlphaVantage function per invocation — callers must not fan this out
+ * across all six types in a single request. */
+export async function getStatement(symbol: string, statementType: StatementType): Promise<Record<string, unknown>> {
+  rejectIndia(symbol);
+  const cached = await getCachedStatement(symbol, statementType);
+  if (cached) return cached;
+
+  const data = await get({ function: STATEMENT_FUNCTION[statementType], symbol }, symbol);
+  if (!data || Object.keys(data).length === 0) {
+    throw new ProviderError(`No ${statementType} data returned from Alpha Vantage for symbol ${symbol}`);
+  }
+  await cacheStatement(symbol, statementType, data);
+  return data;
 }
 
 export async function healthCheck(): Promise<boolean> {
