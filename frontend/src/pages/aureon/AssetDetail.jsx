@@ -193,7 +193,9 @@ function QuoteSection({ticker, price}) {
 // comment on get_fundamentals (backend/app/modules/market/services/assets.py)
 // for what each would need. Always rendered as "Unavailable", never a value,
 // regardless of what the API response contains for them.
-const FUNDAMENTALS_UNSUPPORTED = new Set(['eps', 'beta', 'vol_30d', 'high_52w', 'low_52w', 'graham_number']);
+// vol_30d and graham_number are derived, not provider-supplied — no source
+// in this wave. eps/beta/high_52w/low_52w are now real (Finnhub /stock/metric).
+const FUNDAMENTALS_UNSUPPORTED = new Set(['vol_30d', 'graham_number']);
 
 /* ── FundamentalsSection ─────────────────────────────────────── */
 function FundamentalsSection({ticker}) {
@@ -241,7 +243,21 @@ function FundamentalsSection({ticker}) {
         ['Sentiment',    fn2(d?.sentiment_score)],
         ['Quality',      fpct(d?.quality_score)],
         ['Valuation',    fpct(d?.valuation_score)],
+        ['Current ratio', fn2(d?.current_ratio)],
+        ['Quick ratio',   fn2(d?.quick_ratio)],
+        ['Gross margin',  fpct(d?.gross_margin)],
+        ['Op. margin',    fpct(d?.operating_margin)],
     ];
+
+    const [statement, setStatement] = useState(null);
+    const [statementLoading, setStatementLoading] = useState(false);
+    const loadStatement = useCallback(() => {
+        setStatementLoading(true);
+        apiService.getAssetStatement(ticker, 'income_statement')
+            .then(d => setStatement(d))
+            .catch(() => setStatement(null))
+            .finally(() => setStatementLoading(false));
+    }, [ticker]);
 
     return (
         <SectionCard id="section-fundamentals" eyebrow="Financials" title="Fundamentals" status={status} retry={retry}>
@@ -253,6 +269,38 @@ function FundamentalsSection({ticker}) {
                     </div>
                 ))}
             </div>
+                {(d?.circulating_supply != null || d?.ath != null) && (
+                    <div style={{display: 'grid', gridTemplateColumns: 'repeat(3,1fr)', gap: '18px 28px', marginTop: 18}}>
+                        <div>
+                            <div style={{fontSize: 10, letterSpacing: '0.13em', textTransform: 'uppercase', color: 'var(--ink-40)', fontWeight: 600}}>Circulating supply</div>
+                            <div style={{fontFamily: 'var(--font-mono)', fontSize: 19, fontWeight: 500, marginTop: 5}}>{d?.circulating_supply != null ? fmcap(d.circulating_supply) : '—'}</div>
+                        </div>
+                        <div>
+                            <div style={{fontSize: 10, letterSpacing: '0.13em', textTransform: 'uppercase', color: 'var(--ink-40)', fontWeight: 600}}>All-time high</div>
+                            <div style={{fontFamily: 'var(--font-mono)', fontSize: 19, fontWeight: 500, marginTop: 5}}>{fn2(d?.ath)}</div>
+                        </div>
+                        <div>
+                            <div style={{fontSize: 10, letterSpacing: '0.13em', textTransform: 'uppercase', color: 'var(--ink-40)', fontWeight: 600}}>All-time low</div>
+                            <div style={{fontFamily: 'var(--font-mono)', fontSize: 19, fontWeight: 500, marginTop: 5}}>{fn2(d?.atl)}</div>
+                        </div>
+                    </div>
+                )}
+                {d?.pe_ratio != null && ( // equity-only affordance
+                    <div style={{marginTop: 18}}>
+                        {!statement && (
+                            <button onClick={loadStatement} disabled={statementLoading} style={{fontSize: 12, padding: '6px 12px'}}>
+                                {statementLoading ? 'Loading…' : 'Load income statement'}
+                            </button>
+                        )}
+                        {statement?.annualReports?.[0] && (
+                            <div style={{fontSize: 13, marginTop: 8}}>
+                                <div>Revenue: {statement.annualReports[0].totalRevenue}</div>
+                                <div>Gross profit: {statement.annualReports[0].grossProfit}</div>
+                                <div>Net income: {statement.annualReports[0].netIncome}</div>
+                            </div>
+                        )}
+                    </div>
+                )}
         </SectionCard>
     );
 }
