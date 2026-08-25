@@ -210,6 +210,25 @@ export async function listMutualFundAssetsWithQuotes(): Promise<Array<{ id: stri
   });
 }
 
+/** (asset_id, symbol, name, metadata) for every mutual_fund asset actually
+ * held in at least one portfolio position — same held-ness definition as
+ * isSymbolHeld (a Position row exists for that symbol, no quantity-sign
+ * filtering). Used by backfillMutualFundNavHistory so a one-time backfill
+ * never wastes mfapi.in calls on Asset rows nobody holds. */
+export async function listHeldMutualFundAssets(): Promise<
+  Array<{ id: string; symbol: string; name: string; metadata: Record<string, unknown> | null }>
+> {
+  const positions = await prisma.position.findMany({ select: { symbol: true }, distinct: ["symbol"] });
+  const heldSymbols = positions.map((p) => p.symbol);
+  if (heldSymbols.length === 0) return [];
+
+  const assets = await prisma.asset.findMany({
+    where: { assetClass: "mutual_fund", symbol: { in: heldSymbols } },
+    select: { id: true, symbol: true, name: true, metadata: true },
+  });
+  return assets.map((a) => ({ id: a.id, symbol: a.symbol, name: a.name, metadata: (a.metadata as Record<string, unknown> | null) ?? null }));
+}
+
 /** Port of MarketRepository.list_all_assets. */
 export async function listAllAssets(): Promise<Asset[]> {
   return prisma.asset.findMany();
