@@ -105,10 +105,22 @@ describe("backfillMutualFundNavHistoryTask", () => {
         throw new Error(`unexpected fetch: ${url}`);
       }),
     );
+
+    // Enable the job for this test — it's disabled by default (registered as
+    // a rare/manual operation in DEFAULT_JOBS) so the skipIfDisabled check
+    // would short-circuit the actual backfill logic if we didn't enable it first.
+    await testPrisma.jobConfig.updateMany({
+      where: { jobName: "backfill_mutual_fund_nav_history" },
+      data: { enabled: true },
+    });
   });
 
   afterEach(async () => {
     vi.unstubAllGlobals();
+    await testPrisma.jobConfig.updateMany({
+      where: { jobName: "backfill_mutual_fund_nav_history" },
+      data: { enabled: false },
+    });
     await testPrisma.priceHistory.deleteMany({ where: { assetId: { in: [isinAssetId, slugAssetId] } } });
     await testPrisma.position.deleteMany({ where: { portfolioId } });
     await testPrisma.assetSnapshot.deleteMany({ where: { assetId: { in: [isinAssetId, slugAssetId] } } });

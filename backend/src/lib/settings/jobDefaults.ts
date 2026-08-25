@@ -32,6 +32,7 @@ export const DEFAULT_JOBS: DefaultJob[] = [
   // (see celery_app.py); the user runs it deliberately via "Run Now".
 
   { jobName: "seed_tracked_universes", enabled: false, jobTier: "user" },
+  { jobName: "backfill_mutual_fund_nav_history", enabled: false, jobTier: "user" },
   { jobName: "refresh_tracked_universe", enabled: true, jobTier: "user" },
   { jobName: "sweep_stale_job_logs", enabled: true, jobTier: "system" },
 ];

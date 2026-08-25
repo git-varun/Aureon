@@ -19,6 +19,7 @@ import { refreshFundamentalsTask } from "../../jobs/refreshFundamentals";
 import { validateDataQualityTask } from "../../jobs/validateDataQuality";
 import { adminReprocessAllAssetsTask, adminRepairJobsTask } from "../../jobs/adminMaintenance";
 import { seedTrackedUniversesTask } from "../../jobs/seedTrackedUniverses";
+import { backfillMutualFundNavHistoryTask } from "../../jobs/backfillMutualFundNavHistory";
 import { logger } from "../logger";
 
 const redis = new Redis(process.env.REDIS_URL!);
@@ -49,6 +50,7 @@ const JOB_RUNNERS: Record<string, (logId: number) => Promise<void>> = {
   admin_reprocess_all: adminReprocessAllAssetsTask,
   admin_repair: adminRepairJobsTask,
   seed_tracked_universes: seedTrackedUniversesTask,
+  backfill_mutual_fund_nav_history: backfillMutualFundNavHistoryTask,
 };
 
 // Port of ConfigService._PROVIDER_REQUIRED_JOBS — dispatch_job checks the
