@@ -25,7 +25,7 @@ interface ResolveResult {
  * see Global Constraints). */
 async function resolveSchemeCode(asset: HeldMfAsset, schemeList: MfapiSchemeListEntry[]): Promise<ResolveResult> {
   const rawIsin = asset.symbol.endsWith("_MF") ? asset.symbol.slice(0, -3) : "";
-  if (rawIsin.startsWith("INF")) {
+  if (/^INF[A-Z0-9]{9}$/.test(rawIsin)) {
     return { schemeCode: matchIsinToSchemeCode(rawIsin, schemeList), needsReview: false };
   }
 

@@ -57,7 +57,7 @@ export async function getSchemeHistory(schemeCode: number): Promise<MfapiHistory
     const body = (await res.json()) as { data: Array<{ date: string; nav: string }> };
     return body.data
       .map((d) => ({ date: parseDdMmYyyy(d.date), nav: Number(d.nav) }))
-      .filter((p) => !Number.isNaN(p.nav))
+      .filter((p) => Number.isFinite(p.nav) && p.nav > 0 && !Number.isNaN(p.date.getTime()))
       .reverse();
   } catch (e) {
     throw new ProviderError(`mfapi.in history fetch failed for scheme ${schemeCode}: ${(e as Error).message}`);

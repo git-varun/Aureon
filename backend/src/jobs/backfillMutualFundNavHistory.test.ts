@@ -11,8 +11,11 @@ describe("backfillMutualFundNavHistoryTask", () => {
   let portfolioId: string;
   let isinAssetId: string;
   let slugAssetId: string;
+  let matchedSlugAssetId: string;
   const isinSymbol = "INF001A01001_MF";
   const slugSymbol = "SOME_UNRESOLVED_FUND_MF";
+  const matchedSlugSymbol = "SOME_MATCHED_FUND_MF";
+  const matchedSlugName = "Quant Small Cap Fund - Direct - Growth";
 
   beforeEach(async () => {
     portfolioId = uuidv4();
@@ -44,6 +47,19 @@ describe("backfillMutualFundNavHistoryTask", () => {
       },
     });
 
+    matchedSlugAssetId = uuidv4();
+    await testPrisma.asset.create({
+      data: {
+        id: matchedSlugAssetId,
+        symbol: matchedSlugSymbol,
+        name: matchedSlugName,
+        assetClass: "mutual_fund",
+        metadata: { currency: "INR" },
+        createdAt: new Date(),
+        updatedAt: new Date(),
+      },
+    });
+
     // Position.assetId's FK ("fk_positions_asset_id") targets
     // AssetSnapshot.assetId, not Asset.id directly (see prisma/schema.prisma) —
     // an AssetSnapshot row per asset is required for the position insert
@@ -52,6 +68,7 @@ describe("backfillMutualFundNavHistoryTask", () => {
       data: [
         { assetId: isinAssetId, createdAt: new Date(), updatedAt: new Date() },
         { assetId: slugAssetId, createdAt: new Date(), updatedAt: new Date() },
+        { assetId: matchedSlugAssetId, createdAt: new Date(), updatedAt: new Date() },
       ],
     });
 
@@ -79,6 +96,17 @@ describe("backfillMutualFundNavHistoryTask", () => {
           createdAt: new Date(),
           updatedAt: new Date(),
         },
+        {
+          id: uuidv4(),
+          portfolioId,
+          symbol: matchedSlugSymbol,
+          assetId: matchedSlugAssetId,
+          quantity: 3,
+          avgBuyPrice: 20,
+          wallet: "default",
+          createdAt: new Date(),
+          updatedAt: new Date(),
+        },
       ],
     });
 
@@ -100,7 +128,17 @@ describe("backfillMutualFundNavHistoryTask", () => {
           });
         }
         if (url.startsWith("https://api.mfapi.in/mf/search")) {
+          const query = decodeURIComponent(url.split("q=")[1] ?? "");
+          if (query === matchedSlugName) {
+            return jsonResponse([{ schemeCode: 555444, schemeName: matchedSlugName }]);
+          }
           return jsonResponse([{ schemeCode: 108273, schemeName: "Parag Parikh Flexi Cap Fund - Regular - Growth" }]);
+        }
+        if (url === "https://api.mfapi.in/mf/555444") {
+          return jsonResponse({
+            meta: { scheme_code: 555444 },
+            data: [{ date: "21-08-2026", nav: "50.0000" }],
+          });
         }
         throw new Error(`unexpected fetch: ${url}`);
       }),
@@ -121,10 +159,10 @@ describe("backfillMutualFundNavHistoryTask", () => {
       where: { jobName: "backfill_mutual_fund_nav_history" },
       data: { enabled: false },
     });
-    await testPrisma.priceHistory.deleteMany({ where: { assetId: { in: [isinAssetId, slugAssetId] } } });
+    await testPrisma.priceHistory.deleteMany({ where: { assetId: { in: [isinAssetId, slugAssetId, matchedSlugAssetId] } } });
     await testPrisma.position.deleteMany({ where: { portfolioId } });
-    await testPrisma.assetSnapshot.deleteMany({ where: { assetId: { in: [isinAssetId, slugAssetId] } } });
-    await testPrisma.asset.deleteMany({ where: { id: { in: [isinAssetId, slugAssetId] } } });
+    await testPrisma.assetSnapshot.deleteMany({ where: { assetId: { in: [isinAssetId, slugAssetId, matchedSlugAssetId] } } });
+    await testPrisma.asset.deleteMany({ where: { id: { in: [isinAssetId, slugAssetId, matchedSlugAssetId] } } });
     await testPrisma.portfolio.delete({ where: { id: portfolioId } });
   });
 
@@ -143,10 +181,24 @@ describe("backfillMutualFundNavHistoryTask", () => {
     const slugHistory = await testPrisma.priceHistory.findMany({ where: { assetId: slugAssetId } });
     expect(slugHistory).toHaveLength(0);
 
-    // "Fund A - Growth" vs "Fund A - Growth" is exact, but this fund's
-    // symbol is already ISIN-based so no metadata write should happen from
-    // the name-search path.
+    // The slug asset's name ("Parag Parikh Flexi Cap Fund - Direct - Growth")
+    // does NOT exactly match the mocked search result's name ("... Regular -
+    // Growth"), so matchNameToSchemeCode() returns null and no metadata
+    // write happens for this asset.
     const slugAsset = await testPrisma.asset.findUniqueOrThrow({ where: { id: slugAssetId } });
     expect(slugAsset.metadata).toBeNull();
+  });
+
+  it("merges resolved scheme identity into Asset.metadata without clobbering pre-existing keys", async () => {
+    await backfillMutualFundNavHistoryTask();
+
+    const matchedAsset = await testPrisma.asset.findUniqueOrThrow({ where: { id: matchedSlugAssetId } });
+    const metadata = matchedAsset.metadata as Record<string, unknown>;
+    expect(metadata.amfiSchemeCode).toBe(555444);
+    expect(metadata.currency).toBe("INR");
+
+    const matchedHistory = await testPrisma.priceHistory.findMany({ where: { assetId: matchedSlugAssetId } });
+    expect(matchedHistory).toHaveLength(1);
+    expect(Number(matchedHistory[0].price)).toBe(50);
   });
 });
