@@ -28,11 +28,13 @@ const port = process.env.PORT ?? 8010;
 
 // "combined" plus response-time (ms), appended — apache combined log format
 // has no duration token of its own.
+
 app.use(
   morgan(':remote-addr - :remote-user [:date[clf]] ":method :url HTTP/:http-version" :status :res[content-length] ":referrer" ":user-agent" :response-time ms', {
     stream: { write: (msg) => logger.info(msg.trim()) },
   }),
 );
+
 app.use(express.json());
 app.use("/api/v1/portfolio", portfolioRouter);
 app.use("/api/v1", marketAssetsRouter);
@@ -72,7 +74,7 @@ async function start() {
   const startupRedis = new Redis(process.env.REDIS_URL!);
   await startupRedis.ping();
   await startupRedis.quit();
-  logger.info("redis connection established");
+  logger.info("Redis connection established");
 
   await seedDefaultProviders();
   await seedDefaultJobs();

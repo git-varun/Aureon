@@ -1,5 +1,5 @@
 import Redis from "ioredis";
-import { logger } from "../logger";
+import {logger} from "../logger";
 
 // Same Redis instance/keys as the Python backend's app/core/redis.py — the
 // budget/cooldown counters are deliberately shared across both backends
@@ -155,4 +155,34 @@ export async function getCachedStatement(symbol: string, statementType: string):
     // Best-effort, matches getCachedQuote's swallow.
   }
   return null;
+}
+
+// Market-wide (not per-symbol), shared across every viewer of the Markets
+// page — without a cache, a handful of concurrent page loads alone would
+// exhaust CoinGecko's 2-calls/60s budget for everyone.
+// Versioned: a warm 5min entry from a prior response-shape must not get
+// served to a frontend built against a newer shape — bump the suffix on
+// any CryptoContext shape change rather than let a stale cast slip through.
+const CRYPTO_CONTEXT_CACHE_KEY = "coingecko:crypto_context:v1";
+const CRYPTO_CONTEXT_CACHE_TTL_SECONDS = 300;
+
+export async function cacheCryptoContext(data: Record<string, unknown>): Promise<void> {
+    try {
+        await redis.setex(CRYPTO_CONTEXT_CACHE_KEY, CRYPTO_CONTEXT_CACHE_TTL_SECONDS, JSON.stringify(data));
+    } catch {
+        // Best-effort, matches cacheStatement's swallow.
+    }
+}
+
+export async function getCachedCryptoContext(): Promise<Record<string, unknown> | null> {
+    try {
+        const data = await redis.get(CRYPTO_CONTEXT_CACHE_KEY);
+        if (data) {
+            const result = JSON.parse(data);
+            if (result && typeof result === "object" && !Array.isArray(result)) return result;
+        }
+    } catch {
+        // Best-effort, matches getCachedStatement's swallow.
+    }
+    return null;
 }

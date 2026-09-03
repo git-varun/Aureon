@@ -1,6 +1,12 @@
-import { ProviderError } from "../errors";
-import { isProviderCoolingDown, setProviderCooldown, tryConsumeProviderBudget } from "./redisRateLimit";
-import type { NormalizedQuote } from "./types";
+import {ProviderError} from "../errors";
+import {
+    cacheCryptoContext,
+    getCachedCryptoContext,
+    isProviderCoolingDown,
+    setProviderCooldown,
+    tryConsumeProviderBudget
+} from "./redisRateLimit";
+import type {NormalizedQuote} from "./types";
 
 const BASE_URL = "https://api.coingecko.com/api/v3";
 
@@ -224,6 +230,104 @@ export async function getHistoricalPrice(symbol: string, date: Date): Promise<nu
   }
 }
 
+export interface TrendingCoin {
+    id: string;
+    symbol: string;
+    name: string | null;
+    market_cap_rank: number | null;
+    price_usd: number | null;
+    price_change_pct_24h_usd: number | null;
+    // Pre-formatted by CoinGecko (e.g. "$50,354,424") — /search/trending has
+    // no raw numeric USD market cap field, only this string and a BTC-
+    // denominated number; passed through as-is rather than re-parsed.
+    market_cap_usd_formatted: string | null;
+    thumb: string | null;
+}
+
+export interface CryptoContext {
+    trending: TrendingCoin[];
+    global: {
+        active_cryptocurrencies: number | null;
+        markets: number | null;
+        total_market_cap_usd: number | null;
+        total_volume_usd: number | null;
+        market_cap_change_pct_24h_usd: number | null;
+        btc_dominance_pct: number | null;
+        eth_dominance_pct: number | null;
+        updated_at: string | null;
+    };
+}
+
+/** Market-wide crypto context — trending coins and global market cap/
+ * dominance, not per-asset. Redis-cached (5 min) since this is shared
+ * across every viewer, and the two calls below alone consume the entire
+ * 2-calls/60s budget for this provider. */
+export async function getCryptoContext(): Promise<CryptoContext> {
+    const cached = await getCachedCryptoContext();
+    if (cached) return cached as unknown as CryptoContext;
+
+    try {
+        return await fetchCryptoContext();
+    } catch (e) {
+        if (e instanceof ProviderError) throw e;
+        throw new ProviderError(`CoinGecko get_crypto_context failed: ${(e as Error).message}`);
+    }
+}
+
+async function fetchCryptoContext(): Promise<CryptoContext> {
+    await checkBudget();
+    const trendingRes = await get("/search/trending", {});
+    const trendingData = (await trendingRes.json()) as {
+        coins?: Array<{
+            item: {
+                id: string; symbol: string; name?: string; market_cap_rank?: number | null; thumb?: string;
+                data?: { price?: number; price_change_percentage_24h?: Record<string, number>; market_cap?: string };
+            };
+        }>;
+    };
+    const trending: TrendingCoin[] = (trendingData.coins ?? []).map((c) => ({
+        id: c.item.id,
+        symbol: c.item.symbol?.toUpperCase() ?? c.item.id,
+        name: c.item.name ?? null,
+        market_cap_rank: c.item.market_cap_rank ?? null,
+        price_usd: c.item.data?.price ?? null,
+        price_change_pct_24h_usd: c.item.data?.price_change_percentage_24h?.usd ?? null,
+        market_cap_usd_formatted: c.item.data?.market_cap ?? null,
+        thumb: c.item.thumb ?? null,
+    }));
+
+    await checkBudget();
+    const globalRes = await get("/global", {});
+    const globalData = (await globalRes.json()) as {
+        data?: {
+            active_cryptocurrencies?: number;
+            markets?: number;
+            total_market_cap?: Record<string, number>;
+            total_volume?: Record<string, number>;
+            market_cap_change_percentage_24h_usd?: number;
+            market_cap_percentage?: Record<string, number>;
+            updated_at?: number;
+        };
+    };
+    const g = globalData.data;
+    const result: CryptoContext = {
+        trending,
+        global: {
+            active_cryptocurrencies: g?.active_cryptocurrencies ?? null,
+            markets: g?.markets ?? null,
+            total_market_cap_usd: g?.total_market_cap?.usd ?? null,
+            total_volume_usd: g?.total_volume?.usd ?? null,
+            market_cap_change_pct_24h_usd: g?.market_cap_change_percentage_24h_usd ?? null,
+            btc_dominance_pct: g?.market_cap_percentage?.btc ?? null,
+            eth_dominance_pct: g?.market_cap_percentage?.eth ?? null,
+            updated_at: g?.updated_at ? new Date(g.updated_at * 1000).toISOString() : null,
+        },
+    };
+
+    await cacheCryptoContext(result as unknown as Record<string, unknown>);
+    return result;
+}
+
 export const coingeckoProvider = {
   getQuote,
   getFundamentals,
@@ -231,4 +335,5 @@ export const coingeckoProvider = {
   getTopMarketCapCoins,
   healthCheck,
   getHistoricalPrice,
+    getCryptoContext,
 };

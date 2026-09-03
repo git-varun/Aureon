@@ -1,11 +1,12 @@
-import { prisma } from "../../prisma";
-import { NotFoundError } from "../errors";
-import { computeDayPct } from "../marketProviders/sectors";
-import { classify } from "./classify";
-import { inferCurrency } from "../currency";
-import { pyRound } from "./round";
-import { searchMarket } from "./market";
-import { toPythonIsoString } from "../tz";
+import {prisma} from "../../prisma";
+import {NotFoundError, ValidationError} from "../errors";
+import {computeDayPct} from "../marketProviders/sectors";
+import {classify} from "./classify";
+import {inferCurrency} from "../currency";
+import {pyRound} from "./round";
+import {searchMarket} from "./market";
+import {toPythonIsoString} from "../tz";
+import {computeMacd, computeRsi, computeVolatility} from "../marketProviders/yahoo";
 
 // Port of AssetsService's module-level constants. Crypto-futures symbols
 // (e.g. "ETHUSD_PERP-COINM") are structurally unresolvable by the
@@ -92,6 +93,82 @@ export async function getSignal(symbolRaw: string): Promise<SignalResult> {
   if (!snap || snap.rsi === null) throw new NotFoundError("Signal not available yet");
 
   return signalFromRsi(symbol, Number(snap.rsi));
+}
+
+export interface TechnicalsResult {
+    symbol: string;
+    rsi: number | null;
+    macd: number | null;
+    macd_signal: number | null;
+    volatility: number | null;
+    as_of: string;
+    sample_size: number;
+}
+
+// MACD's slow EMA is 26-period; below that its output is structurally
+// unstable (still converging), so we require enough stored price_history
+// rows to produce a real value rather than silently returning nulls.
+const MIN_TECHNICALS_CLOSES = 26;
+
+// price_history's cadence isn't uniform per symbol: backfillHistory writes
+// one row/day, but a live quote poller also appends intraday rows for
+// "today" on top of that (confirmed live: BTC-USD has ~90 distinct calendar
+// days across ~104 rows, with several same-day duplicates from the last 24h
+// of polling). computeRsi/computeMacd assume daily bars (their defaults —
+// RSI-14, MACD 12/26/9 — are meaningless against a mixed daily/hourly
+// series), so rows are collapsed to one (the latest) close per calendar day
+// before computing, not used raw. Pull well past the 100-day target since
+// same-day duplicates cost rows without adding a day.
+const HISTORY_FETCH_ROWS = 400;
+
+/** Computes RSI/MACD/volatility on-demand from already-stored price_history
+ * rows — no live provider call. Reuses the same pure compute functions
+ * getTechnicalIndicators uses for the scheduled-job path, but sources closes
+ * from the DB instead of a fresh Yahoo fetch. */
+export async function getTechnicalsFromHistory(symbolRaw: string): Promise<TechnicalsResult> {
+    const symbol = symbolRaw.toUpperCase().trim();
+
+    const quote = await prisma.latestQuote.findUnique({where: {symbol}});
+    if (!quote || !quote.assetId) throw new NotFoundError("Asset not found");
+
+    const raw = await prisma.priceHistory.findMany({
+        where: {assetId: quote.assetId},
+        orderBy: {timestamp: "desc"},
+        take: HISTORY_FETCH_ROWS,
+    });
+
+    // One row per calendar day (UTC), keeping the latest timestamp seen for
+    // that day — raw is already timestamp-desc, so the first row encountered
+    // per day is its latest.
+    const seenDays = new Set<string>();
+    const dailyDesc: typeof raw = [];
+    for (const row of raw) {
+        const day = row.timestamp.toISOString().slice(0, 10);
+        if (seenDays.has(day)) continue;
+        seenDays.add(day);
+        dailyDesc.push(row);
+        if (dailyDesc.length >= 100) break;
+    }
+    const history = [...dailyDesc].reverse();
+
+    if (history.length < MIN_TECHNICALS_CLOSES) {
+        throw new ValidationError(
+            `Insufficient daily price history for ${symbol}: need at least ${MIN_TECHNICALS_CLOSES} distinct days, have ${history.length}`,
+        );
+    }
+
+    const closes: Array<number | null> = history.map((h) => Number(h.price));
+    const macdPair = computeMacd(closes);
+
+    return {
+        symbol,
+        rsi: computeRsi(closes),
+        macd: macdPair?.[0] ?? null,
+        macd_signal: macdPair?.[1] ?? null,
+        volatility: computeVolatility(closes),
+        as_of: toPythonIsoString(history[history.length - 1].timestamp),
+        sample_size: closes.length,
+    };
 }
 
 export interface BatchAssetOut {

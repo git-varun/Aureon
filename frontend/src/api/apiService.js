@@ -278,6 +278,7 @@ export const apiService = {
     getMarketSectors: () => handleRequest(API.get('/market/sectors')),
     getMarketMovers: () => handleRequest(API.get('/market/movers')),
     getMarketThemes: () => handleRequest(API.get('/market/themes')),
+    getCryptoContext: () => handleRequest(API.get('/market/crypto-context')),
     getMarketTheme: (themeId) => handleRequest(API.get(`/market/themes/${themeId}`)),
     getThemeSignals: (themeId) => handleRequest(API.get(`/market/themes/${themeId}/signals`)),
     getThemeNav: (themeId, days = 365) => handleRequest(API.get(`/market/themes/${themeId}/nav?days=${days}`)),
@@ -295,6 +296,8 @@ export const apiService = {
     getAssetFundamentals: (symbol, refresh = false) => handleRequest(API.get(`/assets/${symbol}/fundamentals`, {params: {refresh}})),
     getAssetStatement: (symbol, type) => handleRequest(API.get(`/assets/${symbol}/statements/${type}`)),
     getAssetSignal: (symbol) => handleRequest(API.get(`/signals/${symbol}`)),
+    getAssetTechnicals: (symbol) => handleRequest(API.get(`/assets/${symbol}/technicals`)),
+    getAssetAnalystSignals: (symbol) => handleRequest(API.get(`/assets/${symbol}/analyst-signals`)),
     fetchChartData: (symbol, days = 365) => handleRequest(API.get(`/assets/${symbol}/chart`, {params: {days}})),
     fetchAureonAsset: (ticker, portfolioId) => {
         const pid = portfolioId || getPortfolioId();

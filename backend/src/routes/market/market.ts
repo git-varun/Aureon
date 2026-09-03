@@ -1,15 +1,16 @@
-import { Router } from "express";
-import { requireUuidParam, requireQueryParam } from "../../lib/validation";
+import {Router} from "express";
+import {requireQueryParam, requireUuidParam} from "../../lib/validation";
 import {
-  getAssetSnapshot,
   getAssetFeatures,
+  getAssetSnapshot,
   getIndices,
   getMovers,
-  searchMarket,
   getUniverse,
   refreshMarket,
+  searchMarket,
   triggerBackfill,
 } from "../../lib/market/market";
+import {getCryptoContext} from "../../lib/marketProviders/coingecko";
 
 export const marketRouter = Router();
 
@@ -48,6 +49,13 @@ marketRouter.get("/search", async (req, res) => {
 marketRouter.get("/universe", async (req, res) => {
   const search = typeof req.query.search === "string" ? req.query.search : undefined;
   res.json(await getUniverse(search));
+});
+
+// Market-wide crypto context (trending coins, global cap/dominance) — new,
+// not a Python port. Redis-cached 5min server-side; the two CoinGecko calls
+// behind this consume the entire 2-calls/60s budget for that provider.
+marketRouter.get("/crypto-context", async (_req, res) => {
+    res.json(await getCryptoContext());
 });
 
 // Port of the POST /market/refresh Celery dispatch.

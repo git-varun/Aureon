@@ -719,7 +719,7 @@ const config = {
       "value": "prisma-client-js"
     },
     "output": {
-      "value": "/home/dev-var/Personal/Projects/aureon/.claude/worktrees/fundamentals-expansion-wave-c/backend/src/generated/prisma",
+        "value": "/app/src/generated/prisma",
       "fromEnvVar": null
     },
     "config": {
@@ -728,14 +728,14 @@ const config = {
     "binaryTargets": [
       {
         "fromEnvVar": null,
-        "value": "debian-openssl-3.0.x",
+          "value": "linux-musl-openssl-3.0.x",
         "native": true
       }
     ],
     "previewFeatures": [
       "multiSchema"
     ],
-    "sourceFilePath": "/home/dev-var/Personal/Projects/aureon/.claude/worktrees/fundamentals-expansion-wave-c/backend/prisma/schema.prisma",
+      "sourceFilePath": "/app/prisma/schema.prisma",
     "isCustomOutput": true
   },
   "relativeEnvPaths": {
@@ -749,6 +749,7 @@ const config = {
     "db"
   ],
   "activeProvider": "postgresql",
+    "postinstall": false,
   "inlineDatasources": {
     "db": {
       "url": {

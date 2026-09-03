@@ -18,7 +18,7 @@ export default function DecisionLineageDrawer({ extId, open, onClose }) {
     useEffect(() => {
         if (!open || !extId) return;
         setLoading(true);  // eslint-disable-line react-hooks/set-state-in-effect
-        setError(null);    // eslint-disable-line react-hooks/set-state-in-effect
+        setError(null);     
         apiService.getRecommendationLineage(extId)
             .then(data => {
                 setLineage(data);

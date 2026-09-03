@@ -1,6 +1,7 @@
 import YahooFinance from "yahoo-finance2";
-import { ProviderError } from "../errors";
-import type { NormalizedQuote, NormalizedNews } from "./types";
+import {ProviderError} from "../errors";
+import {toPythonIsoString} from "../tz";
+import type {NormalizedNews, NormalizedQuote} from "./types";
 
 // Narrowed shape of yahoo-finance2's SearchNews item — just the fields
 // filterYahooSearchNews reads, defined locally so it can be exercised with
@@ -104,6 +105,170 @@ export async function getFundamentals(symbol: string): Promise<Record<string, un
   } catch (e) {
     throw new ProviderError(`Yahoo get_fundamentals failed for ${symbol}: ${(e as Error).message}`);
   }
+}
+
+const MAX_UPGRADE_DOWNGRADE_ROWS = 20;
+const MAX_ANALYST_REPORTS = 5;
+
+export interface AnalystSignals {
+    symbol: string;
+    recommendation_trend: Array<{
+        period: string;
+        strong_buy: number | null;
+        buy: number | null;
+        hold: number | null;
+        sell: number | null;
+        strong_sell: number | null
+    }>;
+    upgrade_downgrade_history: Array<{
+        date: string;
+        firm: string | null;
+        to_grade: string | null;
+        from_grade: string | null;
+        action: string | null;
+        price_target_action: string | null;
+        current_price_target: number | null;
+        prior_price_target: number | null;
+    }>;
+    earnings_trend: Array<{
+        period: string;
+        end_date: string | null;
+        growth: number | null;
+        eps_estimate_avg: number | null;
+        eps_estimate_low: number | null;
+        eps_estimate_high: number | null;
+        eps_year_ago: number | null;
+        num_analysts: number | null;
+        revenue_estimate_avg: number | null;
+        revenue_estimate_low: number | null;
+        revenue_estimate_high: number | null;
+        revenue_year_ago: number | null;
+    }>;
+    target_price_high: number | null;
+    target_price_low: number | null;
+    target_price_mean: number | null;
+    target_price_median: number | null;
+    recommendation_mean: number | null;
+    recommendation_key: string | null;
+    analyst_count: number | null;
+    // A single provider's current rating + target — a distinct source from
+    // recommendation_mean/target_price_mean above (those are the consensus
+    // across all covering analysts; this is one named provider's latest call).
+    current_recommendation: { target_price: number | null; provider: string | null; rating: string | null } | null;
+    // Yahoo's insights `reports[].reportTitle` is confirmed live to be the
+    // report's full body paragraph, not a short title — `headHtml` is the
+    // actual short title. Surfaced as `title` here from `headHtml`, and the
+    // long body is dropped entirely (matches getNews's no-full-body
+    // convention).
+    recent_reports: Array<{
+        provider: string | null;
+        report_date: string | null;
+        report_type: string | null;
+        title: string | null;
+        target_price: number | null;
+        investment_rating: string | null;
+    }>;
+}
+
+/** Real analyst-signal data: consensus recommendation trend, rating-change
+ * history, forward earnings estimates, and target price — all free,
+ * unauthenticated Yahoo endpoints. Two separate Yahoo calls: one
+ * quoteSummary covering recommendationTrend/upgradeDowngradeHistory/
+ * earningsTrend/financialData (following getFundamentals's multi-module
+ * pattern), plus a second insights() call for its distinct single-provider
+ * rating + per-report ratings. Not `recommendationsBySymbol` — confirmed
+ * live that's Yahoo's "similar stocks" recommender, unrelated to analyst
+ * ratings despite the name. Live-only, no cache — matches every other
+ * Yahoo call in this file (Yahoo has no formal budget in this codebase).
+ *
+ * Crypto/other symbols with no analyst coverage confirmed live to throw a
+ * distinct quoteSummary error ("No fundamentals data found for symbol: X")
+ * from a genuinely unknown symbol's error ("Quote not found for symbol: X")
+ * — the former is treated as "no coverage" (empty result, not an error);
+ * `insights()` itself returns an empty-but-successful shape for these
+ * symbols rather than throwing, confirmed live for BTC-USD. */
+export async function getAnalystSignals(symbol: string): Promise<AnalystSignals> {
+    try {
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any -- quoteSummary's module-keyed overload resolves to `unknown` without an explicit generic; every field below is already null-coalesced.
+        let r: any = {};
+        try {
+            r = await yf.quoteSummary(symbol, {modules: ["recommendationTrend", "upgradeDowngradeHistory", "earningsTrend", "financialData"]});
+        } catch (e) {
+            if (!(e as Error).message?.startsWith("No fundamentals data found")) throw e;
+        }
+        const ins = await yf.insights(symbol);
+
+        const recommendationTrend = (r.recommendationTrend?.trend ?? []).map((t: any) => ({
+            period: t.period,
+            strong_buy: t.strongBuy ?? null,
+            buy: t.buy ?? null,
+            hold: t.hold ?? null,
+            sell: t.sell ?? null,
+            strong_sell: t.strongSell ?? null,
+        }));
+
+        const upgradeDowngradeHistory = (r.upgradeDowngradeHistory?.history ?? [])
+            .slice(0, MAX_UPGRADE_DOWNGRADE_ROWS)
+            .map((h: any) => ({
+                date: toPythonIsoString(h.epochGradeDate),
+                firm: h.firm ?? null,
+                to_grade: h.toGrade ?? null,
+                from_grade: h.fromGrade ?? null,
+                action: h.action ?? null,
+                price_target_action: h.priceTargetAction ?? null,
+                current_price_target: h.currentPriceTarget ?? null,
+                prior_price_target: h.priorPriceTarget ?? null,
+            }));
+
+        const earningsTrend = (r.earningsTrend?.trend ?? []).map((t: any) => ({
+            period: t.period,
+            end_date: t.endDate ? toPythonIsoString(t.endDate) : null,
+            growth: t.growth ?? null,
+            eps_estimate_avg: t.earningsEstimate?.avg ?? null,
+            eps_estimate_low: t.earningsEstimate?.low ?? null,
+            eps_estimate_high: t.earningsEstimate?.high ?? null,
+            eps_year_ago: t.earningsEstimate?.yearAgoEps ?? null,
+            num_analysts: t.earningsEstimate?.numberOfAnalysts ?? null,
+            revenue_estimate_avg: t.revenueEstimate?.avg ?? null,
+            revenue_estimate_low: t.revenueEstimate?.low ?? null,
+            revenue_estimate_high: t.revenueEstimate?.high ?? null,
+            revenue_year_ago: t.revenueEstimate?.yearAgoRevenue ?? null,
+        }));
+
+        const recentReports = (ins.reports ?? []).slice(0, MAX_ANALYST_REPORTS).map((rep) => ({
+            provider: rep.provider ?? null,
+            report_date: rep.reportDate ? toPythonIsoString(rep.reportDate) : null,
+            report_type: rep.reportType ?? null,
+            title: rep.headHtml ?? null,
+            target_price: rep.targetPrice ?? null,
+            investment_rating: rep.investmentRating ?? null,
+        }));
+
+        return {
+            symbol,
+            recommendation_trend: recommendationTrend,
+            upgrade_downgrade_history: upgradeDowngradeHistory,
+            earnings_trend: earningsTrend,
+            target_price_high: r.financialData?.targetHighPrice ?? null,
+            target_price_low: r.financialData?.targetLowPrice ?? null,
+            target_price_mean: r.financialData?.targetMeanPrice ?? null,
+            target_price_median: r.financialData?.targetMedianPrice ?? null,
+            recommendation_mean: r.financialData?.recommendationMean ?? null,
+            recommendation_key: r.financialData?.recommendationKey ?? null,
+            analyst_count: r.financialData?.numberOfAnalystOpinions ?? null,
+            current_recommendation: ins.recommendation
+                ? {
+                    target_price: ins.recommendation.targetPrice ?? null,
+                    provider: ins.recommendation.provider ?? null,
+                    rating: ins.recommendation.rating ?? null,
+                }
+                : null,
+            recent_reports: recentReports,
+        };
+    } catch (e) {
+        if (e instanceof ProviderError) throw e;
+        throw new ProviderError(`Yahoo get_analyst_signals failed for ${symbol}: ${(e as Error).message}`);
+    }
 }
 
 const PERIOD_TO_DAYS: Record<string, number> = { "1mo": 30, "3mo": 90, "6mo": 180, "1y": 365, "2y": 730, "5y": 1825 };

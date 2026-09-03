@@ -1,12 +1,12 @@
-import { Router } from "express";
-import { prisma } from "../../prisma";
-import { NotFoundError, RequestValidationError } from "../../lib/errors";
-import { requireUuidParam } from "../../lib/validation";
-import { resolvePositionsPriceMap } from "../../lib/prices";
-import { generatePortfolioSnapshot, serializeSnapshotForCache, getPortfolioHistory } from "../../lib/snapshot";
-import { cachePortfolioSnapshot, getCachedPortfolioSnapshot } from "../../lib/portfolioCache";
-import type { Position } from "../../generated/prisma";
-import type { PositionPrice } from "../../lib/prices";
+import {Router} from "express";
+import {prisma} from "../../prisma";
+import {NotFoundError, RequestValidationError} from "../../lib/errors";
+import {requireUuidParam} from "../../lib/validation";
+import type {PositionPrice} from "../../lib/prices";
+import {resolvePositionsPriceMap} from "../../lib/prices";
+import {generatePortfolioSnapshot, getPortfolioHistory, serializeSnapshotForCache} from "../../lib/snapshot";
+import {cachePortfolioSnapshot, getCachedPortfolioSnapshot} from "../../lib/portfolioCache";
+import type {Position} from "../../generated/prisma";
 
 export const positionsRouter = Router();
 
@@ -45,13 +45,22 @@ positionsRouter.get("/:id/positions", async (req, res) => {
   res.json(positionsList.map((p) => serializePosition(p, prices.get(p.id)!)));
 });
 
-function serializeSnapshotResponse(s: { portfolio_id: string; market_value: number | null; cash_balance: number | null; daily_return: number | null; total_return: number | null; updated_at: string }) {
+function serializeSnapshotResponse(s: {
+    portfolio_id: string;
+    market_value: number | null;
+    cash_balance: number | null;
+    daily_return: number | null;
+    total_return: number | null;
+    realized_pnl: number | null;
+    updated_at: string
+}) {
   return {
     portfolio_id: s.portfolio_id,
     market_value: s.market_value,
     cash_balance: s.cash_balance,
     daily_return: s.daily_return,
     total_return: s.total_return,
+      realized_pnl: s.realized_pnl,
     updated_at: s.updated_at,
   };
 }

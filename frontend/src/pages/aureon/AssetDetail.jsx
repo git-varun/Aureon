@@ -1,15 +1,15 @@
 /* Aureon — Asset Detail page.
-   Sections: Overview · Quote · Fundamentals · Technical · AI Take · News · Related Themes
+   Sections: Overview · Quote · Fundamentals · Technical · Analyst Signals · AI Take · News · Related Themes
    Each section loads independently with loading / empty / error / retry states.
    Header actions: Generate Signal, Refresh Market Data, Trigger Historical Backfill.
    Backend rules: never fabricate data; all missing fields render as "—". */
-import React, {useState, useEffect, useCallback} from 'react';
+import React, {useCallback, useEffect, useState} from 'react';
 import {useNavigate, useParams} from 'react-router-dom';
 import {useApp} from '@/components/aureon/store';
-import {Eyebrow, TierChip, PriceChart, Empty, EpfEstimateBadge} from '@/components/aureon/ui';
-import {DecisionUnit, ActionConfirmationModal} from '@/components/aureon/flow';
+import {Empty, EpfEstimateBadge, Eyebrow, PriceChart, TierChip} from '@/components/aureon/ui';
+import {ActionConfirmationModal, DecisionUnit} from '@/components/aureon/flow';
 import {apiService} from '@/api/apiService';
-import {valueOf, valueOfBase, plOf, plPctOf, isFutures} from '@/components/aureon/utils';
+import {isFutures, plOf, plPctOf, valueOf, valueOfBase} from '@/components/aureon/utils';
 import {useAureonData} from '@/hooks/useAureonData';
 import {useV4} from '@/contexts/V4Context';
 import {useFmtMoney} from '@/hooks/useFmtMoney';
@@ -198,7 +198,7 @@ function QuoteSection({ticker, price}) {
 const FUNDAMENTALS_UNSUPPORTED = new Set(['vol_30d', 'graham_number']);
 
 /* ── FundamentalsSection ─────────────────────────────────────── */
-function FundamentalsSection({ticker}) {
+function FundamentalsSection({ticker, refreshedData}) {
     const [state, setState] = useState(mkL());
     const [attempt, setAttempt] = useState(0);
 
@@ -207,6 +207,15 @@ function FundamentalsSection({ticker}) {
             .then(d => setState(d ? mkD(d) : mkD({})))
             .catch(e => setState(mkE(e)));
     }, [ticker, attempt]);
+
+    // Crypto path: header's "Refresh Market Data" button fetches with
+    // refresh=true itself (so its own loading/success state reflects the
+    // real CoinGecko call) and hands the result down here rather than this
+    // section re-fetching — avoids spending a second call against
+    // CoinGecko's 2-calls/60s budget for the same click.
+    useEffect(() => {
+        if (refreshedData) setState(mkD(refreshedData)); // eslint-disable-line react-hooks/set-state-in-effect
+    }, [refreshedData]);
 
     const retry = useCallback(() => setAttempt(a => a + 1), []);
     const d = state.data;
@@ -308,6 +317,7 @@ function FundamentalsSection({ticker}) {
 /* ── TechnicalSection ─────────────────────────────────────────── */
 function TechnicalSection({ticker, allRecs, onNavigateRecs}) {
     const [state, setState] = useState(mkL());
+    const [techState, setTechState] = useState(mkL());
     const [attempt, setAttempt] = useState(0);
     const [generating, setGenerating] = useState(false);
     const [expandedId, setExpandedId] = useState(null);
@@ -316,6 +326,9 @@ function TechnicalSection({ticker, allRecs, onNavigateRecs}) {
         apiService.getAssetSignal(ticker)
             .then(d => setState(d ? mkD(d) : mkD(null)))
             .catch(e => setState(mkE(e)));
+        apiService.getAssetTechnicals(ticker)
+            .then(d => setTechState(mkD(d)))
+            .catch(e => setTechState(mkE(e)));
     }, [ticker, attempt]);
 
     const retry = useCallback(() => setAttempt(a => a + 1), []);
@@ -414,10 +427,166 @@ function TechnicalSection({ticker, allRecs, onNavigateRecs}) {
                     )}
                 </div>
             </div>
+            {techState.data && (
+                // RSI is deliberately omitted here — the badge above already shows
+                // RSI from sig.rsi_14 (the job-cached AssetSnapshot value). Showing
+                // both would put two differently-derived RSI numbers in one card;
+                // MACD/signal/volatility have no existing display, so only those
+                // are new here.
+                <div style={{
+                    display: 'flex',
+                    gap: 16,
+                    padding: '10px 0',
+                    borderTop: '1px solid rgba(255,255,255,0.05)',
+                    fontSize: 11.5,
+                    fontFamily: 'var(--font-mono)',
+                    color: 'var(--ink-40)'
+                }}>
+                    <span>MACD <span
+                        style={{color: 'var(--ink-10)'}}>{techState.data.macd != null ? techState.data.macd.toFixed(3) : '—'}</span></span>
+                    <span>Signal <span
+                        style={{color: 'var(--ink-10)'}}>{techState.data.macd_signal != null ? techState.data.macd_signal.toFixed(3) : '—'}</span></span>
+                    <span>Volatility <span
+                        style={{color: 'var(--ink-10)'}}>{techState.data.volatility != null ? (techState.data.volatility * 100).toFixed(2) + '%' : '—'}</span></span>
+                </div>
+            )}
+            {techState.error && (
+                <div style={{
+                    padding: '10px 0',
+                    borderTop: '1px solid rgba(255,255,255,0.05)',
+                    fontSize: 11,
+                    color: 'var(--ink-40)'
+                }}>
+                    Technicals unavailable: {techState.error}
+                </div>
+            )}
             <div style={{paddingTop: 10, marginTop: 2, borderTop: '1px solid rgba(255,255,255,0.05)', fontSize: 11, color: 'var(--ink-40)'}}>
                 Signals are inputs only — decisions surface in{' '}
                 <button onClick={onNavigateRecs} className="du3-cta ghost" style={{padding: '0 4px', height: 'auto', fontSize: 11}}>Recommendations →</button>
             </div>
+        </SectionCard>
+    );
+}
+
+/* ── AnalystSection ───────────────────────────────────────────── */
+// Third-party Yahoo analyst consensus — distinct from AITakeSection's
+// Aureon-generated narrative below. Not every symbol has analyst coverage
+// (e.g. crypto, small-caps) — an empty response is a normal, non-error state.
+function AnalystSection({ticker}) {
+    const [state, setState] = useState(mkL());
+    const [attempt, setAttempt] = useState(0);
+
+    useEffect(() => {
+        apiService.getAssetAnalystSignals(ticker)
+            .then(d => setState(mkD(d)))
+            .catch(e => setState(mkE(e)));
+    }, [ticker, attempt]);
+
+    const retry = useCallback(() => setAttempt(a => a + 1), []);
+    const d = state.data;
+    const latestTrend = d?.recommendation_trend?.[0];
+    const hasCoverage = d && (latestTrend || d.upgrade_downgrade_history?.length || d.target_price_mean != null);
+    const status = state.loading ? 'loading' : state.error ? 'error' : !hasCoverage ? 'empty' : 'ok';
+
+    const fp = (n, dp = 2) => n != null ? Number(n).toLocaleString(undefined, {
+        minimumFractionDigits: dp,
+        maximumFractionDigits: dp
+    }) : '—';
+    const fmtDate = (iso) => iso ? new Date(iso).toLocaleDateString('en-US', {
+        month: 'short',
+        day: 'numeric',
+        year: 'numeric'
+    }) : '—';
+
+    const targetCells = [
+        ['Target low', fp(d?.target_price_low)],
+        ['Target mean', fp(d?.target_price_mean)],
+        ['Target high', fp(d?.target_price_high)],
+        ['Recommendation', d?.recommendation_key ? d.recommendation_key.toUpperCase() : '—'],
+        ['Analysts', d?.analyst_count ?? '—'],
+    ];
+
+    const trendCells = latestTrend ? [
+        ['Strong buy', latestTrend.strong_buy], ['Buy', latestTrend.buy], ['Hold', latestTrend.hold],
+        ['Sell', latestTrend.sell], ['Strong sell', latestTrend.strong_sell],
+    ] : [];
+
+    return (
+        <SectionCard id="section-analyst" eyebrow="Consensus" title="Analyst Signals" status={status} retry={retry}>
+            <div style={{display: 'grid', gridTemplateColumns: 'repeat(5,1fr)', gap: '14px 20px'}}>
+                {targetCells.map(([k, v]) => (
+                    <div key={k}>
+                        <div style={{
+                            fontSize: 10,
+                            letterSpacing: '0.13em',
+                            textTransform: 'uppercase',
+                            color: 'var(--ink-40)',
+                            fontWeight: 600
+                        }}>{k}</div>
+                        <div style={{
+                            fontFamily: 'var(--font-mono)',
+                            fontSize: 15,
+                            fontWeight: 500,
+                            color: v === '—' ? 'var(--ink-40)' : 'var(--ink-00)',
+                            marginTop: 4
+                        }}>{v}</div>
+                    </div>
+                ))}
+            </div>
+
+            {trendCells.length > 0 && (
+                <div style={{marginTop: 16, paddingTop: 14, borderTop: '1px solid rgba(255,255,255,0.05)'}}>
+                    <div style={{
+                        fontSize: 10.5,
+                        letterSpacing: '0.1em',
+                        textTransform: 'uppercase',
+                        color: 'var(--ink-40)',
+                        marginBottom: 8
+                    }}>Recommendation trend (current)
+                    </div>
+                    <div style={{display: 'flex', gap: 18, fontFamily: 'var(--font-mono)', fontSize: 12.5}}>
+                        {trendCells.map(([k, v]) => (
+                            <span key={k} style={{color: 'var(--ink-10)'}}>{v ?? '—'} <span
+                                style={{color: 'var(--ink-40)', fontSize: 10.5}}>{k}</span></span>
+                        ))}
+                    </div>
+                </div>
+            )}
+
+            {d?.upgrade_downgrade_history?.length > 0 && (
+                <div style={{marginTop: 16, paddingTop: 14, borderTop: '1px solid rgba(255,255,255,0.05)'}}>
+                    <div style={{
+                        fontSize: 10.5,
+                        letterSpacing: '0.1em',
+                        textTransform: 'uppercase',
+                        color: 'var(--ink-40)',
+                        marginBottom: 8
+                    }}>Recent rating changes
+                    </div>
+                    <div style={{display: 'flex', flexDirection: 'column', gap: 7}}>
+                        {d.upgrade_downgrade_history.slice(0, 8).map((h, i) => (
+                            <div key={i} style={{display: 'flex', alignItems: 'baseline', gap: 10, fontSize: 12}}>
+                                <span style={{
+                                    fontFamily: 'var(--font-mono)',
+                                    fontSize: 10.5,
+                                    color: 'var(--ink-40)',
+                                    width: 80,
+                                    flexShrink: 0
+                                }}>{fmtDate(h.date)}</span>
+                                <span style={{color: 'var(--ink-10)', flexShrink: 0}}>{h.firm || 'Unknown firm'}</span>
+                                <span
+                                    style={{color: 'var(--ink-40)'}}>{h.from_grade || '—'} → {h.to_grade || '—'}</span>
+                                {h.current_price_target ? <span style={{
+                                    marginLeft: 'auto',
+                                    fontFamily: 'var(--font-mono)',
+                                    fontSize: 11,
+                                    color: 'var(--ink-40)'
+                                }}>${fp(h.current_price_target, 0)}</span> : null}
+                            </div>
+                        ))}
+                    </div>
+                </div>
+            )}
         </SectionCard>
     );
 }
@@ -619,6 +788,7 @@ export default function AssetDetail() {
     const [period, setPeriod] = useState('1M');
     const [chartSeries, setChartSeries] = useState(null);
     const [assetState, setAssetState] = useState(mkL());
+    const [cryptoFundamentals, setCryptoFundamentals] = useState(null);
     const [refreshing, setRefreshing] = useState(false);
     const [backfilling, setBackfilling] = useState(false);
     const [generating, setGenerating] = useState(false);
@@ -704,10 +874,19 @@ export default function AssetDetail() {
             .finally(() => setGenerating(false));
     };
 
+    // Crypto (and stablecoin) assets have no bulk price/fundamentals sweep —
+    // CoinGecko is on-demand only (2 calls/60s budget). Repurpose the same
+    // "Refresh Market Data" button to call this asset's fundamentals
+    // endpoint with refresh=true instead of the equity path's global sweep.
+    const isCryptoAsset = displayAsset.class === 'crypto' || displayAsset.class === 'stablecoin';
+
     const handleRefresh = () => {
         if (refreshing) return;
         setRefreshing(true);
-        apiService.refreshMarket()
+        const req = isCryptoAsset
+            ? apiService.getAssetFundamentals(ticker, true).then(d => setCryptoFundamentals({ticker, data: d || {}}))
+            : apiService.refreshMarket();
+        req
             .catch(() => {})
             .finally(() => setRefreshing(false));
     };
@@ -847,13 +1026,15 @@ export default function AssetDetail() {
 
             {/* ── Independent section cards (key=ticker forces remount on navigation) ── */}
             <QuoteSection key={'q-' + ticker} ticker={ticker} price={displayAsset.price}/>
-            <FundamentalsSection key={'f-' + ticker} ticker={ticker}/>
+            <FundamentalsSection key={'f-' + ticker} ticker={ticker}
+                                 refreshedData={cryptoFundamentals?.ticker === ticker ? cryptoFundamentals.data : null}/>
             <TechnicalSection
                 key={'t-' + ticker}
                 ticker={ticker}
                 allRecs={allRecs}
                 onNavigateRecs={() => navigate('/recommendations')}
             />
+            <AnalystSection key={'an-' + ticker} ticker={ticker}/>
             <AITakeSection
                 key={'ai-' + ticker}
                 ticker={ticker}

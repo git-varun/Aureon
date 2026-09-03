@@ -1,13 +1,14 @@
-import { Router } from "express";
-import { prisma } from "../../prisma";
-import { NotFoundError, ValidationError } from "../../lib/errors";
-import { getCachedQuote } from "../../lib/marketProviders/redisRateLimit";
-import { getChart } from "../../lib/marketProviders/chart";
-import { getFundamentals } from "../../lib/marketProviders/fundamentals";
-import { getStatement, type StatementType } from "../../lib/marketProviders/alphavantage";
-import { searchAssets, getBatch, getSignal, getAureonAsset } from "../../lib/market/assets";
-import { requireUuidParam, requireQueryParam } from "../../lib/validation";
-import { toPythonIsoString } from "../../lib/tz";
+import {Router} from "express";
+import {prisma} from "../../prisma";
+import {NotFoundError, ValidationError} from "../../lib/errors";
+import {getCachedQuote} from "../../lib/marketProviders/redisRateLimit";
+import {getChart} from "../../lib/marketProviders/chart";
+import {getFundamentals} from "../../lib/marketProviders/fundamentals";
+import {getStatement, type StatementType} from "../../lib/marketProviders/alphavantage";
+import {getAnalystSignals} from "../../lib/marketProviders/yahoo";
+import {getAureonAsset, getBatch, getSignal, getTechnicalsFromHistory, searchAssets} from "../../lib/market/assets";
+import {requireQueryParam, requireUuidParam} from "../../lib/validation";
+import {toPythonIsoString} from "../../lib/tz";
 
 export const assetsRouter = Router();
 
@@ -73,6 +74,21 @@ assetsRouter.get("/assets/:symbol/fundamentals", async (req, res) => {
 // Port of AssetsService.get_signal (GET /signals/{symbol}).
 assetsRouter.get("/signals/:symbol", async (req, res) => {
   res.json(await getSignal(req.params.symbol));
+});
+
+// RSI/MACD/volatility computed on-demand from already-stored price_history
+// rows — no live provider call, no budget to manage (unlike the AlphaVantage
+// statements route below).
+assetsRouter.get("/assets/:symbol/technicals", async (req, res) => {
+    res.json(await getTechnicalsFromHistory(req.params.symbol));
+});
+
+// Real analyst-signal data: consensus recommendation trend, rating-change
+// history, forward earnings estimates, target price — all free Yahoo
+// endpoints. Live-only, like /fundamentals; not cached (Yahoo has no formal
+// budget in this codebase, unlike the AlphaVantage/CoinGecko routes here).
+assetsRouter.get("/assets/:symbol/analyst-signals", async (req, res) => {
+    res.json(await getAnalystSignals(req.params.symbol.toUpperCase().trim()));
 });
 
 // Port of assets.py's generate_signal_for_symbol — this endpoint was never

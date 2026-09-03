@@ -1,7 +1,17 @@
 import React from 'react';
-import { Sk } from '@/components/aureon/ui';
+import {Sk} from '@/components/aureon/ui';
 
-export function PfSummaryHero({ netWorth, investedValue, unrealizedPnl, dayDelta, loading, fmt, onSnapshot, onLogTrade }) {
+export function PfSummaryHero({
+                                  netWorth,
+                                  investedValue,
+                                  unrealizedPnl,
+                                  realizedPnl,
+                                  dayDelta,
+                                  loading,
+                                  fmt,
+                                  onSnapshot,
+                                  onLogTrade
+                              }) {
   if (loading && !netWorth) return (
     <div style={{ marginBottom:28, padding:'22px 24px', borderRadius:14, background:'rgba(255,255,255,0.025)', border:'1px solid rgba(255,255,255,0.07)' }}>
       <div style={{ display:'flex', flexDirection:'column', gap:10 }}>
@@ -24,17 +34,27 @@ export function PfSummaryHero({ netWorth, investedValue, unrealizedPnl, dayDelta
 
   const dayDlt = dayDelta?.dollars ?? 0;
   const dayPct = dayDelta?.pct ?? 0;
-  // Invested/Unrealized P/L come from the portfolio snapshot (cached up to 15
-  // min); Current Value is deliberately computed live from holdings instead
-  // (keeps the allocation chart's numerator/denominator on one source — see
-  // useAureonData.js). After a price move these won't sum to Current Value —
-  // the hint below is so that reads as "different as-of times", not a bug.
+    // Invested/Unrealized P/L/Realized P/L come from the portfolio snapshot
+    // (cached up to 15 min); Current Value is deliberately computed live from
+    // holdings instead (keeps the allocation chart's numerator/denominator on
+    // one source — see useAureonData.js). After a price move these won't sum
+    // to Current Value — the hint below is so that reads as "different as-of
+    // times", not a bug. Unrealized P/L is market-value movement only;
+    // Realized P/L is cumulative closed futures PnL/funding/commission
+    // (USDⓈ-M wallet only — see snapshot.ts) — the two no longer share one
+    // blended tile.
   const snapshotHint = 'As of last portfolio snapshot — may lag Current Value, which is live.';
   const metricGrid = [
     { label:'Invested',       val: investedValue != null ? fmt(investedValue, 'INR', {dp:0}) : '—', sub:null, hint: snapshotHint },
     { label:'Current Value',  val: netWorth ? fmt(netWorth, 'INR', {dp:0}) : '—', sub:null },
     { label:'Unrealized P/L', val: unrealizedPnl != null ? fmt(unrealizedPnl, 'INR', {dp:0}) : '—', sub:null, col: unrealizedPnl != null ? (unrealizedPnl >= 0 ? 'var(--sage-500)' : 'var(--crimson-500)') : undefined, hint: snapshotHint },
-    { label:'Realized P/L',   val:'—',  sub:'no closed-position ledger yet', col:'var(--sage-500)' },
+      {
+          label: 'Realized P/L',
+          val: realizedPnl != null ? fmt(realizedPnl, 'INR', {dp: 0}) : '—',
+          sub: 'closed futures PnL, funding & fees',
+          col: realizedPnl != null ? (realizedPnl >= 0 ? 'var(--sage-500)' : 'var(--crimson-500)') : undefined,
+          hint: snapshotHint
+      },
     { label:'XIRR',           val:'—',  sub:'annualized return',          col:'var(--aurum-300)' },
     { label:'CAGR',           val:'—',  sub:'cost → current value',       col:'var(--aurum-300)' },
   ];

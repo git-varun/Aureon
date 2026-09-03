@@ -1,23 +1,23 @@
 // frontend/src/pages/aureon/Portfolio.jsx
-import React, { useState } from 'react';
-import { useNavigate } from 'react-router-dom';
-import { useQueryClient } from '@tanstack/react-query';
-import { useAureonData } from '@/hooks/useAureonData';
-import { useFmtMoney } from '@/hooks/useFmtMoney';
-import { usePortfolio } from '@/contexts/PortfolioContext';
-import { apiService } from '@/api/apiService';
-import { LogTradeModal } from '@/components/aureon/portfolio';
-import { PortfolioHealthCard } from '@/components/aureon/dashboard/PortfolioHealthCard';
-import { DiversificationCard } from '@/components/aureon/dashboard/DiversificationCard';
-import { PfFreshnessBar }      from '@/components/aureon/portfolio/PfFreshnessBar';
-import { PfSummaryHero }       from '@/components/aureon/portfolio/PfSummaryHero';
-import { PfPerformanceChart }  from '@/components/aureon/portfolio/PfPerformanceChart';
-import { PfAllocationSection } from '@/components/aureon/portfolio/PfAllocationSection';
-import { PfHoldingsTable }     from '@/components/aureon/portfolio/PfHoldingsTable';
-import { PfActivityFeed }      from '@/components/aureon/portfolio/PfActivityFeed';
-import { ManualAssetModal }        from '@/components/aureon/portfolio/ManualAssetModal';
-import { PfConcentrationSection }  from '@/components/aureon/portfolio/PfConcentrationSection';
-import { PfTrendChart }        from '@/components/aureon/portfolio/PfTrendChart';
+import React, {useState} from 'react';
+import {useNavigate} from 'react-router-dom';
+import {useQueryClient} from '@tanstack/react-query';
+import {useAureonData} from '@/hooks/useAureonData';
+import {useFmtMoney} from '@/hooks/useFmtMoney';
+import {usePortfolio} from '@/contexts/PortfolioContext';
+import {apiService} from '@/api/apiService';
+import {LogTradeModal} from '@/components/aureon/portfolio';
+import {PortfolioHealthCard} from '@/components/aureon/dashboard/PortfolioHealthCard';
+import {DiversificationCard} from '@/components/aureon/dashboard/DiversificationCard';
+import {PfFreshnessBar} from '@/components/aureon/portfolio/PfFreshnessBar';
+import {PfSummaryHero} from '@/components/aureon/portfolio/PfSummaryHero';
+import {PfPerformanceChart} from '@/components/aureon/portfolio/PfPerformanceChart';
+import {PfAllocationSection} from '@/components/aureon/portfolio/PfAllocationSection';
+import {PfHoldingsTable} from '@/components/aureon/portfolio/PfHoldingsTable';
+import {PfActivityFeed} from '@/components/aureon/portfolio/PfActivityFeed';
+import {ManualAssetModal} from '@/components/aureon/portfolio/ManualAssetModal';
+import {PfConcentrationSection} from '@/components/aureon/portfolio/PfConcentrationSection';
+import {PfTrendChart} from '@/components/aureon/portfolio/PfTrendChart';
 import OutcomesTab from '@/components/aureon/decisions/tabs/OutcomesTab';
 
 const PfSection = ({ eyebrow, title, action, children }) => (
@@ -40,7 +40,23 @@ export default function Portfolio() {
   const qc       = useQueryClient();
   const fmt      = useFmtMoney();
   const { activePortfolioId } = usePortfolio();
-  const { holdings, netWorth, investedValue, unrealizedPnl, dayDelta, loading, allocByClass, classTarget, classTargetsLoading, classTargetsError, classTargetsUsingDefaults, cashNotTracked, activity, freshness } = useAureonData();
+    const {
+        holdings,
+        netWorth,
+        investedValue,
+        unrealizedPnl,
+        realizedPnl,
+        dayDelta,
+        loading,
+        allocByClass,
+        classTarget,
+        classTargetsLoading,
+        classTargetsError,
+        classTargetsUsingDefaults,
+        cashNotTracked,
+        activity,
+        freshness
+    } = useAureonData();
   const [showTrade,  setShowTrade]  = useState(false);
   const [showManual, setShowManual] = useState(false);
 
@@ -61,6 +77,7 @@ export default function Portfolio() {
         netWorth={netWorth}
         investedValue={investedValue}
         unrealizedPnl={unrealizedPnl}
+        realizedPnl={realizedPnl}
         dayDelta={dayDelta}
         loading={loading}
         fmt={fmt}

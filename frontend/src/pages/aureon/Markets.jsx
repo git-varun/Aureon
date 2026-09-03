@@ -1,7 +1,7 @@
-import React, {useState, useEffect, useMemo} from 'react';
+import React, {useEffect, useMemo, useState} from 'react';
 import {useNavigate} from 'react-router-dom';
 import {Sparkline} from '@/components/aureon/ui';
-import {EmptyState, ErrorState} from '../../components/aureon/ds';
+import {ErrorState} from '../../components/aureon/ds';
 import {apiService} from '@/api/apiService';
 import {useFmtMoney} from '@/hooks/useFmtMoney';
 
@@ -169,6 +169,9 @@ export default function Markets() {
     const [sectors,  setSectors]  = useState(mkLoading());
     const [themes,   setThemes]   = useState(mkLoading());
     const [universe, setUniverse] = useState(mkLoading());
+    // Not mkLoading() — this section is on-demand (button-triggered below),
+    // so its initial state is idle, not loading.
+    const [cryptoCtx, setCryptoCtx] = useState({loading: false, data: null, error: null});
 
     /* Asset Explorer state */
     const [search,       setSearch]       = useState('');
@@ -182,6 +185,10 @@ export default function Markets() {
     const fetchSectors  = () => { setSectors(mkLoading());  apiService.getMarketSectors().then(d => setSectors(mkSection(d))).catch(e => setSectors(mkError(e)));  };
     const fetchThemes   = () => { setThemes(mkLoading());   apiService.getMarketThemes().then(d => setThemes(mkSection(d))).catch(e => setThemes(mkError(e)));    };
     const fetchUniverse = () => { setUniverse(mkLoading()); apiService.getMarketUniverse().then(d => setUniverse(mkSection(d))).catch(e => setUniverse(mkError(e))); };
+    const fetchCryptoCtx = () => {
+        setCryptoCtx(mkLoading());
+        apiService.getCryptoContext().then(d => setCryptoCtx(mkSection(d))).catch(e => setCryptoCtx(mkError(e)));
+    };
 
     /* Initial load — no synchronous setState in effect body; initial mkLoading() set in useState */
     useEffect(() => {
@@ -190,6 +197,10 @@ export default function Markets() {
         apiService.getMarketSectors().then(d => setSectors(mkSection(d))).catch(e => setSectors(mkError(e)));
         apiService.getMarketThemes().then(d => setThemes(mkSection(d))).catch(e => setThemes(mkError(e)));
         apiService.getMarketUniverse().then(d => setUniverse(mkSection(d))).catch(e => setUniverse(mkError(e)));
+        // Not auto-fetched on mount, unlike the sections above — CoinGecko's
+        // 2-calls/60s budget is shared globally, and this alone spends both
+        // slots. Matches the AlphaVantage statements precedent: on-demand,
+        // user-triggered only, never fetched just because the page loaded.
     }, []);
 
     /* Region change handler — resets filters inline to avoid setState-in-effect */
@@ -407,6 +418,117 @@ export default function Markets() {
                                 ))}
                             </div>
                         </div>
+                    )}
+                </div>
+            </MktSection>
+
+            {/* ══════════════════════════════════════════
+                § 2.5 · Crypto Context (market-wide, CoinGecko — trending +
+                global cap/dominance; not tied to any single asset, so it
+                lives here rather than on an asset detail page). On-demand,
+                not fetched on page load — see fetchCryptoCtx's comment.
+            ══════════════════════════════════════════ */}
+            <MktSection eyebrow="Crypto · CoinGecko" title="Market Context"
+                        action={!cryptoCtx.loading && !cryptoCtx.data && !cryptoCtx.error ? undefined :
+                            <button className="du3-cta ghost" style={{height: 28, padding: '0 14px', fontSize: 11.5}}
+                                    onClick={fetchCryptoCtx} disabled={cryptoCtx.loading}>Refresh</button>}>
+                <div className="layer-1" style={{padding: '16px 20px'}}>
+                    {(!cryptoCtx.loading && !cryptoCtx.data && !cryptoCtx.error) ? (
+                        <div style={{padding: '20px 0', textAlign: 'center'}}>
+                            <div style={{fontSize: 12, color: 'var(--ink-40)', marginBottom: 12}}>Trending coins and
+                                global market cap/dominance, fetched on demand.
+                            </div>
+                            <button className="du3-cta ghost" style={{height: 30, padding: '0 16px', fontSize: 12}}
+                                    onClick={fetchCryptoCtx}>Load crypto context
+                            </button>
+                        </div>
+                    ) : cryptoCtx.loading ? (
+                        <div style={{display: 'grid', gridTemplateColumns: 'repeat(4,1fr)', gap: 10}}>
+                            {[0, 1, 2, 3].map(i => <SkeletonCard key={i} h={82}/>)}
+                        </div>
+                    ) : cryptoCtx.error ? (
+                        <ErrorState title="Could not load crypto context" body={cryptoCtx.error}
+                                    actions={<button className="du3-cta ghost"
+                                                     style={{height: 28, padding: '0 14px', fontSize: 11.5}}
+                                                     onClick={fetchCryptoCtx}>Retry</button>}/>
+                    ) : (
+                        <>
+                            <div style={{
+                                display: 'grid',
+                                gridTemplateColumns: 'repeat(4,1fr)',
+                                gap: '14px 20px',
+                                marginBottom: 20
+                            }}>
+                                {[
+                                    ['BTC dominance', cryptoCtx.data?.global?.btc_dominance_pct != null ? cryptoCtx.data.global.btc_dominance_pct.toFixed(1) + '%' : '—'],
+                                    ['ETH dominance', cryptoCtx.data?.global?.eth_dominance_pct != null ? cryptoCtx.data.global.eth_dominance_pct.toFixed(1) + '%' : '—'],
+                                    ['Total market cap', cryptoCtx.data?.global?.total_market_cap_usd != null ? fmt(cryptoCtx.data.global.total_market_cap_usd) : '—'],
+                                    ['24h cap change', cryptoCtx.data?.global?.market_cap_change_pct_24h_usd != null ? cryptoCtx.data.global.market_cap_change_pct_24h_usd.toFixed(2) + '%' : '—'],
+                                ].map(([k, v]) => (
+                                    <div key={k}>
+                                        <div style={{
+                                            fontSize: 10,
+                                            letterSpacing: '0.13em',
+                                            textTransform: 'uppercase',
+                                            color: 'var(--ink-40)',
+                                            fontWeight: 600
+                                        }}>{k}</div>
+                                        <div style={{
+                                            fontFamily: 'var(--font-mono)',
+                                            fontSize: 15,
+                                            fontWeight: 500,
+                                            color: 'var(--ink-00)',
+                                            marginTop: 4
+                                        }}>{v}</div>
+                                    </div>
+                                ))}
+                            </div>
+                            <div style={{
+                                fontSize: 10.5,
+                                color: 'var(--ink-40)',
+                                fontWeight: 600,
+                                letterSpacing: '0.12em',
+                                textTransform: 'uppercase',
+                                marginBottom: 10
+                            }}>Trending
+                            </div>
+                            {(!cryptoCtx.data?.trending || cryptoCtx.data.trending.length === 0) ? (
+                                <MktEmpty msg="No trending coin data right now."/>
+                            ) : (
+                                <div style={{display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '4px 24px'}}>
+                                    {cryptoCtx.data.trending.map(c => (
+                                        <div key={c.id} style={{
+                                            display: 'flex',
+                                            alignItems: 'center',
+                                            justifyContent: 'space-between',
+                                            padding: '8px 0',
+                                            borderBottom: '1px solid rgba(255,255,255,0.04)'
+                                        }}>
+                                            <div>
+                                                <span style={{
+                                                    fontFamily: 'var(--font-mono)',
+                                                    fontSize: 12.5,
+                                                    color: 'var(--ink-00)',
+                                                    fontWeight: 600
+                                                }}>{c.symbol}</span>
+                                                {c.market_cap_rank != null && <span style={{
+                                                    fontSize: 10.5,
+                                                    color: 'var(--ink-40)',
+                                                    marginLeft: 8
+                                                }}>#{c.market_cap_rank}</span>}
+                                            </div>
+                                            <span style={{
+                                                fontFamily: 'var(--font-mono)',
+                                                fontSize: 12,
+                                                color: c.price_change_pct_24h_usd >= 0 ? 'var(--sage-500)' : 'var(--crimson-500)'
+                                            }}>
+                                                {c.price_change_pct_24h_usd != null ? (c.price_change_pct_24h_usd >= 0 ? '+' : '') + c.price_change_pct_24h_usd.toFixed(1) + '%' : '—'}
+                                            </span>
+                                        </div>
+                                    ))}
+                                </div>
+                            )}
+                        </>
                     )}
                 </div>
             </MktSection>
