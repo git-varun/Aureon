@@ -68,10 +68,28 @@ export async function fetchAndStore(symbolRaw: string): Promise<number> {
 
   if (allPayloads.length === 0) return 0;
 
+  // Cross-provider dedup: Finnhub re-syndicates Yahoo/SeekingAlpha content
+  // under its own article URLs, so the url-only unique constraint lets the
+  // same story land twice (confirmed live: ~20 finnhub/yahoo pairs in one
+  // day's fetch, byte-identical headlines, publish times equal or off by a
+  // round timezone hour). An exact match on the normalized headline within
+  // the same symbol and a few days is a reliable same-story signal — no
+  // fuzzy matching (deliberately avoided here, see the MF scheme-match
+  // lesson) and no reliance on the drifting timestamp.
+  const dedupSince = new Date(Date.now() - CROSS_PROVIDER_DEDUP_WINDOW_MS);
+  const recentTitled = await prisma.news.findMany({
+    where: { symbols: { contains: symbol }, published_at: { gte: dedupSince } },
+    select: { title: true },
+  });
+  const seenTitleKeys = new Set(recentTitled.map((r) => normalizeNewsTitle(r.title)));
+
   let newCount = 0;
   for (const payload of allPayloads) {
     const exists = await prisma.news.findUnique({ where: { url: payload.url } });
     if (exists) continue;
+
+    const titleKey = normalizeNewsTitle(payload.title);
+    if (titleKey && seenTitleKeys.has(titleKey)) continue;
 
     const compound = SentimentIntensityAnalyzer.polarity_scores(payload.title).compound;
     try {
@@ -86,6 +104,7 @@ export async function fetchAndStore(symbolRaw: string): Promise<number> {
           sentiment_score: compound,
         },
       });
+      seenTitleKeys.add(titleKey);
       newCount += 1;
     } catch (e) {
       // Concurrent writer (Python or another Node cycle) inserted the same
@@ -107,6 +126,16 @@ function isUniqueConstraintError(e: unknown): boolean {
   return typeof e === "object" && e !== null && (e as { code?: string }).code === "P2002";
 }
 
+const CROSS_PROVIDER_DEDUP_WINDOW_MS = 3 * 24 * 60 * 60 * 1000;
+
+/** Normalized headline key for cross-provider dedup — lowercase, strip every
+ * non-alphanumeric char. Exact equality on this key (scoped to one symbol
+ * and a recent window) identifies the same story re-syndicated under a
+ * different vendor URL. */
+export function normalizeNewsTitle(title: string): string {
+  return title.toLowerCase().replace(/[^a-z0-9]/g, "");
+}
+
 /** Port of NewsService._link_news_assets. */
 async function linkNewsAssets(symbol: string): Promise<void> {
   const quote = await prisma.latestQuote.findUnique({ where: { symbol } });
@@ -121,8 +150,15 @@ async function linkNewsAssets(symbol: string): Promise<void> {
     const exists = await prisma.news_assets.findUnique({
       where: { news_id_asset_id: { news_id: article.id, asset_id: quote.assetId } },
     });
-    if (!exists) {
+    if (exists) continue;
+    try {
       await prisma.news_assets.create({ data: { news_id: article.id, asset_id: quote.assetId } });
+    } catch (e) {
+      // Concurrent fetch_news cycle linked the same (news_id, asset_id)
+      // between our findUnique check and this create — the pair is unique,
+      // so treat the race as already-linked rather than aborting the cycle
+      // mid-loop (same guard fetchAndStore's news.create already has above).
+      if (!isUniqueConstraintError(e)) throw e;
     }
   }
 }
