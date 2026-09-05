@@ -32,7 +32,17 @@ export async function geminiFetch(
     throw new RateLimitError(`Gemini model ${model} rate limited`);
   }
   if (!resp.ok) {
-    throw new Error(`Gemini request failed: ${resp.status} ${await resp.text()}`);
+    const body = await resp.text();
+    // 401/403 = the key itself is bad (invalid/expired/revoked). Marked with
+    // the "AUTH_FAILED:" prefix — same marker idiom as the broker
+    // "AUTH_REQUIRED:" errors — so executeCompletion's fallback loop can trip
+    // a longer circuit-breaker cooldown instead of re-hammering a dead key on
+    // every request. Credential value is never in `body` for Gemini (key is a
+    // query param, not echoed).
+    if (resp.status === 401 || resp.status === 403) {
+      throw new ConfigurationError(`AUTH_FAILED: Gemini model ${model} rejected credentials (HTTP ${resp.status})`);
+    }
+    throw new Error(`Gemini request failed: ${resp.status} ${body}`);
   }
 
   interface GeminiResponse {

@@ -4,6 +4,7 @@ import { prisma } from "../../prisma";
 import { NotFoundError } from "../errors";
 import { quotesQueue, watchlistAlertsQueue } from "../jobs/queues";
 import { checkScheduledJobsHealth } from "./scheduleHealth";
+import { PROVIDER_HEALTH_CHECKS } from "../settings/providerHealth";
 import { logger } from "../logger";
 
 const redis = new Redis(process.env.REDIS_URL!);
@@ -182,12 +183,22 @@ export async function getHealth() {
   try {
     for (const aiProvider of ["gemini", "groq"]) {
       const cfg = await prisma.providerConfig.findUnique({ where: { providerName: aiProvider } });
-      if (cfg) {
-        const storedKeys = safeJsonLoad<Record<string, string>>(cfg.encryptedKeys, {});
-        const hasKey = Boolean(storedKeys.api_key);
-        if (!cfg.enabled) providersSummary[aiProvider] = "disabled";
-        else if (hasKey) providersSummary[aiProvider] = "configured";
-        else providersSummary[aiProvider] = "missing_key";
+      if (!cfg) continue;
+      const storedKeys = safeJsonLoad<Record<string, string>>(cfg.encryptedKeys, {});
+      const hasKey = Boolean(storedKeys.api_key);
+      if (!cfg.enabled) {
+        providersSummary[aiProvider] = "disabled";
+      } else if (!hasKey) {
+        providersSummary[aiProvider] = "missing_key";
+      } else {
+        // BUG-P: a stored key can be present but rejected (groq's key 401s on
+        // every model). A presence-only "configured" label reported the dead
+        // fallback tier as healthy. Run the same live auth probe the Settings
+        // "test key" button uses (PROVIDER_HEALTH_CHECKS) so /health tells the
+        // truth about whether the key actually works.
+        const check = PROVIDER_HEALTH_CHECKS[aiProvider];
+        const healthy = check ? await check() : null;
+        providersSummary[aiProvider] = healthy === false ? "unhealthy" : healthy === true ? "healthy" : "configured";
       }
     }
   } catch (e) {

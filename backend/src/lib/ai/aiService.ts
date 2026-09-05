@@ -323,9 +323,24 @@ export async function executeCompletion(
       ["groq", GROQ_MODELS, groqKey, groqFetch],
     ];
 
+    // BUG-B: each provider fetch has its own AbortSignal.timeout (60 s), but
+    // nothing caps total wall-clock across the whole chain, so a series of
+    // slow/hanging models stacks up (phase-1 saw an 11-min single-take).
+    // This is the outer ceiling: once elapsed exceeds the budget, stop
+    // trying further models and fall through to the exhaustion throw.
+    const parsedBudget = Number(process.env.AI_COMPLETION_BUDGET_MS);
+    const budgetMs = Number.isFinite(parsedBudget) && parsedBudget > 0 ? parsedBudget : 90_000;
+    let budgetExceeded = false;
+
     for (const [pname, models, key, fetchFn] of providerChain) {
-      if (responseText || !key) continue;
+      if (responseText || !key || budgetExceeded) continue;
       for (const model of models) {
+        if (Date.now() - startTime > budgetMs) {
+          budgetExceeded = true;
+          executionTrace.__budget__ = `wall-clock budget ${budgetMs}ms exceeded before ${pname}:${model}`;
+          logger.error({ operation: "ai_completion", budgetMs }, "ai completion wall-clock budget exceeded");
+          break;
+        }
         const cooldownKey = `${pname}:${model}`;
         if (await aiCircuitBreaker.isOpen(cooldownKey)) continue;
         try {
@@ -337,12 +352,20 @@ export async function executeCompletion(
           providerUsed = pname;
           break;
         } catch (e) {
+          const msg = String((e as Error).message);
+          executionTrace[cooldownKey] = msg;
           if (e instanceof RateLimitError) {
             await aiCircuitBreaker.trip(cooldownKey, 60.0);
-            executionTrace[cooldownKey] = String((e as Error).message);
             logger.error({ operation: "ai_completion", provider: pname, model, err: e }, "model rate limited");
+          } else if (msg.includes("AUTH_FAILED:")) {
+            // BUG-P: the stored key is bad (groq is live proof — 401 on every
+            // model). Trip a modest cooldown so a dead provider isn't
+            // re-hammered every request. Kept short (5 min) so a key the
+            // operator fixes in Settings recovers on its own without a
+            // manual Redis flush.
+            await aiCircuitBreaker.trip(cooldownKey, 300.0);
+            logger.error({ operation: "ai_completion", provider: pname, model, err: e }, "model auth failed — cooled down");
           } else {
-            executionTrace[cooldownKey] = String((e as Error).message);
             logger.error({ operation: "ai_completion", provider: pname, model, err: e }, "model failed");
           }
         }

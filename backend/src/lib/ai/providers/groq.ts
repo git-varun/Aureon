@@ -30,7 +30,17 @@ export async function groqFetch(
     throw new RateLimitError(`Groq model ${model} rate limited`);
   }
   if (!resp.ok) {
-    throw new Error(`Groq request failed: ${resp.status} ${await resp.text()}`);
+    const body = await resp.text();
+    // 401/403 = bad key (invalid/expired/revoked). "AUTH_FAILED:" prefix —
+    // same marker idiom as the broker "AUTH_REQUIRED:" errors — lets
+    // executeCompletion's fallback loop trip a longer circuit-breaker
+    // cooldown rather than re-hammering a dead key every request. Groq's
+    // 401 body is a generic {"error":{"message":"Invalid API Key"}} — no
+    // credential echo — so it is safe to drop here.
+    if (resp.status === 401 || resp.status === 403) {
+      throw new ConfigurationError(`AUTH_FAILED: Groq model ${model} rejected credentials (HTTP ${resp.status})`);
+    }
+    throw new Error(`Groq request failed: ${resp.status} ${body}`);
   }
 
   interface GroqResponse {
