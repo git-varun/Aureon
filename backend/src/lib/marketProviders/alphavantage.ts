@@ -24,7 +24,7 @@ const BUDGET_LIMIT = 25;
 const BUDGET_WINDOW_SECONDS = 86_400;
 
 function resolvedKey(): string | undefined {
-  return process.env.ALPHAVANTAGE_API_KEY;
+  return process.env.ALPHA_VANTAGE_API_KEY;
 }
 
 function rejectIndia(symbol: string): void {

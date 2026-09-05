@@ -50,7 +50,7 @@ Both paths run against the same job function, so a job's logic should be agnosti
 cp .env.example .env
 ```
 
-Required: `DATABASE_URL` (Prisma connection-string format — `postgresql://...`), `REDIS_URL`, `SECRET_KEY` (Fernet-style master key for encrypting stored provider credentials — `openssl rand -hex 32`). Optional, needed for full functionality: `GEMINI_API_KEY`/`GROQ_API_KEY` (AI briefings/recommendations — multi-model fallback chain, Gemini then Groq), `FINNHUB_API_KEY`/`POLYGON_API_KEY`/`TWELVEDATA_API_KEY`/`ALPHAVANTAGE_API_KEY` (market data). Broker credentials (Binance, Zerodha, Groww) are not env vars — they're stored DB-side (`ProviderConfig.encrypted_keys`) and set via the Settings UI / config API.
+Required: `DATABASE_URL` (Prisma connection-string format — `postgresql://...`), `REDIS_URL`, `SECRET_KEY` (Fernet-style master key for encrypting stored provider credentials — `openssl rand -hex 32`). Optional, needed for full functionality: `GEMINI_API_KEY`/`GROQ_API_KEY` (AI briefings/recommendations — multi-model fallback chain, Gemini then Groq), `FINNHUB_API_KEY`/`POLYGON_API_KEY`/`TWELVE_DATA_API_KEY`/`ALPHA_VANTAGE_API_KEY` (market data). Broker credentials (Binance, Zerodha, Groww) are not env vars — they're stored DB-side (`ProviderConfig.encrypted_keys`) and set via the Settings UI / config API.
 
 ```bash
 bun install

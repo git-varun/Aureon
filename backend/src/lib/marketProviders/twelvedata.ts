@@ -14,7 +14,7 @@ const BUDGET_LIMIT = 8;
 const BUDGET_WINDOW_SECONDS = 60;
 
 function resolvedKey(): string | undefined {
-  return process.env.TWELVEDATA_API_KEY;
+  return process.env.TWELVE_DATA_API_KEY;
 }
 
 function rejectIndia(symbol: string): void {
