@@ -8,7 +8,8 @@ import { getDecryptedKey } from "../settings/providers";
 import { aiCircuitBreaker } from "./circuitBreaker";
 import { GEMINI_MODELS, geminiFetch, type FetchUsage } from "./providers/gemini";
 import { GROQ_MODELS, groqFetch } from "./providers/groq";
-import { buildGlobalContext, buildQaContext } from "./contextBuilder";
+import { buildGlobalContext, buildQaContext, formatFundamentalsLine } from "./contextBuilder";
+import { getTechnicalsFromHistory } from "../market/assets";
 import { logger } from "../logger";
 
 // Port of app/modules/ai/services/ai.py's AIService (execute_completion,
@@ -582,9 +583,33 @@ export async function getSingleAssetTake(symbolRaw: string, userId: string | nul
   let context = "";
   if (quote) {
     const snap = quote.assetId ? await prisma.assetSnapshot.findUnique({ where: { assetId: quote.assetId } }) : null;
-    const rsi = snap?.rsi !== null && snap?.rsi !== undefined ? Number(snap.rsi).toFixed(1) : "N/A";
-    const pe = snap?.peRatio !== null && snap?.peRatio !== undefined ? Number(snap.peRatio).toFixed(1) : "N/A";
-    context = `Asset: ${symbol} | Price: ${quote.price} | RSI: ${rsi} | PE Ratio: ${pe}`;
+    const fund = quote.assetId ? await prisma.assetFundamentals.findUnique({ where: { assetId: quote.assetId } }) : null;
+
+    // RSI: snapshot.rsi is only populated for held symbols (the evaluation
+    // chain behind `if (isSymbolHeld)` in ingestQuote.ts). For everything
+    // else, compute it from stored price_history — no live provider call.
+    // Held symbols keep the snapshot value unchanged.
+    let rsi = snap?.rsi !== null && snap?.rsi !== undefined ? Number(snap.rsi).toFixed(1) : "N/A";
+    if (rsi === "N/A") {
+      try {
+        const tech = await getTechnicalsFromHistory(symbol);
+        if (tech.rsi !== null) rsi = tech.rsi.toFixed(1);
+      } catch {
+        // Insufficient price history or no asset row — stays "N/A".
+      }
+    }
+
+    // PE: asset_snapshot.pe_ratio is written null on every path; the value
+    // only ever lives in asset_fundamentals (BUG-K).
+    let pe = snap?.peRatio !== null && snap?.peRatio !== undefined ? Number(snap.peRatio).toFixed(1) : "N/A";
+    if (pe === "N/A" && fund?.trailingPe !== null && fund?.trailingPe !== undefined) {
+      pe = Number(fund.trailingPe).toFixed(1);
+    }
+
+    const fundamentalsLine = formatFundamentalsLine(fund);
+    context =
+      `Asset: ${symbol} | Price: ${quote.price} | RSI: ${rsi} | PE Ratio: ${pe}` +
+      (fundamentalsLine ? ` | ${fundamentalsLine}` : "");
   }
 
   const prompt = SINGLE_ASSET_TAKE_PROMPT(symbol, context);

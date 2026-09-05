@@ -1,4 +1,5 @@
 import { prisma } from "../../prisma";
+import { Prisma, type AssetFundamentals } from "../../generated/prisma";
 import { resolvePositionPrice } from "../prices";
 import {
   getInvestorHealthScore,
@@ -17,6 +18,44 @@ import { DEFAULT_USER_ID } from "../users";
 import { NotFoundError } from "../errors";
 
 // Port of app/modules/ai/services/ai.py's PortfolioContextBuilder.
+
+/** Compact one-line fundamentals summary for AI prompts. Mirrors the
+ * per-field arithmetic in lib/marketProviders/fundamentals.ts::getFundamentals
+ * (debt/equity and dividend yield are stored scaled *100 and divided back
+ * here; every other field is the raw column value). Returns "" when the row
+ * is absent or every emitted field is null, so non-equity symbols (no
+ * asset_fundamentals row, or a crypto row with the equity columns null)
+ * contribute no fundamentals text and the model is never handed a wall of
+ * N/A to hallucinate against. contextBuilder never read this table before —
+ * PE/PB/ROE/margins/EPS/beta/52w were populated and omitted from every
+ * prompt (BUG-K). */
+export function formatFundamentalsLine(f: AssetFundamentals | null): string {
+  if (!f) return "";
+  const parts: string[] = [];
+  const emit = (v: Prisma.Decimal | null, label: string, fn: (n: number) => string): void => {
+    if (v !== null && v !== undefined) parts.push(`${label}: ${fn(Number(v))}`);
+  };
+  // Units are made explicit in the string (ratio vs %) so the model never
+  // has to guess whether a bare 1.49 is a fraction, a percent or a multiple —
+  // roe/margins/revenue-growth are stored as fractions, dividend_yield as a
+  // percent, debt/equity scaled *100 (see fundamentals.ts::getFundamentals).
+  const pct = (n: number) => `${(n * 100).toFixed(1)}%`;
+  emit(f.trailingPe, "PE", (n) => n.toFixed(2));
+  emit(f.priceToBook, "P/B", (n) => n.toFixed(2));
+  emit(f.roe, "ROE", pct);
+  emit(f.debtToEquity, "D/E", (n) => (n / 100).toFixed(2));
+  emit(f.profitMargin, "Profit Margin", pct);
+  emit(f.revenueGrowth, "Rev Growth", pct);
+  emit(f.dividendYield, "Div Yield", (n) => `${n.toFixed(2)}%`);
+  emit(f.grossMargin, "Gross Margin", pct);
+  emit(f.operatingMargin, "Op Margin", pct);
+  emit(f.eps, "EPS", (n) => n.toFixed(2));
+  emit(f.beta, "Beta", (n) => n.toFixed(2));
+  if (f.high52w !== null && f.low52w !== null) {
+    parts.push(`52w Range: ${Number(f.low52w).toFixed(2)}-${Number(f.high52w).toFixed(2)}`);
+  }
+  return parts.join(" | ");
+}
 
 /** Port of build_intelligence_context. */
 export async function buildIntelligenceContext(portfolioIdArg?: string | null, userIdArg?: string | null): Promise<string> {
@@ -145,6 +184,7 @@ export async function buildGlobalContext(): Promise<string> {
     let macd = "N/A";
     let valScore = "N/A";
     let qualScore = "N/A";
+    let fundamentalsLine = "";
     if (assetId) {
       const snap = await prisma.assetSnapshot.findUnique({ where: { assetId } });
       if (snap) {
@@ -159,11 +199,15 @@ export async function buildGlobalContext(): Promise<string> {
         valScore = score.valuationScore !== null ? Number(score.valuationScore).toFixed(2) : "N/A";
         qualScore = score.qualityScore !== null ? Number(score.qualityScore).toFixed(2) : "N/A";
       }
+
+      const fund = await prisma.assetFundamentals.findUnique({ where: { assetId } });
+      fundamentalsLine = formatFundamentalsLine(fund);
     }
 
     lines.push(
       `Asset: ${symbol} | Qty Owned: ${qty} | Avg Cost: ${avgCost.toFixed(2)} | Current Price: ${livePrice.toFixed(2)} (${positionPrice.price_source}) | PnL: ${pnlPct.toFixed(2)}% | ` +
-        `RSI: ${rsi} | MACD: ${macd} | Valuation Score: ${valScore} | Quality Score: ${qualScore}`,
+        `RSI: ${rsi} | MACD: ${macd} | Valuation Score: ${valScore} | Quality Score: ${qualScore}` +
+        (fundamentalsLine ? ` | ${fundamentalsLine}` : ""),
     );
   }
 
@@ -226,6 +270,7 @@ export async function buildQaContext(contextType: string, contextId: string): Pr
 
     const feat = quote.assetId ? await prisma.asset_features.findUnique({ where: { asset_id: quote.assetId } }) : null;
     const snap = quote.assetId ? await prisma.assetSnapshot.findUnique({ where: { assetId: quote.assetId } }) : null;
+    const fund = quote.assetId ? await prisma.assetFundamentals.findUnique({ where: { assetId: quote.assetId } }) : null;
 
     lines.push("=== SIGNAL CONTEXT ===");
     lines.push(`Symbol: ${quote.symbol}`);
@@ -244,6 +289,8 @@ export async function buildQaContext(contextType: string, contextId: string): Pr
       volatility = feat.volatility_score !== null ? Number(feat.volatility_score).toFixed(2) : "N/A";
     }
     lines.push(`RSI: ${rsi} | MACD: ${macd} | Volatility: ${volatility}`);
+    const fundamentalsLine = formatFundamentalsLine(fund);
+    if (fundamentalsLine) lines.push(`Fundamentals: ${fundamentalsLine}`);
 
     includeIntelContext = true;
   } else if (contextType === "recommendation") {
