@@ -29,6 +29,29 @@ export interface SyncResult {
 
 const STABLECOIN_SET = new Set<string>(STABLECOIN_ASSETS);
 
+// Non-trade `spot:` brokerReference sub-namespaces. Real spot trades are
+// `spot:<PAIR>:<tradeId>` (see importBrokerTrades, ~line 288), but these three
+// templates put an event-type literal in the second segment instead:
+//   `spot:transfer:<type>:<txId>`   (importBrokerTransfers)
+//   `spot:dust:{buy,sell}:<id>:<asset>` (importBrokerDust)
+//   `spot:dividend:<tranId>`         (importBrokerDividends)
+// `spot:income:` cannot occur — importBrokerIncome is only ever called with a
+// futures wallet. backfillBinanceSpot's resume-optimisation seeding must skip
+// these when harvesting candidate trading pairs from `parts[1]`, or it feeds
+// "dividend"/"dust" to getSpotTradesPage → Binance HTTP 400 → whole job FAILS
+// (BUG-Q).
+const NON_TRADE_SPOT_REF_KINDS = new Set(["transfer", "dust", "dividend"]);
+
+/** The trading pair encoded in a real `spot:<PAIR>:<tradeId>` brokerReference,
+ * or null for a non-trade `spot:` event reference (transfer/dust/dividend) or a
+ * malformed one. Used to seed backfillBinanceSpot's resume candidate set — see
+ * NON_TRADE_SPOT_REF_KINDS (BUG-Q). */
+export function spotRefTradingPair(brokerReference: string): string | null {
+  const parts = brokerReference.split(":");
+  if (parts.length >= 3 && !NON_TRADE_SPOT_REF_KINDS.has(parts[1])) return parts[1];
+  return null;
+}
+
 /** Port of PortfolioService._sync_broker_snapshot. Idempotent upsert of
  * normalized broker holdings into Position/Transaction, one broker_snapshot
  * Transaction row per symbol — only affects symbols with no manual
@@ -833,8 +856,8 @@ export async function backfillBinanceSpot(portfolioId: string, client: BinanceCl
   const knownSymbols = new Set<string>();
   for (const { brokerReference } of existingRefs) {
     if (!brokerReference) continue;
-    const parts = brokerReference.split(":");
-    if (parts.length >= 3) knownSymbols.add(parts[1]);
+    const pair = spotRefTradingPair(brokerReference);
+    if (pair) knownSymbols.add(pair);
   }
 
   const symbols = await getBackfillSymbolUniverse(client, knownSymbols);
