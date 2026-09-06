@@ -33,8 +33,8 @@ async function refreshMutualFundNavs(): Promise<void> {
       }
       await tx.latestQuote.upsert({
         where: { symbol },
-        create: { symbol, assetId, price: nav, volume: null, provider: "mfapi", createdAt: navTimestamp, updatedAt: navTimestamp },
-        update: { price: nav, assetId, provider: "mfapi", updatedAt: navTimestamp },
+        create: { symbol, assetId, price: nav, volume: null, provider: "amfi", createdAt: navTimestamp, updatedAt: navTimestamp },
+        update: { price: nav, assetId, provider: "amfi", updatedAt: navTimestamp },
       });
       // Forward-only: latest_quotes always held today's real NAV, but
       // price_history was never appended before this fix, so day-over-day

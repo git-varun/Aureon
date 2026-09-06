@@ -44,9 +44,10 @@ async function groqProviderHealthCheck(): Promise<boolean> {
 /** Registry of live connection checks, keyed by ProviderConfig.provider_name.
  * Providers with no real adapter (PLANNED/config-only rows) have no entry
  * here — the route treats a missing entry as "no live check available"
- * (healthy: null), not a failure. `mfapi` is the DB-facing name for the
- * amfi.ts adapter (see refreshMutualFundNavs.ts, which writes NAVs with
- * provider: "mfapi"). */
+ * (healthy: null), not a failure. `mfapi` is the ProviderConfig.provider_name
+ * under which the amfi.ts adapter's health check is registered (the
+ * provider_configs row is named `mfapi`); refreshMutualFundNavs itself tags
+ * the NAVs it writes with provider `amfi`, the real serving adapter. */
 export const PROVIDER_HEALTH_CHECKS: Record<string, () => Promise<boolean>> = {
   zerodha: zerodhaHealthCheck,
   groww: growwHealthCheck,

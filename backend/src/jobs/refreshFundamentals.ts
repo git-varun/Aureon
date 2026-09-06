@@ -26,11 +26,13 @@ async function refreshFundamentals(): Promise<void> {
   for (const { id: assetId, symbol } of assets) {
     try {
       let fundamentals: Record<string, unknown>;
+      let source = "yahoo";
       try {
         fundamentals = await getFundamentals(symbol);
       } catch (e) {
         if (!(e instanceof ProviderError)) throw e;
         fundamentals = await finnhubGetFundamentals(symbol); // throws ProviderError up to the outer catch on failure too
+        source = "finnhub";
       }
       const now = new Date();
       await prisma.assetFundamentals.upsert({
@@ -52,7 +54,7 @@ async function refreshFundamentals(): Promise<void> {
           quickRatio: (fundamentals.quick_ratio as number | null) ?? null,
           grossMargin: (fundamentals.gross_margin as number | null) ?? null,
           operatingMargin: (fundamentals.operating_margin as number | null) ?? null,
-          source: "yahoo",
+          source,
           createdAt: now,
           updatedAt: now,
         },
@@ -72,7 +74,7 @@ async function refreshFundamentals(): Promise<void> {
           quickRatio: (fundamentals.quick_ratio as number | null) ?? null,
           grossMargin: (fundamentals.gross_margin as number | null) ?? null,
           operatingMargin: (fundamentals.operating_margin as number | null) ?? null,
-          source: "yahoo",
+          source,
           updatedAt: now,
         },
       });
