@@ -44,6 +44,27 @@ export class CircuitBreaker {
     }
     return true;
   }
+
+  /** Clear every cooled-down entry whose key starts with `${prefix}:` (e.g.
+   * all models of one provider). Used when an operator rotates a provider's
+   * credential — a freshly-fixed key should recover immediately, not wait
+   * out the remaining TTL. Additive: the trip/isOpen backstop is unchanged. */
+  async clearByPrefix(prefix: string): Promise<number> {
+    let cleared = 0;
+    try {
+      const keys = await redis.keys(this.redisKey(`${prefix}:*`));
+      if (keys.length > 0) cleared += await redis.del(...keys);
+    } catch {
+      // Redis unavailable — fall through to the memory map.
+    }
+    for (const k of [...this.cooldowns.keys()]) {
+      if (k.startsWith(`${prefix}:`)) {
+        this.cooldowns.delete(k);
+        cleared++;
+      }
+    }
+    return cleared;
+  }
 }
 
 export const aiCircuitBreaker = new CircuitBreaker("ai");

@@ -6,6 +6,7 @@ import { DEFAULT_PROVIDERS } from "./providerDefaults";
 import { Prisma } from "../../generated/prisma";
 import type { ProviderConfig } from "../../generated/prisma";
 import { logger } from "../logger";
+import { aiCircuitBreaker } from "../ai/circuitBreaker";
 
 const secret = (): string => process.env.SECRET_KEY!;
 
@@ -110,6 +111,14 @@ export async function getProviderDict(providerName: string) {
   return p ? providerToDict(p) : null;
 }
 
+/** Whether a provider is flagged enabled in provider_configs. A missing row
+ * counts as enabled — mirrors ingestQuote's isProviderAvailable, where an
+ * unconfigured provider is gated by its credential check, not this flag. */
+export async function isProviderEnabled(providerName: string): Promise<boolean> {
+  const p = await prisma.providerConfig.findUnique({ where: { providerName } });
+  return p ? p.enabled : true;
+}
+
 export async function updateProvider(
   providerName: string,
   opts: { enabled?: boolean; config?: Record<string, unknown> },
@@ -156,6 +165,17 @@ export async function setProviderKey(providerName: string, keyName: string, valu
     await tx.providerConfig.update({ where: { providerName }, data: { encryptedKeys: JSON.stringify(keys), updatedAt: new Date() } });
     await logAuditAction(tx, "config_provider_key_set", "provider_config", actorId, providerName, { key_name: keyName, is_value_empty: !value });
   });
+
+  // Key rotation on an AI provider: drop any live circuit-breaker cooldown
+  // for it (BUG-P deferred follow-up) so a freshly-fixed key recovers now
+  // rather than after the 5-minute AUTH_FAILED TTL. Only on a real value —
+  // clearing a key is not a recovery.
+  if (value && p.providerType === "ai") {
+    const cleared = await aiCircuitBreaker.clearByPrefix(providerName);
+    if (cleared > 0) {
+      logger.info({ category: "SECURITY", provider: providerName, cleared }, "AI circuit-breaker cooldown cleared on key rotation");
+    }
+  }
 }
 
 export async function removeProviderKey(providerName: string, keyName: string, actorId: string): Promise<boolean> {

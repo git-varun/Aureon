@@ -4,7 +4,7 @@ import { prisma } from "../../prisma";
 import { Prisma } from "../../generated/prisma";
 import { NotFoundError, ProviderError, RateLimitError, ValidationError } from "../errors";
 import { logAuditAction } from "../audit";
-import { getDecryptedKey } from "../settings/providers";
+import { getDecryptedKey, isProviderEnabled } from "../settings/providers";
 import { aiCircuitBreaker } from "./circuitBreaker";
 import { GEMINI_MODELS, geminiFetch, type FetchUsage } from "./providers/gemini";
 import { GROQ_MODELS, groqFetch } from "./providers/groq";
@@ -309,11 +309,17 @@ export async function executeCompletion(
     logger.info({ operation: "ai_completion", mock: true }, "AUREON_TEST_MOCK_AI is active; returning mock completion");
     responseText = mockBriefing(featureName);
   } else {
-    const geminiKey = await getDecryptedKey("gemini", "api_key");
-    const groqKey = await getDecryptedKey("groq", "api_key");
+    // A provider is only in the chain if it is flagged enabled in
+    // provider_configs AND has a key — same as ingestQuote's
+    // isProviderAvailable gate for market providers. Disabling gemini/groq
+    // in Settings must actually remove it from the runtime chain, not just
+    // rely on the circuit breaker (which only fires after a live failure).
+    const [geminiEnabled, groqEnabled] = await Promise.all([isProviderEnabled("gemini"), isProviderEnabled("groq")]);
+    const geminiKey = geminiEnabled ? await getDecryptedKey("gemini", "api_key") : null;
+    const groqKey = groqEnabled ? await getDecryptedKey("groq", "api_key") : null;
 
     if (!geminiKey && !groqKey) {
-      throw new ProviderError("No AI credentials configured (gemini/groq)");
+      throw new ProviderError("No AI provider available — gemini/groq are disabled or missing an API key");
     }
 
     // Fallback chain: try every model of every AI provider, in priority
@@ -374,7 +380,14 @@ export async function executeCompletion(
     }
 
     if (!responseText) {
-      errorMsg = `All models exhausted. Trace: ${JSON.stringify(executionTrace)}`;
+      // Empty trace = no model was even attempted: every enabled provider is
+      // in circuit-breaker cooldown or the wall-clock budget was spent first
+      // (a disabled/keyless provider never reaches the chain). Say so plainly
+      // rather than implying models were tried and failed.
+      errorMsg =
+        Object.keys(executionTrace).length === 0
+          ? "No AI provider available — every enabled model is in cooldown or the completion budget was exhausted first"
+          : `All models exhausted. Trace: ${JSON.stringify(executionTrace)}`;
       logger.error({ operation: "ai_completion", executionTrace }, errorMsg);
       throw new ProviderError(errorMsg);
     }
