@@ -1,4 +1,5 @@
 import { ConfigurationError, ProviderError } from "../errors";
+import { getDecryptedKey } from "../settings/providers";
 import { tryConsumeProviderBudget, getCachedStatement, cacheStatement } from "./redisRateLimit";
 import type { NormalizedQuote } from "./types";
 
@@ -23,8 +24,11 @@ const PROVIDER_NAME = "alphavantage";
 const BUDGET_LIMIT = 25;
 const BUDGET_WINDOW_SECONDS = 86_400;
 
-function resolvedKey(): string | undefined {
-  return process.env.ALPHA_VANTAGE_API_KEY;
+// DB-stored key (provider_configs.encrypted_keys, set via the Settings UI)
+// takes precedence; process.env is the fallback for .env-only deploys.
+// getDecryptedKey returns null when no row/key exists, composing cleanly.
+async function resolvedKey(): Promise<string | undefined> {
+  return (await getDecryptedKey(PROVIDER_NAME, "api_key")) ?? process.env.ALPHA_VANTAGE_API_KEY;
 }
 
 function rejectIndia(symbol: string): void {
@@ -42,7 +46,7 @@ async function checkBudget(): Promise<void> {
 }
 
 async function get(params: Record<string, string>, symbol: string): Promise<Record<string, unknown>> {
-  const apiKey = resolvedKey();
+  const apiKey = await resolvedKey();
   if (!apiKey) throw new ConfigurationError("Alpha Vantage API key is not configured");
   await checkBudget();
   const url = new URL(BASE_URL);
@@ -130,7 +134,7 @@ export async function getStatement(symbol: string, statementType: StatementType)
 }
 
 export async function healthCheck(): Promise<boolean> {
-  const apiKey = resolvedKey();
+  const apiKey = await resolvedKey();
   if (!apiKey) return false;
   try {
     const url = new URL(BASE_URL);

@@ -1,16 +1,20 @@
 import { ConfigurationError, ProviderError } from "../errors";
 import { logger } from "../logger";
+import { getDecryptedKey } from "../settings/providers";
 import { isNonUsExchangeSymbol } from "./routing";
 import type { NormalizedQuote, NormalizedNews } from "./types";
 
 const PROVIDER_NAME = "finnhub";
 
-function resolvedKey(): string | undefined {
-  return process.env.FINNHUB_API_KEY;
+// DB-stored key (provider_configs.encrypted_keys, set via the Settings UI)
+// takes precedence; process.env is the fallback for .env-only deploys.
+// getDecryptedKey returns null when no row/key exists, composing cleanly.
+async function resolvedKey(): Promise<string | undefined> {
+  return (await getDecryptedKey(PROVIDER_NAME, "api_key")) ?? process.env.FINNHUB_API_KEY;
 }
 
-function requireKey(): string {
-  const key = resolvedKey();
+async function requireKey(): Promise<string> {
+  const key = await resolvedKey();
   if (!key || key === "your_finnhub_api_key" || key.toLowerCase() === "none") {
     throw new ConfigurationError("Finnhub API key is not configured");
   }
@@ -21,7 +25,7 @@ function requireKey(): string {
  * (relies on the fallback-chain's non-US-exchange exclusion instead of a
  * Redis counter here). */
 export async function getQuote(symbol: string): Promise<NormalizedQuote> {
-  const apiKey = requireKey();
+  const apiKey = await requireKey();
   try {
     const url = new URL("https://finnhub.io/api/v1/quote");
     url.searchParams.set("symbol", symbol);
@@ -50,7 +54,7 @@ export async function getQuote(symbol: string): Promise<NormalizedQuote> {
  * fundamentals.ts unit-normalization table) so every caller can write
  * straight through with no further math. */
 export async function getFundamentals(symbol: string): Promise<Record<string, unknown>> {
-  const apiKey = requireKey();
+  const apiKey = await requireKey();
   try {
     const profileUrl = new URL("https://finnhub.io/api/v1/stock/profile2");
     profileUrl.searchParams.set("symbol", symbol);
@@ -192,7 +196,7 @@ async function resolveCompanyName(symbol: string, apiKey: string): Promise<strin
  * getNews already does the equivalent via relatedTickers; Finnhub has no such
  * field, so it is matched on the company name from profile2 instead. */
 export async function getNews(symbol: string): Promise<NormalizedNews[]> {
-  const apiKey = resolvedKey();
+  const apiKey = await resolvedKey();
   if (!apiKey || apiKey === "your_finnhub_api_key" || apiKey.toLowerCase() === "none") return [];
 
   // Finnhub's free tier is US-listed-only — company-news and profile2 both
@@ -231,7 +235,7 @@ export async function getNews(symbol: string): Promise<NormalizedNews[]> {
 }
 
 export async function healthCheck(): Promise<boolean> {
-  const apiKey = resolvedKey();
+  const apiKey = await resolvedKey();
   if (!apiKey || apiKey === "your_finnhub_api_key" || apiKey.toLowerCase() === "none") return false;
   try {
     const url = new URL("https://finnhub.io/api/v1/quote");

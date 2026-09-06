@@ -90,9 +90,19 @@ export function providerToDict(p: ProviderConfig) {
   };
 }
 
+// Only provider names present in DEFAULT_PROVIDERS are canonical. Historic
+// orphan rows (finnHub, alphaVantage, twelveData, twelve_data) linger in
+// some provider_configs tables from an earlier camelCase-keyed bug;
+// seedDefaultProviders neither creates nor cleans them, and a key set on one
+// via the Settings API "succeeds" yet is silently ignored forever. Those
+// specific rows are deleted by migration 20260906_drop_orphan_provider_configs;
+// this filter is the permanent guard against any future typo'd row rendering
+// as an editable provider.
+const CANONICAL_PROVIDER_NAMES = new Set(DEFAULT_PROVIDERS.map((p) => p.providerName));
+
 export async function getAllProviders() {
   const rows = await prisma.providerConfig.findMany();
-  return rows.map(providerToDict);
+  return rows.filter((r) => CANONICAL_PROVIDER_NAMES.has(r.providerName)).map(providerToDict);
 }
 
 export async function getProviderDict(providerName: string) {

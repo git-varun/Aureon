@@ -1,19 +1,18 @@
 import { ConfigurationError, ProviderError } from "../errors";
+import { getDecryptedKey } from "../settings/providers";
 import type { NormalizedQuote } from "./types";
 
 const PROVIDER_NAME = "polygon";
 
-// Same env-var-only key convention as finnhub.ts/twelvedata.ts/alphavantage.ts
-// — Python's PolygonAdapter resolves its key from ProviderFactory (which
-// decrypts config.provider_configs.encrypted_keys DB-side); this port instead
-// reads process.env.POLYGON_API_KEY, matching every other keyed adapter
-// already ported in this backend. Known divergence, not fixed here.
-function resolvedKey(): string | undefined {
-  return process.env.POLYGON_API_KEY;
+// DB-stored key (provider_configs.encrypted_keys, set via the Settings UI)
+// takes precedence; process.env is the fallback for .env-only deploys.
+// getDecryptedKey returns null when no row/key exists, composing cleanly.
+async function resolvedKey(): Promise<string | undefined> {
+  return (await getDecryptedKey(PROVIDER_NAME, "api_key")) ?? process.env.POLYGON_API_KEY;
 }
 
-function requireKey(): string {
-  const key = resolvedKey();
+async function requireKey(): Promise<string> {
+  const key = await resolvedKey();
   if (!key || key === "your_polygon_api_key" || key.toLowerCase() === "none") {
     throw new ConfigurationError("Polygon API key is not configured");
   }
@@ -22,7 +21,7 @@ function requireKey(): string {
 
 /** Port of PolygonAdapter.get_quote. */
 export async function getQuote(symbol: string): Promise<NormalizedQuote> {
-  const apiKey = requireKey();
+  const apiKey = await requireKey();
   try {
     const url = new URL(`https://api.polygon.io/v2/last/trade/${symbol}`);
     url.searchParams.set("apiKey", apiKey);
@@ -48,7 +47,7 @@ export async function getQuote(symbol: string): Promise<NormalizedQuote> {
 }
 
 export async function healthCheck(): Promise<boolean> {
-  const apiKey = resolvedKey();
+  const apiKey = await resolvedKey();
   if (!apiKey || apiKey === "your_polygon_api_key" || apiKey.toLowerCase() === "none") return false;
   try {
     const url = new URL("https://api.polygon.io/v2/last/trade/AAPL");
