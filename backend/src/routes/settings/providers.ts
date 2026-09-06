@@ -4,7 +4,7 @@ import {
   getAllProviders, getProviderDict, updateProvider, setProviderKey, removeProviderKey, getDecryptedKey,
 } from "../../lib/settings/providers";
 import { listAllocationTargets, upsertAllocationTarget } from "../../lib/settings/allocationTargets";
-import { PROVIDER_HEALTH_CHECKS } from "../../lib/settings/providerHealth";
+import { PROVIDER_HEALTH_CHECKS, assertProviderEnableAllowed } from "../../lib/settings/providerHealth";
 import { prisma } from "../../prisma";
 import { NotFoundError, RequestValidationError, ValidationError, ZerodhaAuthError } from "../../lib/errors";
 import { ZerodhaClient } from "../../lib/broker/zerodha/client";
@@ -20,6 +20,9 @@ providersRouter.get("/providers", async (_req, res) => {
 
 providersRouter.put("/providers/:name", async (req, res) => {
   const user = await getCurrentUser();
+  // Standing policy: enabling a key-required provider must pass its live
+  // health check first — a stored key alone is not proof it works.
+  if (req.body?.enabled === true) await assertProviderEnableAllowed(req.params.name);
   await updateProvider(req.params.name, { enabled: req.body?.enabled, config: req.body?.config }, user.id);
   logger.info({ category: "SECURITY", action: "provider_updated", provider: req.params.name, userId: user.id, enabled: req.body?.enabled }, "Provider config updated");
   res.json({ providers: await getAllProviders() });

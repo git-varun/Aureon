@@ -1,3 +1,5 @@
+import { prisma } from "../../prisma";
+import { ValidationError } from "../errors";
 import { resolveProviderCredentials } from "../broker/runBrokerSync";
 import { ZerodhaClient } from "../broker/zerodha/client";
 import { GrowwClient } from "../broker/groww/client";
@@ -64,3 +66,64 @@ export const PROVIDER_HEALTH_CHECKS: Record<string, () => Promise<boolean>> = {
   coingecko: coingeckoHealthCheck,
   mfapi: amfiHealthCheck,
 };
+
+/** process.env fallback var names, mirroring each market adapter's
+ * resolvedKey(). Used only to tell "no key anywhere" apart from "key present
+ * but rejected" in the enable-gate message below. AI providers (gemini/groq)
+ * resolve DB-only, so have no entry. */
+const PROVIDER_ENV_KEY_VARS: Record<string, string> = {
+  finnhub: "FINNHUB_API_KEY",
+  polygon: "POLYGON_API_KEY",
+  twelvedata: "TWELVE_DATA_API_KEY",
+  alphavantage: "ALPHA_VANTAGE_API_KEY",
+};
+
+/** Standing policy (2026-09): a key-required provider may only be flipped to
+ * enabled=true if its live health-check probe — the same one the Settings
+ * "test key" button runs — currently passes. A stored key alone is not
+ * enough; the enable action must prove the credential works end-to-end.
+ *
+ * No-op (returns cleanly) when: the provider needs no key; it has no live
+ * probe registered (PLANNED roadmap rows); or it is already enabled (a
+ * config-only re-save must not be blocked by an unrelated probe failure).
+ * Throws ValidationError (-> HTTP 400) with a message the Settings UI can
+ * surface, distinguishing "no key configured" from "key rejected". */
+export async function assertProviderEnableAllowed(providerName: string): Promise<void> {
+  const cfg = await prisma.providerConfig.findUnique({ where: { providerName } });
+  if (!cfg || cfg.enabled) return;
+
+  const keyNames = safeParse<string[]>(cfg.keyNames, []);
+  if (keyNames.length === 0) return;
+
+  const probe = PROVIDER_HEALTH_CHECKS[providerName];
+  if (!probe) return;
+
+  if (await probe()) return;
+
+  const storedKeys = safeParse<Record<string, string>>(cfg.encryptedKeys, {});
+  const envVar = PROVIDER_ENV_KEY_VARS[providerName];
+  const hasKey = keyNames.some((k) => storedKeys[k]) || Boolean(envVar && process.env[envVar]);
+
+  throw new ValidationError(enableRejectionMessage(providerName, keyNames, hasKey, envVar));
+}
+
+function safeParse<T>(raw: string, fallback: T): T {
+  try {
+    return JSON.parse(raw) as T;
+  } catch {
+    return fallback;
+  }
+}
+
+/** Pure message builder — split out so the "no key" vs "key rejected"
+ * wording is unit-testable without a DB or a live probe. */
+export function enableRejectionMessage(
+  providerName: string,
+  keyNames: string[],
+  hasKey: boolean,
+  envVar?: string,
+): string {
+  return hasKey
+    ? `Cannot enable ${providerName}: its API key failed the live health check — the provider rejected the credential (e.g. HTTP 401). Update the key and retry.`
+    : `Cannot enable ${providerName}: no API key is configured (checked Settings${envVar ? ` and $${envVar}` : ""}). Set ${keyNames.join(", ")} before enabling.`;
+}
