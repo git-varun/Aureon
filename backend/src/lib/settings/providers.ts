@@ -26,11 +26,18 @@ export async function seedDefaultProviders(): Promise<void> {
     try {
       const exists = await prisma.providerConfig.findUnique({ where: { providerName: p.providerName } });
       if (!exists) {
+        // Standing policy (2026-09): a key-required provider must not seed as
+        // enabled — a fresh row has no credential, and enabled=true on an
+        // unusable provider is exactly what the audit-and-enforce pass had to
+        // undo. Enabling stays an explicit user action through the 03a5daa
+        // enable-gate. Non-key-required rows (yahoo, binance_price, config
+        // rows, PLANNED valuation rows) are unaffected.
+        const keyRequired = safeJsonLoad<string[]>(p.keyNames, []).length > 0;
         await prisma.providerConfig.create({
           data: {
             providerName: p.providerName,
             providerType: p.providerType,
-            enabled: true,
+            enabled: !keyRequired,
             keyNames: p.keyNames,
             encryptedKeys: "{}",
             config: p.config ?? "{}",
