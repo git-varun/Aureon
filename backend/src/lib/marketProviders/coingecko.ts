@@ -39,7 +39,7 @@ export const SYMBOL_TO_COINGECKO_ID: Record<string, string> = {
   NEAR: "near", APT: "aptos", ARB: "arbitrum", OP: "optimism",
   SUI: "sui", TON: "the-open-network", SHIB: "shiba-inu",
   PEPE: "pepe", USDT: "tether", USDC: "usd-coin", BUSD: "binance-usd",
-  DAI: "dai", FDUSD: "first-digital-usd",
+  DAI: "dai", FDUSD: "first-digital-usd", ZEC: "zcash",
 };
 
 /** Port of _coin_id. Tracked-universe coins outside the curated 33 are
