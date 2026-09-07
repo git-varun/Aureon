@@ -202,3 +202,82 @@ describe("backfillMutualFundNavHistoryTask", () => {
     expect(Number(matchedHistory[0].price)).toBe(50);
   });
 });
+
+// BUG-F: held MF assets carry AMFI scheme-code-slug symbols with truncated
+// names, so neither ISIN nor exact-name resolution can land — a structural
+// coverage gap. 0 resolved must be a SUCCESS with a warning in
+// result_summary, not a thrown ProviderError / red FAILED row.
+describe("backfillMutualFundNavHistoryTask — zero-resolve coverage gap (BUG-F)", () => {
+  let portfolioId: string;
+  let assetId: string;
+  const slugSymbol = "89452_MF";
+
+  beforeEach(async () => {
+    portfolioId = uuidv4();
+    await testPrisma.portfolio.create({
+      data: { id: portfolioId, name: "test-portfolio-bugf", createdAt: new Date(), updatedAt: new Date() },
+    });
+    assetId = uuidv4();
+    await testPrisma.asset.create({
+      data: { id: assetId, symbol: slugSymbol, name: "Some Fund -", assetClass: "mutual_fund", createdAt: new Date(), updatedAt: new Date() },
+    });
+    await testPrisma.assetSnapshot.create({ data: { assetId, createdAt: new Date(), updatedAt: new Date() } });
+    await testPrisma.position.create({
+      data: {
+        id: uuidv4(), portfolioId, symbol: slugSymbol, assetId, quantity: 1, avgBuyPrice: 10,
+        wallet: "default", createdAt: new Date(), updatedAt: new Date(),
+      },
+    });
+
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async (url: string) => {
+        if (url === "https://api.mfapi.in/mf") {
+          return jsonResponse([{ schemeCode: 100027, schemeName: "Fund A - Growth", isinGrowth: "INF001A01001", isinDivReinvestment: null }]);
+        }
+        if (url.startsWith("https://api.mfapi.in/mf/search")) {
+          return jsonResponse([]);
+        }
+        throw new Error(`unexpected fetch: ${url}`);
+      }),
+    );
+
+    await testPrisma.jobConfig.updateMany({
+      where: { jobName: "backfill_mutual_fund_nav_history" },
+      data: { enabled: true },
+    });
+  });
+
+  afterEach(async () => {
+    vi.unstubAllGlobals();
+    await testPrisma.jobConfig.updateMany({
+      where: { jobName: "backfill_mutual_fund_nav_history" },
+      data: { enabled: false },
+    });
+    await testPrisma.position.deleteMany({ where: { portfolioId } });
+    await testPrisma.assetSnapshot.deleteMany({ where: { assetId } });
+    await testPrisma.asset.deleteMany({ where: { id: assetId } });
+    await testPrisma.portfolio.delete({ where: { id: portfolioId } });
+  });
+
+  afterAll(async () => {
+    await testPrisma.$disconnect();
+  });
+
+  it("succeeds with a 0-of-N warning instead of throwing when nothing resolves", async () => {
+    await expect(backfillMutualFundNavHistoryTask()).resolves.toBeUndefined();
+
+    const history = await testPrisma.priceHistory.findMany({ where: { assetId } });
+    expect(history).toHaveLength(0);
+
+    const log = await testPrisma.jobLog.findFirst({
+      where: { jobName: "backfill_mutual_fund_nav_history" },
+      orderBy: { id: "desc" },
+    });
+    expect(log?.status).toBe("SUCCESS");
+    expect(log?.errorMessage).toBeNull();
+    const summary = log?.resultSummary as { resolved: number; warning: string };
+    expect(summary.resolved).toBe(0);
+    expect(summary.warning).toContain("0 of 1");
+  });
+});

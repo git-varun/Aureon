@@ -1,5 +1,4 @@
 import { prisma } from "../prisma";
-import { ProviderError } from "../lib/errors";
 import { getAllNavs } from "../lib/marketProviders/amfi";
 import { listMutualFundAssetsWithQuotes, recordPriceHistory } from "../lib/jobs/ingestionRepo";
 import { wrapJobExecution, skipIfDisabled } from "../lib/jobs/wrapJobExecution";
@@ -10,11 +9,18 @@ import { logger } from "../lib/logger";
  * (portfolio_importer.py's _mf_symbol_for, ISIN-preferred since the MF
  * orphan fix), or a name-slug `..._MF` fallback otherwise — only the
  * ISIN-keyed form can ever match AMFI's feed, same as Python. */
-async function refreshMutualFundNavs(): Promise<void> {
+interface RefreshResult {
+  matched: number;
+  total: number;
+  unmatched: string[];
+  warning?: string;
+}
+
+async function refreshMutualFundNavs(): Promise<RefreshResult> {
   const assets = await listMutualFundAssetsWithQuotes();
   if (assets.length === 0) {
     logger.info({ job: "refresh_mutual_fund_navs" }, "no mutual fund holdings found");
-    return;
+    return { matched: 0, total: 0, unmatched: [] };
   }
 
   const isinToNav = await getAllNavs();
@@ -50,9 +56,17 @@ async function refreshMutualFundNavs(): Promise<void> {
   }
   logger.info({ job: "refresh_mutual_fund_navs", matched, total: assets.length }, "mutual fund NAV(s) updated");
 
-  if (matched === 0) {
-    throw new ProviderError("refresh_mutual_fund_navs_task: no AMFI NAV matched any held mutual fund symbol");
-  }
+  // 0 matched is a structural coverage gap (held MF symbols are AMFI
+  // scheme-code slugs, not the ISIN keys AMFI's feed is indexed by), not a
+  // provider failure — succeed with a warning rather than a red FAILED row.
+  // A genuine write error still throws: the upserts run inside the
+  // $transaction above and propagate out of this function.
+  const warning =
+    matched === 0
+      ? `0 of ${assets.length} held mutual fund assets matched the AMFI NAV feed (unmatched: ${unmatched.join(", ")})`
+      : undefined;
+
+  return { matched, total: assets.length, unmatched, warning };
 }
 
 /** Port of refresh_mutual_fund_navs_task (the @_skip_if_disabled /

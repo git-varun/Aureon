@@ -1,7 +1,6 @@
 import { v5 as uuidv5 } from "uuid";
 import { prisma } from "../prisma";
 import { Prisma } from "../generated/prisma";
-import { ProviderError } from "../lib/errors";
 import { getSchemeList, getSchemeHistory, searchSchemesByName, type MfapiSchemeListEntry } from "../lib/marketProviders/mfapi";
 import { matchIsinToSchemeCode, matchNameToSchemeCode } from "../lib/jobs/mfSchemeMatch";
 import { listHeldMutualFundAssets, bulkInsertPriceHistory, type PriceHistoryRow } from "../lib/jobs/ingestionRepo";
@@ -43,7 +42,7 @@ async function resolveSchemeCode(asset: HeldMfAsset, schemeList: MfapiSchemeList
   return { schemeCode, needsReview: schemeCode === null && results.length > 0 };
 }
 
-async function backfillMutualFundNavHistory(): Promise<{ resolved: number; needsReview: number; unmatched: number; totalRows: number }> {
+async function backfillMutualFundNavHistory(): Promise<{ resolved: number; needsReview: number; unmatched: number; totalRows: number; warning?: string }> {
   const assets = await listHeldMutualFundAssets();
   if (assets.length === 0) {
     logger.info({ job: "backfill_mutual_fund_nav_history" }, "no held mutual fund positions found");
@@ -102,11 +101,18 @@ async function backfillMutualFundNavHistory(): Promise<{ resolved: number; needs
     "completed",
   );
 
-  if (resolved === 0) {
-    throw new ProviderError("backfill_mutual_fund_nav_history: no held mutual fund resolved to an mfapi.in scheme");
-  }
+  // 0 resolved is a structural coverage gap (held MF symbols are AMFI
+  // scheme-code slugs with truncated names, so neither ISIN nor exact-name
+  // resolution can land), not a provider failure — succeed with a warning
+  // rather than a red FAILED row. needsReview > 0 means the matcher found
+  // candidates it couldn't confirm (worth a human look); a genuine history
+  // fetch/write error is still counted per-asset and logged as it was.
+  const warning =
+    resolved === 0
+      ? `0 of ${assets.length} held mutual fund assets resolved to an mfapi.in scheme (${needsReview} need manual review, ${unmatched} unmatched)`
+      : undefined;
 
-  return { resolved, needsReview, unmatched, totalRows };
+  return { resolved, needsReview, unmatched, totalRows, warning };
 }
 
 /** Manual/one-time-backfill entrypoint, same shape as seedPriceHistoryTask —
