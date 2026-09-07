@@ -62,14 +62,16 @@ function cryptoSymbolAndClass(coin: { id: string; symbol: string }): [string, st
   return [symbol, assetClass];
 }
 
-const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
-
 /** Port of IndexUniverseSeedService.seed_crypto_top100. Discovers the live
  * top-`limit`-by-market-cap coins in a single CoinGecko call, seeds quotes
  * for all of them from that one response, then backfills price history
- * per-coin, explicitly paced to CoinGecko's live-confirmed ~3/min anonymous
- * budget (historyPaceSeconds default 21s). */
-async function seedCryptoTop100(limit = 100, historyPaceSeconds = 21): Promise<UniverseResult> {
+ * per-coin. The history loop is unpaced: backfillHistory has no CoinGecko
+ * history provider, so curated coins are served by Yahoo (no call budget)
+ * and non-curated coins return 0 rows without any network call — the old
+ * 21s inter-coin sleep was calibrated for a CoinGecko budget this code path
+ * never spends. The one budgeted CoinGecko call is getTopMarketCapCoins
+ * above, already guarded by its own checkBudget. */
+async function seedCryptoTop100(limit = 100): Promise<UniverseResult> {
   const coins = await getTopMarketCapCoins(limit);
 
   let quoted = 0;
@@ -94,9 +96,8 @@ async function seedCryptoTop100(limit = 100, historyPaceSeconds = 21): Promise<U
   }
 
   let historyRows = 0;
-  for (let i = 0; i < seeded.length; i++) {
-    if (i > 0) await sleep(historyPaceSeconds * 1000);
-    historyRows += await backfillHistory(seeded[i].assetId, seeded[i].symbol, "coingecko");
+  for (const s of seeded) {
+    historyRows += await backfillHistory(s.assetId, s.symbol, "coingecko");
   }
 
   const result: UniverseResult = { symbols: coins.length, quoted, failed, history_rows: historyRows };
