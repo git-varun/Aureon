@@ -24,22 +24,14 @@ export const JOB_LABELS = {
     seed_tracked_universes: {label: 'Tracked Universe Seed', desc: 'One-time/manual bulk seed of the curated index-based tracked universes — not scheduled, run only when needed'},
     refresh_tracked_universe: {label: 'Tracked Universe Refresh', desc: 'Daily refresh of tracked (non-portfolio) assets not already covered by the hourly holdings/watchlist refresh'},
     sweep_stale_job_logs: {label: 'Stale Job Log Sweep', desc: 'Marks job runs stuck in RUNNING past the timeout as FAILED — internal housekeeping, no external provider'},
-    seed_market_universe: {label: 'Seed Market Universe (Legacy)', desc: 'Orphaned row from a prior schema, replaced by Tracked Universe Seed — has no backing task and will fail if run; safe to disable'},
 };
 
 // Requires a portfolio_id the generic "Run" button here can't supply (there
 // is no portfolio-scoped UI for it yet — see POST
 // /portfolios/{id}/sync/binance/backfill). The enable/disable toggle still
 // works as a kill switch for that endpoint.
-//
-// seed_market_universe is a legacy job_configs row left over from a rename
-// (see JOB_LABELS) — it has no entry in ConfigService._TASK_MAPPING, so
-// dispatch_job raises "Unknown job" if triggered. Excluded from Run for the
-// same reason as backfill_binance_spot: the generic Run button can't do
-// anything useful with it.
 const NOT_MANUALLY_RUNNABLE = new Map([
     ['backfill_binance_spot', 'Trigger from the asset page instead'],
-    ['seed_market_universe', 'Legacy row — no backing task, cannot be run'],
 ]);
 
 // Grouped single-trigger buttons — fire every member job and report each
