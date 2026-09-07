@@ -17,7 +17,6 @@ import { weeklyBriefingTask } from "../../jobs/weeklyBriefing";
 import { monthlyBriefingTask } from "../../jobs/monthlyBriefing";
 import { refreshFundamentalsTask } from "../../jobs/refreshFundamentals";
 import { validateDataQualityTask } from "../../jobs/validateDataQuality";
-import { adminReprocessAllAssetsTask, adminRepairJobsTask } from "../../jobs/adminMaintenance";
 import { seedTrackedUniversesTask } from "../../jobs/seedTrackedUniverses";
 import { backfillMutualFundNavHistoryTask } from "../../jobs/backfillMutualFundNavHistory";
 import { logger } from "../logger";
@@ -47,8 +46,6 @@ const JOB_RUNNERS: Record<string, (logId: number) => Promise<void>> = {
   monthly_briefing: monthlyBriefingTask,
   refresh_fundamentals: refreshFundamentalsTask,
   validate_data_quality: validateDataQualityTask,
-  admin_reprocess_all: adminReprocessAllAssetsTask,
-  admin_repair: adminRepairJobsTask,
   seed_tracked_universes: seedTrackedUniversesTask,
   backfill_mutual_fund_nav_history: backfillMutualFundNavHistoryTask,
 };

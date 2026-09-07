@@ -1,6 +1,4 @@
-import { prisma } from "../prisma";
 import { generateFeatures } from "./generateFeatures";
-import { wrapJobExecution } from "../lib/jobs/wrapJobExecution";
 import { logger } from "../lib/logger";
 
 // Bounds how many generateFeatures(assetId) calls run concurrently. Python's
@@ -8,12 +6,13 @@ import { logger } from "../lib/logger";
 // concurrency (durable, retryable); Node has no per-job queue this phase
 // (see plan Global Constraints — no BullMQ queue-per-job), so an earlier
 // version of this function fired every call as an unawaited promise all at
-// once — up to 564 concurrent generateFeatures runs for admin_reprocess_all,
-// each doing several Prisma round-trips, against a Prisma connection pool
-// that defaults to a small multiple of CPU count. That does NOT match
-// Celery's dispatch semantics (no bound, no durability across a process
-// restart, no retry-on-failure) despite an earlier version of this comment
-// claiming it did — this is a plain bounded-batch loop, nothing more.
+// once — up to 564 concurrent generateFeatures runs for a full-universe
+// reprocess, each doing several Prisma round-trips, against a Prisma
+// connection pool that defaults to a small multiple of CPU count. This is a
+// plain bounded-batch loop, nothing more (no durability across a process
+// restart, no retry-on-failure). The full-universe callers
+// (admin_reprocess_all / admin_repair) were retired 2026-09-07; the bound
+// stays because adminBackfillAssets still routes through here.
 const FAN_OUT_BATCH_SIZE = 10;
 
 /** Processes assetIds in fixed-size batches, awaiting each batch (via
@@ -32,30 +31,10 @@ async function fanOutGenerateFeatures(assetIds: string[]): Promise<void> {
       if (result.status === "rejected") {
         const assetId = batch[idx];
         const e = result.reason as Error;
-        logger.error({ job: "admin_reprocess_all", assetId, err: e }, "generateFeatures failed");
+        logger.error({ job: "admin_backfill_assets", assetId, err: e }, "generateFeatures failed");
       }
     });
   }
-}
-
-/** Port of admin_reprocess_all_assets (job_name "admin_reprocess_all", per
- * _wrap_job_execution's wrap-name argument — the JobConfig-driven dispatch
- * name differs from the Celery task's own name). No JobConfig row exists for
- * this job in Python's _DEFAULT_JOBS (nor seeded in Node) — same as Python,
- * it has no beat_schedule entry and is unreachable through the
- * job_configs-gated `POST /jobs/{job_name}/run` route in either backend;
- * it's reachable only via a direct dispatch_job("admin_reprocess_all") call
- * from wherever a caller invokes it (no such caller exists in this repo
- * today — confirmed via grep, both backends). Still wired into JOB_RUNNERS
- * for parity/dispatchJob-bypass callers, per the brief. */
-async function reprocessAllAssets(): Promise<void> {
-  const rows = await prisma.latestQuote.findMany({ where: { assetId: { not: null } }, select: { assetId: true }, distinct: ["assetId"] });
-  const assetIds = rows.map((r) => r.assetId).filter((id): id is string => id !== null);
-  await fanOutGenerateFeatures(assetIds);
-}
-
-export async function adminReprocessAllAssetsTask(logId: number | null = null): Promise<void> {
-  await wrapJobExecution("admin_reprocess_all", logId, reprocessAllAssets);
 }
 
 /** Port of admin_backfill_assets. Unlike every other job ported in this
@@ -66,11 +45,7 @@ export async function adminReprocessAllAssetsTask(logId: number | null = null): 
  * `POST /market/symbols/{symbol}/backfill`
  * (backend/src/routes/market/market.ts's `triggerBackfill`), which
  * resolves one asset by symbol and calls `adminBackfillAssets([asset.id])`
- * without awaiting it. The route itself was deferred from Task 1 (no Node
- * generate_features runner existed yet) through Task 7 (out of that task's
- * jobs/tasks.py-only scope) and was finally ported in Task 10, as part of
- * deleting backend/ entirely — this function existed as a ready runner
- * before the route did. It stays fire-and-forget at this outer layer (no
+ * without awaiting it. It stays fire-and-forget at this outer layer (no
  * JobLog to close out, matching Python's own no-`_wrap_job_execution`
  * shape) while `fanOutGenerateFeatures` still bounds concurrency
  * internally. */
@@ -78,27 +53,4 @@ export function adminBackfillAssets(assetIds: string[]): void {
   void fanOutGenerateFeatures(assetIds).catch((e: Error) => {
     logger.error({ job: "admin_backfill_assets", err: e }, "fan-out failed");
   });
-}
-
-/** Port of admin_repair_jobs (job_name "admin_repair"). Finds every
- * AssetSnapshot missing AssetFeatures or an AssetScore(model_version=v1.0.0)
- * row and re-fans-out generate_features for each — same no-JobConfig-row,
- * no-beat_schedule, no-current-caller situation as admin_reprocess_all
- * above. */
-async function repairJobs(): Promise<void> {
-  const modelVersion = "v1.0.0";
-  const snapshots = await prisma.assetSnapshot.findMany({ select: { assetId: true } });
-  const missing: string[] = [];
-  for (const { assetId } of snapshots) {
-    const [features, score] = await Promise.all([
-      prisma.asset_features.findUnique({ where: { asset_id: assetId } }),
-      prisma.assetScore.findFirst({ where: { assetId, modelVersion } }),
-    ]);
-    if (!features || !score) missing.push(assetId);
-  }
-  await fanOutGenerateFeatures(missing);
-}
-
-export async function adminRepairJobsTask(logId: number | null = null): Promise<void> {
-  await wrapJobExecution("admin_repair", logId, repairJobs);
 }

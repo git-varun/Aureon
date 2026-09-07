@@ -1,10 +1,17 @@
 import { logger } from "../logger";
 
 // Port of app/core/services/config.py's _DEFAULT_JOBS (config.py:168-187).
-// Seeds the full 17-job roadmap regardless of whether a Node runner exists
-// for it yet — same honesty principle as providerDefaults.ts: GET /jobs
-// must show what Python actually schedules, not just what's dispatchable
-// today (see jobDispatch.ts's JOB_RUNNERS for the dispatchable subset).
+// Seeds the job roadmap regardless of whether a Node runner exists for it
+// yet — same honesty principle as providerDefaults.ts: GET /jobs must show
+// what Python actually schedules, not just what's dispatchable today (see
+// jobDispatch.ts's JOB_RUNNERS for the dispatchable subset).
+//
+// Deliberately omits Python's `sync_portfolio` _DEFAULT_JOBS entry: it never
+// had a Node runner, job file, or beat_schedule entry (pure roadmap leftover
+// from the port), so a seeded row only cluttered GET /jobs with a job that
+// always 400s on dispatch. Retired 2026-09-07 (see
+// docs/audits/job-inventory-review-2026-09-07.md); the live row is dropped
+// by migration 20260907115701_drop_orphan_sync_portfolio_job_config.
 
 export interface DefaultJob {
   jobName: string;
@@ -13,7 +20,6 @@ export interface DefaultJob {
 }
 
 export const DEFAULT_JOBS: DefaultJob[] = [
-  { jobName: "sync_portfolio", enabled: true, jobTier: "user" },
   { jobName: "sync_zerodha", enabled: false, jobTier: "user" },
   { jobName: "sync_binance", enabled: false, jobTier: "user" },
   { jobName: "sync_groww", enabled: false, jobTier: "user" },

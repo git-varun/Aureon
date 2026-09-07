@@ -4,11 +4,10 @@ import {toast} from 'react-hot-toast';
 import {apiService} from '@/api/apiService';
 import {BinanceBackfillRow} from '@/components/aureon/profile/ProviderConfig';
 
-// Covers all 18 backend job_configs rows (see ConfigService._TASK_MAPPING) —
+// Covers every backend job_configs row (see ConfigService._TASK_MAPPING) —
 // every job must resolve to a real label here, never fall back to raw
 // snake_case in the UI.
 export const JOB_LABELS = {
-    sync_portfolio: {label: 'Portfolio Refresh', desc: 'Refresh live quotes and recompute valuations for all portfolios (not a broker holdings sync — see Portfolio Sync group)'},
     sync_zerodha: {label: 'Zerodha Sync', desc: 'Sync holdings from Zerodha — live OAuth sync is currently non-functional; use Import Data instead'},
     sync_binance: {label: 'Binance Sync', desc: 'Sync holdings from Binance'},
     sync_groww: {label: 'Groww Sync', desc: 'Sync holdings from Groww'},
@@ -53,10 +52,9 @@ const NOT_MANUALLY_RUNNABLE = new Map([
 //
 // Market Data groups refresh_prices/refresh_fundamentals/seed_price_history
 // on real, traced provider dependency (all Yahoo-primary — see the job ->
-// provider dependency audit), not on job name similarity. sync_portfolio
-// and fetch_news also touch this provider family but stay standalone —
-// a deliberate conceptual-grouping-over-dependency-graph call, not an
-// oversight.
+// provider dependency audit), not on job name similarity. fetch_news also
+// touches this provider family but stays standalone — a deliberate
+// conceptual-grouping-over-dependency-graph call, not an oversight.
 const JOB_GROUPS = [
     {
         id: 'portfolio_sync',

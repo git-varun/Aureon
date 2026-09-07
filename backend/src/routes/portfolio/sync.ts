@@ -4,25 +4,24 @@ import { dispatchJob, dispatchPortfolioJob } from "../../lib/settings/jobDispatc
 import { getAllProviders } from "../../lib/settings/providers";
 import { getJobLogs, getLastSuccessfulRun } from "../../lib/jobs/config";
 import { countBrokerPositions, getBinanceBackfillStatus } from "../../lib/broker/brokerSync";
-import { NotFoundError } from "../../lib/errors";
+import { NotFoundError, ValidationError } from "../../lib/errors";
 
 export const syncRouter = Router();
 
-// Port of PortfolioService.sync_brokers (POST /sync). broker -> job_name,
-// same fallback-to-"sync_portfolio" mapping as Python. UNLIKE Python,
-// sync_portfolio has no Node runner (see jobDispatch.ts's JOB_RUNNERS — it
-// isn't in scope for Task 4's broker-sync port), so that fallback branch
-// throws a ConfigurationError here instead of actually dispatching a
-// portfolio-wide snapshot refresh the way Python's real sync_portfolio_task
-// does. This is a REAL functional gap, not parity: the plain "Sync" button
-// (no broker selected) would 400 on this route today. Must be closed before
-// this route can be cut over in vite.config.js, independent of the
-// broker-credential blockers documented in task4-report.md.
+// Port of PortfolioService.sync_brokers (POST /sync). broker -> job_name.
+// Python fell back to a "sync_portfolio" job for the no-broker case; that job
+// never had a Node runner (pure _DEFAULT_JOBS roadmap leftover) and was
+// retired 2026-09-07 — see docs/audits/job-inventory-review-2026-09-07.md.
+// A missing/unknown broker now rejects explicitly (400) rather than
+// dispatching a job that always 400s anyway. A portfolio-wide snapshot
+// refresh with no broker selected is still an unimplemented feature, not a
+// regression from this change.
 syncRouter.post("/sync", async (req, res) => {
   const broker = String(req.body?.broker ?? "").toLowerCase();
-  const jobName = ({ zerodha: "sync_zerodha", binance: "sync_binance", groww: "sync_groww" } as Record<string, string>)[broker] ?? "sync_portfolio";
+  const jobName = ({ zerodha: "sync_zerodha", binance: "sync_binance", groww: "sync_groww" } as Record<string, string>)[broker];
+  if (!jobName) throw new ValidationError(`Unknown or missing broker '${broker}' — specify one of: zerodha, binance, groww`);
   const taskId = await dispatchJob(jobName);
-  res.json({ status: "queued", message: `${broker || "portfolio"} sync queued`, task_id: taskId });
+  res.json({ status: "queued", message: `${broker} sync queued`, task_id: taskId });
 });
 
 // provider_name -> (job_name, keys required to consider it "connected")
