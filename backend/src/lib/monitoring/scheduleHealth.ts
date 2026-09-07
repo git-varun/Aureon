@@ -4,12 +4,16 @@ import { prisma } from "../../prisma";
  * registerSweepStaleJobLogsSchedule and friends) — add an entry here in the
  * SAME change that cuts a new job over from Python's beat_schedule (see
  * migration plan Task 3, Step 0). intervalMinutes must match the cron
- * pattern's actual cadence exactly, not be a rough estimate. */
+ * pattern's actual cadence exactly, not be a rough estimate. Conversely,
+ * drop the entry in the SAME change a job loses its repeatable schedule —
+ * seed_price_history was here until it was demoted to manual-only on
+ * 2026-09-07 (queue.ts / unregisterSeedPriceHistorySchedule), which would
+ * otherwise leave this reporting a permanent false "stale" for a job that
+ * no longer runs on a schedule. */
 const SCHEDULED_JOBS: Array<{ jobName: string; intervalMinutes: number }> = [
   { jobName: "sweep_stale_job_logs", intervalMinutes: 30 },
   { jobName: "refresh_tracked_universe", intervalMinutes: 24 * 60 },
   { jobName: "refresh_mutual_fund_navs", intervalMinutes: 24 * 60 },
-  { jobName: "seed_price_history", intervalMinutes: 7 * 24 * 60 },
   { jobName: "refresh_prices", intervalMinutes: 60 },
 ];
 

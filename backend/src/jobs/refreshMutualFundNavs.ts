@@ -70,8 +70,9 @@ async function refreshMutualFundNavs(): Promise<RefreshResult> {
 }
 
 /** Port of refresh_mutual_fund_navs_task (the @_skip_if_disabled /
- * @shared_task decorator pair). Manual-trigger entrypoint only this phase —
- * no BullMQ repeatable schedule is registered anywhere. */
+ * @shared_task decorator pair). Beat-scheduled in Python (crontab(hour=23,
+ * minute=0) UTC) — cut over to a real BullMQ repeatable schedule, see
+ * scripts/startWorker.ts and queue.ts's SCHEDULED_JOB_HANDLERS. */
 export async function refreshMutualFundNavsTask(logId: number | null = null): Promise<void> {
   if (await skipIfDisabled("refresh_mutual_fund_navs", logId)) return;
   await wrapJobExecution("refresh_mutual_fund_navs", logId, refreshMutualFundNavs);
