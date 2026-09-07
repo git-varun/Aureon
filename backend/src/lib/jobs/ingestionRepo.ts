@@ -46,6 +46,18 @@ export async function trackUsage(tx: Tx, providerId: string, endpoint: string): 
   });
 }
 
+/** Deletes provider_usage rows older than `retentionDays` (BUG-S). One row
+ * is written per get_quote call (trackUsage, above) and nothing anywhere
+ * reads the table, so it grew unbounded since creation — this is the only
+ * reader/deleter. `recordedAt` is nullable in the schema but trackUsage
+ * always sets it, so the `lt` filter covering only non-NULL rows is
+ * deliberate, not an oversight. Returns the number of rows deleted. */
+export async function pruneProviderUsage(retentionDays: number): Promise<number> {
+  const cutoff = new Date(Date.now() - retentionDays * 24 * 60 * 60 * 1000);
+  const { count } = await prisma.providerUsage.deleteMany({ where: { recordedAt: { lt: cutoff } } });
+  return count;
+}
+
 /** Port of IngestionRepository.mark_provider_healthy — deliberately its own
  * mini-transaction after save_quote's main commit, matching Python (a
  * failure here must not roll back the quote write that already succeeded). */
