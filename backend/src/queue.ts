@@ -79,14 +79,17 @@ export async function registerRefreshMutualFundNavsSchedule(): Promise<void> {
   );
 }
 
-// Matches Python's beat_schedule crontab(hour=2, minute=0, day_of_week="sun")
-// exactly — weekly, Sunday 02:00 UTC. Cron day-of-week 0 = Sunday.
-export async function registerSeedPriceHistorySchedule(): Promise<void> {
-  await scheduledJobsQueue.upsertJobScheduler(
-    "seed-price-history",
-    { pattern: "0 2 * * 0", tz: "UTC" },
-    { name: "seedPriceHistory" },
-  );
+// seed_price_history was demoted to manual-only on 2026-09-07 (job-inventory
+// review): 1 successful run in 3 weeks, and confirmed not a price_history
+// source for the stale-quote set — ingestQuote appends price_history
+// incrementally for the active set. Ported straight from Python's
+// beat_schedule without re-justifying the weekly cadence. Still fully
+// dispatchable via JOB_RUNNERS (jobDispatch.ts). This actively removes the
+// persisted BullMQ scheduler rather than merely dropping the registration
+// call: upsertJobScheduler wrote it into Redis, so without removeJobScheduler
+// it would keep firing on `0 2 * * 0`. Idempotent — returns false when absent.
+export async function unregisterSeedPriceHistorySchedule(): Promise<boolean> {
+  return scheduledJobsQueue.removeJobScheduler("seed-price-history");
 }
 
 // Matches Python's beat_schedule crontab(minute=0, hour="*") exactly —

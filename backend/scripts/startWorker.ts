@@ -8,7 +8,7 @@ import {
   registerSweepStaleJobLogsSchedule,
   registerRefreshTrackedUniverseSchedule,
   registerRefreshMutualFundNavsSchedule,
-  registerSeedPriceHistorySchedule,
+  unregisterSeedPriceHistorySchedule,
   registerRefreshPricesSchedule,
   registerDailyBriefingSchedule,
   registerWeeklyBriefingSchedule,
@@ -53,13 +53,19 @@ async function start() {
   await registerSweepStaleJobLogsSchedule();
   await registerRefreshTrackedUniverseSchedule();
   await registerRefreshMutualFundNavsSchedule();
-  await registerSeedPriceHistorySchedule();
   await registerRefreshPricesSchedule();
   await registerDailyBriefingSchedule();
   await registerWeeklyBriefingSchedule();
   await registerMonthlyBriefingSchedule();
   await registerRefreshFundamentalsSchedule();
   await registerFetchNewsSchedule();
+
+  // seed_price_history demoted to manual-only on 2026-09-07 — actively remove
+  // its persisted BullMQ scheduler (dropping the registration call alone would
+  // leave the Redis scheduler firing weekly). Idempotent once converged.
+  if (await unregisterSeedPriceHistorySchedule()) {
+    logger.warn("removed persisted seed-price-history scheduler — job is now manual-dispatch only");
+  }
 
   // Boot-time sweep, in addition to the */30 cron above: if the worker
   // crashed mid-run, stale RUNNING job_logs rows would otherwise sit until
@@ -76,7 +82,7 @@ async function start() {
   logger.info(
     "Repeatable schedules registered: sweep-stale-job-logs (*/30 * * * * UTC), " +
       "refresh-tracked-universe (0 4 * * * UTC), refresh-mutual-fund-navs (0 23 * * * UTC), " +
-      "seed-price-history (0 2 * * 0 UTC), hourly-price-refresh (0 * * * * UTC), " +
+      "hourly-price-refresh (0 * * * * UTC), " +
       "daily-briefing (0 8 * * * UTC), weekly-briefing (30 8 * * 1 UTC), monthly-briefing (0 9 1 * * UTC), " +
       "refresh-fundamentals (0 6 * * * UTC), news-refresh (0 */4 * * * UTC)",
   );
