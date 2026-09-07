@@ -17,8 +17,8 @@ import { weeklyBriefingTask } from "../../jobs/weeklyBriefing";
 import { monthlyBriefingTask } from "../../jobs/monthlyBriefing";
 import { refreshFundamentalsTask } from "../../jobs/refreshFundamentals";
 import { validateDataQualityTask } from "../../jobs/validateDataQuality";
-import { seedTrackedUniversesTask } from "../../jobs/seedTrackedUniverses";
 import { backfillMutualFundNavHistoryTask } from "../../jobs/backfillMutualFundNavHistory";
+import { scheduledJobsQueue } from "../jobs/queues";
 import { logger } from "../logger";
 
 const redis = new Redis(process.env.REDIS_URL!);
@@ -46,8 +46,21 @@ const JOB_RUNNERS: Record<string, (logId: number) => Promise<void>> = {
   monthly_briefing: monthlyBriefingTask,
   refresh_fundamentals: refreshFundamentalsTask,
   validate_data_quality: validateDataQualityTask,
-  seed_tracked_universes: seedTrackedUniversesTask,
   backfill_mutual_fund_nav_history: backfillMutualFundNavHistoryTask,
+};
+
+// Jobs dispatched by enqueuing onto q_scheduled_jobs for the BullMQ worker
+// to run, instead of running in-process (JOB_RUNNERS above). A long-running
+// job that must survive an API restart mid-run belongs here — the in-process
+// runner is fire-and-forget and dies with the API process (bun --watch
+// reload, deploy, manual restart), leaving a stale RUNNING job_logs row that
+// only the stale-job sweep ever closes, hours or days later. The value is the
+// worker's SCHEDULED_JOB_HANDLERS key (see queue.ts). No JobLog row is opened
+// at dispatch time: the worker's wrapJobExecution owns the whole
+// running/success/failed lifecycle, so a down worker means "not started yet",
+// not a second flavour of stale RUNNING row.
+const QUEUED_JOBS: Record<string, string> = {
+  seed_tracked_universes: "seedTrackedUniverses",
 };
 
 // Port of ConfigService._PROVIDER_REQUIRED_JOBS — dispatch_job checks the
@@ -143,6 +156,12 @@ export async function dispatchJob(jobName: string): Promise<string> {
   if (!job.enabled) throw new ConflictError(`Job '${jobName}' is disabled — not dispatched`);
   if (REQUIRES_PORTFOLIO_ID.has(jobName)) {
     throw new ConfigurationError(`Job '${jobName}' requires a portfolio_id — trigger it from its portfolio-scoped endpoint instead`);
+  }
+
+  const queuedHandler = QUEUED_JOBS[jobName];
+  if (queuedHandler) {
+    const queued = await scheduledJobsQueue.add(queuedHandler, undefined);
+    return queued.id ?? uuidv4();
   }
 
   const runner = JOB_RUNNERS[jobName];

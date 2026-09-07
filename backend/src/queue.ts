@@ -11,6 +11,7 @@ import { weeklyBriefingTask } from "./jobs/weeklyBriefing";
 import { monthlyBriefingTask } from "./jobs/monthlyBriefing";
 import { refreshFundamentalsTask } from "./jobs/refreshFundamentals";
 import { fetchNewsTask } from "./jobs/fetchNews";
+import { seedTrackedUniversesTask } from "./jobs/seedTrackedUniverses";
 import {
   bullmqConnection as connection,
   QUOTES_QUEUE_NAME,
@@ -180,6 +181,12 @@ const SCHEDULED_JOB_HANDLERS: Record<string, () => Promise<void>> = {
   monthlyBriefing: monthlyBriefingTask,
   refreshFundamentals: refreshFundamentalsTask,
   fetchNews: fetchNewsTask,
+  // Manual-dispatch only — no repeatable schedule is registered for this
+  // key (enabled=false by default, occasional bulk operation). It's here so
+  // jobDispatch.ts can enqueue it onto q_scheduled_jobs and have the worker
+  // run it, instead of the API process running it fire-and-forget in-process
+  // and losing it on every restart.
+  seedTrackedUniverses: seedTrackedUniversesTask,
 };
 
 export function startScheduledJobsWorker(): Worker<undefined, void> {
