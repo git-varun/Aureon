@@ -133,10 +133,35 @@ export async function ingestQuote(providerName: string, symbol: string): Promise
     // going one step further than Python, whose is_symbol_held call sits
     // unprotected before the .delay() dispatch and so would misattribute a
     // positions-table read failure to the provider.
+    const evalChainStartedAt = new Date();
     try {
       if (await isSymbolHeld(symbol)) await processAssetSnapshot(assetId);
     } catch (e) {
       logger.error({ err: e }, `ingestQuote: evaluation chain failed for held symbol=${symbol}`);
+      // BUG-J observability: the eval chain is fire-and-forget by design, so a
+      // persistently broken scoring pipeline for held symbols was previously
+      // invisible in job history (ingestQuote writes no job_logs row). Record
+      // a FAILED row per failed chain — failures only, so the healthy hot path
+      // (one ingestQuote per held/watchlisted symbol per cycle) adds nothing.
+      // Distinct job_name so ingestQuote's own success rate isn't misread.
+      // Written as one already-closed row (no RUNNING window for the stale
+      // sweep to trip over, no JobConfig dependency).
+      const endedAt = new Date();
+      await prisma.jobLog
+        .create({
+          data: {
+            jobName: "ingest_quote_eval_chain",
+            status: "FAILED",
+            startedAt: evalChainStartedAt,
+            endedAt,
+            durationMs: endedAt.getTime() - evalChainStartedAt.getTime(),
+            errorMessage: ((e as Error)?.stack ?? String(e)).slice(0, 4000),
+            resultSummary: { symbol, assetId },
+          },
+        })
+        .catch((logErr) => {
+          logger.error({ err: logErr }, "ingestQuote: failed to write ingest_quote_eval_chain job_logs row");
+        });
     }
 
     return true;

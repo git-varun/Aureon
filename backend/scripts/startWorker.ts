@@ -1,5 +1,6 @@
 import "dotenv/config";
 import { logger } from "../src/lib/logger";
+import { sweepStaleJobLogsTask } from "../src/jobs/sweepStaleJobLogs";
 import {
   startIngestQuoteWorker,
   startEvaluateWatchlistAlertsWorker,
@@ -59,6 +60,18 @@ async function start() {
   await registerMonthlyBriefingSchedule();
   await registerRefreshFundamentalsSchedule();
   await registerFetchNewsSchedule();
+
+  // Boot-time sweep, in addition to the */30 cron above: if the worker
+  // crashed mid-run, stale RUNNING job_logs rows would otherwise sit until
+  // the next scheduled tick (up to 30 min) and only if the worker stays up
+  // that long. Wrapped so a sweep failure can never prevent the schedule
+  // registrations above from taking effect.
+  try {
+    await sweepStaleJobLogsTask();
+  } catch (e) {
+    logger.error({ err: e }, "boot-time sweepStaleJobLogsTask failed — the */30 cron sweep still applies");
+  }
+
   logger.info("BullMQ worker listening on q_ingestion, q_watchlist_alerts, q_scheduled_jobs");
   logger.info(
     "Repeatable schedules registered: sweep-stale-job-logs (*/30 * * * * UTC), " +
