@@ -1,5 +1,5 @@
 import { openPdf, extractText, extractTables } from "./pdfTable";
-import { cleanIsin, casSymbolFor } from "./mfSymbol";
+import { casSymbolFor } from "./mfSymbol";
 import { ImportParseError } from "./errors";
 
 // Port of portfolio_importer.py's parse_cdsl_cas and its table-parsing
@@ -15,9 +15,16 @@ import { ImportParseError } from "./errors";
 // the row's trailing run of 6 numeric columns and resolves fund identity
 // from the clean "MF Folios" key-value block (parseMfFolioBlock), joined on
 // folio number, failing loudly rather than importing a mis-parsed row.
-// The demat-holding parser (parseHoldingTable) has the same header-index
-// fragility and has NOT yet been verified against a real PDF — flag its
-// output as unverified.
+//
+// The demat-holding parser (parseHoldingTable / isHoldingHeader) was
+// rewritten the same way on 2026-09-11 — its header fingerprint never
+// matched the real bilingual multi-line header, so the demat MF table was
+// silently skipped entirely (0 of 6 demat-held MF/ETF ISINs imported). It
+// now detects the header by ISIN+Security+(Free Bal|Value), anchors values
+// on the trailing numeric run, and derives the held quantity (Current Bal,
+// not Free Bal) by which leading column reconciles units x price = value.
+// Demat holdings import at wallet "demat", separate from folio holdings of
+// the same fund (see CasHolding.wallet).
 
 export interface CasHolding {
   symbol: string;
@@ -27,6 +34,10 @@ export interface CasHolding {
   current_price: number | null;
   source: string;
   asset_type: "mutual_fund";
+  // Position wallet. Folio holdings and demat-held units of the *same* fund
+  // (same ISIN, so same symbol) are genuinely distinct holdings in different
+  // custody — kept as separate Position rows via (portfolio, symbol, wallet).
+  wallet: "spot" | "demat";
 }
 
 function num(val: string | undefined | null): number | null {
@@ -39,11 +50,6 @@ function num(val: string | undefined | null): number | null {
 
 function norm(s: string): string {
   return String(s).toLowerCase().replace(/[^a-z0-9]/g, "");
-}
-
-function cell(row: string[], idx: number | undefined): string {
-  if (idx === undefined || idx >= row.length || row[idx] == null) return "";
-  return String(row[idx]).replace(/\n/g, " ").trim();
 }
 
 function cleanSchemeName(raw: string): string {
@@ -66,13 +72,22 @@ function isFolioHeader(row: string[]): boolean {
   );
 }
 
-function isHoldingHeader(row: string[]): boolean {
-  const norms = new Set(row.filter((c) => c).map(norm));
+// The CDSL demat "HOLDING STATEMENT" header is bilingual and split across ~3
+// physical lines ("Current" / "Bal" land on different clustered rows), so the
+// old "current"+"bal"+"market price" fingerprint never matched a single row
+// and the table was silently never parsed. Anchor instead on the one row that
+// carries ISIN + Security + (Free Bal | Value), and exclude the near-identical
+// "(Other Details)" lock-in sub-table header (has "Lockin" / "Balance
+// Description", lacks "Free Bal" and "Value").
+export function isHoldingHeader(row: string[]): boolean {
+  const norms = [...new Set(row.filter((c) => c).map(norm))];
+  const has = (s: string) => norms.some((n) => n.includes(s));
   return (
-    [...norms].some((n) => n.includes("isin")) &&
-    [...norms].some((n) => n.includes("security")) &&
-    [...norms].some((n) => n.includes("currentbal") || (n.startsWith("current") && n.includes("bal"))) &&
-    [...norms].some((n) => n.includes("marketprice") || n.includes("faceval") || (n.includes("market") && n.includes("price")))
+    has("isin") &&
+    has("security") &&
+    (has("freebal") || has("value")) &&
+    !has("lockin") &&
+    !has("balancedescription")
   );
 }
 
@@ -111,22 +126,6 @@ export function parseMfFolioBlock(pageText: string): Map<string, FolioMeta> {
     out.set(normFolio(folio), { isin, folio_no: folio, scheme_name: scheme || "" });
   }
   return out;
-}
-
-function mapHoldingCols(headerRow: string[]): Record<string, number> {
-  const m: Record<string, number> = {};
-  headerRow.forEach((c, ci) => {
-    const n = norm(c);
-    const set = (key: string) => {
-      if (!(key in m)) m[key] = ci;
-    };
-    if (n === "isin" || n === "isinisin") set("isin");
-    else if (n.includes("security")) set("security");
-    else if (n.includes("currentbal") || (n.startsWith("current") && n.length < 20)) set("units");
-    else if (n.includes("marketprice") || n.includes("faceval") || (n.includes("market") && n.includes("price"))) set("price");
-    else if (n.includes("value") && !n.includes("pledge") && !n.includes("setup") && !n.includes("face")) set("value");
-  });
-  return m;
 }
 
 interface FolioRow {
@@ -222,37 +221,93 @@ interface HoldingRow {
   dp: string;
 }
 
-function parseHoldingTable(table: string[][], dpName: string): HoldingRow[] {
-  let hdrRow: string[] | null = null;
-  let dataStart = -1;
+const HOLDING_ISIN_RE = /\b(IN[EF][A-Z0-9]{9})\b/;
+
+export function parseHoldingTable(table: string[][], dpName: string): HoldingRow[] {
+  let dataStart = 0;
   for (let ri = 0; ri < Math.min(3, table.length); ri++) {
     if (isHoldingHeader(table[ri])) {
-      hdrRow = table[ri];
       dataStart = ri + 1;
       break;
     }
   }
-  if (!hdrRow) return [];
-  const col = mapHoldingCols(hdrRow);
   const results: HoldingRow[] = [];
+  // The security description wraps across several rows; the "<AMC> LTD#<AMC>
+  // MF-<scheme>" fragment lands on the row(s) above the ISIN row. Collect
+  // those so the holding gets a usable name — cleanSchemeName keeps only the
+  // text after the last "#", so leading fragments of the *next* fund that
+  // bleed in are harmless. (Continuation lines *below* the ISIN row aren't
+  // captured, so names can be partial — identity is the ISIN, not the name.)
+  let pendingName: string[] = [];
   for (const row of table.slice(dataStart)) {
     if (!row || row.every((c) => c == null || String(c).trim() === "")) continue;
-    const isin = cleanIsin(cell(row, col.isin ?? 0));
-    if (!isin.startsWith("INF")) continue;
-    const securityRaw = cell(row, col.security ?? 1);
-    const units = num(cell(row, col.units ?? 2));
-    const price = num(cell(row, col.price ?? 7));
-    const value = num(cell(row, col.value ?? 8));
 
-    if (units === null || units <= 0) continue;
+    const joined = row.join(" ");
+    // The "(Other Details)" lock-in sub-table gets appended to this table
+    // (its header matches no fingerprint, so extractTables never splits it
+    // off). Its rows carry the same ISINs with 0.000 values — stop here.
+    if (/other details|\blockin\b|\bbalance description\b/i.test(joined)) break;
+
+    const isinMatch = joined.match(HOLDING_ISIN_RE);
+    if (!isinMatch) {
+      if (/[A-Za-z]/.test(joined) && !/^\s*(page \d|portfolio value)/i.test(joined)) pendingName.push(joined.trim());
+      continue; // scheme-name fragment / footer row
+    }
+    const isin = isinMatch[1].toUpperCase();
+    if (!isin.startsWith("INF")) continue; // listed equities (INE...) — CAS demat import is MF-only
+
+    // Trailing run of numeric columns: ...| Free Bal | Market Price | Value.
+    // "--" (frozen/pledge placeholders) and text tokens end the run.
+    const tail: number[] = [];
+    for (let i = row.length - 1; i >= 0; i--) {
+      const raw = String(row[i] ?? "").trim();
+      if (!raw) continue;
+      if (raw.includes("/") || /[A-Za-z]/.test(raw)) break;
+      const n = num(raw);
+      if (n === null) break;
+      tail.unshift(n);
+    }
+    if (tail.length < 2) continue; // "Portfolio Value ` ... as on ..." footer
+    const value = tail[tail.length - 1];
+    const price = tail[tail.length - 2];
+    if (!(price > 0) || !(value > 0)) continue;
+
+    // Quantity is Current Bal, NOT Free Bal. Both live in the row's leading
+    // section (Free Bal is also the first cell of the trailing run). Pick the
+    // first leading numeric that reconciles units x price = value: in column
+    // order that is Current Bal; Free Bal (e.g. Mirae 0.471 free vs 764.107
+    // held, the rest ELSS-locked) does not reconcile. When Current Bal ==
+    // Free Bal (unlocked holdings) both reconcile and first-in-order still
+    // returns Current Bal.
+    const lead = row.slice(0, row.length - tail.length);
+    let units: number | null = null;
+    for (const c of lead) {
+      const n = num(String(c ?? ""));
+      if (n !== null && n > 0 && Math.abs(n * price - value) / value <= 0.01) {
+        units = n;
+        break;
+      }
+    }
+    if (units === null) {
+      throw new ImportParseError(
+        `CDSL CAS: demat MF holding ${isin} — no quantity column reconciles to units x price = value ` +
+          `(price=${price}, value=${value}). Refusing to import a mis-parsed row.`,
+      );
+    }
+
+    const inRowName = lead.filter(
+      (c) => /[A-Za-z]/.test(String(c)) && !HOLDING_ISIN_RE.test(String(c).trim()),
+    );
+    const rawName = [...pendingName, ...inRowName].join(" ").trim();
+    pendingName = [];
     results.push({
-      scheme_name: cleanSchemeName(securityRaw),
+      scheme_name: cleanSchemeName(rawName) || isin,
       isin,
       folio_no: "",
       units,
       avg_nav: 0.0,
-      current_nav: price || 0.0,
-      valuation: value || 0.0,
+      current_nav: price,
+      valuation: value,
       source: "cas_demat",
       dp: dpName,
     });
@@ -305,71 +360,61 @@ export async function parseCdslCas(content: Buffer, password?: string): Promise<
     );
   }
 
-  // Deduplicate demat by (isin, dp).
-  const seen = new Set<string>();
-  const dedupedDemat: HoldingRow[] = [];
+  // Fold demat holdings by ISIN. Duplicate (isin, dp) rows (same fund listed
+  // twice on one DP's statement) are deduplicated; the same fund held at two
+  // DPs sums into one demat-wallet position — one wallet, one value, matching
+  // how the holdings view already weighted-averages a symbol across wallets.
+  const dematByIsin = new Map<string, { isin: string; scheme_name: string; units: number; current_nav: number }>();
+  const seenDematRow = new Set<string>();
   for (const h of dematMf) {
-    const key = `${h.isin}|${h.dp}`;
-    if (!seen.has(key)) {
-      seen.add(key);
-      dedupedDemat.push(h);
-    }
+    const rowKey = `${h.isin}|${h.dp}`;
+    if (seenDematRow.has(rowKey)) continue;
+    seenDematRow.add(rowKey);
+    const agg = dematByIsin.get(h.isin);
+    if (agg) agg.units += h.units;
+    else dematByIsin.set(h.isin, { isin: h.isin, scheme_name: h.scheme_name, units: h.units, current_nav: h.current_nav });
   }
 
-  // Merge by ISIN (folio takes precedence; demat adds new or sums units).
-  interface Merged {
-    isin: string;
-    scheme_name: string;
-    units: number;
-    avg_nav: number;
-    current_nav: number;
-    source: string;
-  }
-  const merged = new Map<string, Merged>();
+  // Folio holdings (wallet "spot") and demat holdings (wallet "demat") stay
+  // separate even when they share an ISIN — they are distinct holdings of the
+  // same fund in different custody (see CasHolding.wallet).
+  const holdings: CasHolding[] = [];
   for (const h of mfFolios) {
-    const key = h.isin || h.folio_no;
-    merged.set(key, {
-      isin: h.isin,
-      scheme_name: h.scheme_name,
-      units: h.units,
-      avg_nav: h.avg_nav,
-      current_nav: h.current_nav,
+    holdings.push({
+      symbol: casSymbolFor(h.scheme_name, h.isin),
+      name: h.scheme_name,
+      quantity: h.units,
+      avg_buy_price: h.avg_nav,
+      current_price: h.current_nav || null,
       source: "CDSL CAS (Folio)",
+      asset_type: "mutual_fund",
+      wallet: "spot",
     });
   }
-  for (const h of dedupedDemat) {
-    const key = h.isin;
-    const existing = merged.get(key);
-    if (existing) {
-      existing.units += h.units;
-    } else {
-      merged.set(key, {
-        isin: h.isin,
-        scheme_name: h.scheme_name,
-        units: h.units,
-        avg_nav: 0.0,
-        current_nav: h.current_nav,
-        source: "CDSL CAS (Demat)",
-      });
-    }
-  }
-
-  const holdings: CasHolding[] = [];
-  for (const m of merged.values()) {
-    const symbol = casSymbolFor(m.scheme_name, m.isin);
+  for (const m of dematByIsin.values()) {
     holdings.push({
-      symbol,
+      symbol: casSymbolFor(m.scheme_name, m.isin),
       name: m.scheme_name,
       quantity: m.units,
-      avg_buy_price: m.avg_nav,
+      // The demat HOLDING STATEMENT carries no cost basis. Seed avg_buy_price
+      // with the statement's market price (as parse_nps_statement /
+      // parse_epf_statement do for their cost-less holdings) so the position
+      // reads "at cost" / ~0% P&L until a real cost is entered — never 0,
+      // which a live NAV would turn into a fabricated ~100% gain.
+      avg_buy_price: m.current_nav,
       current_price: m.current_nav || null,
-      source: m.source,
+      source: "CDSL CAS (Demat)",
       asset_type: "mutual_fund",
+      wallet: "demat",
     });
   }
 
   return {
     holdings,
-    summary: { mf_folios_count: mfFolios.length, demat_mf_count: dedupedDemat.length, merged_count: holdings.length },
+    summary: {
+      mf_folios_count: mfFolios.length,
+      demat_mf_count: dematByIsin.size,
+      merged_count: holdings.length,
+    },
   };
 }

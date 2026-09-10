@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { parseMfFolioBlock, parseFolioTable } from "./casImport";
+import { parseMfFolioBlock, parseFolioTable, parseHoldingTable, isHoldingHeader } from "./casImport";
 
 // Fixtures below reproduce the exact clustered-row shapes pdfjs produces for a
 // real CDSL CAS "MUTUAL FUND UNITS HELD" table (captured 2026-09-10). Folio
@@ -106,5 +106,63 @@ describe("parseFolioTable", () => {
     const bad = table();
     bad[1] = ["INF179K01WA6", "99999999/99", "89.452", "551.346", "50,000.00", "49,319.00", "-681.00", "-1.36"];
     expect(() => parseFolioTable(bad, meta)).toThrow(/could not identify the fund/);
+  });
+});
+
+// ── Demat "HOLDING STATEMENT" table (captured from the same real CAS,
+// 2026-09-11) — clustered-row shapes verbatim. No PII in this table (no
+// folio numbers; security cells are fund names). Quirks kept:
+//   - ICICI row: security-name fragment present, Current Bal == Free Bal
+//   - Mirae row: no security-name cell; Free Bal (0.471) != Current Bal
+//     (764.107, rest ELSS-locked) — the reconciliation heuristic must pick
+//     Current Bal
+//   - Tata Gold: "#"-format security cell
+//   - an INE (listed equity) row that must be skipped (CAS demat = MF only)
+//   - the "(Other Details)" lock-in sub-table, which gets appended to this
+//     table and must be ignored
+const HOLDING_HEADER = ["ISIN", "Security", "Current", "Frozen", "Pledge", "Setup", "Free Bal", "Value (`)"];
+const HOLDING_ROWS: string[][] = [
+  ["ICICI PRU AMC LTD#ICICI PRU"],
+  ["INF109K012M7", "MF-ICICI PRU NIFTY 50 INDEX", "440.346", "--", "--", "--", "440.346", "247.8640", "1,09,145.92"],
+  ["FUND-DIRECT PLAN-GROWTH"],
+  ["INF769K01DM9", "764.107", "--", "--", "--", "0.471", "55.2840", "42,242.89"],
+  ["INF277KA1976", "LTD#TATA MF-TATA GOLD", "2935.000", "--", "--", "--", "2935.000", "15.1000", "44,318.50"],
+  ["INE040A01034", "88.000", "--", "--", "--", "88.000", "744.7500", "65,538.00"],
+  ["HOLDING STATEMENT AS ON 31-05-2026 (Other Details)"],
+  ["INF769K01DM9", "13-08-2027 ELSS2005", "76.551", "0.000", "0.000"],
+];
+const holdingTable = () => [HOLDING_HEADER, ...HOLDING_ROWS.map((r) => [...r])];
+
+describe("isHoldingHeader", () => {
+  it("matches the real ISIN + Security + Free Bal/Value header", () => {
+    expect(isHoldingHeader(HOLDING_HEADER)).toBe(true);
+  });
+  it("rejects the '(Other Details)' lock-in sub-table header", () => {
+    expect(isHoldingHeader(["ISIN", "ISIN", "Security", "Date", "Balance Description", "Lockin", "Demat", "Remat"])).toBe(false);
+  });
+});
+
+describe("parseHoldingTable", () => {
+  it("parses the demat MF rows, skips listed equity, and stops at '(Other Details)'", () => {
+    const rows = parseHoldingTable(holdingTable(), "ZERODHA");
+    expect(rows.map((r) => r.isin)).toEqual(["INF109K012M7", "INF769K01DM9", "INF277KA1976"]);
+
+    const icici = rows[0];
+    expect(icici.units).toBe(440.346);
+    expect(icici.current_nav).toBe(247.864);
+    expect(icici.avg_nav).toBe(0); // demat statement carries no cost basis
+    expect(icici.scheme_name).toBe("ICICI PRU NIFTY 50 INDEX"); // wrapped fragment above + in-row
+
+    // reconciliation heuristic must pick Current Bal, not Free Bal
+    expect(rows[1].units).toBe(764.107);
+
+    expect(rows[2].units).toBe(2935);
+  });
+
+  it("throws when no quantity column reconciles to units x price = value", () => {
+    const bad = holdingTable();
+    // Mirae row (table index 4) with a Current Bal that doesn't reconcile.
+    bad[4] = ["INF769K01DM9", "999.999", "--", "--", "--", "0.471", "55.2840", "42,242.89"];
+    expect(() => parseHoldingTable(bad, "ZERODHA")).toThrow(/no quantity column reconciles/);
   });
 });

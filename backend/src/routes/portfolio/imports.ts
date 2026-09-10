@@ -100,13 +100,14 @@ async function upsertBrokerSnapshot(
   quantity: number,
   price: number,
   transactionDate: Date,
+  wallet = "spot",
 ): Promise<void> {
   // Resolve the asset so the row carries assetId — read-time currency inference
   // (inferCurrency in transactions.ts) keys off the asset's assetClass, and
   // suffix-less symbols (EPF/NPS/CAS mutual funds) otherwise fall through to USD.
   const asset = await tx.asset.findUnique({ where: { symbol: symbol.toUpperCase().trim() } });
   const existing = await tx.transaction.findFirst({
-    where: { portfolioId, symbol, kind: "broker_snapshot", broker },
+    where: { portfolioId, symbol, kind: "broker_snapshot", broker, wallet },
   });
   if (existing) {
     await tx.transaction.update({
@@ -128,7 +129,7 @@ async function upsertBrokerSnapshot(
         taxes: 0,
         broker,
         kind: "broker_snapshot",
-        wallet: "spot",
+        wallet,
         importRunId: runId,
         createdAt: new Date(),
         updatedAt: new Date(),
@@ -280,8 +281,8 @@ importsRouter.post("/:id/import/cdsl", upload.single("file"), async (req: Reques
     await prisma.$transaction(async (tx) => {
       for (const p of holdings) {
         await ensureAssetExists(tx, p.symbol, p.name, p.asset_type);
-        await upsertBrokerSnapshot(tx, portfolio.id, runId, "cas_cdsl", p.symbol, p.quantity, p.avg_buy_price, new Date());
-        await recalculatePosition(tx, portfolio.id, p.symbol);
+        await upsertBrokerSnapshot(tx, portfolio.id, runId, "cas_cdsl", p.symbol, p.quantity, p.avg_buy_price, new Date(), p.wallet);
+        await recalculatePosition(tx, portfolio.id, p.symbol, p.wallet);
       }
     });
 
