@@ -164,6 +164,27 @@ export const EpfRateMissingHint = () => (
     >Rate missing</Link>
 );
 
+/* ── CostBasisBadge ─────────────────────────────────────────── */
+/* price_source "cost_basis": resolve_position_price() found no live NAV/quote
+   for the asset and fell back to avg_buy_price. The displayed price and value
+   are the purchase cost, not a market number — without this the row is
+   indistinguishable from a live quote and its P/L computes to a fabricated
+   0.0%. Amber/dashed like EpfEstimateBadge (a provisional, non-ingested
+   number) but static like EpfRateMissingHint — there's no basis payload to
+   expand and, unlike a missing EPF rate, nothing the user can configure to
+   fix it (see BUG-F: these MF scheme-code symbols don't ISIN-match AMFI). */
+export const CostBasisBadge = () => (
+    <span
+        title="No live NAV for this fund — price and value shown at purchase cost"
+        style={{
+            display: 'inline-flex', alignItems: 'center', flexShrink: 0, height: 18, padding: '0 7px', borderRadius: 999,
+            fontSize: 9.5, fontWeight: 600, letterSpacing: '0.10em', textTransform: 'uppercase', whiteSpace: 'nowrap',
+            background: 'rgba(201,168,106,0.08)', color: 'var(--aurum-100)',
+            border: '1px dashed rgba(201,168,106,0.35)', fontFamily: 'var(--font-ui)',
+        }}
+    >At cost</span>
+);
+
 export const Eyebrow = ({children, color}) => (
     <div style={{
         fontSize: 10.5,

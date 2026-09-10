@@ -6,7 +6,7 @@
 import React, {useCallback, useEffect, useState} from 'react';
 import {useNavigate, useParams} from 'react-router-dom';
 import {useApp} from '@/components/aureon/store';
-import {Empty, EpfEstimateBadge, Eyebrow, PriceChart, TierChip} from '@/components/aureon/ui';
+import {CostBasisBadge, Empty, EpfEstimateBadge, Eyebrow, PriceChart, TierChip} from '@/components/aureon/ui';
 import {ActionConfirmationModal, DecisionUnit} from '@/components/aureon/flow';
 import {apiService} from '@/api/apiService';
 import {isFutures, plOf, plPctOf, valueOf, valueOfBase} from '@/components/aureon/utils';
@@ -860,6 +860,10 @@ export default function AssetDetail() {
     const v      = h ? valueOf(h) : 0;
     const pl     = h ? plOf(h) : 0;
     const plPct  = h ? plPctOf(h) : 0;
+    // cost_basis positions have price === avg cost by construction — their P/L
+    // is a fabricated 0.0%, not a real flat return. Suppress it (value/text and
+    // the gain/loss colouring below).
+    const plHidden = !h || h.cost <= 0 || h.priceSource === 'cost_basis';
     // netWorth is INR-normalized (useAureonData); v is in h's native currency,
     // so the weight ratio needs v converted to the same base before dividing.
     const wt     = h && netWorth > 0 ? valueOfBase(h, v4?.fxRates) / netWorth : 0;
@@ -961,6 +965,7 @@ export default function AssetDetail() {
                     <div style={{display: 'flex', alignItems: 'center', gap: 8}}>
                         <Eyebrow>Last price</Eyebrow>
                         {displayAsset.priceSource === 'epf_estimated' && <EpfEstimateBadge basis={displayAsset.epfEstimateBasis}/>}
+                        {displayAsset.priceSource === 'cost_basis' && <CostBasisBadge/>}
                     </div>
                     <div style={{fontFamily: 'var(--font-mono)', fontSize: 36, fontWeight: 500, color: 'var(--ink-00)', marginTop: 6, lineHeight: 1, letterSpacing: '-0.015em'}}>
                         {fmt(displayAsset.price, currency, {dp: 2})}
@@ -1003,12 +1008,12 @@ export default function AssetDetail() {
                                 ['Quantity',   h.qty.toLocaleString(undefined, {maximumFractionDigits: 4})],
                                 ['Avg cost',   fmt(h.cost, currency, {dp: 2})],
                                 ['Value',      fmt(v, currency, {dp: 0})],
-                                ['Unreal P/L', h.cost > 0 ? (pl >= 0 ? '+' : '−') + fmt(Math.abs(pl), currency, {dp: 0}) + ' · ' + (plPct >= 0 ? '+' : '−') + (Math.abs(plPct) * 100).toFixed(1) + '%' : '—'],
+                                ['Unreal P/L', !plHidden ? (pl >= 0 ? '+' : '−') + fmt(Math.abs(pl), currency, {dp: 0}) + ' · ' + (plPct >= 0 ? '+' : '−') + (Math.abs(plPct) * 100).toFixed(1) + '%' : '—'],
                                 ['Weight',     netWorth > 0 ? (wt * 100).toFixed(2) + '%' : '—'],
                             ].map(([k, val], i) => (
                                 <div key={k}>
                                     <div style={{fontSize: 10, letterSpacing: '0.13em', textTransform: 'uppercase', color: 'var(--ink-40)', fontWeight: 600}}>{k}</div>
-                                    <div style={{fontFamily: 'var(--font-mono)', fontSize: 18, fontWeight: 500, color: i === 3 && pl < 0 ? 'var(--crimson-500)' : i === 3 && pl >= 0 && h.cost > 0 ? 'var(--sage-500)' : 'var(--ink-00)', marginTop: 5, letterSpacing: '-0.01em'}}>{val}</div>
+                                    <div style={{fontFamily: 'var(--font-mono)', fontSize: 18, fontWeight: 500, color: i === 3 && !plHidden && pl < 0 ? 'var(--crimson-500)' : i === 3 && !plHidden && pl >= 0 ? 'var(--sage-500)' : 'var(--ink-00)', marginTop: 5, letterSpacing: '-0.01em'}}>{val}</div>
                                 </div>
                             ))}
                         </div>
