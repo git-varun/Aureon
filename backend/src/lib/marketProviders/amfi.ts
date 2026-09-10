@@ -6,15 +6,20 @@ const NAV_ALL_URL = "https://www.amfiindia.com/spages/NAVAll.txt";
  * an ISIN -> NAV map. Fund-house/category header lines and blank separator
  * lines have no ';' and are skipped. Both ISIN columns (growth and
  * reinvestment plans) are indexed to the same NAV since CDSL CAS statements
- * aren't guaranteed to have parsed one specific variant. */
+ * aren't guaranteed to have parsed one specific variant.
+ *
+ * NAV is read as the second-to-last column (date is always last): AMFI added
+ * Plan/Option columns between Scheme Name and NAV (6-col -> 8-col), so a
+ * fixed parts[4] index now reads "Direct Plan" and every row parses as NaN. */
 function parseNavAll(text: string): Map<string, number> {
   const isinToNav = new Map<string, number>();
   for (const rawLine of text.split("\n")) {
     const line = rawLine.trim();
     if (!line || !line.includes(";")) continue;
-    const parts = line.split(";");
+    const parts = line.split(";").map((p) => p.trim());
     if (parts.length < 5) continue;
-    const [schemeCode, isinGrowth, isinReinvestment, , navStr] = parts.map((p) => p.trim());
+    const [schemeCode, isinGrowth, isinReinvestment] = parts;
+    const navStr = parts[parts.length - 2];
     if (schemeCode.toLowerCase() === "scheme code") continue;
     const nav = Number(navStr);
     if (Number.isNaN(nav)) continue;

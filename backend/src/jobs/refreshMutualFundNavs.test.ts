@@ -8,9 +8,11 @@ import { refreshMutualFundNavsTask } from "./refreshMutualFundNavs";
 // minimal two-column fixture line. Under test: the provider name the job
 // records in latest_quotes.provider (BUG-H — was hardcoded "mfapi").
 const ISIN = "INF001A01001";
+// AMFI's live NAVAll.txt is 8-column (Plan/Option split out between Scheme
+// Name and NAV) — NAV is the second-to-last field, not a fixed index.
 const NAV_ALL_FIXTURE = [
-  "Scheme Code;ISIN Div Payout/ISIN Growth;ISIN Div Reinvestment;Scheme Name;Net Asset Value;Date",
-  `100027;${ISIN};INF001A01002;Bug H MF Test - Growth;42.5000;05-Sep-2026`,
+  "Scheme Code;ISIN Div Payout/ ISIN Growth;ISIN Div Reinvestment;Scheme Name;Plan;Option;Net Asset Value;Date",
+  `100027;${ISIN};INF001A01002;Bug H MF Test;Direct Plan;Growth Option;42.5000;05-Sep-2026`,
 ].join("\n");
 
 describe("refreshMutualFundNavsTask — provider attribution (BUG-H)", () => {
