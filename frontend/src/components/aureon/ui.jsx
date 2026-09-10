@@ -126,7 +126,7 @@ export const EpfEstimateBadge = ({basis}) => {
                         {basis.rates_applied?.length > 0 && (
                             <div style={{marginTop: 6}}>
                                 {basis.rates_applied.map(r => (
-                                    <div key={r.financial_year}>FY {r.financial_year}: <span style={{color: 'var(--ink-10)'}}>{r.rate_pct}%</span></div>
+                                    <div key={r.financial_year}>FY {r.financial_year}: <span style={{color: 'var(--ink-10)'}}>{r.rate_pct}%</span>{r.provisional && <span style={{color: 'var(--aurum-100)'}}> · provisional</span>}</div>
                                 ))}
                             </div>
                         )}

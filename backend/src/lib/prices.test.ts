@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { positionMarketValueNative } from "./prices";
+import { positionMarketValueNative, fyNotYetEnded } from "./prices";
 import type { Position } from "../generated/prisma";
 import type { PositionPrice } from "./prices";
 
@@ -36,5 +36,23 @@ describe("positionMarketValueNative", () => {
     const pos = { ...basePos, wallet: "futures_usdm", quantity: 0.096, avgBuyPrice: 1550, leverage: 3, unrealizedPnl: 90.045 } as unknown as Position;
     // margin = |0.096 * 1550| / 3 = 49.6 ; + 90.045
     expect(positionMarketValueNative(pos, pp(2477.93))).toBeCloseTo(139.645, 3);
+  });
+});
+
+// An EPF-rate entry for a financial year that hasn't reached its 31 March end
+// is provisional — EPFO only declares the rate at/after year-end. This drives
+// the "provisional" flag on the epf_estimate_basis.rates_applied entries.
+describe("fyNotYetEnded", () => {
+  it("is true for a FY whose 31 March end is still in the future", () => {
+    expect(fyNotYetEnded("2026-2027", new Date("2026-09-10T00:00:00Z"))).toBe(true);
+  });
+
+  it("is false for a FY that has already ended", () => {
+    expect(fyNotYetEnded("2025-2026", new Date("2026-09-10T00:00:00Z"))).toBe(false);
+  });
+
+  it("flips exactly at 1 April of the closing year", () => {
+    expect(fyNotYetEnded("2026-2027", new Date("2027-03-31T23:59:59Z"))).toBe(true);
+    expect(fyNotYetEnded("2026-2027", new Date("2027-04-01T00:00:00Z"))).toBe(false);
   });
 });

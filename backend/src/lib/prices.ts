@@ -43,6 +43,14 @@ function fyLabel(d: Date): string {
   return `${startYear}-${startYear + 1}`;
 }
 
+/** A financial year "YYYY-YYYY" whose 31 March end has not yet passed as of
+ * `now` — EPFO only declares a year's rate at/after its end, so any configured
+ * rate for such a year is a provisional placeholder, not a declared figure. */
+export function fyNotYetEnded(fyLabel: string, now: Date): boolean {
+  const endYear = Number(fyLabel.split("-")[1]);
+  return now < new Date(Date.UTC(endYear, 3, 1)); // 1 April of the closing year
+}
+
 function monthStart(d: Date): Date {
   return new Date(Date.UTC(d.getUTCFullYear(), d.getUTCMonth(), 1));
 }
@@ -160,13 +168,25 @@ async function estimateEpfPrice(pos: Position, tzName: string): Promise<Position
     return { price: null, price_source: "unavailable", quote_age_status: null, quote_updated_at: null, epf_estimate_basis: null, currency: "INR", unavailable_reason: "epf_rate_missing" };
   }
 
+  const ratesApplied = Object.entries(accrual.appliedRates)
+    .sort(([a], [b]) => (a < b ? -1 : a > b ? 1 : 0))
+    .map(([financial_year, rate_pct]) =>
+      fyNotYetEnded(financial_year, now)
+        ? { financial_year, rate_pct, provisional: true }
+        : { financial_year, rate_pct },
+    );
+  const provisionalFys = ratesApplied.filter((r) => "provisional" in r).map((r) => r.financial_year);
+
   const basis = {
     as_of: toPythonIsoString(now),
     statement_date: toPythonIsoString(statementDate),
-    rates_applied: Object.entries(accrual.appliedRates)
-      .sort(([a], [b]) => (a < b ? -1 : a > b ? 1 : 0))
-      .map(([financial_year, rate_pct]) => ({ financial_year, rate_pct })),
+    rates_applied: ratesApplied,
     note:
+      (provisionalFys.length > 0
+        ? `The FY ${provisionalFys.join(", ")} rate is provisional — EPFO has not ` +
+          "declared it yet, so the configured value is a placeholder and the " +
+          "finally-credited figure may differ. "
+        : "") +
       "Estimate applies interest to the combined Employee+Employer+Pension " +
       "balance; the EPS/pension share does not actually earn interest, so " +
       "the true EPF-only balance may be somewhat lower than this figure. " +
