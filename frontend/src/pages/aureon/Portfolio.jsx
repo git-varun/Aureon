@@ -19,6 +19,7 @@ import {ManualAssetModal} from '@/components/aureon/portfolio/ManualAssetModal';
 import {PfConcentrationSection} from '@/components/aureon/portfolio/PfConcentrationSection';
 import {PfTrendChart} from '@/components/aureon/portfolio/PfTrendChart';
 import OutcomesTab from '@/components/aureon/decisions/tabs/OutcomesTab';
+import {Cerr} from '@/components/aureon/ui';
 
 const PfSection = ({ eyebrow, title, action, children }) => (
   <section style={{ marginBottom: 32 }}>
@@ -48,6 +49,7 @@ export default function Portfolio() {
         realizedPnl,
         dayDelta,
         loading,
+        error,
         allocByClass,
         classTarget,
         classTargetsLoading,
@@ -62,6 +64,15 @@ export default function Portfolio() {
 
   const handleRefresh = () => qc.invalidateQueries();
 
+  // A failed /positions, /snapshot or /transactions query must not fall through
+  // to each section's genuine-empty copy ("Import your holdings", "No holdings
+  // yet") — that reads as "you own nothing" during an API outage. Render the
+  // same <Cerr> unavailable state the useCardData sections (Performance,
+  // Concentration, Trend) already use.
+  const sectionError = error
+    ? <Cerr msg={error?.message || 'Unable to reach the portfolio API'} retry={handleRefresh} />
+    : null;
+
   const handleSnapshot = async () => {
     await apiService.generatePortfolioSnapshot(activePortfolioId);
     qc.invalidateQueries();
@@ -73,17 +84,19 @@ export default function Portfolio() {
       <PfFreshnessBar freshness={freshness} onRefresh={handleRefresh} />
 
       {/* 2 · Summary hero */}
-      <PfSummaryHero
-        netWorth={netWorth}
-        investedValue={investedValue}
-        unrealizedPnl={unrealizedPnl}
-        realizedPnl={realizedPnl}
-        dayDelta={dayDelta}
-        loading={loading}
-        fmt={fmt}
-        onSnapshot={handleSnapshot}
-        onLogTrade={() => setShowTrade(true)}
-      />
+      {sectionError
+        ? <PfSection>{sectionError}</PfSection>
+        : <PfSummaryHero
+            netWorth={netWorth}
+            investedValue={investedValue}
+            unrealizedPnl={unrealizedPnl}
+            realizedPnl={realizedPnl}
+            dayDelta={dayDelta}
+            loading={loading}
+            fmt={fmt}
+            onSnapshot={handleSnapshot}
+            onLogTrade={() => setShowTrade(true)}
+          />}
 
       {/* 3 · Performance chart */}
       <PfSection eyebrow="History" title="Performance">
@@ -92,15 +105,17 @@ export default function Portfolio() {
 
       {/* 4 · Allocation */}
       <PfSection eyebrow="Breakdown" title="Allocation">
-        <PfAllocationSection
-          holdings={holdings}
-          allocByClass={allocByClass}
-          classTarget={classTarget}
-          classTargetsLoading={classTargetsLoading}
-          classTargetsError={classTargetsError}
-          classTargetsUsingDefaults={classTargetsUsingDefaults}
-          cashNotTracked={cashNotTracked}
-        />
+        {sectionError || (
+          <PfAllocationSection
+            holdings={holdings}
+            allocByClass={allocByClass}
+            classTarget={classTarget}
+            classTargetsLoading={classTargetsLoading}
+            classTargetsError={classTargetsError}
+            classTargetsUsingDefaults={classTargetsUsingDefaults}
+            cashNotTracked={cashNotTracked}
+          />
+        )}
       </PfSection>
 
       {/* 5 · Holdings */}
@@ -109,18 +124,20 @@ export default function Portfolio() {
         title="Holdings"
         action={<button onClick={() => setShowTrade(true)} className="du3-cta ghost" style={{ fontSize:12, padding:'0 12px', height:28 }}>+ Log transaction</button>}
       >
-        <PfHoldingsTable
-          holdings={holdings}
-          loading={loading}
-          fmt={fmt}
-          onLogTrade={() => setShowTrade(true)}
-          onAddManual={() => setShowManual(true)}
-        />
+        {sectionError || (
+          <PfHoldingsTable
+            holdings={holdings}
+            loading={loading}
+            fmt={fmt}
+            onLogTrade={() => setShowTrade(true)}
+            onAddManual={() => setShowManual(true)}
+          />
+        )}
       </PfSection>
 
       {/* 6 · Activity feed */}
       <PfSection eyebrow="Ledger" title="Portfolio Activity">
-        <PfActivityFeed txns={activity} onViewAll={() => navigate('/transactions')} />
+        {sectionError || <PfActivityFeed txns={activity} onViewAll={() => navigate('/transactions')} />}
       </PfSection>
 
       {/* 7 · Health section — Allocation Drift dropped here: it's the same
