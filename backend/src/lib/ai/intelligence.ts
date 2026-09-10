@@ -887,11 +887,21 @@ async function getPortfolioStateAtDate(
   const positions: Record<string, { quantity: number; total_cost: number; asset_id: string | null }> = {};
   for (const tx of transactions) {
     if (tx.transactionDate > dt) continue;
+    // broker_snapshot rows are point-in-time balance statements, not trades
+    // (Bug 9b): the live path (recalculatePosition) uses the latest snapshot
+    // AS the position quantity and never adds broker_trade rows on top of it.
+    // Accumulating them here as BUYs double-counts every broker-synced spot
+    // holding (~2x qty for crypto: the snapshot already reflects the trades).
+    // They're re-applied as an authoritative override below. (total_cost is
+    // only ever written here, never read outside PortfolioState — dropping
+    // the snapshot rows' placeholder price from it has no downstream effect.)
+    if (tx.kind === "broker_snapshot") continue;
     const symbol = tx.symbol;
     const qty = Number(tx.quantity);
     const price = Number(tx.price);
 
     if (!positions[symbol]) positions[symbol] = { quantity: 0.0, total_cost: 0.0, asset_id: tx.assetId };
+    if (positions[symbol].asset_id === null && tx.assetId) positions[symbol].asset_id = tx.assetId;
 
     if (tx.transactionType === "BUY") {
       positions[symbol].quantity += qty;
@@ -899,6 +909,25 @@ async function getPortfolioStateAtDate(
     } else if (tx.transactionType === "SELL") {
       positions[symbol].quantity = Math.max(0.0, positions[symbol].quantity - qty);
     }
+  }
+
+  // Authoritative broker_snapshot override, mirroring recalculatePosition: for
+  // any symbol whose latest sync is on or before dt, its quantity is the sum
+  // of that symbol's broker_snapshot rows across wallets (spot + earn), not
+  // the trade replay. For dt earlier than the sync the snapshot rows are
+  // filtered out here and the trade replay above stands unchanged — so this
+  // only corrects the recent end of the trajectory, not its history.
+  const snapshotBySymbol: Record<string, { quantity: number; asset_id: string | null }> = {};
+  for (const tx of transactions) {
+    if (tx.kind !== "broker_snapshot" || tx.transactionDate > dt) continue;
+    if (!snapshotBySymbol[tx.symbol]) snapshotBySymbol[tx.symbol] = { quantity: 0.0, asset_id: null };
+    snapshotBySymbol[tx.symbol].quantity += Number(tx.quantity);
+    if (snapshotBySymbol[tx.symbol].asset_id === null && tx.assetId) snapshotBySymbol[tx.symbol].asset_id = tx.assetId;
+  }
+  for (const [symbol, snap] of Object.entries(snapshotBySymbol)) {
+    if (!positions[symbol]) positions[symbol] = { quantity: 0.0, total_cost: 0.0, asset_id: snap.asset_id };
+    positions[symbol].quantity = snap.quantity;
+    if (positions[symbol].asset_id === null) positions[symbol].asset_id = snap.asset_id;
   }
 
   let totalVal = 0.0;
@@ -961,11 +990,11 @@ export interface HealthTrendPoint {
   activity_consistency_score: number;
 }
 
-/** Port of get_portfolio_health_trend. Known gap, deliberately deferred
- * (matches Python): get_transactions_by_portfolio doesn't filter
- * kind="broker_snapshot" the way portfolio history does — a broker-synced
- * holding with no real trade ledger will show a false "sudden appearance"
- * at its sync date instead of being excluded. Display-skew, not fabrication. */
+/** Port of get_portfolio_health_trend. Known gap, deliberately deferred:
+ * getPortfolioStateAtDate reconstructs the pre-sync trajectory from the
+ * trade ledger and lets the broker_snapshot balance override at its sync
+ * date, so a broker-synced holding still steps up at that date rather than
+ * being reconstructed backward from it. Display-skew, not fabrication. */
 export async function getPortfolioHealthTrend(portfolioId: string, days: number): Promise<HealthTrendPoint[]> {
   const transactions = await prisma.transaction.findMany({ where: { portfolioId }, orderBy: { transactionDate: "asc" } });
   const dates = clampTrendDates(days, transactions);
@@ -1041,8 +1070,8 @@ export interface DiversificationTrendPoint {
   hhi: number;
 }
 
-/** Port of get_diversification_trend. Same broker_snapshot filtering gap as
- * getPortfolioHealthTrend above (deliberately deferred, matches Python). */
+/** Port of get_diversification_trend. Same broker_snapshot sync-date step-up
+ * gap as getPortfolioHealthTrend above (deliberately deferred). */
 export async function getDiversificationTrend(portfolioId: string, days: number): Promise<DiversificationTrendPoint[]> {
   const transactions = await prisma.transaction.findMany({ where: { portfolioId }, orderBy: { transactionDate: "asc" } });
   const dates = clampTrendDates(days, transactions);
