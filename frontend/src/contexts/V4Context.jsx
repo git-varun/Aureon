@@ -108,8 +108,10 @@ export const V4Provider = ({ children }) => {
         return SUPPORTED_CURRENCIES.includes(c) ? c : 'INR';
     });
 
-    /* Live FX rates fetched from open.er-api.com (base: INR). Falls back to
-       static constants when the fetch fails or is pending. */
+    /* Live FX rates from the backend (GET /market/fx-rates) — the same rate
+       source the snapshot's toInr conversion uses, so client-rendered values
+       don't diverge from server-computed ones. Base: INR. Falls back to static
+       constants only if our own backend is unreachable. */
     const [fxRates, setFxRates] = useState(null);
 
     useEffect(() => {
@@ -118,12 +120,9 @@ export const V4Provider = ({ children }) => {
     }, [currency]);
 
     useEffect(() => {
-        fetch('https://open.er-api.com/v6/latest/INR')
-            .then(r => r.json())
+        apiService.getFxRates()
             .then(data => {
-                if (data?.result === 'success' && data?.rates) {
-                    setFxRates(data.rates);
-                }
+                if (data?.rates) setFxRates(data.rates);
             })
             .catch(() => {}); // fall back to static FX_PER_INR constants
     }, []);

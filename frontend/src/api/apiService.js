@@ -274,6 +274,7 @@ export const apiService = {
     getAssetFeatures: (assetId) =>
         handleRequest(API.get(`/market/assets/${assetId}/features`)),
 
+    getFxRates: () => handleRequest(API.get('/market/fx-rates')),
     getMarketIndices: () => handleRequest(API.get('/market/indices')),
     getMarketSectors: () => handleRequest(API.get('/market/sectors')),
     getMarketMovers: () => handleRequest(API.get('/market/movers')),

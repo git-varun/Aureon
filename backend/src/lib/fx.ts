@@ -63,24 +63,47 @@ async function fetchLiveFxRates(): Promise<Record<string, number>> {
   return rates;
 }
 
-async function getFxRates(): Promise<Record<string, number>> {
+type FxSource = "cached" | "live" | "fallback";
+
+async function getFxRatesWithSource(): Promise<{ rates: Record<string, number>; source: FxSource }> {
   const cached = await getCachedFxRates();
-  if (cached) return cached;
-  let rates: Record<string, number>;
+  if (cached) return { rates: cached, source: "cached" };
   try {
-    rates = await fetchLiveFxRates();
+    const rates = await fetchLiveFxRates();
+    await cacheFxRates(rates);
+    return { rates, source: "live" };
   } catch (e) {
     logger.warn({ operation: "fetch_live_fx_rates", err: e }, "fx_live_rate_fetch_failed");
-    return FX_TO_INR;
+    return { rates: FX_TO_INR, source: "fallback" };
   }
-  await cacheFxRates(rates);
-  return rates;
+}
+
+async function getFxRates(): Promise<Record<string, number>> {
+  return (await getFxRatesWithSource()).rates;
 }
 
 /** Port of app/core/fx.py to_inr. */
 export async function toInr(amount: number, currency: string): Promise<number> {
   const rates = await getFxRates();
   return amount * (rates[currency] ?? FX_TO_INR[currency] ?? 1.0);
+}
+
+/** FX rates for the frontend to consume instead of fetching a third-party API
+ * from the browser — so client-rendered values (net worth, holdings) convert
+ * with the same rate `toInr` used for the snapshot. `rates` is in "foreign
+ * units per 1 INR" form (INR base), the shape the client's convert() expects. */
+export async function getFxRatesForClient(): Promise<{
+  base: "INR";
+  rates: Record<string, number>;
+  source: FxSource;
+}> {
+  const { rates: toInrRates, source } = await getFxRatesWithSource();
+  const rates: Record<string, number> = {};
+  for (const [ccy, perUnit] of Object.entries(toInrRates)) {
+    rates[ccy] = ccy === "INR" || !perUnit ? 1.0 : 1.0 / perUnit;
+  }
+  rates.INR = 1.0;
+  return { base: "INR", rates, source };
 }
 
 /** Point-in-time INR rate for `currency` on `date` — unlike toInr (always

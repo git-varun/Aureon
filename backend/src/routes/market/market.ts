@@ -11,8 +11,16 @@ import {
   triggerBackfill,
 } from "../../lib/market/market";
 import {getCryptoContext} from "../../lib/marketProviders/coingecko";
+import {getFxRatesForClient} from "../../lib/fx";
 
 export const marketRouter = Router();
+
+// Single FX source of truth for the client — see lib/fx.ts. The frontend
+// consumes this instead of fetching open.er-api.com directly, so its
+// client-side conversions use the same rate the backend snapshot did.
+marketRouter.get("/fx-rates", async (_req, res) => {
+  res.json(await getFxRatesForClient());
+});
 
 // Port of MarketService.get_asset_snapshot (GET /market/assets/{asset_id}/snapshot).
 marketRouter.get("/assets/:assetId/snapshot", async (req, res) => {
