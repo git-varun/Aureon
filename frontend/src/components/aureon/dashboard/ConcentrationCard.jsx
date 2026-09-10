@@ -66,7 +66,7 @@ export function ConcentrationCard() {
             {[
               { l: 'Top holding', v: data.topHolding ?? '—' },
               { l: 'Top weight',  v: data.topPct != null ? `${(data.topPct * 100).toFixed(1)}%` : '—' },
-              { l: 'Holdings',    v: data.holdingCount ?? '—' },
+              { l: 'Instruments', v: data.holdingCount ?? '—' },
             ].map(({ l, v }) => (
               <div key={l} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline' }}>
                 <span style={{ fontSize: 11.5, color: 'var(--ink-40)' }}>{l}</span>

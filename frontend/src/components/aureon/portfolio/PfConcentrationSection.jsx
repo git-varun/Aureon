@@ -38,7 +38,7 @@ export function PfConcentrationSection() {
     { l: 'Label',       v: data.label        ?? '—' },
     { l: 'Top holding', v: data.topHolding   ?? '—' },
     { l: 'Top weight',  v: data.topPct       != null ? (data.topPct * 100).toFixed(1) + '%'  : '—' },
-    { l: 'Holdings',    v: data.holdingCount ?? '—' },
+    { l: 'Instruments', v: data.holdingCount ?? '—' },
   ];
 
   return (

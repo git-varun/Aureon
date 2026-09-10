@@ -379,6 +379,10 @@ export async function getPortfolioDiversificationScore(portfolioId: string): Pro
     if (asset) classValues[asset.assetClass] = (classValues[asset.assetClass] ?? 0.0) + val;
   }
 
+  // Distinct symbols, not Position rows — a symbol held in two wallets counts
+  // once here (correct for diversification). getInvestorHealthScore.position_count
+  // counts rows; the two legitimately differ. Neither is rendered as a user-facing
+  // count (both cards only use it as a `=== 0` empty guard).
   const assetCount = Object.keys(symbolValues).length;
   const sCount = Math.min(100.0, assetCountThresh > 0 ? assetCount * (100.0 / assetCountThresh) : 10.0);
   const weights = Object.values(symbolValues);
