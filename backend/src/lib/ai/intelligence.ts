@@ -1,5 +1,5 @@
 import { prisma } from "../../prisma";
-import { resolvePositionsPriceMap } from "../prices";
+import { resolvePositionsPriceMap, positionMarketValueInr } from "../prices";
 import type { Position, Transaction, Asset, recommendation_outcomes } from "../../generated/prisma";
 import {
   cacheIntelligencePortfolio,
@@ -275,9 +275,7 @@ export async function getPortfolioConcentrationAnalysis(portfolioId: string): Pr
   const themeValues: Record<string, number> = {};
 
   for (const pos of positions) {
-    const price = priceMap.get(pos.id)?.price ?? 0.0;
-    const qty = Number(pos.quantity);
-    const val = qty * price;
+    const val = await positionMarketValueInr(pos, priceMap.get(pos.id)!);
     totalVal += val;
 
     stockValues[pos.symbol] = (stockValues[pos.symbol] ?? 0.0) + val;
@@ -372,8 +370,7 @@ export async function getPortfolioDiversificationScore(portfolioId: string): Pro
       if (asset) sectors.add(sectorOf(asset.metadata));
     }
 
-    const price = priceMap.get(pos.id)?.price ?? 0.0;
-    const val = Number(pos.quantity) * price;
+    const val = await positionMarketValueInr(pos, priceMap.get(pos.id)!);
     totalVal += val;
     symbolValues[pos.symbol] = (symbolValues[pos.symbol] ?? 0.0) + val;
 
@@ -441,8 +438,7 @@ export async function getPortfolioRiskSummary(portfolioId: string): Promise<Risk
   const sectors = new Set<string>();
 
   for (const pos of positions) {
-    const price = priceMap.get(pos.id)?.price ?? 0.0;
-    const val = Number(pos.quantity) * price;
+    const val = await positionMarketValueInr(pos, priceMap.get(pos.id)!);
     totalVal += val;
 
     if (pos.assetId) {
@@ -519,8 +515,7 @@ export async function getCashDeploymentOpportunities(portfolioId: string): Promi
     if (!pos.assetId) continue;
     const asset = await prisma.asset.findUnique({ where: { id: pos.assetId } });
     if (!asset) continue;
-    const price = priceMap.get(pos.id)?.price ?? 0.0;
-    const val = Number(pos.quantity) * price;
+    const val = await positionMarketValueInr(pos, priceMap.get(pos.id)!);
     const clsKey = classKey(asset.assetClass);
     alloc[clsKey] = (alloc[clsKey] ?? 0.0) + val;
   }
@@ -681,8 +676,7 @@ export async function getInvestorHealthScore(portfolioId: string): Promise<Inves
     if (!pos.assetId) continue;
     const asset = await prisma.asset.findUnique({ where: { id: pos.assetId } });
     if (!asset) continue;
-    const price = priceMap.get(pos.id)?.price ?? 0.0;
-    const val = Number(pos.quantity) * price;
+    const val = await positionMarketValueInr(pos, priceMap.get(pos.id)!);
     const clsKey = classKey(asset.assetClass);
     alloc[clsKey] = (alloc[clsKey] ?? 0.0) + val;
   }

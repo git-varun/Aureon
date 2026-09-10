@@ -1,6 +1,7 @@
 import { prisma } from "../prisma";
 import type { Asset, LatestQuote, Position } from "../generated/prisma";
 import { inferCurrency } from "./currency";
+import { toInr } from "./fx";
 import { getSessionTimeZone, naiveToUtc, toPythonIsoString } from "./tz";
 
 // Same live/fresh/stale bands as the Python backend's
@@ -223,6 +224,33 @@ export async function resolvePositionPrice(pos: Position): Promise<PositionPrice
   }
   const quote = await prisma.latestQuote.findUnique({ where: { symbol: pos.symbol } });
   return positionPriceFromData(pos, asset, quote, tzName);
+}
+
+/** Native-currency market value of a position, kept identical to
+ * generatePortfolioSnapshot's per-position valuation (snapshot.ts:35-47):
+ * margin + unrealized PnL for the futures wallets, quantity * price
+ * otherwise. Pair with the position's PositionPrice.currency + toInr (or use
+ * positionMarketValueInr) to get an INR figure — this is deliberately sync
+ * and I/O-free so it can be unit-tested without Redis. */
+export function positionMarketValueNative(pos: Position, pp: PositionPrice): number {
+  const qty = Number(pos.quantity);
+  if (pos.wallet === "futures_coinm") {
+    const margin = pos.marginUsd !== null ? Number(pos.marginUsd) : 0;
+    return margin + Number(pos.unrealizedPnl ?? 0);
+  }
+  if (pos.wallet === "futures_usdm") {
+    const leverage = pos.leverage ? Number(pos.leverage) : 1.0;
+    const margin = Math.abs(qty * Number(pos.avgBuyPrice)) / leverage;
+    return margin + Number(pos.unrealizedPnl ?? 0);
+  }
+  return pp.price !== null ? qty * pp.price : 0;
+}
+
+/** positionMarketValueNative converted to INR via the position's native
+ * currency — the value that must be summed across positions, since a book
+ * mixes INR-native (NSE/MF/EPF) and USD-native (crypto/futures) holdings. */
+export async function positionMarketValueInr(pos: Position, pp: PositionPrice): Promise<number> {
+  return toInr(positionMarketValueNative(pos, pp), pp.currency);
 }
 
 /** Port of resolve_positions_price_map — bulk-loads assets/quotes once each
