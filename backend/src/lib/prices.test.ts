@@ -1,6 +1,6 @@
 import { describe, it, expect } from "vitest";
 import { positionMarketValueNative } from "./prices";
-import type { Position } from "./generated/prisma";
+import type { Position } from "../generated/prisma";
 import type { PositionPrice } from "./prices";
 
 // positionMarketValueNative must stay identical to

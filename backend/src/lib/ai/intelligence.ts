@@ -1,5 +1,7 @@
 import { prisma } from "../../prisma";
 import { resolvePositionsPriceMap, positionMarketValueInr } from "../prices";
+import { getHistoricalFxToInr, toInr } from "../fx";
+import { inferCurrency } from "../currency";
 import type { Position, Transaction, Asset, recommendation_outcomes } from "../../generated/prisma";
 import {
   cacheIntelligencePortfolio,
@@ -847,15 +849,41 @@ function closestPrice(points: Array<[Date, number]>, dt: Date): number | null {
 
 /** Port of _get_portfolio_state_at_date: replays every transaction up to dt
  * to derive per-symbol quantities, then values each held position at its
- * price closest to dt. Positions with no real price history as of dt are
- * skipped from the aggregate rather than fabricated in — same policy as
- * getAssetPriceAtTime. */
-function getPortfolioStateAtDate(
+ * price closest to dt, converted to INR at that date's historical FX rate.
+ * Positions with no real price history as of dt are skipped from the
+ * aggregate rather than fabricated in — same policy as getAssetPriceAtTime.
+ *
+ * Two deliberate limitations vs the live/spot path (getPortfolioConcentration
+ * Analysis et al.):
+ *  - crypto_futures positions are excluded entirely. The live path values
+ *    them as margin + unrealizedPnl (see positionMarketValueNative /
+ *    snapshot.ts), but the trade ledger this replay is built from carries
+ *    neither margin, leverage nor unrealized PnL — only qty and entry price.
+ *    Valuing them here at qty * mark-price would be notional, not margin, and
+ *    once FX-converted would overstate them ~Nx and dominate HHI. Skipping is
+ *    the same "don't fabricate" policy already applied above for missing
+ *    prices. (COIN-M futures already never reach this replay — they have no
+ *    BUY/SELL rows — so this only makes the omission consistent.)
+ *  - historical FX falls back to today's rate when getHistoricalFxToInr has
+ *    no fixing for dt (pre-1999, or a source outage). A real current rate is
+ *    a disclosed approximation; dropping the position or inventing a
+ *    historical rate would both be worse. */
+async function getPortfolioStateAtDate(
   dt: Date,
   transactions: Transaction[],
   priceHistoryByAsset: Map<string, Array<[Date, number]>>,
   assetsBySymbol: Map<string, Asset>,
-): PortfolioState {
+): Promise<PortfolioState> {
+  const fxRateCache = new Map<string, number>();
+  async function rateToInr(currency: string): Promise<number> {
+    if (currency === "INR") return 1.0;
+    const cached = fxRateCache.get(currency);
+    if (cached !== undefined) return cached;
+    const historical = await getHistoricalFxToInr(currency, dt);
+    const rate = historical ?? (await toInr(1, currency));
+    fxRateCache.set(currency, rate);
+    return rate;
+  }
   const positions: Record<string, { quantity: number; total_cost: number; asset_id: string | null }> = {};
   for (const tx of transactions) {
     if (tx.transactionDate > dt) continue;
@@ -881,6 +909,9 @@ function getPortfolioStateAtDate(
 
   for (const [sym, pos] of Object.entries(positions)) {
     if (pos.quantity <= 0) continue;
+    const asset = assetsBySymbol.get(sym);
+    if (asset?.assetClass === "crypto_futures") continue;
+
     const assetId = pos.asset_id;
     let price: number | null = null;
     if (assetId && priceHistoryByAsset.has(assetId)) {
@@ -888,12 +919,12 @@ function getPortfolioStateAtDate(
     }
     if (price === null) continue;
 
-    const val = pos.quantity * price;
+    const currency = inferCurrency(asset?.assetClass ?? null, sym, asset?.metadata ?? null);
+    const val = pos.quantity * price * (await rateToInr(currency));
     totalVal += val;
     stockValues[sym] = val;
     weights.push(val);
 
-    const asset = assetsBySymbol.get(sym);
     if (asset) {
       const sector = sectorOf(asset.metadata);
       sectors.add(sector);
@@ -954,7 +985,7 @@ export async function getPortfolioHealthTrend(portfolioId: string, days: number)
 
   const trend: HealthTrendPoint[] = [];
   for (const d of dates) {
-    const state = getPortfolioStateAtDate(d, transactions, priceHistoryByAsset, assetsBySymbol);
+    const state = await getPortfolioStateAtDate(d, transactions, priceHistoryByAsset, assetsBySymbol);
     const assetCount = Object.values(state.positions).filter((p) => p.quantity > 0).length;
     const sCount = Math.min(100.0, assetCount * 10.0);
     const sSector = Math.min(100.0, state.sectors.size * 20.0);
@@ -1027,7 +1058,7 @@ export async function getDiversificationTrend(portfolioId: string, days: number)
 
   const trend: DiversificationTrendPoint[] = [];
   for (const d of dates) {
-    const state = getPortfolioStateAtDate(d, transactions, priceHistoryByAsset, assetsBySymbol);
+    const state = await getPortfolioStateAtDate(d, transactions, priceHistoryByAsset, assetsBySymbol);
     const assetCount = Object.values(state.positions).filter((p) => p.quantity > 0).length;
     const sCount = Math.min(100.0, assetCount * 10.0);
     const sSector = Math.min(100.0, state.sectors.size * 20.0);
