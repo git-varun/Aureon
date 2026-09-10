@@ -1,13 +1,23 @@
 import { openPdf, extractText, extractTables } from "./pdfTable";
 import { cleanIsin, casSymbolFor } from "./mfSymbol";
+import { ImportParseError } from "./errors";
 
 // Port of portfolio_importer.py's parse_cdsl_cas and its table-parsing
 // helpers (lines ~360-534, 556-643). CAS has zero Python test coverage
-// (confirmed: no test_cas_import.py exists) and this Node port has never
-// been run against a real CDSL CAS PDF (none exist anywhere in this repo) —
-// verified only against hand-built synthetic PDFs reproducing the
-// documented table-header shapes. Flag this explicitly wherever this
-// module's output is reported.
+// (confirmed: no test_cas_import.py exists).
+//
+// The MF-folio table parser (parseFolioTable) was rewritten on 2026-09-10
+// after its first run against a real CDSL CAS PDF: the statement's
+// "MUTUAL FUND UNITS HELD" table has a bilingual (Hindi+English) multi-line
+// header and data rows whose leading columns (scheme name / ISIN / folio)
+// drift, wrap, or merge unpredictably, so the old header-index column map
+// (mapFolioCols) silently mis-mapped ISIN, units and NAV. It now anchors on
+// the row's trailing run of 6 numeric columns and resolves fund identity
+// from the clean "MF Folios" key-value block (parseMfFolioBlock), joined on
+// folio number, failing loudly rather than importing a mis-parsed row.
+// The demat-holding parser (parseHoldingTable) has the same header-index
+// fragility and has NOT yet been verified against a real PDF — flag its
+// output as unverified.
 
 export interface CasHolding {
   symbol: string;
@@ -66,25 +76,41 @@ function isHoldingHeader(row: string[]): boolean {
   );
 }
 
-function mapFolioCols(headerRow: string[]): Record<string, number> {
-  const m: Record<string, number> = {};
-  headerRow.forEach((c, ci) => {
-    const n = norm(c);
-    const raw = String(c).toLowerCase();
-    const set = (key: string) => {
-      if (!(key in m)) m[key] = ci;
-    };
-    if (n.includes("scheme") && n.includes("name")) set("scheme");
-    else if (n === "isin" || n === "isinisin") set("isin");
-    else if (n.includes("folio")) set("folio");
-    else if (n.includes("closing") || (n.includes("unit") && n.includes("closing"))) set("units");
-    else if (n.includes("nav") && !n.includes("cumul") && !n.includes("unreali") && !n.includes("valuation")) set("nav");
-    else if (n.includes("cumul") || n.includes("invest")) set("invested");
-    else if (n.includes("valuation")) set("valuation");
-    else if (n.includes("unreali") && !raw.includes("%")) set("pnl");
-    else if (n.includes("unreali") && raw.includes("%")) set("pnl_pct");
-  });
-  return m;
+export interface FolioMeta {
+  isin: string;
+  folio_no: string;
+  scheme_name: string;
+}
+
+const ISIN_RE = /^INF[A-Z0-9]{9}$/;
+// A CDSL MF folio number: a run of >=4 digits, a "/", then more digits (e.g.
+// "35726665/58", "57735580124/0"). The lookbehind stops it latching onto the
+// trailing digits of an adjacent ISIN token ("...01WA6 35726665/58").
+const FOLIO_RE = /(?<![A-Za-z0-9])(\d{4,}\s*\/\s*\d+)/;
+
+function normFolio(s: string): string {
+  return s.replace(/\s+/g, "");
+}
+
+/** Parses the clean "MF Folios" key-value block from the CAS account-details
+ * pages into a folio-number -> {isin, scheme_name} lookup. This block is
+ * unambiguous (one `AMC Name :` / `Scheme Name :` / `Folio No :` / `ISIN :`
+ * group per fund) and is the source of truth for fund identity, since the
+ * folio *table* mangles those same columns. Runs per page and results are
+ * merged (the block can span a page break). */
+export function parseMfFolioBlock(pageText: string): Map<string, FolioMeta> {
+  const out = new Map<string, FolioMeta>();
+  // Each fund entry starts at "AMC Name :"; the trailing chunk after the last
+  // one runs to end-of-text, which is fine (we only read the fields we need).
+  const chunks = pageText.split(/AMC Name\s*:/i).slice(1);
+  for (const chunk of chunks) {
+    const isin = chunk.match(/ISIN\s*:\s*(INF[A-Z0-9]{9})/i)?.[1]?.toUpperCase();
+    const folio = chunk.match(/Folio No\s*:\s*([\d/ ]+?)(?:\s{2,}|Mode of|Email|KYC|$)/i)?.[1]?.trim();
+    const scheme = chunk.match(/Scheme Name\s*:\s*(.+?)(?:\s{2,}|\s*Scheme Code|\n|$)/i)?.[1]?.trim();
+    if (!isin || !folio || !ISIN_RE.test(isin)) continue;
+    out.set(normFolio(folio), { isin, folio_no: folio, scheme_name: scheme || "" });
+  }
+  return out;
 }
 
 function mapHoldingCols(headerRow: string[]): Record<string, number> {
@@ -114,41 +140,70 @@ interface FolioRow {
   source: "cas_folio";
 }
 
-function parseFolioTable(table: string[][]): FolioRow[] {
-  let hdrRow: string[] | null = null;
-  let dataStart = -1;
+export function parseFolioTable(table: string[][], folioMeta: Map<string, FolioMeta>): FolioRow[] {
+  let dataStart = 0;
   for (let ri = 0; ri < Math.min(3, table.length); ri++) {
     if (isFolioHeader(table[ri])) {
-      hdrRow = table[ri];
       dataStart = ri + 1;
       break;
     }
   }
-  if (!hdrRow) return [];
-  const col = mapFolioCols(hdrRow);
   const results: FolioRow[] = [];
   for (const row of table.slice(dataStart)) {
     if (!row || row.every((c) => c == null || String(c).trim() === "")) continue;
-    const scheme = cell(row, col.scheme ?? 0);
-    if (!scheme || scheme.toLowerCase().includes("grand total") || scheme.toLowerCase().includes("load structure")) continue;
-    const isin = cleanIsin(cell(row, col.isin ?? 1));
-    const folio = cell(row, col.folio ?? 2);
-    const units = num(cell(row, col.units ?? 3));
-    const nav = num(cell(row, col.nav ?? 4));
-    const invested = num(cell(row, col.invested ?? 5));
-    const val = num(cell(row, col.valuation ?? 6));
 
-    if (units === null || units <= 0) continue;
+    // Anchor on the row's trailing run of numeric columns. A real MF-folio
+    // data row ends with exactly 6: Closing Units | NAV | Amount Invested |
+    // Valuation | Unrealised P/L | Unrealised P/L %. Tokens containing "/"
+    // (folio numbers like "35726665/58") or letters (ISIN, scheme text) end
+    // the run, so it cannot drift into the identity columns the way the old
+    // header-index map did.
+    const tail: number[] = [];
+    for (let i = row.length - 1; i >= 0; i--) {
+      const raw = String(row[i] ?? "").trim();
+      if (!raw) continue;
+      if (raw.includes("/") || /[A-Za-z]/.test(raw)) break;
+      const n = num(raw);
+      if (n === null) break;
+      tail.unshift(n);
+    }
+    if (tail.length < 6) continue; // header remnants, "Grand Total" (2 numeric cols), notes
 
-    const avgNav = units > 0 && invested && invested > 0 ? Math.round((invested / units) * 10000) / 10000 : 0.0;
+    const [units, nav, invested, valuation] = tail.slice(-6);
+    const preTail = row.slice(0, row.length - tail.length).join(" ");
+    const folioTok = preTail.match(FOLIO_RE)?.[1]?.trim();
+    const meta = folioTok ? folioMeta.get(normFolio(folioTok)) : undefined;
+
+    if (!meta) {
+      throw new ImportParseError(
+        `CDSL CAS: could not identify the fund for an MF-folio holding (folio "${folioTok ?? "?"}" ` +
+          `not present in the "MF Folios" section). Refusing to import a mis-parsed row.`,
+      );
+    }
+    if (!ISIN_RE.test(meta.isin) || units <= 0 || nav <= 0 || valuation <= 0) {
+      throw new ImportParseError(
+        `CDSL CAS: implausible MF-folio holding for ${meta.isin} (units=${units}, nav=${nav}, valuation=${valuation}).`,
+      );
+    }
+    // Internal consistency: units x NAV must reconcile to the stated
+    // valuation. Catches a units<->NAV transposition that the checks above
+    // (both positive) would otherwise wave through.
+    if (Math.abs(units * nav - valuation) / valuation > 0.01) {
+      throw new ImportParseError(
+        `CDSL CAS: MF-folio holding for ${meta.isin} fails the units x NAV = valuation check ` +
+          `(${units} x ${nav} = ${(units * nav).toFixed(2)}, statement says ${valuation}).`,
+      );
+    }
+
+    const avgNav = invested > 0 ? Math.round((invested / units) * 10000) / 10000 : 0.0;
     results.push({
-      scheme_name: scheme,
-      isin,
-      folio_no: folio,
+      scheme_name: meta.scheme_name,
+      isin: meta.isin,
+      folio_no: meta.folio_no,
       units,
       avg_nav: avgNav,
-      current_nav: nav || 0.0,
-      valuation: val || 0.0,
+      current_nav: nav,
+      valuation,
       source: "cas_folio",
     });
   }
@@ -212,12 +267,17 @@ export async function parseCdslCas(content: Buffer, password?: string): Promise<
 
   const mfFolios: FolioRow[] = [];
   const dematMf: HoldingRow[] = [];
+  const folioMeta = new Map<string, FolioMeta>();
   let currentDp = "";
 
   for (let p = 1; p <= pdf.numPages; p++) {
     const page = await pdf.getPage(p);
     const text = await extractText(page);
     const tables = await extractTables(page, (row) => isFolioHeader(row) || isHoldingHeader(row));
+
+    // The "MF Folios" key-value block (Account Details section) precedes the
+    // folio table and can straddle a page break — accumulate it as we go.
+    for (const [k, v] of parseMfFolioBlock(text)) folioMeta.set(k, v);
 
     const dm = text.match(DP_PATTERN);
     if (dm) {
@@ -228,11 +288,21 @@ export async function parseCdslCas(content: Buffer, password?: string): Promise<
     for (const table of tables) {
       if (table.length === 0) continue;
       if (Array.from({ length: Math.min(3, table.length) }, (_, ri) => table[ri]).some(isFolioHeader)) {
-        mfFolios.push(...parseFolioTable(table));
+        mfFolios.push(...parseFolioTable(table, folioMeta));
       } else if (Array.from({ length: Math.min(3, table.length) }, (_, ri) => table[ri]).some(isHoldingHeader)) {
         dematMf.push(...parseHoldingTable(table, currentDp));
       }
     }
+  }
+
+  // Completeness guard: every fund named in the "MF Folios" section must have
+  // produced a parsed folio holding. A shortfall means a data row was
+  // silently dropped (unrecognised shape) — fail rather than under-import.
+  if (folioMeta.size > 0 && mfFolios.length < folioMeta.size) {
+    throw new ImportParseError(
+      `CDSL CAS: the "MF Folios" section lists ${folioMeta.size} funds but only ${mfFolios.length} folio ` +
+        `holdings parsed cleanly. Refusing a partial import.`,
+    );
   }
 
   // Deduplicate demat by (isin, dp).
