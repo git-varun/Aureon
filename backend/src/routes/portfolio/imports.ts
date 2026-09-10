@@ -101,13 +101,17 @@ async function upsertBrokerSnapshot(
   price: number,
   transactionDate: Date,
 ): Promise<void> {
+  // Resolve the asset so the row carries assetId — read-time currency inference
+  // (inferCurrency in transactions.ts) keys off the asset's assetClass, and
+  // suffix-less symbols (EPF/NPS/CAS mutual funds) otherwise fall through to USD.
+  const asset = await tx.asset.findUnique({ where: { symbol: symbol.toUpperCase().trim() } });
   const existing = await tx.transaction.findFirst({
     where: { portfolioId, symbol, kind: "broker_snapshot", broker },
   });
   if (existing) {
     await tx.transaction.update({
       where: { id: existing.id },
-      data: { quantity, price, transactionDate, importRunId: runId, updatedAt: new Date() },
+      data: { quantity, price, transactionDate, importRunId: runId, assetId: asset?.id ?? null, updatedAt: new Date() },
     });
   } else {
     await tx.transaction.create({
@@ -115,6 +119,7 @@ async function upsertBrokerSnapshot(
         id: uuidv4(),
         portfolioId,
         symbol,
+        assetId: asset?.id ?? null,
         transactionType: "BUY",
         quantity,
         price,
