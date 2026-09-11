@@ -1,4 +1,3 @@
-export { HoldingSubRow }       from './HoldingSubRow';
 export { LogTradeModal }       from './LogTradeModal';
 export { PfFreshnessBar }      from './PfFreshnessBar';
 export { PfSummaryHero }       from './PfSummaryHero';
