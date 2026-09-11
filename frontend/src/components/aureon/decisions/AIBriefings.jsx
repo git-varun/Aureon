@@ -109,14 +109,24 @@ function BriefingCard({ b, expanded, onToggle }) {
     const toneMap = BRIEFING_TREND[trend] || BRIEFING_TREND.Neutral;
     const riskLevel = b.future_projections?.portfolio_risk_level?.toUpperCase();
     const riskTone = RISK_TONE[riskLevel];
+    // No single recommended_action exists on the global-briefing schema —
+    // actions are per-symbol, inside directives[] — so this badge never
+    // renders for this briefing type; kept for schemas/callers that do set it.
     const actionKey = b.recommended_action?.toUpperCase();
     const actionColor = ACTION_COLOR[actionKey] || 'var(--ink-30)';
-    const confPct = b.confidence != null ? Math.round(b.confidence * 100) : null;
+    // b.summary/b.key_catalyst/b.confidence don't exist on this schema either
+    // — the real fields are market_vibe, future_projections.catalyst_watch,
+    // and confidence_score, which is why every card rendered with just the
+    // trend tag and feedback buttons and nothing else.
+    const summary = b.market_vibe ?? b.summary;
+    const keyCatalyst = b.future_projections?.catalyst_watch ?? b.key_catalyst;
+    const confidence = b.confidence_score ?? b.confidence;
+    const confPct = confidence != null ? Math.round(confidence * 100) : null;
     const isExpanded = expanded === b.id;
 
     const sections = [];
-    if (b.summary) sections.push({ label: 'Summary', value: b.summary });
-    if (b.key_catalyst) sections.push({ label: 'Key catalyst', value: b.key_catalyst });
+    if (summary) sections.push({ label: 'Summary', value: summary });
+    if (keyCatalyst) sections.push({ label: 'Key catalyst', value: keyCatalyst });
 
     return (
         <div className="layer-1" style={{ borderRadius: 12, overflow: 'hidden', border: '1px solid rgba(255,255,255,0.06)' }}>
@@ -152,6 +162,11 @@ function BriefingCard({ b, expanded, onToggle }) {
                         </span>
                     )}
                     <div style={{ flex: 1 }} />
+                    {b.model_used && (
+                        <span style={{ fontFamily: 'var(--font-mono)', fontSize: 11, color: 'var(--ink-40)' }}>
+                            {b.model_used}
+                        </span>
+                    )}
                     {confPct != null && (
                         <span style={{ fontFamily: 'var(--font-mono)', fontSize: 11, color: 'var(--ink-40)' }}>
                             Conf {confPct}%
@@ -160,9 +175,9 @@ function BriefingCard({ b, expanded, onToggle }) {
                 </div>
 
                 {/* Summary paragraph */}
-                {b.summary && (
+                {summary && (
                     <p style={{ margin: 0, fontSize: 13, color: 'var(--ink-10)', lineHeight: 1.65 }}>
-                        {b.summary}
+                        {summary}
                     </p>
                 )}
 
