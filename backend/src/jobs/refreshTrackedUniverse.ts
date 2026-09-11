@@ -119,9 +119,9 @@ async function refreshTrackedUniverse(): Promise<void> {
 }
 
 /** Port of refresh_tracked_universe_task (the @_skip_if_disabled /
- * @shared_task decorator pair). Manual-trigger entrypoint only this phase —
- * no BullMQ repeatable schedule is registered anywhere (see Phase 3/4's
- * concurrent-writer decision). */
+ * @shared_task decorator pair). Cut over to a real BullMQ repeatable
+ * schedule, see scripts/startWorker.ts and queue.ts's
+ * SCHEDULED_JOB_HANDLERS. */
 export async function refreshTrackedUniverseTask(logId: number | null = null): Promise<void> {
   if (await skipIfDisabled("refresh_tracked_universe", logId)) return;
   await wrapJobExecution("refresh_tracked_universe", logId, refreshTrackedUniverse);

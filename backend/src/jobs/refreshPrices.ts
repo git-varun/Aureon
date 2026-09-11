@@ -41,8 +41,9 @@ export async function refreshAllQuotes(): Promise<void> {
 }
 
 /** Port of refresh_prices_task (the @_skip_if_disabled("refresh_prices") /
- * @shared_task decorator pair). Manual-trigger entrypoint only this phase —
- * no BullMQ repeatable schedule is registered anywhere. */
+ * @shared_task decorator pair). Cut over to a real BullMQ repeatable
+ * schedule, see scripts/startWorker.ts and queue.ts's
+ * SCHEDULED_JOB_HANDLERS. */
 export async function refreshPricesTask(logId: number | null = null): Promise<void> {
   if (await skipIfDisabled("refresh_prices", logId)) return;
   await wrapJobExecution("refresh_prices", logId, refreshAllQuotes);

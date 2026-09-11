@@ -23,8 +23,10 @@ function parseDdMmYyyy(s: string): Date {
  * AMFI data) — used to match a held MF's ISIN to a scheme code. AMFI's own
  * per-scheme history page (DownloadNAVHistoryReport_Po.aspx) was live-checked
  * during design and returns an empty JS-driven frameset with no data, so
- * mfapi.in is used instead (the existing refreshMutualFundNavs job already
- * tags LatestQuote.provider as "mfapi", suggesting this was anticipated).
+ * mfapi.in is used instead. refreshMutualFundNavs itself sources NAVs from
+ * AMFI's NAVAll.txt directly (amfi.ts) and tags LatestQuote.provider as
+ * "amfi" (BUG-H) — this adapter is only the ISIN->scheme-code lookup, a
+ * separate mfapi.in-served concern.
  * Fetched fresh per call — no persistent cache, since callers are
  * manually-triggered/infrequent jobs, not a hot path. */
 export async function getSchemeList(): Promise<MfapiSchemeListEntry[]> {
