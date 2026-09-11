@@ -22,6 +22,33 @@ const KEYFRAMES = `
 @keyframes aureon-cardEnter { from { opacity:0; transform:translateY(-4px); } to { opacity:1; transform:none; } }
 `;
 
+const PENDING_KEY = 'aureon.briefing.pendingSince';
+const PENDING_STALE_MS = 90_000;
+
+function getPendingSince() {
+    try {
+        const raw = sessionStorage.getItem(PENDING_KEY);
+        if (!raw) return null;
+        const startedAt = Number(raw);
+        return Number.isFinite(startedAt) ? startedAt : null;
+    } catch {
+        return null;
+    }
+}
+
+function isPendingFresh() {
+    const startedAt = getPendingSince();
+    return startedAt !== null && (Date.now() - startedAt) < PENDING_STALE_MS;
+}
+
+function setPendingMarker() {
+    try { sessionStorage.setItem(PENDING_KEY, String(Date.now())); } catch { /* storage unavailable */ }
+}
+
+function clearPendingMarker() {
+    try { sessionStorage.removeItem(PENDING_KEY); } catch { /* storage unavailable */ }
+}
+
 function Spinner() {
     return (
         <svg
@@ -239,7 +266,15 @@ export default function AIBriefings({ tabState, onRetry }) {
     const { aiBriefing } = useAureonData();
     const [briefings, setBriefings] = useState([]);
     const [loading, setLoading] = useState(true);
-    const [running, setRunning] = useState(false);
+    // The in-flight `running` guard alone doesn't survive this component
+    // unmounting (tab switch, or a page reload) while a run is still
+    // pending server-side — a naive user who thinks nothing happened can
+    // navigate away and back and fire a second POST /ai/global while the
+    // first is still in flight. Persist the pending marker in
+    // sessionStorage so a remount can see it too; a staleness timeout
+    // (PENDING_STALE_MS) keeps a request that never resolves (e.g. tab
+    // closed mid-flight) from disabling the button forever.
+    const [running, setRunning] = useState(() => isPendingFresh());
     const [expanded, setExpanded] = useState(null);
 
     useEffect(() => {
@@ -251,7 +286,32 @@ export default function AIBriefings({ tabState, onRetry }) {
         return () => { cancelled = true; };
     }, []);
 
+    // Polls for a pending run inherited from sessionStorage (i.e. started by
+    // a since-unmounted instance of this component) so this instance
+    // re-enables the button once that run actually finishes, instead of
+    // showing "Running…" forever.
+    useEffect(() => {
+        if (!running) return undefined;
+        const interval = setInterval(() => {
+            const startedAt = getPendingSince();
+            if (startedAt === null) {
+                // Cleared by the original (now-unmounted) instance's run completing.
+                setRunning(false);
+                apiService.fetchBriefingHistory(30)
+                    .then((data) => setBriefings(Array.isArray(data) ? data : []))
+                    .catch(() => {});
+            } else if (Date.now() - startedAt >= PENDING_STALE_MS) {
+                // Marker never got cleared (e.g. tab closed mid-request) — don't
+                // disable the button forever.
+                clearPendingMarker();
+                setRunning(false);
+            }
+        }, 2000);
+        return () => clearInterval(interval);
+    }, [running]);
+
     const handleRun = async () => {
+        setPendingMarker();
         setRunning(true);
         try {
             await apiService.runGlobalAI();
@@ -261,6 +321,7 @@ export default function AIBriefings({ tabState, onRetry }) {
         } catch (e) {
             toast.error(e.message || 'Failed to run AI briefing');
         } finally {
+            clearPendingMarker();
             setRunning(false);
         }
     };
