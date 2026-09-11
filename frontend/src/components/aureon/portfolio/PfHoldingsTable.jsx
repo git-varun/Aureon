@@ -5,6 +5,8 @@ import { useV4 } from '@/contexts/V4Context';
 
 const COL = 'minmax(0,1.8fr) minmax(0,0.7fr) minmax(0,1fr) minmax(0,0.8fr) minmax(0,1fr) minmax(0,1.1fr) minmax(0,0.65fr) 76px';
 
+const WALLET_LABEL = { spot: 'Spot', earn: 'Earn', demat: 'Demat', futures_usdm: 'USDM', futures_coinm: 'COIN-M' };
+
 function SortHdr({ col, sortC, sortD, onToggle, children }) {
   return (
     <button onClick={() => onToggle(col)} style={{ background:'none', border:'none', cursor:'pointer', padding:0, display:'inline-flex', alignItems:'center', gap:3, fontSize:10, letterSpacing:'0.12em', textTransform:'uppercase', color:sortC===col?'var(--aurum-300)':'var(--ink-40)', fontWeight:600, fontFamily:'var(--font-ui)' }}>
@@ -36,6 +38,12 @@ export function PfHoldingsTable({ holdings, loading, fmt, onLogTrade, onAddManua
     });
     return list;
   }, [holdings, q, cls, sortC, sortD, fxRates]);
+
+  const dupTickers = useMemo(() => {
+    const counts = {};
+    for (const h of holdings) counts[h.ticker] = (counts[h.ticker] || 0) + 1;
+    return new Set(Object.keys(counts).filter(t => counts[t] > 1));
+  }, [holdings]);
 
   const toggleSort = c => { if (sortC === c) setSortD(d => -d); else { setSortC(c); setSortD(-1); } };
 
@@ -89,6 +97,8 @@ export function PfHoldingsTable({ holdings, loading, fmt, onLogTrade, onAddManua
         const isEstimated = h.priceSource === 'epf_estimated';
         const isRateMissing = h.unavailableReason === 'epf_rate_missing';
         const isCostBasis = h.priceSource === 'cost_basis';
+        const isDupTicker = dupTickers.has(h.ticker);
+        const walletLabel = isDupTicker ? (WALLET_LABEL[h.wallet] || h.wallet) : null;
         const futures = isFutures(h);
         const pl = plOf(h);
         // cost_basis rows have price === avg_buy_price by construction, so P/L
@@ -109,6 +119,7 @@ export function PfHoldingsTable({ holdings, loading, fmt, onLogTrade, onAddManua
                 {isEstimated && <EpfEstimateBadge basis={h.epfEstimateBasis}/>}
                 {isRateMissing && <EpfRateMissingHint/>}
                 {isCostBasis && <CostBasisBadge/>}
+                {walletLabel && <span style={{ fontSize:9, padding:'1px 5px', borderRadius:3, background:'rgba(255,255,255,0.06)', color:'var(--ink-30)', border:'1px solid rgba(255,255,255,0.10)', letterSpacing:'0.08em', textTransform:'uppercase', fontWeight:600 }}>{walletLabel}</span>}
               </div>
               <div style={{ fontSize:11.5, color:'var(--ink-40)', marginTop:1, overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap', maxWidth:200 }}>{h.name}</div>
             </div>
