@@ -19,7 +19,7 @@ import {ManualAssetModal} from '@/components/aureon/portfolio/ManualAssetModal';
 import {PfConcentrationSection} from '@/components/aureon/portfolio/PfConcentrationSection';
 import {PfTrendChart} from '@/components/aureon/portfolio/PfTrendChart';
 import OutcomesTab from '@/components/aureon/decisions/tabs/OutcomesTab';
-import {Cerr} from '@/components/aureon/ui';
+import {Cerr, Sk} from '@/components/aureon/ui';
 
 const PfSection = ({ eyebrow, title, action, children }) => (
   <section style={{ marginBottom: 32 }}>
@@ -118,7 +118,17 @@ export default function Portfolio() {
 
       {/* 4 · Allocation */}
       <PfSection eyebrow="Breakdown" title="Allocation">
-        {sectionError || (
+        {sectionError || (loading ? (
+          // allocByClass is derived from `holdings`, which is already populated
+          // with placeholder (unclassified) data before /assets/batch resolves —
+          // render a skeleton instead of a briefly-wrong allocation breakdown.
+          <div style={{ borderRadius:12, background:'rgba(255,255,255,0.02)', border:'1px solid rgba(255,255,255,0.06)', padding:20, display:'flex', gap:20, alignItems:'center' }}>
+            <div style={{ flexShrink:0 }}><Sk h={148} w={148} r={74} /></div>
+            <div style={{ flex:1, display:'flex', flexDirection:'column', gap:10 }}>
+              <Sk h={12} w="90%" /><Sk h={12} w="75%" /><Sk h={12} w="60%" />
+            </div>
+          </div>
+        ) : (
           <PfAllocationSection
             holdings={holdings}
             allocByClass={allocByClass}
@@ -128,7 +138,7 @@ export default function Portfolio() {
             classTargetsUsingDefaults={classTargetsUsingDefaults}
             cashNotTracked={cashNotTracked}
           />
-        )}
+        ))}
       </PfSection>
 
       {/* 5 · Holdings */}

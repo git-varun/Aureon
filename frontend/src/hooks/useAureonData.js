@@ -289,7 +289,13 @@ export function useAureonData() {
     // isPending (not isLoading) — isLoading is isPending && isFetching, which stays
     // false the whole time these queries sit disabled waiting on activePortfolioId
     // (enabled: !!activePortfolioId), so it never trips the loading UI during that window.
-    const loading = positionsQuery.isPending || snapshotQuery.isPending || recommendationsQuery.isPending || transactionsQuery.isPending;
+    // assetsBatchQuery is gated by `batchSymbols.length > 0` instead, not
+    // activePortfolioId, and batchSymbols is empty until positions have loaded —
+    // for a genuinely empty portfolio it never enables and isPending would stay
+    // true forever, so it's only added to the composite while there's something
+    // for it to fetch.
+    const loading = positionsQuery.isPending || snapshotQuery.isPending || recommendationsQuery.isPending || transactionsQuery.isPending
+        || (batchSymbols.length > 0 && assetsBatchQuery.isPending);
     const error = positionsQuery.error || snapshotQuery.error || recommendationsQuery.error || transactionsQuery.error;
 
     return {

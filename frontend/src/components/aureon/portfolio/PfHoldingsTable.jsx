@@ -47,7 +47,12 @@ export function PfHoldingsTable({ holdings, loading, fmt, onLogTrade, onAddManua
 
   const toggleSort = c => { if (sortC === c) setSortD(d => -d); else { setSortC(c); setSortD(-1); } };
 
-  if (loading && holdings.length === 0) return (
+  // Not `loading && holdings.length === 0` — holdings is already populated
+  // (with placeholder name/class) as soon as /positions resolves, before
+  // /assets/batch does, so that condition would go false immediately and
+  // skip straight to rendering placeholder data instead of holding the
+  // skeleton for the full `loading` window.
+  if (loading) return (
     <div style={{ borderRadius:12, background:'rgba(255,255,255,0.02)', border:'1px solid rgba(255,255,255,0.06)', overflow:'hidden' }}>
       <div style={{ padding:'11px 16px', borderBottom:'1px solid rgba(255,255,255,0.05)', display:'flex', gap:10 }}>
         <Sk h={30} w={210} /><Sk h={30} w={300} />
