@@ -1,7 +1,7 @@
 import { prisma } from "../prisma";
 import { resolvePositionsPriceMap } from "./prices";
-import { inferCurrency } from "./currency";
 import { toInr } from "./fx";
+import { clampTrendDates, getPortfolioStateAtDate, indexPriceHistoryByAsset } from "./ai/intelligence";
 
 export interface SnapshotResult {
   portfolio_id: string;
@@ -118,98 +118,32 @@ export function serializeSnapshotForCache(snapshot: SnapshotResult): Record<stri
   };
 }
 
-const RECALC_TYPES = new Set(["BUY", "SELL", "BONUS", "SPLIT"]);
-
-/** Port of PortfolioService.get_history. Reconstructs net-worth over time
- * from real trade-ledger Transaction + PriceHistory rows — see the Python
- * docstring for exactly which symbols/periods are (and aren't)
- * reconstructable. */
+/** Port of PortfolioService.get_history, retargeted onto the same
+ * day-by-day reconstruction the (already-fixed) health/diversification
+ * trend endpoints use — see getPortfolioStateAtDate in ai/intelligence.ts
+ * for its FX conversion, crypto_futures exclusion and broker_snapshot
+ * override logic. The original implementation only ever replayed
+ * kind: "trade" rows, which is zero rows for every broker-synced
+ * portfolio (broker-synced trades are kind: "broker_trade"), so this
+ * always returned an empty series for real data. */
 export async function getPortfolioHistory(portfolioId: string, days: number): Promise<{ snapshots: { ts: string; value: number }[] }> {
-  const txns = await prisma.transaction.findMany({
-    where: { portfolioId, transactionType: { in: [...RECALC_TYPES] }, kind: "trade" },
-    orderBy: [{ transactionDate: "asc" }, { id: "asc" }],
-  });
-  if (txns.length === 0) return { snapshots: [] };
+  const transactions = await prisma.transaction.findMany({ where: { portfolioId }, orderBy: { transactionDate: "asc" } });
+  const dates = clampTrendDates(days, transactions);
+  if (dates.length === 0) return { snapshots: [] };
 
-  const symbols = [...new Set(txns.map((t) => t.symbol))].sort();
-  const txnsBySymbol = new Map<string, typeof txns>();
-  for (const t of txns) {
-    const list = txnsBySymbol.get(t.symbol) ?? [];
-    list.push(t);
-    txnsBySymbol.set(t.symbol, list);
-  }
+  const symbols = [...new Set(transactions.map((t) => t.symbol))];
+  const assets = symbols.length > 0 ? await prisma.asset.findMany({ where: { symbol: { in: symbols } } }) : [];
+  const assetsBySymbol = new Map(assets.map((a) => [a.symbol, a]));
+  const assetIds = assets.map((a) => a.id);
 
-  const assets = await prisma.asset.findMany({ where: { symbol: { in: symbols } } });
-  const assetClassBySymbol = new Map(assets.map((a) => [a.symbol, a.assetClass]));
-  const assetMetadataBySymbol = new Map(assets.map((a) => [a.symbol, a.metadata]));
-
-  const priceRows = await prisma.priceHistory.findMany({
-    where: { symbol: { in: symbols } },
-    orderBy: { timestamp: "asc" },
-  });
-  const priceBySymbol = new Map<string, typeof priceRows>();
-  for (const p of priceRows) {
-    const list = priceBySymbol.get(p.symbol) ?? [];
-    list.push(p);
-    priceBySymbol.set(p.symbol, list);
-  }
-
-  function qtyAsOf(symbol: string, asOf: Date): number {
-    let net = 0;
-    for (const t of txnsBySymbol.get(symbol) ?? []) {
-      if (t.transactionDate > asOf) break;
-      const qty = Number(t.quantity);
-      const price = Number(t.price);
-      const tType = t.transactionType.toUpperCase();
-      if (tType === "BUY") net += qty;
-      else if (tType === "SELL") net = Math.max(net - qty, 0.0);
-      else if (tType === "BONUS") net += qty;
-      else if (tType === "SPLIT") {
-        const multiplier = price || 1.0;
-        if (multiplier > 0) net *= multiplier;
-      }
-    }
-    return net;
-  }
-
-  function priceAsOf(symbol: string, asOf: Date): number | null {
-    let best: (typeof priceRows)[number] | null = null;
-    for (const p of priceBySymbol.get(symbol) ?? []) {
-      if (p.timestamp > asOf) break;
-      best = p;
-    }
-    return best !== null ? Number(best.price) : null;
-  }
-
-  // Python compares datetime.now(UTC).replace(tzinfo=None) directly against
-  // the naive transaction_date/timestamp columns, treating them as already
-  // UTC (get_history's own comment, unlike get_broker_transaction_coverage's
-  // GUC-reversal elsewhere) — no naiveToUtc reinterpretation here. Per tz.ts,
-  // Prisma's Date already has UTC getters equal to the raw column value, so a
-  // plain `new Date()` compares correctly against it with zero conversion.
-  const now = new Date();
-  const requestedStart = new Date(now.getTime() - days * 24 * 60 * 60 * 1000);
-  const earliestTxnDate = txns[0].transactionDate;
-  const start = requestedStart > earliestTxnDate ? requestedStart : earliestTxnDate;
+  const priceHistory = assetIds.length > 0 ? await prisma.priceHistory.findMany({ where: { assetId: { in: assetIds } } }) : [];
+  const priceHistoryByAsset = indexPriceHistoryByAsset(priceHistory);
 
   const snapshotsOut: { ts: string; value: number }[] = [];
-  for (let day = start; day <= now; day = new Date(day.getTime() + 24 * 60 * 60 * 1000)) {
-    let value = 0;
-    let contributed = false;
-    for (const symbol of symbols) {
-      const qty = qtyAsOf(symbol, day);
-      if (qty <= 0) continue;
-      const price = priceAsOf(symbol, day);
-      if (price === null) continue;
-      const currency = inferCurrency(assetClassBySymbol.get(symbol) ?? null, symbol, assetMetadataBySymbol.get(symbol) ?? null);
-      value += await toInr(qty * price, currency);
-      contributed = true;
-    }
-    if (contributed) {
-      // Python's day.isoformat() on a naive datetime has no timezone suffix
-      // (no "Z", no "+00:00") — match exactly, not toPythonIsoString's
-      // tz-aware form.
-      snapshotsOut.push({ ts: day.toISOString().replace("Z", ""), value: Math.round(value * 100) / 100 });
+  for (const d of dates) {
+    const state = await getPortfolioStateAtDate(d, transactions, priceHistoryByAsset, assetsBySymbol);
+    if (state.total_value > 0) {
+      snapshotsOut.push({ ts: d.toISOString().slice(0, 10), value: Math.round(state.total_value * 100) / 100 });
     }
   }
 

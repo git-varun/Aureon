@@ -815,7 +815,7 @@ function formatDate(d: Date): string {
 /** Port of _index_price_history_by_asset: groups PriceHistory rows by
  * asset_id and sorts each group ascending by timestamp so closestPrice can
  * binary-search instead of linearly scanning every point on every trend day. */
-function indexPriceHistoryByAsset(priceHistory: Array<{ assetId: string; timestamp: Date; price: unknown }>): Map<string, Array<[Date, number]>> {
+export function indexPriceHistoryByAsset(priceHistory: Array<{ assetId: string; timestamp: Date; price: unknown }>): Map<string, Array<[Date, number]>> {
   const byAsset = new Map<string, Array<[Date, number]>>();
   for (const p of priceHistory) {
     const arr = byAsset.get(p.assetId) ?? [];
@@ -872,7 +872,7 @@ function closestPrice(points: Array<[Date, number]>, dt: Date): number | null {
  *    no fixing for dt (pre-1999, or a source outage). A real current rate is
  *    a disclosed approximation; dropping the position or inventing a
  *    historical rate would both be worse. */
-async function getPortfolioStateAtDate(
+export async function getPortfolioStateAtDate(
   dt: Date,
   transactions: Transaction[],
   priceHistoryByAsset: Map<string, Array<[Date, number]>>,
@@ -971,7 +971,7 @@ async function getPortfolioStateAtDate(
 /** Port of _clamp_trend_dates: builds the day-by-day date list for a trend
  * series, clamped to the portfolio's actual start so no point predates its
  * first real transaction. Returns [] when there are no transactions at all. */
-function clampTrendDates(days: number, transactions: Transaction[]): Date[] {
+export function clampTrendDates(days: number, transactions: Transaction[]): Date[] {
   if (transactions.length === 0) return [];
   const now = new Date();
   const earliestTxnDate = transactions.reduce(
