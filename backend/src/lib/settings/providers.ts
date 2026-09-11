@@ -106,7 +106,14 @@ export function providerToDict(p: ProviderConfig) {
 // specific rows are deleted by migration 20260906_drop_orphan_provider_configs;
 // this filter is the permanent guard against any future typo'd row rendering
 // as an editable provider.
-const CANONICAL_PROVIDER_NAMES = new Set(DEFAULT_PROVIDERS.map((p) => p.providerName));
+//
+// "amfi" is added on top of DEFAULT_PROVIDERS rather than getting its own
+// entry there: refreshMutualFundNavs (BUG-H) writes LatestQuote.provider =
+// "amfi" for AMFI NAVAll.txt data, but AMFI needs no key/config and has no
+// ProviderConfig row, so it was never a Settings-UI provider. Listed here so
+// a future provider-name audit over LatestQuote.provider doesn't flag its
+// real writes as an unknown/typo'd provider.
+const CANONICAL_PROVIDER_NAMES = new Set([...DEFAULT_PROVIDERS.map((p) => p.providerName), "amfi"]);
 
 export async function getAllProviders() {
   const rows = await prisma.providerConfig.findMany();
