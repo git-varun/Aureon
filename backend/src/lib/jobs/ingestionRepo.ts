@@ -297,27 +297,61 @@ export async function bulkInsertPriceHistory(rows: PriceHistoryRow[]): Promise<v
  * asset_class == 'crypto' so it isn't starved by the larger equity pool. Raw
  * SQL: LatestQuote has no Prisma relation object to Asset (assetId is a bare
  * scalar FK), so a NULLS-FIRST order on the joined table isn't expressible
- * through the fluent query API. */
+ * through the fluent query API.
+ *
+ * Held/watchlisted equity or crypto symbols get first claim on the budget
+ * (fed by a separate query, before the crypto/other split below) whenever
+ * they've gone stale past fetch_news's own 4-hourly cadence — otherwise they
+ * only get a slot by winning the whole-universe staleness rotation, which
+ * starved every held equity for weeks (sentiment_score never repopulates, so
+ * scoreAndMaterialize can never produce a recommendation for what's actually
+ * owned). Restricted to asset_class equity/crypto because those are the only
+ * classes scoreAndMaterialize's requiredFactors gate actually needs
+ * sentiment_score for — a held mutual_fund/stablecoin/crypto_futures/etc.
+ * symbol would otherwise out-compete the equities this fix targets, being
+ * typically even more stale, for a slot that can't produce a recommendation
+ * either way. The 4-hour threshold, not "always first", caps how much of the
+ * budget a held backlog can claim once it's caught up, so the general
+ * rotation still moves. */
 export async function listQuotedSymbols(limit: number, cryptoQuota = 4): Promise<string[]> {
+  const heldSymbols = (
+    await prisma.$queryRaw<Array<{ symbol: string }>>(Prisma.sql`
+      SELECT lq.symbol
+      FROM market.latest_quotes lq
+      LEFT JOIN market.assets a ON a.id = lq.asset_id
+      WHERE a.asset_class IN ('equity', 'crypto')
+        AND (a.last_news_fetch_at IS NULL OR a.last_news_fetch_at < now() - interval '4 hours')
+        AND (
+          EXISTS (SELECT 1 FROM portfolio.positions p WHERE p.symbol = lq.symbol)
+          OR EXISTS (SELECT 1 FROM watchlist.watchlist_symbols ws WHERE ws.symbol = lq.symbol)
+        )
+      ORDER BY a.last_news_fetch_at ASC NULLS FIRST
+      LIMIT ${limit}
+    `)
+  ).map((r) => r.symbol);
+
+  const remaining = limit - heldSymbols.length;
+  const excludeHeld = heldSymbols.length > 0 ? Prisma.sql`AND lq.symbol NOT IN (${Prisma.join(heldSymbols)})` : Prisma.empty;
+
   const pick = async (classFilter: Prisma.Sql, n: number): Promise<string[]> => {
     if (n <= 0) return [];
     const rows = await prisma.$queryRaw<Array<{ symbol: string }>>(Prisma.sql`
       SELECT lq.symbol
       FROM market.latest_quotes lq
       LEFT JOIN market.assets a ON a.id = lq.asset_id
-      WHERE ${classFilter}
+      WHERE ${classFilter} ${excludeHeld}
       ORDER BY a.last_news_fetch_at ASC NULLS FIRST
       LIMIT ${n}
     `);
     return rows.map((r) => r.symbol);
   };
 
-  const cryptoSymbols = await pick(Prisma.sql`a.asset_class = 'crypto'`, cryptoQuota);
+  const cryptoSymbols = await pick(Prisma.sql`a.asset_class = 'crypto'`, Math.min(cryptoQuota, remaining));
   const otherSymbols = await pick(
     Prisma.sql`(a.asset_class != 'crypto' OR a.asset_class IS NULL)`,
-    limit - cryptoSymbols.length,
+    remaining - cryptoSymbols.length,
   );
-  return [...cryptoSymbols, ...otherSymbols];
+  return [...heldSymbols, ...cryptoSymbols, ...otherSymbols];
 }
 
 /** Port of IngestionRepository.mark_news_fetch_attempted — stamped
