@@ -20,6 +20,7 @@ import {PfConcentrationSection} from '@/components/aureon/portfolio/PfConcentrat
 import {PfTrendChart} from '@/components/aureon/portfolio/PfTrendChart';
 import OutcomesTab from '@/components/aureon/decisions/tabs/OutcomesTab';
 import {Cerr, Sk} from '@/components/aureon/ui';
+import {toast} from 'react-hot-toast';
 
 const PfSection = ({ eyebrow, title, action, children }) => (
   <section style={{ marginBottom: 32 }}>
@@ -62,6 +63,9 @@ export default function Portfolio() {
     } = useAureonData();
   const [showTrade,  setShowTrade]  = useState(false);
   const [showManual, setShowManual] = useState(false);
+  // Bumped by handleRefresh so the useCardData-based sections (Performance,
+  // Concentration, Trend) — which react-query's cache doesn't reach — refetch too.
+  const [refreshTick, setRefreshTick] = useState(0);
 
   // Separate from useAureonData's `activity` (which the sidebar's transaction
   // count badge needs unbounded) — this feeds only the "Recent transactions"
@@ -75,7 +79,10 @@ export default function Portfolio() {
     staleTime: 10000,
   });
 
-  const handleRefresh = () => qc.invalidateQueries();
+  const handleRefresh = () => {
+    qc.invalidateQueries({ queryKey: ['portfolio', activePortfolioId] });
+    setRefreshTick(t => t + 1);
+  };
 
   // A failed /positions, /snapshot or /transactions query must not fall through
   // to each section's genuine-empty copy ("Import your holdings", "No holdings
@@ -87,8 +94,12 @@ export default function Portfolio() {
     : null;
 
   const handleSnapshot = async () => {
-    await apiService.generatePortfolioSnapshot(activePortfolioId);
-    qc.invalidateQueries();
+    try {
+      await apiService.generatePortfolioSnapshot(activePortfolioId);
+      qc.invalidateQueries({ queryKey: ['portfolio', activePortfolioId] });
+    } catch (e) {
+      toast.error(e?.response?.data?.detail || e?.message || 'Failed to take snapshot');
+    }
   };
 
   return (
@@ -113,7 +124,7 @@ export default function Portfolio() {
 
       {/* 3 · Performance chart */}
       <PfSection eyebrow="History" title="Performance">
-        <PfPerformanceChart />
+        <PfPerformanceChart refreshTick={refreshTick} />
       </PfSection>
 
       {/* 4 · Allocation */}
@@ -176,12 +187,12 @@ export default function Portfolio() {
 
       {/* 8 · Concentration (separate section) */}
       <PfSection eyebrow="Risk" title="Concentration">
-        <PfConcentrationSection />
+        <PfConcentrationSection refreshTick={refreshTick} />
       </PfSection>
 
       {/* 9 · Trend Analysis */}
       <PfSection eyebrow="Intelligence" title="Portfolio Trend Analysis">
-        <PfTrendChart />
+        <PfTrendChart refreshTick={refreshTick} />
       </PfSection>
 
       {/* 10 · Recommendation Outcomes */}

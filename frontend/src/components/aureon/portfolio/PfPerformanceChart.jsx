@@ -1,4 +1,4 @@
-import React, { useState, useCallback, useId } from 'react';
+import React, { useState, useCallback, useEffect, useId } from 'react';
 import { useCardData } from '@/hooks/useCardData';
 import { apiService } from '@/api/apiService';
 import { usePortfolio } from '@/contexts/PortfolioContext';
@@ -7,7 +7,7 @@ import { NotBuiltState } from '@/components/aureon/ds.jsx';
 
 const RANGES = [['1W',7],['1M',30],['3M',90],['6M',180],['1Y',252],['All',500]];
 
-export function PfPerformanceChart() {
+export function PfPerformanceChart({ refreshTick }) {
   // useId() ids contain colons, which CSS's url(#...) fragment syntax can't
   // reference without escaping — strip them rather than fight CSS escaping rules.
   const gradId = 'pfGrad-' + useId().replace(/:/g, '');
@@ -16,6 +16,8 @@ export function PfPerformanceChart() {
   const { status, data, error, refetch } = useCardData(
     useCallback(() => apiService.fetchPortfolioHistory(activePortfolioId, range), [activePortfolioId, range])
   );
+  // eslint-disable-next-line react-hooks/exhaustive-deps -- refetch is recreated every render; only refreshTick should trigger this
+  useEffect(() => { if (refreshTick) refetch(); }, [refreshTick]);
 
   const rangeBar = (
     <div style={{ display:'flex', gap:2, padding:3, borderRadius:7, background:'rgba(255,255,255,0.04)', border:'1px solid rgba(255,255,255,0.06)' }}>

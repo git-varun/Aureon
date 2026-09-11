@@ -1,4 +1,4 @@
-import React, { useState, useCallback, useId } from 'react';
+import React, { useState, useCallback, useEffect, useId } from 'react';
 import { useCardData } from '@/hooks/useCardData';
 import { apiService } from '@/api/apiService';
 import { usePortfolio } from '@/contexts/PortfolioContext';
@@ -11,7 +11,7 @@ const METRICS = [
   ['diversification', 'Diversification', 'diversification_score', 'var(--aurum-500)'],
 ];
 
-export function PfTrendChart() {
+export function PfTrendChart({ refreshTick }) {
   // useId() ids contain colons, which CSS's url(#...) fragment syntax can't
   // reference without escaping — strip them rather than fight CSS escaping rules.
   const gradId = 'pfTrendGrad-' + useId().replace(/:/g, '');
@@ -27,6 +27,8 @@ export function PfTrendChart() {
   );
 
   const refetchBoth = () => { health.refetch(); div.refetch(); };
+  // eslint-disable-next-line react-hooks/exhaustive-deps -- refetchBoth is recreated every render; only refreshTick should trigger this
+  useEffect(() => { if (refreshTick) refetchBoth(); }, [refreshTick]);
   const active = metric === 'health' ? health : div;
   const [, , field, color] = METRICS.find(m => m[0] === metric);
 

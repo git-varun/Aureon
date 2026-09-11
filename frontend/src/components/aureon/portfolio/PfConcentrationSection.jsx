@@ -5,12 +5,14 @@ import { usePortfolio } from '@/contexts/PortfolioContext';
 import { concentrationFromRaw } from '@/components/aureon/utils';
 import { Sk, Cerr } from '@/components/aureon/ui';
 
-export function PfConcentrationSection() {
+export function PfConcentrationSection({ refreshTick }) {
   const { activePortfolioId } = usePortfolio();
   const { status, data: raw, error, refetch } = useCardData(
     React.useCallback(() => apiService.getPortfolioConcentration(activePortfolioId), [activePortfolioId])
   );
   const data = React.useMemo(() => concentrationFromRaw(raw ?? null), [raw]);
+  // eslint-disable-next-line react-hooks/exhaustive-deps -- refetch is recreated every render; only refreshTick should trigger this
+  React.useEffect(() => { if (refreshTick) refetch(); }, [refreshTick]);
 
   if (status === 'loading') return (
     <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3,1fr)', gap: 14 }}>
