@@ -1,4 +1,4 @@
-import { openPdf, extractText, extractTables } from "./pdfTable";
+import { openPdf, extractText, extractTablesWithGaps } from "./pdfTable";
 import { casSymbolFor } from "./mfSymbol";
 import { ImportParseError } from "./errors";
 
@@ -25,6 +25,20 @@ import { ImportParseError } from "./errors";
 // not Free Bal) by which leading column reconciles units x price = value.
 // Demat holdings import at wallet "demat", separate from folio holdings of
 // the same fund (see CasHolding.wallet).
+//
+// Name-continuation fix (2026-09-11): the scheme name also wraps onto
+// lines *below* the ISIN row, but a plain line-count/keyword split can't
+// tell "wrapped continuation of this fund's name" apart from "start of the
+// next fund's AMC name" — both are plain text with no reliable marker
+// (verified against the real PDF: e.g. after ICICI's continuation line
+// "FUND-DIRECT PLAN-GROWTH" comes "MIRAE ASSET IM (I) PVT", the *next*
+// fund's name, with nothing in the text distinguishing them). CDSL renders
+// each security as its own visual block with extra inter-block leading —
+// confirmed against the real PDF's text-item y-coordinates: ~9pt within a
+// block's wrapped lines, ~14-16pt between blocks — so parseHoldingTable
+// now takes each row's vertical gap (extractTablesWithGaps) and only joins
+// a trailing fragment into the current holding's name while that gap stays
+// below BLOCK_GAP_THRESHOLD.
 
 export interface CasHolding {
   symbol: string;
@@ -223,7 +237,12 @@ interface HoldingRow {
 
 const HOLDING_ISIN_RE = /\b(IN[EF][A-Z0-9]{9})\b/;
 
-export function parseHoldingTable(table: string[][], dpName: string): HoldingRow[] {
+// See the 2026-09-11 name-continuation comment above parseCdslCas's history
+// for how this threshold was derived (real PDF: ~9pt intra-block wraps,
+// ~14-16pt between securities).
+const BLOCK_GAP_THRESHOLD = 12;
+
+export function parseHoldingTable(table: string[][], dpName: string, gapsBefore?: number[]): HoldingRow[] {
   let dataStart = 0;
   for (let ri = 0; ri < Math.min(3, table.length); ri++) {
     if (isHoldingHeader(table[ri])) {
@@ -231,15 +250,22 @@ export function parseHoldingTable(table: string[][], dpName: string): HoldingRow
       break;
     }
   }
-  const results: HoldingRow[] = [];
-  // The security description wraps across several rows; the "<AMC> LTD#<AMC>
-  // MF-<scheme>" fragment lands on the row(s) above the ISIN row. Collect
-  // those so the holding gets a usable name — cleanSchemeName keeps only the
-  // text after the last "#", so leading fragments of the *next* fund that
-  // bleed in are harmless. (Continuation lines *below* the ISIN row aren't
-  // captured, so names can be partial — identity is the ISIN, not the name.)
+  const results: (HoldingRow & { nameParts: string[] })[] = [];
+  // The security description wraps across several rows both above and below
+  // the ISIN row; the "<AMC> LTD#<AMC> MF-<scheme>" fragment can land either
+  // way. Fragments above the ISIN row are unambiguous (pendingName below).
+  // Fragments below it are ambiguous by text alone — a continuation of the
+  // current fund's name looks the same as the start of the next fund's AMC
+  // name — so those are only joined onto the currently open holding while
+  // the row-to-row vertical gap stays inside one visual block; a gap at or
+  // above BLOCK_GAP_THRESHOLD means a new security started and the row goes
+  // to pendingName instead. cleanSchemeName keeps only the text after the
+  // last "#", so leading AMC-name fragments of the *next* fund that still
+  // bleed into pendingName are harmless.
   let pendingName: string[] = [];
-  for (const row of table.slice(dataStart)) {
+  let openIdx = -1; // index into results still accepting trailing continuation rows
+  for (let ri = dataStart; ri < table.length; ri++) {
+    const row = table[ri];
     if (!row || row.every((c) => c == null || String(c).trim() === "")) continue;
 
     const joined = row.join(" ");
@@ -250,9 +276,16 @@ export function parseHoldingTable(table: string[][], dpName: string): HoldingRow
 
     const isinMatch = joined.match(HOLDING_ISIN_RE);
     if (!isinMatch) {
+      const gap = gapsBefore?.[ri] ?? Infinity;
+      if (openIdx >= 0 && gap < BLOCK_GAP_THRESHOLD) {
+        if (/[A-Za-z]/.test(joined)) results[openIdx].nameParts.push(joined.trim());
+        continue;
+      }
+      openIdx = -1;
       if (/[A-Za-z]/.test(joined) && !/^\s*(page \d|portfolio value)/i.test(joined)) pendingName.push(joined.trim());
       continue; // scheme-name fragment / footer row
     }
+    openIdx = -1; // an ISIN row (MF or equity) always closes out the previously open holding
     const isin = isinMatch[1].toUpperCase();
     if (!isin.startsWith("INF")) continue; // listed equities (INE...) — CAS demat import is MF-only
 
@@ -298,10 +331,10 @@ export function parseHoldingTable(table: string[][], dpName: string): HoldingRow
     const inRowName = lead.filter(
       (c) => /[A-Za-z]/.test(String(c)) && !HOLDING_ISIN_RE.test(String(c).trim()),
     );
-    const rawName = [...pendingName, ...inRowName].join(" ").trim();
+    const nameParts = [...pendingName, ...inRowName];
     pendingName = [];
     results.push({
-      scheme_name: cleanSchemeName(rawName) || isin,
+      scheme_name: "", // filled in below once trailing continuation rows (if any) are joined
       isin,
       folio_no: "",
       units,
@@ -310,9 +343,14 @@ export function parseHoldingTable(table: string[][], dpName: string): HoldingRow
       valuation: value,
       source: "cas_demat",
       dp: dpName,
+      nameParts,
     });
+    openIdx = results.length - 1;
   }
-  return results;
+  return results.map(({ nameParts, ...r }) => ({
+    ...r,
+    scheme_name: cleanSchemeName(nameParts.join(" ").trim()) || r.isin,
+  }));
 }
 
 const DP_PATTERN = /DP\s+Name\s*[:\-]\s*([A-Z][A-Z0-9 &()]+?)(?:\s{3,}|BO ID|$)/i;
@@ -328,7 +366,7 @@ export async function parseCdslCas(content: Buffer, password?: string): Promise<
   for (let p = 1; p <= pdf.numPages; p++) {
     const page = await pdf.getPage(p);
     const text = await extractText(page);
-    const tables = await extractTables(page, (row) => isFolioHeader(row) || isHoldingHeader(row));
+    const tables = await extractTablesWithGaps(page, (row) => isFolioHeader(row) || isHoldingHeader(row));
 
     // The "MF Folios" key-value block (Account Details section) precedes the
     // folio table and can straddle a page break — accumulate it as we go.
@@ -340,12 +378,12 @@ export async function parseCdslCas(content: Buffer, password?: string): Promise<
       if (cand.length > 3) currentDp = cand;
     }
 
-    for (const table of tables) {
+    for (const { rows: table, gapsBefore } of tables) {
       if (table.length === 0) continue;
       if (Array.from({ length: Math.min(3, table.length) }, (_, ri) => table[ri]).some(isFolioHeader)) {
         mfFolios.push(...parseFolioTable(table, folioMeta));
       } else if (Array.from({ length: Math.min(3, table.length) }, (_, ri) => table[ri]).some(isHoldingHeader)) {
-        dematMf.push(...parseHoldingTable(table, currentDp));
+        dematMf.push(...parseHoldingTable(table, currentDp, gapsBefore));
       }
     }
   }

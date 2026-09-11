@@ -165,4 +165,63 @@ describe("parseHoldingTable", () => {
     bad[4] = ["INF769K01DM9", "999.999", "--", "--", "--", "0.471", "55.2840", "42,242.89"];
     expect(() => parseHoldingTable(bad, "ZERODHA")).toThrow(/no quantity column reconciles/);
   });
+
+  // Real gaps (2026-09-11, page 7 of the same CAS PDF, extracted with a debug
+  // script reading pdfjs text-item y-coordinates directly) between the rows
+  // below. ~9pt/~4.5pt gaps are wrapped continuation lines *within* one
+  // security's block; ~13.75-16.36pt gaps are CDSL's inter-block leading —
+  // i.e. the next security's own AMC-name fragment starting. Cross-checked
+  // against the same PDF's independent "STATEMENT OF TRANSACTIONS" table
+  // (page 5), which renders full unwrapped names in its own layout and
+  // agrees with every name reconstructed here.
+  it("joins wrapped continuation lines below the ISIN row into the full scheme name, using the row-to-row gap to tell them apart from the next security's AMC-name fragment", () => {
+    const rows = [
+      HOLDING_HEADER,
+      ["ICICI PRU AMC LTD#ICICI PRU"],
+      ["INF109K012M7", "MF-ICICI PRU NIFTY 50 INDEX", "440.346", "--", "--", "--", "440.346", "247.8640", "1,09,145.92"],
+      ["FUND-DIRECT PLAN-GROWTH"],
+      ["MIRAE ASSET IM (I) PVT"],
+      ["LTD#MIRAE ASSET MF-MIRAE"],
+      ["INF769K01DM9", "764.107", "--", "--", "--", "0.471", "55.2840", "42,242.89"],
+      ["ASSET ELSS TAX SAVER FUND-"],
+      ["DIR PL-GROWTH"],
+      ["PPFAS ASSET MANAGEMENT"],
+      ["PVT LTD#PPFAS MF-PPFAS ELSS"],
+      ["INF879O01100", "1428.045", "--", "--", "--", "252.778", "31.4160", "44,863.46"],
+      ["TAX SAVER FUND-DIRECT-"],
+      ["GROWTH"],
+      ["QUANT MONEY MANAGERS"],
+      ["INF966L01986", "LTD#QUANT MF-QUANT TAX", "116.822", "--", "--", "--", "2.588", "449.9390", "52,562.77"],
+      ["PLAN-DIRECT-GROWTH"],
+    ];
+    const gapsBefore = [0, 16.36, 9.0, 9.0, 13.76, 9.0, 4.5, 4.5, 9.0, 13.75, 9.0, 4.5, 4.5, 9.0, 13.75, 9.0, 9.0];
+
+    const parsed = parseHoldingTable(rows, "ZERODHA", gapsBefore);
+    expect(parsed.map((r) => r.isin)).toEqual(["INF109K012M7", "INF769K01DM9", "INF879O01100", "INF966L01986"]);
+    expect(parsed[0].scheme_name).toBe("ICICI PRU NIFTY 50 INDEX FUND-DIRECT PLAN-GROWTH");
+    expect(parsed[1].scheme_name).toBe("MIRAE ASSET ELSS TAX SAVER FUND- DIR PL-GROWTH");
+    expect(parsed[2].scheme_name).toBe("PPFAS ELSS TAX SAVER FUND-DIRECT- GROWTH");
+    expect(parsed[3].scheme_name).toBe("QUANT TAX PLAN-DIRECT-GROWTH");
+  });
+
+  it("stops the trailing join at an equity (INE) ISIN row, so it can't absorb the next security's fragments", () => {
+    const rows = [
+      HOLDING_HEADER,
+      ["TATA ASSET MANAGEMENT"],
+      ["INF277KA1976", "LTD#TATA MF-TATA GOLD", "2935.000", "--", "--", "--", "2935.000", "15.1000", "44,318.50"],
+      ["EXCHANGE TRADED FUND"],
+      ["TATA AM LTD#TATA MF-TATA"],
+      ["INF277KA1984", "SILVER EXCHANGE TRADED", "1765.000", "--", "--", "--", "1765.000", "25.3300", "44,707.45"],
+      ["FUND"],
+      ["TITAN COMPANY LIMITED#NEW"],
+      ["INE280A01028", "EQUITY SHARES OF RE-1/-AFTER", "4.000", "--", "--", "--", "4.000", "4074.6500", "16,298.60"],
+      ["SUB-DIVISION"],
+    ];
+    const gapsBefore = [0, 13.75, 9.0, 9.0, 13.75, 9.0, 9.0, 13.75, 9.0, 9.0];
+
+    const parsed = parseHoldingTable(rows, "ZERODHA", gapsBefore);
+    expect(parsed.map((r) => r.isin)).toEqual(["INF277KA1976", "INF277KA1984"]); // equity row skipped
+    expect(parsed[0].scheme_name).toBe("TATA GOLD EXCHANGE TRADED FUND");
+    expect(parsed[1].scheme_name).toBe("TATA SILVER EXCHANGE TRADED FUND");
+  });
 });

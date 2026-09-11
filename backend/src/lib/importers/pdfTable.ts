@@ -46,10 +46,12 @@ export async function openPdf(bytes: Buffer, password?: string): Promise<PDFDocu
 
 /** Clusters a page's text items into rows (by y-coordinate proximity) and,
  * within each row, columns (by x-coordinate proximity), sorted into reading
- * order (top-to-bottom, left-to-right). Shared by extractText (which needs
- * line structure, not one flattened string) and extractTables (which needs
- * columns too). */
-async function clusterRows(page: PDFPageProxy): Promise<string[][]> {
+ * order (top-to-bottom, left-to-right). Keeps each row's y so callers that
+ * need vertical spacing (extractTablesWithGaps) don't have to re-cluster.
+ * Shared by extractText (which needs line structure, not one flattened
+ * string), extractTables and extractTablesWithGaps (which need columns
+ * too). */
+async function clusterRows(page: PDFPageProxy): Promise<Array<{ y: number; cells: string[] }>> {
   const content = await page.getTextContent();
   const items = content.items;
   if (items.length === 0) return [];
@@ -70,7 +72,7 @@ async function clusterRows(page: PDFPageProxy): Promise<string[][]> {
   if (rows.length === 0) return [];
 
   rows.sort((a, b) => b.y - a.y); // PDF y-axis grows upward; reading order is top-to-bottom.
-  return rows.map((r) => r.cells.sort((a, b) => a.x - b.x).map((c) => c.str.trim()));
+  return rows.map((r) => ({ y: r.y, cells: r.cells.sort((a, b) => a.x - b.x).map((c) => c.str.trim()) }));
 }
 
 /** Port of pdfplumber's page.extract_text() — joins text items in reading
@@ -79,7 +81,7 @@ async function clusterRows(page: PDFPageProxy): Promise<string[][]> {
  * wrapped-establishment-name continuation logic depend on that structure). */
 export async function extractText(page: PDFPageProxy): Promise<string> {
   const grid = await clusterRows(page);
-  return grid.map((row) => row.join(" ")).join("\n");
+  return grid.map((row) => row.cells.join(" ")).join("\n");
 }
 
 /** Approximates pdfplumber's page.extract_tables(): clusters text items into
@@ -100,12 +102,46 @@ export async function extractTables(
   const tables: string[][][] = [];
   let current: string[][] = [];
   for (const row of grid) {
-    if (isTableHeader(row) && current.length > 0) {
+    if (isTableHeader(row.cells) && current.length > 0) {
       tables.push(current);
       current = [];
     }
-    current.push(row);
+    current.push(row.cells);
   }
   if (current.length > 0) tables.push(current);
+  return tables;
+}
+
+/** Same table-splitting as extractTables, but also returns each row's
+ * vertical gap from the row before it (0 for a table's first row).
+ * CDSL's demat "HOLDING STATEMENT" table renders every security as its own
+ * visual block with extra inter-block leading versus intra-block line-wrap
+ * — a distinction extractTables' plain string[][] can't carry, since
+ * clusterRows' row y is otherwise discarded. Only casImport's demat
+ * name-continuation join needs this; every other caller keeps using
+ * extractTables/extractText. */
+export async function extractTablesWithGaps(
+  page: PDFPageProxy,
+  isTableHeader: (row: string[]) => boolean = () => false,
+): Promise<Array<{ rows: string[][]; gapsBefore: number[] }>> {
+  const grid = await clusterRows(page);
+  if (grid.length === 0) return [];
+
+  const tables: Array<{ rows: string[][]; gapsBefore: number[] }> = [];
+  let current: string[][] = [];
+  let gaps: number[] = [];
+  let prevY: number | null = null;
+  for (const row of grid) {
+    if (isTableHeader(row.cells) && current.length > 0) {
+      tables.push({ rows: current, gapsBefore: gaps });
+      current = [];
+      gaps = [];
+      prevY = null;
+    }
+    gaps.push(prevY === null ? 0 : prevY - row.y);
+    prevY = row.y;
+    current.push(row.cells);
+  }
+  if (current.length > 0) tables.push({ rows: current, gapsBefore: gaps });
   return tables;
 }
