@@ -296,7 +296,7 @@ export function useAureonData() {
     // for it to fetch.
     const loading = positionsQuery.isPending || snapshotQuery.isPending || recommendationsQuery.isPending || transactionsQuery.isPending
         || (batchSymbols.length > 0 && assetsBatchQuery.isPending);
-    const error = positionsQuery.error || snapshotQuery.error || recommendationsQuery.error || transactionsQuery.error;
+    const error = positionsQuery.error || snapshotQuery.error || recommendationsQuery.error || transactionsQuery.error || assetsBatchQuery.error;
 
     return {
         loading,
