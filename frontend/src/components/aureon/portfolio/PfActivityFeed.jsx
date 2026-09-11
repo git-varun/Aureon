@@ -34,7 +34,7 @@ export function PfActivityFeed({ txns, onViewAll }) {
         const ticker = t.symbol || t.ticker || '—';
         const name   = t.name || t.notes || ticker;
         const broker = t.broker || t.source || '—';
-        const date   = t.date || (t.created_at ? t.created_at.slice(0,10) : '—');
+        const date   = t.transaction_date ? t.transaction_date.slice(0,10) : (t.created_at ? t.created_at.slice(0,10) : '—');
         const region = t.region || '—';
         return (
           <div key={t.id || idx} style={{ display:'grid', gridTemplateColumns:'68px 1fr auto 48px', gap:12, padding:'10px 18px', borderBottom:'1px solid rgba(255,255,255,0.025)', alignItems:'center' }}>
