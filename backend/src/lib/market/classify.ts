@@ -1,3 +1,10 @@
+// The full set of holding classes classify() can ever return — used to
+// validate allocation-target asset_class values so a target can't be saved
+// for a class no holding will ever be classified into.
+export const KNOWN_HOLDING_CLASSES = [
+  "stocks", "crypto", "bonds", "funds", "real_estate", "retirement", "insurance", "stablecoin",
+] as const;
+
 // Port of app/modules/market/services/market.py classify().
 export function classify(assetClass: string | null | undefined, symbol = ""): string {
   if (!assetClass) return "stocks";

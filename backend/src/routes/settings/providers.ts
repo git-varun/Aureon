@@ -4,6 +4,7 @@ import {
   getAllProviders, getProviderDict, updateProvider, setProviderKey, removeProviderKey, getDecryptedKey,
 } from "../../lib/settings/providers";
 import { listAllocationTargets, upsertAllocationTarget } from "../../lib/settings/allocationTargets";
+import { KNOWN_HOLDING_CLASSES } from "../../lib/market/classify";
 import { PROVIDER_HEALTH_CHECKS, assertProviderEnableAllowed } from "../../lib/settings/providerHealth";
 import { prisma } from "../../prisma";
 import { NotFoundError, RequestValidationError, ValidationError, ZerodhaAuthError } from "../../lib/errors";
@@ -141,6 +142,9 @@ function inRange01(v: unknown): v is number {
 // Port of upsert_allocation_target — AllocationTargetUpsert's `target_pct`/
 // `target` alias-resolution and [0,1] range validation.
 providersRouter.put("/allocation_targets/:assetClass", async (req, res) => {
+  if (!(KNOWN_HOLDING_CLASSES as readonly string[]).includes(req.params.assetClass)) {
+    throw new RequestValidationError(`asset_class must be one of: ${KNOWN_HOLDING_CLASSES.join(", ")}`);
+  }
   const body = req.body as AllocationTargetUpsertBody;
   let targetPct: number | undefined;
   if (body.target_pct !== undefined) {
