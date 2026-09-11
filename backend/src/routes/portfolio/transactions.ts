@@ -113,10 +113,15 @@ transactionsRouter.get("/:id/transactions", async (req, res) => {
   const portfolio = await prisma.portfolio.findUnique({ where: { id: req.params.id } });
   if (!portfolio) throw new NotFoundError("Portfolio not found");
 
+  const limit = req.query.limit ? Number(req.query.limit) : undefined;
+  const take = limit && Number.isFinite(limit) ? limit : undefined;
+
   const txns = await prisma.transaction.findMany({
     where: { portfolioId: portfolio.id },
-    orderBy: { transactionDate: "asc" },
+    orderBy: { transactionDate: take ? "desc" : "asc" },
+    ...(take ? { take } : {}),
   });
+  if (take) txns.reverse();
 
   const assetIds = [...new Set(txns.map((t) => t.assetId).filter((id): id is string => !!id))];
   const assetsById = new Map<string, { assetClass: string; metadata: unknown }>();

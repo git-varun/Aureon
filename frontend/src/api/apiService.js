@@ -90,9 +90,9 @@ export const apiService = {
         return handleRequest(API.get(`/portfolio/portfolios/${pid}/positions`));
     },
 
-    listTransactions: (portfolioId) => {
+    listTransactions: (portfolioId, { limit } = {}) => {
         const pid = portfolioId || getPortfolioId();
-        return handleRequest(API.get(`/portfolio/portfolios/${pid}/transactions`));
+        return handleRequest(API.get(`/portfolio/portfolios/${pid}/transactions`, { params: limit ? { limit } : undefined }));
     },
 
     createTransaction: (portfolioId, payload) => {

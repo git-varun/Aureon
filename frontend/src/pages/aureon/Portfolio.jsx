@@ -1,7 +1,7 @@
 // frontend/src/pages/aureon/Portfolio.jsx
 import React, {useState} from 'react';
 import {useNavigate} from 'react-router-dom';
-import {useQueryClient} from '@tanstack/react-query';
+import {useQuery, useQueryClient} from '@tanstack/react-query';
 import {useAureonData} from '@/hooks/useAureonData';
 import {useFmtMoney} from '@/hooks/useFmtMoney';
 import {usePortfolio} from '@/contexts/PortfolioContext';
@@ -36,6 +36,8 @@ const PfSection = ({ eyebrow, title, action, children }) => (
   </section>
 );
 
+const RECENT_ACTIVITY_LIMIT = 25;
+
 export default function Portfolio() {
   const navigate = useNavigate();
   const qc       = useQueryClient();
@@ -56,11 +58,22 @@ export default function Portfolio() {
         classTargetsError,
         classTargetsUsingDefaults,
         cashNotTracked,
-        activity,
         freshness
     } = useAureonData();
   const [showTrade,  setShowTrade]  = useState(false);
   const [showManual, setShowManual] = useState(false);
+
+  // Separate from useAureonData's `activity` (which the sidebar's transaction
+  // count badge needs unbounded) — this feeds only the "Recent transactions"
+  // card, so it fetches a slice instead of the whole ledger. The key extends
+  // useAureonData's transactions key so create/edit/delete invalidation still
+  // cascades to it.
+  const { data: recentActivity } = useQuery({
+    queryKey: ['portfolio', activePortfolioId, 'transactions', 'recent', RECENT_ACTIVITY_LIMIT],
+    queryFn: () => apiService.listTransactions(activePortfolioId, { limit: RECENT_ACTIVITY_LIMIT }),
+    enabled: !!activePortfolioId,
+    staleTime: 10000,
+  });
 
   const handleRefresh = () => qc.invalidateQueries();
 
@@ -137,7 +150,7 @@ export default function Portfolio() {
 
       {/* 6 · Activity feed */}
       <PfSection eyebrow="Ledger" title="Portfolio Activity">
-        {sectionError || <PfActivityFeed txns={activity} onViewAll={() => navigate('/transactions')} />}
+        {sectionError || <PfActivityFeed txns={recentActivity} onViewAll={() => navigate('/transactions')} />}
       </PfSection>
 
       {/* 7 · Health section — Allocation Drift dropped here: it's the same
