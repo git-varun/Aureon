@@ -3,12 +3,18 @@ import { wrapJobExecution } from "../lib/jobs/wrapJobExecution";
 import { logger } from "../lib/logger";
 
 const STALE_CUTOFF_MS = 3 * 24 * 60 * 60 * 1000;
+// AMFI NAVs genuinely don't publish on weekends/holidays (refreshMutualFundNavs.ts
+// writes provider: "amfi"), so the general 3-day cutoff produces false-positive
+// staleness noise for MF quotes over a long weekend. 5 days covers a Friday
+// close through a Tuesday reopen with room to spare.
+const MF_STALE_CUTOFF_MS = 5 * 24 * 60 * 60 * 1000;
 
 /** Port of DataQualityService.validate. Three checks, same order as Python:
  * (1) every LatestQuote has an asset_id and a matching AssetSnapshot,
- * (2) no LatestQuote is >3 days stale, (3) every Recommendation references a
+ * (2) no LatestQuote is stale (>3 days, or >5 days for AMFI-sourced mutual
+ * fund NAVs — see MF_STALE_CUTOFF_MS), (3) every Recommendation references a
  * real AssetSnapshot. */
-async function validate(): Promise<string[]> {
+export async function validate(): Promise<string[]> {
   const errors: string[] = [];
   const quotes = await prisma.latestQuote.findMany();
 
@@ -20,9 +26,10 @@ async function validate(): Promise<string[]> {
     }
   }
 
-  const staleCutoff = new Date(Date.now() - STALE_CUTOFF_MS);
+  const now = Date.now();
   for (const q of quotes) {
-    if (q.updatedAt && q.updatedAt < staleCutoff) {
+    const cutoffMs = q.provider === "amfi" ? MF_STALE_CUTOFF_MS : STALE_CUTOFF_MS;
+    if (q.updatedAt && q.updatedAt.getTime() < now - cutoffMs) {
       errors.push(`LatestQuote ${q.symbol} is stale. Last updated: ${q.updatedAt.toISOString()}`);
     }
   }
