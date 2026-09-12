@@ -1,11 +1,13 @@
 // frontend/src/pages/aureon/Dashboard.jsx
 import React, { useCallback, useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { useQueryClient } from '@tanstack/react-query';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { useApp } from '@/components/aureon/store';
 import { SectionHead } from '@/components/aureon/ui';
 import { PortfolioDecisionUnit, ActionConfirmationModal, EmptyDecisions } from '@/components/aureon/flow';
 import { useAureonData } from '@/hooks/useAureonData';
+import { usePortfolio } from '@/contexts/PortfolioContext';
+import { apiService } from '@/api/apiService';
 
 import { PortfolioSummaryHero }     from '@/components/aureon/dashboard/PortfolioSummaryHero';
 import { PortfolioHealthCard }      from '@/components/aureon/dashboard/PortfolioHealthCard';
@@ -27,11 +29,25 @@ export default function Dashboard() {
   const {
     holdings, netWorth, dayDelta,
     portfolioRec, freshness, loading,
-    historySnapshots, historyLoading, historyError,
   } = useAureonData();
+  const { activePortfolioId } = usePortfolio();
   const [modal, setModal] = useState(null);
   const qc = useQueryClient();
   const handleRefresh = useCallback(() => qc.invalidateQueries(), [qc]);
+
+  // 90-day net-worth reconstruction, see PortfolioService.get_history — only
+  // this page renders it, so it's kept out of the shared useAureonData hook
+  // (every other consumer of that hook was firing this fetch and discarding it).
+  const historyQuery = useQuery({
+    queryKey: ["portfolio", activePortfolioId, "history", 90],
+    queryFn: () => apiService.fetchPortfolioHistory(activePortfolioId, 90),
+    enabled: !!activePortfolioId,
+    staleTime: 60000,
+  });
+  const historyData = historyQuery.data;
+  const historySnapshots = useMemo(() => historyData?.snapshots || [], [historyData]);
+  const historyLoading = historyQuery.isPending;
+  const historyError = historyQuery.error;
 
   // Portfolio summary state derived from backend data only — no local snapshot generation
   const portfolioSummaryState = useMemo(() => {
