@@ -357,7 +357,9 @@ export async function listQuotedSymbols(limit: number, cryptoQuota = 4): Promise
 /** Port of IngestionRepository.mark_news_fetch_attempted — stamped
  * regardless of fetch outcome (including zero articles found) so
  * listQuotedSymbols' staleness ordering treats "we tried and found nothing"
- * as attempted, not permanently "never fetched" (see CRYPTO_SENTIMENT_GAP §1). */
+ * as attempted, not permanently "never fetched" (see 469b110 and 146ac79 for
+ * the held-symbol rotation and NSE/BSE news-gap fixes this staleness
+ * tracking exists to support). */
 export async function markNewsFetchAttempted(symbol: string): Promise<void> {
   await prisma.asset.updateMany({ where: { symbol }, data: { lastNewsFetchAt: new Date() } });
 }
