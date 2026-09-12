@@ -40,6 +40,11 @@ export const SYMBOL_TO_COINGECKO_ID: Record<string, string> = {
   SUI: "sui", TON: "the-open-network", SHIB: "shiba-inu",
   PEPE: "pepe", USDT: "tether", USDC: "usd-coin", BUSD: "binance-usd",
   DAI: "dai", FDUSD: "first-digital-usd", ZEC: "zcash",
+  // Added for held Binance positions that were falling through to
+  // cost_basis (avgBuyPrice 0 for these) with no curated id at all —
+  // confirmed live against CoinGecko's /search and /coins/{id} endpoints.
+  AAVE: "aave", ROSE: "oasis-network", RENDER: "render-token",
+  BNSOL: "binance-staked-sol", S: "sonic-3", SKY: "sky", SXT: "space-and-time",
 };
 
 /** Port of _coin_id. Tracked-universe coins outside the curated 33 are
