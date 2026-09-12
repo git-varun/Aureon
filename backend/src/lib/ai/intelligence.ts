@@ -567,12 +567,19 @@ export interface ScorecardEntry {
 export async function getRecommendationScorecard(): Promise<Record<string, ScorecardEntry>> {
   const recs = await prisma.recommendations.findMany();
   const card: Record<string, ScorecardEntry> = {};
+  // recommendations.status never persists "expired" — recs age out
+  // transiently (active + older than 30 days), the same computation
+  // getRecommendationQualityMetrics uses, so "ignored" is counted the same
+  // way here instead of matching a status value that never occurs.
+  const thirtyDaysAgo = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000);
 
   for (const state of REC_STATES) {
     const stateRecs = recs.filter((r) => r.recommendation_state === state);
     const gen = stateRecs.length;
     const acc = stateRecs.filter((r) => r.status === "applied").length;
-    const ign = stateRecs.filter((r) => r.status === "dismissed" || r.status === "expired").length;
+    const ign = stateRecs.filter(
+      (r) => r.status === "dismissed" || (r.status === "active" && r.created_at < thirtyDaysAgo),
+    ).length;
 
     const appliedRecs = stateRecs.filter((r) => r.status === "applied");
     let wins = 0;
