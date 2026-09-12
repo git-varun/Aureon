@@ -472,6 +472,7 @@ model Portfolio {
   import_runs               import_runs[]
   positions                 Position[]
   snapshot                  snapshots?
+  snapshot_history          snapshot_history[]
   transactions              Transaction[]
 
   @@map("portfolios")
@@ -526,6 +527,21 @@ model snapshots {
   updated_at   DateTime  @db.Timestamp(6)
   portfolio    Portfolio @relation(fields: [portfolio_id], references: [id], onDelete: Cascade, onUpdate: NoAction, map: "fk_snapshots_portfolio_id")
 
+  @@schema("portfolio")
+}
+
+model snapshot_history {
+  id           String    @id(map: "pk_snapshot_history") @default(uuid()) @db.Uuid
+  portfolio_id String    @db.Uuid
+  captured_on  DateTime  @db.Date
+  market_value Decimal?  @db.Decimal
+  cash_balance Decimal?  @db.Decimal
+  total_return Decimal?  @db.Decimal
+  realized_pnl Decimal?  @db.Decimal
+  created_at   DateTime  @default(now()) @db.Timestamp(6)
+  portfolio    Portfolio @relation(fields: [portfolio_id], references: [id], onDelete: Cascade, onUpdate: NoAction, map: "fk_snapshot_history_portfolio_id")
+
+  @@unique([portfolio_id, captured_on], map: "uq_snapshot_history_portfolio_captured_on")
   @@schema("portfolio")
 }
 

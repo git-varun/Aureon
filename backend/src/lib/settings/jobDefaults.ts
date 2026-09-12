@@ -41,6 +41,7 @@ export const DEFAULT_JOBS: DefaultJob[] = [
   { jobName: "backfill_mutual_fund_nav_history", enabled: false, jobTier: "user" },
   { jobName: "refresh_tracked_universe", enabled: true, jobTier: "user" },
   { jobName: "sweep_stale_job_logs", enabled: true, jobTier: "system" },
+  { jobName: "generate_snapshot_history", enabled: true, jobTier: "user" },
 ];
 
 // Port of ConfigService.seed_defaults' job block — insert-if-absent only,

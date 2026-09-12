@@ -276,6 +276,7 @@ backupRouter.post("/restore", upload.single("file"), async (req, res) => {
       await tx.position.deleteMany({ where: { portfolioId } });
       await tx.transaction.deleteMany({ where: { portfolioId } });
       await tx.snapshots.deleteMany({ where: { portfolio_id: portfolioId } });
+      await tx.snapshot_history.deleteMany({ where: { portfolio_id: portfolioId } });
       await tx.import_runs.deleteMany({ where: { portfolio_id: portfolioId } });
       await tx.binance_backfill_progress.deleteMany({ where: { portfolio_id: portfolioId } });
       await tx.broker_wallet_balances.deleteMany({ where: { portfolio_id: portfolioId } });

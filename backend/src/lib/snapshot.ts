@@ -17,7 +17,11 @@ export interface SnapshotResult {
  * value / cost basis per position (with the futures_coinm/futures_usdm
  * margin-based valuation Python uses instead of qty*price), normalizes every
  * position's native currency to INR before summing, then upserts the single
- * per-portfolio snapshots row. */
+ * per-portfolio snapshots row. Also upserts a same-day row into
+ * snapshot_history (portfolio_id, captured_on) so daily valuations
+ * accumulate into a real trend series instead of only ever holding the
+ * latest value — a same-day re-run overwrites that day's row rather than
+ * accumulating intraday noise. */
 export async function generatePortfolioSnapshot(portfolioId: string): Promise<SnapshotResult> {
   const positions = await prisma.position.findMany({ where: { portfolioId } });
   const prices = await resolvePositionsPriceMap(positions);
@@ -91,6 +95,32 @@ export async function generatePortfolioSnapshot(portfolioId: string): Promise<Sn
       total_return: totalReturn,
       realized_pnl: realizedPnlInr,
       updated_at: now,
+    },
+  });
+
+  // Deliberately UTC-dated, not session-timezone (getSessionTimeZone in
+  // tz.ts, used by lastTransactionAt) — the only scheduled writer is the
+  // 17:00 UTC / 22:30 IST daily job (queue.ts), so the UTC and IST calendar
+  // dates agree at that call time. A manual run or broker sync between
+  // 00:00-05:29 IST (still "yesterday" in UTC) would record that day under
+  // yesterday's captured_on instead — accepted for this pass; revisit if
+  // manual/sync-triggered runs turn out to matter for the trend series.
+  const capturedOn = new Date(now.toISOString().slice(0, 10));
+  await prisma.snapshot_history.upsert({
+    where: { portfolio_id_captured_on: { portfolio_id: portfolioId, captured_on: capturedOn } },
+    create: {
+      portfolio_id: portfolioId,
+      captured_on: capturedOn,
+      market_value: marketValue,
+      cash_balance: null,
+      total_return: totalReturn,
+      realized_pnl: realizedPnlInr,
+    },
+    update: {
+      market_value: marketValue,
+      cash_balance: null,
+      total_return: totalReturn,
+      realized_pnl: realizedPnlInr,
     },
   });
 

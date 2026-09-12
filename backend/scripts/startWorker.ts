@@ -15,6 +15,7 @@ import {
   registerMonthlyBriefingSchedule,
   registerRefreshFundamentalsSchedule,
   registerFetchNewsSchedule,
+  registerGenerateSnapshotHistorySchedule,
 } from "../src/queue";
 
 // Manual/dev entrypoint — starts BullMQ workers consuming q_ingestion and
@@ -59,6 +60,7 @@ async function start() {
   await registerMonthlyBriefingSchedule();
   await registerRefreshFundamentalsSchedule();
   await registerFetchNewsSchedule();
+  await registerGenerateSnapshotHistorySchedule();
 
   // seed_price_history demoted to manual-only on 2026-09-07 — actively remove
   // its persisted BullMQ scheduler (dropping the registration call alone would
@@ -84,7 +86,8 @@ async function start() {
       "refresh-tracked-universe (0 4 * * * UTC), refresh-mutual-fund-navs (0 23 * * * UTC), " +
       "hourly-price-refresh (0 * * * * UTC), " +
       "daily-briefing (0 8 * * * UTC), weekly-briefing (30 8 * * 1 UTC), monthly-briefing (0 9 1 * * UTC), " +
-      "refresh-fundamentals (0 6 * * * UTC), news-refresh (0 */4 * * * UTC)",
+      "refresh-fundamentals (0 6 * * * UTC), news-refresh (0 */4 * * * UTC), " +
+      "generate-snapshot-history (0 17 * * * UTC)",
   );
 }
 

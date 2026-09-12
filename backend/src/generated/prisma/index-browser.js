@@ -496,6 +496,17 @@ exports.Prisma.SnapshotsScalarFieldEnum = {
   updated_at: 'updated_at'
 };
 
+exports.Prisma.Snapshot_historyScalarFieldEnum = {
+  id: 'id',
+  portfolio_id: 'portfolio_id',
+  captured_on: 'captured_on',
+  market_value: 'market_value',
+  cash_balance: 'cash_balance',
+  total_return: 'total_return',
+  realized_pnl: 'realized_pnl',
+  created_at: 'created_at'
+};
+
 exports.Prisma.TransactionScalarFieldEnum = {
   portfolioId: 'portfolioId',
   symbol: 'symbol',
@@ -721,6 +732,7 @@ exports.Prisma.ModelName = {
   Position: 'Position',
   broker_wallet_balances: 'broker_wallet_balances',
   snapshots: 'snapshots',
+  snapshot_history: 'snapshot_history',
   Transaction: 'Transaction',
   alembic_version: 'alembic_version',
   recommendation_explanations: 'recommendation_explanations',

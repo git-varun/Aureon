@@ -18,6 +18,7 @@ import { monthlyBriefingTask } from "../../jobs/monthlyBriefing";
 import { refreshFundamentalsTask } from "../../jobs/refreshFundamentals";
 import { validateDataQualityTask } from "../../jobs/validateDataQuality";
 import { backfillMutualFundNavHistoryTask } from "../../jobs/backfillMutualFundNavHistory";
+import { generateSnapshotHistoryTask } from "../../jobs/generateSnapshotHistory";
 import { scheduledJobsQueue } from "../jobs/queues";
 import { logger } from "../logger";
 
@@ -47,6 +48,7 @@ const JOB_RUNNERS: Record<string, (logId: number) => Promise<void>> = {
   refresh_fundamentals: refreshFundamentalsTask,
   validate_data_quality: validateDataQualityTask,
   backfill_mutual_fund_nav_history: backfillMutualFundNavHistoryTask,
+  generate_snapshot_history: generateSnapshotHistoryTask,
 };
 
 // Jobs dispatched by enqueuing onto q_scheduled_jobs for the BullMQ worker

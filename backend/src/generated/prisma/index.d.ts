@@ -164,6 +164,11 @@ export type broker_wallet_balances = $Result.DefaultSelection<Prisma.$broker_wal
  */
 export type snapshots = $Result.DefaultSelection<Prisma.$snapshotsPayload>
 /**
+ * Model snapshot_history
+ * 
+ */
+export type snapshot_history = $Result.DefaultSelection<Prisma.$snapshot_historyPayload>
+/**
  * Model Transaction
  * 
  */
@@ -683,6 +688,16 @@ export class PrismaClient<
     * ```
     */
   get snapshots(): Prisma.snapshotsDelegate<ExtArgs, ClientOptions>;
+
+  /**
+   * `prisma.snapshot_history`: Exposes CRUD operations for the **snapshot_history** model.
+    * Example usage:
+    * ```ts
+    * // Fetch zero or more Snapshot_histories
+    * const snapshot_histories = await prisma.snapshot_history.findMany()
+    * ```
+    */
+  get snapshot_history(): Prisma.snapshot_historyDelegate<ExtArgs, ClientOptions>;
 
   /**
    * `prisma.transaction`: Exposes CRUD operations for the **Transaction** model.
@@ -1294,6 +1309,7 @@ export namespace Prisma {
     Position: 'Position',
     broker_wallet_balances: 'broker_wallet_balances',
     snapshots: 'snapshots',
+    snapshot_history: 'snapshot_history',
     Transaction: 'Transaction',
     alembic_version: 'alembic_version',
     recommendation_explanations: 'recommendation_explanations',
@@ -1326,7 +1342,7 @@ export namespace Prisma {
       omit: GlobalOmitOptions
     }
     meta: {
-      modelProps: "ai_briefings" | "ai_evaluations" | "ai_feedback" | "ai_generations" | "allocation_targets" | "jobConfig" | "jobLog" | "providerConfig" | "assetScore" | "feature_snapshots" | "asset_features" | "assetFundamentals" | "asset_health" | "assetSnapshot" | "asset" | "latestQuote" | "market_themes" | "priceHistory" | "theme_weights" | "asset_sentiment_snapshots" | "news" | "news_assets" | "web_notifications" | "binance_backfill_progress" | "fx_rate_history" | "import_runs" | "portfolio" | "position" | "broker_wallet_balances" | "snapshots" | "transaction" | "alembic_version" | "recommendation_explanations" | "recommendation_outcomes" | "recommendations" | "auditLog" | "failedIngestion" | "providerUsage" | "provider" | "task_runs" | "user_preferences" | "user" | "watchlistSymbol" | "watchlists"
+      modelProps: "ai_briefings" | "ai_evaluations" | "ai_feedback" | "ai_generations" | "allocation_targets" | "jobConfig" | "jobLog" | "providerConfig" | "assetScore" | "feature_snapshots" | "asset_features" | "assetFundamentals" | "asset_health" | "assetSnapshot" | "asset" | "latestQuote" | "market_themes" | "priceHistory" | "theme_weights" | "asset_sentiment_snapshots" | "news" | "news_assets" | "web_notifications" | "binance_backfill_progress" | "fx_rate_history" | "import_runs" | "portfolio" | "position" | "broker_wallet_balances" | "snapshots" | "snapshot_history" | "transaction" | "alembic_version" | "recommendation_explanations" | "recommendation_outcomes" | "recommendations" | "auditLog" | "failedIngestion" | "providerUsage" | "provider" | "task_runs" | "user_preferences" | "user" | "watchlistSymbol" | "watchlists"
       txIsolationLevel: Prisma.TransactionIsolationLevel
     }
     model: {
@@ -3550,6 +3566,80 @@ export namespace Prisma {
           }
         }
       }
+      snapshot_history: {
+        payload: Prisma.$snapshot_historyPayload<ExtArgs>
+        fields: Prisma.snapshot_historyFieldRefs
+        operations: {
+          findUnique: {
+            args: Prisma.snapshot_historyFindUniqueArgs<ExtArgs>
+            result: $Utils.PayloadToResult<Prisma.$snapshot_historyPayload> | null
+          }
+          findUniqueOrThrow: {
+            args: Prisma.snapshot_historyFindUniqueOrThrowArgs<ExtArgs>
+            result: $Utils.PayloadToResult<Prisma.$snapshot_historyPayload>
+          }
+          findFirst: {
+            args: Prisma.snapshot_historyFindFirstArgs<ExtArgs>
+            result: $Utils.PayloadToResult<Prisma.$snapshot_historyPayload> | null
+          }
+          findFirstOrThrow: {
+            args: Prisma.snapshot_historyFindFirstOrThrowArgs<ExtArgs>
+            result: $Utils.PayloadToResult<Prisma.$snapshot_historyPayload>
+          }
+          findMany: {
+            args: Prisma.snapshot_historyFindManyArgs<ExtArgs>
+            result: $Utils.PayloadToResult<Prisma.$snapshot_historyPayload>[]
+          }
+          create: {
+            args: Prisma.snapshot_historyCreateArgs<ExtArgs>
+            result: $Utils.PayloadToResult<Prisma.$snapshot_historyPayload>
+          }
+          createMany: {
+            args: Prisma.snapshot_historyCreateManyArgs<ExtArgs>
+            result: BatchPayload
+          }
+          createManyAndReturn: {
+            args: Prisma.snapshot_historyCreateManyAndReturnArgs<ExtArgs>
+            result: $Utils.PayloadToResult<Prisma.$snapshot_historyPayload>[]
+          }
+          delete: {
+            args: Prisma.snapshot_historyDeleteArgs<ExtArgs>
+            result: $Utils.PayloadToResult<Prisma.$snapshot_historyPayload>
+          }
+          update: {
+            args: Prisma.snapshot_historyUpdateArgs<ExtArgs>
+            result: $Utils.PayloadToResult<Prisma.$snapshot_historyPayload>
+          }
+          deleteMany: {
+            args: Prisma.snapshot_historyDeleteManyArgs<ExtArgs>
+            result: BatchPayload
+          }
+          updateMany: {
+            args: Prisma.snapshot_historyUpdateManyArgs<ExtArgs>
+            result: BatchPayload
+          }
+          updateManyAndReturn: {
+            args: Prisma.snapshot_historyUpdateManyAndReturnArgs<ExtArgs>
+            result: $Utils.PayloadToResult<Prisma.$snapshot_historyPayload>[]
+          }
+          upsert: {
+            args: Prisma.snapshot_historyUpsertArgs<ExtArgs>
+            result: $Utils.PayloadToResult<Prisma.$snapshot_historyPayload>
+          }
+          aggregate: {
+            args: Prisma.Snapshot_historyAggregateArgs<ExtArgs>
+            result: $Utils.Optional<AggregateSnapshot_history>
+          }
+          groupBy: {
+            args: Prisma.snapshot_historyGroupByArgs<ExtArgs>
+            result: $Utils.Optional<Snapshot_historyGroupByOutputType>[]
+          }
+          count: {
+            args: Prisma.snapshot_historyCountArgs<ExtArgs>
+            result: $Utils.Optional<Snapshot_historyCountAggregateOutputType> | number
+          }
+        }
+      }
       Transaction: {
         payload: Prisma.$TransactionPayload<ExtArgs>
         fields: Prisma.TransactionFieldRefs
@@ -4712,6 +4802,7 @@ export namespace Prisma {
     position?: PositionOmit
     broker_wallet_balances?: broker_wallet_balancesOmit
     snapshots?: snapshotsOmit
+    snapshot_history?: snapshot_historyOmit
     transaction?: TransactionOmit
     alembic_version?: alembic_versionOmit
     recommendation_explanations?: recommendation_explanationsOmit
@@ -5037,6 +5128,7 @@ export namespace Prisma {
     broker_wallet_balances: number
     import_runs: number
     positions: number
+    snapshot_history: number
     transactions: number
   }
 
@@ -5045,6 +5137,7 @@ export namespace Prisma {
     broker_wallet_balances?: boolean | PortfolioCountOutputTypeCountBroker_wallet_balancesArgs
     import_runs?: boolean | PortfolioCountOutputTypeCountImport_runsArgs
     positions?: boolean | PortfolioCountOutputTypeCountPositionsArgs
+    snapshot_history?: boolean | PortfolioCountOutputTypeCountSnapshot_historyArgs
     transactions?: boolean | PortfolioCountOutputTypeCountTransactionsArgs
   }
 
@@ -5085,6 +5178,13 @@ export namespace Prisma {
    */
   export type PortfolioCountOutputTypeCountPositionsArgs<ExtArgs extends $Extensions.InternalArgs = $Extensions.DefaultArgs> = {
     where?: PositionWhereInput
+  }
+
+  /**
+   * PortfolioCountOutputType without action
+   */
+  export type PortfolioCountOutputTypeCountSnapshot_historyArgs<ExtArgs extends $Extensions.InternalArgs = $Extensions.DefaultArgs> = {
+    where?: snapshot_historyWhereInput
   }
 
   /**
@@ -35499,6 +35599,7 @@ export namespace Prisma {
     import_runs?: boolean | Portfolio$import_runsArgs<ExtArgs>
     positions?: boolean | Portfolio$positionsArgs<ExtArgs>
     snapshot?: boolean | Portfolio$snapshotArgs<ExtArgs>
+    snapshot_history?: boolean | Portfolio$snapshot_historyArgs<ExtArgs>
     transactions?: boolean | Portfolio$transactionsArgs<ExtArgs>
     _count?: boolean | PortfolioCountOutputTypeDefaultArgs<ExtArgs>
   }, ExtArgs["result"]["portfolio"]>
@@ -35534,6 +35635,7 @@ export namespace Prisma {
     import_runs?: boolean | Portfolio$import_runsArgs<ExtArgs>
     positions?: boolean | Portfolio$positionsArgs<ExtArgs>
     snapshot?: boolean | Portfolio$snapshotArgs<ExtArgs>
+    snapshot_history?: boolean | Portfolio$snapshot_historyArgs<ExtArgs>
     transactions?: boolean | Portfolio$transactionsArgs<ExtArgs>
     _count?: boolean | PortfolioCountOutputTypeDefaultArgs<ExtArgs>
   }
@@ -35548,6 +35650,7 @@ export namespace Prisma {
       import_runs: Prisma.$import_runsPayload<ExtArgs>[]
       positions: Prisma.$PositionPayload<ExtArgs>[]
       snapshot: Prisma.$snapshotsPayload<ExtArgs> | null
+      snapshot_history: Prisma.$snapshot_historyPayload<ExtArgs>[]
       transactions: Prisma.$TransactionPayload<ExtArgs>[]
     }
     scalars: $Extensions.GetPayloadResult<{
@@ -35955,6 +36058,7 @@ export namespace Prisma {
     import_runs<T extends Portfolio$import_runsArgs<ExtArgs> = {}>(args?: Subset<T, Portfolio$import_runsArgs<ExtArgs>>): Prisma.PrismaPromise<$Result.GetResult<Prisma.$import_runsPayload<ExtArgs>, T, "findMany", GlobalOmitOptions> | Null>
     positions<T extends Portfolio$positionsArgs<ExtArgs> = {}>(args?: Subset<T, Portfolio$positionsArgs<ExtArgs>>): Prisma.PrismaPromise<$Result.GetResult<Prisma.$PositionPayload<ExtArgs>, T, "findMany", GlobalOmitOptions> | Null>
     snapshot<T extends Portfolio$snapshotArgs<ExtArgs> = {}>(args?: Subset<T, Portfolio$snapshotArgs<ExtArgs>>): Prisma__snapshotsClient<$Result.GetResult<Prisma.$snapshotsPayload<ExtArgs>, T, "findUniqueOrThrow", GlobalOmitOptions> | null, null, ExtArgs, GlobalOmitOptions>
+    snapshot_history<T extends Portfolio$snapshot_historyArgs<ExtArgs> = {}>(args?: Subset<T, Portfolio$snapshot_historyArgs<ExtArgs>>): Prisma.PrismaPromise<$Result.GetResult<Prisma.$snapshot_historyPayload<ExtArgs>, T, "findMany", GlobalOmitOptions> | Null>
     transactions<T extends Portfolio$transactionsArgs<ExtArgs> = {}>(args?: Subset<T, Portfolio$transactionsArgs<ExtArgs>>): Prisma.PrismaPromise<$Result.GetResult<Prisma.$TransactionPayload<ExtArgs>, T, "findMany", GlobalOmitOptions> | Null>
     /**
      * Attaches callbacks for the resolution and/or rejection of the Promise.
@@ -36490,6 +36594,30 @@ export namespace Prisma {
      */
     include?: snapshotsInclude<ExtArgs> | null
     where?: snapshotsWhereInput
+  }
+
+  /**
+   * Portfolio.snapshot_history
+   */
+  export type Portfolio$snapshot_historyArgs<ExtArgs extends $Extensions.InternalArgs = $Extensions.DefaultArgs> = {
+    /**
+     * Select specific fields to fetch from the snapshot_history
+     */
+    select?: snapshot_historySelect<ExtArgs> | null
+    /**
+     * Omit specific fields from the snapshot_history
+     */
+    omit?: snapshot_historyOmit<ExtArgs> | null
+    /**
+     * Choose, which related nodes to fetch as well
+     */
+    include?: snapshot_historyInclude<ExtArgs> | null
+    where?: snapshot_historyWhereInput
+    orderBy?: snapshot_historyOrderByWithRelationInput | snapshot_historyOrderByWithRelationInput[]
+    cursor?: snapshot_historyWhereUniqueInput
+    take?: number
+    skip?: number
+    distinct?: Snapshot_historyScalarFieldEnum | Snapshot_historyScalarFieldEnum[]
   }
 
   /**
@@ -40053,6 +40181,1149 @@ export namespace Prisma {
      * Choose, which related nodes to fetch as well
      */
     include?: snapshotsInclude<ExtArgs> | null
+  }
+
+
+  /**
+   * Model snapshot_history
+   */
+
+  export type AggregateSnapshot_history = {
+    _count: Snapshot_historyCountAggregateOutputType | null
+    _avg: Snapshot_historyAvgAggregateOutputType | null
+    _sum: Snapshot_historySumAggregateOutputType | null
+    _min: Snapshot_historyMinAggregateOutputType | null
+    _max: Snapshot_historyMaxAggregateOutputType | null
+  }
+
+  export type Snapshot_historyAvgAggregateOutputType = {
+    market_value: Decimal | null
+    cash_balance: Decimal | null
+    total_return: Decimal | null
+    realized_pnl: Decimal | null
+  }
+
+  export type Snapshot_historySumAggregateOutputType = {
+    market_value: Decimal | null
+    cash_balance: Decimal | null
+    total_return: Decimal | null
+    realized_pnl: Decimal | null
+  }
+
+  export type Snapshot_historyMinAggregateOutputType = {
+    id: string | null
+    portfolio_id: string | null
+    captured_on: Date | null
+    market_value: Decimal | null
+    cash_balance: Decimal | null
+    total_return: Decimal | null
+    realized_pnl: Decimal | null
+    created_at: Date | null
+  }
+
+  export type Snapshot_historyMaxAggregateOutputType = {
+    id: string | null
+    portfolio_id: string | null
+    captured_on: Date | null
+    market_value: Decimal | null
+    cash_balance: Decimal | null
+    total_return: Decimal | null
+    realized_pnl: Decimal | null
+    created_at: Date | null
+  }
+
+  export type Snapshot_historyCountAggregateOutputType = {
+    id: number
+    portfolio_id: number
+    captured_on: number
+    market_value: number
+    cash_balance: number
+    total_return: number
+    realized_pnl: number
+    created_at: number
+    _all: number
+  }
+
+
+  export type Snapshot_historyAvgAggregateInputType = {
+    market_value?: true
+    cash_balance?: true
+    total_return?: true
+    realized_pnl?: true
+  }
+
+  export type Snapshot_historySumAggregateInputType = {
+    market_value?: true
+    cash_balance?: true
+    total_return?: true
+    realized_pnl?: true
+  }
+
+  export type Snapshot_historyMinAggregateInputType = {
+    id?: true
+    portfolio_id?: true
+    captured_on?: true
+    market_value?: true
+    cash_balance?: true
+    total_return?: true
+    realized_pnl?: true
+    created_at?: true
+  }
+
+  export type Snapshot_historyMaxAggregateInputType = {
+    id?: true
+    portfolio_id?: true
+    captured_on?: true
+    market_value?: true
+    cash_balance?: true
+    total_return?: true
+    realized_pnl?: true
+    created_at?: true
+  }
+
+  export type Snapshot_historyCountAggregateInputType = {
+    id?: true
+    portfolio_id?: true
+    captured_on?: true
+    market_value?: true
+    cash_balance?: true
+    total_return?: true
+    realized_pnl?: true
+    created_at?: true
+    _all?: true
+  }
+
+  export type Snapshot_historyAggregateArgs<ExtArgs extends $Extensions.InternalArgs = $Extensions.DefaultArgs> = {
+    /**
+     * Filter which snapshot_history to aggregate.
+     */
+    where?: snapshot_historyWhereInput
+    /**
+     * {@link https://www.prisma.io/docs/concepts/components/prisma-client/sorting Sorting Docs}
+     * 
+     * Determine the order of snapshot_histories to fetch.
+     */
+    orderBy?: snapshot_historyOrderByWithRelationInput | snapshot_historyOrderByWithRelationInput[]
+    /**
+     * {@link https://www.prisma.io/docs/concepts/components/prisma-client/pagination#cursor-based-pagination Cursor Docs}
+     * 
+     * Sets the start position
+     */
+    cursor?: snapshot_historyWhereUniqueInput
+    /**
+     * {@link https://www.prisma.io/docs/concepts/components/prisma-client/pagination Pagination Docs}
+     * 
+     * Take `±n` snapshot_histories from the position of the cursor.
+     */
+    take?: number
+    /**
+     * {@link https://www.prisma.io/docs/concepts/components/prisma-client/pagination Pagination Docs}
+     * 
+     * Skip the first `n` snapshot_histories.
+     */
+    skip?: number
+    /**
+     * {@link https://www.prisma.io/docs/concepts/components/prisma-client/aggregations Aggregation Docs}
+     * 
+     * Count returned snapshot_histories
+    **/
+    _count?: true | Snapshot_historyCountAggregateInputType
+    /**
+     * {@link https://www.prisma.io/docs/concepts/components/prisma-client/aggregations Aggregation Docs}
+     * 
+     * Select which fields to average
+    **/
+    _avg?: Snapshot_historyAvgAggregateInputType
+    /**
+     * {@link https://www.prisma.io/docs/concepts/components/prisma-client/aggregations Aggregation Docs}
+     * 
+     * Select which fields to sum
+    **/
+    _sum?: Snapshot_historySumAggregateInputType
+    /**
+     * {@link https://www.prisma.io/docs/concepts/components/prisma-client/aggregations Aggregation Docs}
+     * 
+     * Select which fields to find the minimum value
+    **/
+    _min?: Snapshot_historyMinAggregateInputType
+    /**
+     * {@link https://www.prisma.io/docs/concepts/components/prisma-client/aggregations Aggregation Docs}
+     * 
+     * Select which fields to find the maximum value
+    **/
+    _max?: Snapshot_historyMaxAggregateInputType
+  }
+
+  export type GetSnapshot_historyAggregateType<T extends Snapshot_historyAggregateArgs> = {
+        [P in keyof T & keyof AggregateSnapshot_history]: P extends '_count' | 'count'
+      ? T[P] extends true
+        ? number
+        : GetScalarType<T[P], AggregateSnapshot_history[P]>
+      : GetScalarType<T[P], AggregateSnapshot_history[P]>
+  }
+
+
+
+
+  export type snapshot_historyGroupByArgs<ExtArgs extends $Extensions.InternalArgs = $Extensions.DefaultArgs> = {
+    where?: snapshot_historyWhereInput
+    orderBy?: snapshot_historyOrderByWithAggregationInput | snapshot_historyOrderByWithAggregationInput[]
+    by: Snapshot_historyScalarFieldEnum[] | Snapshot_historyScalarFieldEnum
+    having?: snapshot_historyScalarWhereWithAggregatesInput
+    take?: number
+    skip?: number
+    _count?: Snapshot_historyCountAggregateInputType | true
+    _avg?: Snapshot_historyAvgAggregateInputType
+    _sum?: Snapshot_historySumAggregateInputType
+    _min?: Snapshot_historyMinAggregateInputType
+    _max?: Snapshot_historyMaxAggregateInputType
+  }
+
+  export type Snapshot_historyGroupByOutputType = {
+    id: string
+    portfolio_id: string
+    captured_on: Date
+    market_value: Decimal | null
+    cash_balance: Decimal | null
+    total_return: Decimal | null
+    realized_pnl: Decimal | null
+    created_at: Date
+    _count: Snapshot_historyCountAggregateOutputType | null
+    _avg: Snapshot_historyAvgAggregateOutputType | null
+    _sum: Snapshot_historySumAggregateOutputType | null
+    _min: Snapshot_historyMinAggregateOutputType | null
+    _max: Snapshot_historyMaxAggregateOutputType | null
+  }
+
+  type GetSnapshot_historyGroupByPayload<T extends snapshot_historyGroupByArgs> = Prisma.PrismaPromise<
+    Array<
+      PickEnumerable<Snapshot_historyGroupByOutputType, T['by']> &
+        {
+          [P in ((keyof T) & (keyof Snapshot_historyGroupByOutputType))]: P extends '_count'
+            ? T[P] extends boolean
+              ? number
+              : GetScalarType<T[P], Snapshot_historyGroupByOutputType[P]>
+            : GetScalarType<T[P], Snapshot_historyGroupByOutputType[P]>
+        }
+      >
+    >
+
+
+  export type snapshot_historySelect<ExtArgs extends $Extensions.InternalArgs = $Extensions.DefaultArgs> = $Extensions.GetSelect<{
+    id?: boolean
+    portfolio_id?: boolean
+    captured_on?: boolean
+    market_value?: boolean
+    cash_balance?: boolean
+    total_return?: boolean
+    realized_pnl?: boolean
+    created_at?: boolean
+    portfolio?: boolean | PortfolioDefaultArgs<ExtArgs>
+  }, ExtArgs["result"]["snapshot_history"]>
+
+  export type snapshot_historySelectCreateManyAndReturn<ExtArgs extends $Extensions.InternalArgs = $Extensions.DefaultArgs> = $Extensions.GetSelect<{
+    id?: boolean
+    portfolio_id?: boolean
+    captured_on?: boolean
+    market_value?: boolean
+    cash_balance?: boolean
+    total_return?: boolean
+    realized_pnl?: boolean
+    created_at?: boolean
+    portfolio?: boolean | PortfolioDefaultArgs<ExtArgs>
+  }, ExtArgs["result"]["snapshot_history"]>
+
+  export type snapshot_historySelectUpdateManyAndReturn<ExtArgs extends $Extensions.InternalArgs = $Extensions.DefaultArgs> = $Extensions.GetSelect<{
+    id?: boolean
+    portfolio_id?: boolean
+    captured_on?: boolean
+    market_value?: boolean
+    cash_balance?: boolean
+    total_return?: boolean
+    realized_pnl?: boolean
+    created_at?: boolean
+    portfolio?: boolean | PortfolioDefaultArgs<ExtArgs>
+  }, ExtArgs["result"]["snapshot_history"]>
+
+  export type snapshot_historySelectScalar = {
+    id?: boolean
+    portfolio_id?: boolean
+    captured_on?: boolean
+    market_value?: boolean
+    cash_balance?: boolean
+    total_return?: boolean
+    realized_pnl?: boolean
+    created_at?: boolean
+  }
+
+  export type snapshot_historyOmit<ExtArgs extends $Extensions.InternalArgs = $Extensions.DefaultArgs> = $Extensions.GetOmit<"id" | "portfolio_id" | "captured_on" | "market_value" | "cash_balance" | "total_return" | "realized_pnl" | "created_at", ExtArgs["result"]["snapshot_history"]>
+  export type snapshot_historyInclude<ExtArgs extends $Extensions.InternalArgs = $Extensions.DefaultArgs> = {
+    portfolio?: boolean | PortfolioDefaultArgs<ExtArgs>
+  }
+  export type snapshot_historyIncludeCreateManyAndReturn<ExtArgs extends $Extensions.InternalArgs = $Extensions.DefaultArgs> = {
+    portfolio?: boolean | PortfolioDefaultArgs<ExtArgs>
+  }
+  export type snapshot_historyIncludeUpdateManyAndReturn<ExtArgs extends $Extensions.InternalArgs = $Extensions.DefaultArgs> = {
+    portfolio?: boolean | PortfolioDefaultArgs<ExtArgs>
+  }
+
+  export type $snapshot_historyPayload<ExtArgs extends $Extensions.InternalArgs = $Extensions.DefaultArgs> = {
+    name: "snapshot_history"
+    objects: {
+      portfolio: Prisma.$PortfolioPayload<ExtArgs>
+    }
+    scalars: $Extensions.GetPayloadResult<{
+      id: string
+      portfolio_id: string
+      captured_on: Date
+      market_value: Prisma.Decimal | null
+      cash_balance: Prisma.Decimal | null
+      total_return: Prisma.Decimal | null
+      realized_pnl: Prisma.Decimal | null
+      created_at: Date
+    }, ExtArgs["result"]["snapshot_history"]>
+    composites: {}
+  }
+
+  type snapshot_historyGetPayload<S extends boolean | null | undefined | snapshot_historyDefaultArgs> = $Result.GetResult<Prisma.$snapshot_historyPayload, S>
+
+  type snapshot_historyCountArgs<ExtArgs extends $Extensions.InternalArgs = $Extensions.DefaultArgs> =
+    Omit<snapshot_historyFindManyArgs, 'select' | 'include' | 'distinct' | 'omit'> & {
+      select?: Snapshot_historyCountAggregateInputType | true
+    }
+
+  export interface snapshot_historyDelegate<ExtArgs extends $Extensions.InternalArgs = $Extensions.DefaultArgs, GlobalOmitOptions = {}> {
+    [K: symbol]: { types: Prisma.TypeMap<ExtArgs>['model']['snapshot_history'], meta: { name: 'snapshot_history' } }
+    /**
+     * Find zero or one Snapshot_history that matches the filter.
+     * @param {snapshot_historyFindUniqueArgs} args - Arguments to find a Snapshot_history
+     * @example
+     * // Get one Snapshot_history
+     * const snapshot_history = await prisma.snapshot_history.findUnique({
+     *   where: {
+     *     // ... provide filter here
+     *   }
+     * })
+     */
+    findUnique<T extends snapshot_historyFindUniqueArgs>(args: SelectSubset<T, snapshot_historyFindUniqueArgs<ExtArgs>>): Prisma__snapshot_historyClient<$Result.GetResult<Prisma.$snapshot_historyPayload<ExtArgs>, T, "findUnique", GlobalOmitOptions> | null, null, ExtArgs, GlobalOmitOptions>
+
+    /**
+     * Find one Snapshot_history that matches the filter or throw an error with `error.code='P2025'`
+     * if no matches were found.
+     * @param {snapshot_historyFindUniqueOrThrowArgs} args - Arguments to find a Snapshot_history
+     * @example
+     * // Get one Snapshot_history
+     * const snapshot_history = await prisma.snapshot_history.findUniqueOrThrow({
+     *   where: {
+     *     // ... provide filter here
+     *   }
+     * })
+     */
+    findUniqueOrThrow<T extends snapshot_historyFindUniqueOrThrowArgs>(args: SelectSubset<T, snapshot_historyFindUniqueOrThrowArgs<ExtArgs>>): Prisma__snapshot_historyClient<$Result.GetResult<Prisma.$snapshot_historyPayload<ExtArgs>, T, "findUniqueOrThrow", GlobalOmitOptions>, never, ExtArgs, GlobalOmitOptions>
+
+    /**
+     * Find the first Snapshot_history that matches the filter.
+     * Note, that providing `undefined` is treated as the value not being there.
+     * Read more here: https://pris.ly/d/null-undefined
+     * @param {snapshot_historyFindFirstArgs} args - Arguments to find a Snapshot_history
+     * @example
+     * // Get one Snapshot_history
+     * const snapshot_history = await prisma.snapshot_history.findFirst({
+     *   where: {
+     *     // ... provide filter here
+     *   }
+     * })
+     */
+    findFirst<T extends snapshot_historyFindFirstArgs>(args?: SelectSubset<T, snapshot_historyFindFirstArgs<ExtArgs>>): Prisma__snapshot_historyClient<$Result.GetResult<Prisma.$snapshot_historyPayload<ExtArgs>, T, "findFirst", GlobalOmitOptions> | null, null, ExtArgs, GlobalOmitOptions>
+
+    /**
+     * Find the first Snapshot_history that matches the filter or
+     * throw `PrismaKnownClientError` with `P2025` code if no matches were found.
+     * Note, that providing `undefined` is treated as the value not being there.
+     * Read more here: https://pris.ly/d/null-undefined
+     * @param {snapshot_historyFindFirstOrThrowArgs} args - Arguments to find a Snapshot_history
+     * @example
+     * // Get one Snapshot_history
+     * const snapshot_history = await prisma.snapshot_history.findFirstOrThrow({
+     *   where: {
+     *     // ... provide filter here
+     *   }
+     * })
+     */
+    findFirstOrThrow<T extends snapshot_historyFindFirstOrThrowArgs>(args?: SelectSubset<T, snapshot_historyFindFirstOrThrowArgs<ExtArgs>>): Prisma__snapshot_historyClient<$Result.GetResult<Prisma.$snapshot_historyPayload<ExtArgs>, T, "findFirstOrThrow", GlobalOmitOptions>, never, ExtArgs, GlobalOmitOptions>
+
+    /**
+     * Find zero or more Snapshot_histories that matches the filter.
+     * Note, that providing `undefined` is treated as the value not being there.
+     * Read more here: https://pris.ly/d/null-undefined
+     * @param {snapshot_historyFindManyArgs} args - Arguments to filter and select certain fields only.
+     * @example
+     * // Get all Snapshot_histories
+     * const snapshot_histories = await prisma.snapshot_history.findMany()
+     * 
+     * // Get first 10 Snapshot_histories
+     * const snapshot_histories = await prisma.snapshot_history.findMany({ take: 10 })
+     * 
+     * // Only select the `id`
+     * const snapshot_historyWithIdOnly = await prisma.snapshot_history.findMany({ select: { id: true } })
+     * 
+     */
+    findMany<T extends snapshot_historyFindManyArgs>(args?: SelectSubset<T, snapshot_historyFindManyArgs<ExtArgs>>): Prisma.PrismaPromise<$Result.GetResult<Prisma.$snapshot_historyPayload<ExtArgs>, T, "findMany", GlobalOmitOptions>>
+
+    /**
+     * Create a Snapshot_history.
+     * @param {snapshot_historyCreateArgs} args - Arguments to create a Snapshot_history.
+     * @example
+     * // Create one Snapshot_history
+     * const Snapshot_history = await prisma.snapshot_history.create({
+     *   data: {
+     *     // ... data to create a Snapshot_history
+     *   }
+     * })
+     * 
+     */
+    create<T extends snapshot_historyCreateArgs>(args: SelectSubset<T, snapshot_historyCreateArgs<ExtArgs>>): Prisma__snapshot_historyClient<$Result.GetResult<Prisma.$snapshot_historyPayload<ExtArgs>, T, "create", GlobalOmitOptions>, never, ExtArgs, GlobalOmitOptions>
+
+    /**
+     * Create many Snapshot_histories.
+     * @param {snapshot_historyCreateManyArgs} args - Arguments to create many Snapshot_histories.
+     * @example
+     * // Create many Snapshot_histories
+     * const snapshot_history = await prisma.snapshot_history.createMany({
+     *   data: [
+     *     // ... provide data here
+     *   ]
+     * })
+     *     
+     */
+    createMany<T extends snapshot_historyCreateManyArgs>(args?: SelectSubset<T, snapshot_historyCreateManyArgs<ExtArgs>>): Prisma.PrismaPromise<BatchPayload>
+
+    /**
+     * Create many Snapshot_histories and returns the data saved in the database.
+     * @param {snapshot_historyCreateManyAndReturnArgs} args - Arguments to create many Snapshot_histories.
+     * @example
+     * // Create many Snapshot_histories
+     * const snapshot_history = await prisma.snapshot_history.createManyAndReturn({
+     *   data: [
+     *     // ... provide data here
+     *   ]
+     * })
+     * 
+     * // Create many Snapshot_histories and only return the `id`
+     * const snapshot_historyWithIdOnly = await prisma.snapshot_history.createManyAndReturn({
+     *   select: { id: true },
+     *   data: [
+     *     // ... provide data here
+     *   ]
+     * })
+     * Note, that providing `undefined` is treated as the value not being there.
+     * Read more here: https://pris.ly/d/null-undefined
+     * 
+     */
+    createManyAndReturn<T extends snapshot_historyCreateManyAndReturnArgs>(args?: SelectSubset<T, snapshot_historyCreateManyAndReturnArgs<ExtArgs>>): Prisma.PrismaPromise<$Result.GetResult<Prisma.$snapshot_historyPayload<ExtArgs>, T, "createManyAndReturn", GlobalOmitOptions>>
+
+    /**
+     * Delete a Snapshot_history.
+     * @param {snapshot_historyDeleteArgs} args - Arguments to delete one Snapshot_history.
+     * @example
+     * // Delete one Snapshot_history
+     * const Snapshot_history = await prisma.snapshot_history.delete({
+     *   where: {
+     *     // ... filter to delete one Snapshot_history
+     *   }
+     * })
+     * 
+     */
+    delete<T extends snapshot_historyDeleteArgs>(args: SelectSubset<T, snapshot_historyDeleteArgs<ExtArgs>>): Prisma__snapshot_historyClient<$Result.GetResult<Prisma.$snapshot_historyPayload<ExtArgs>, T, "delete", GlobalOmitOptions>, never, ExtArgs, GlobalOmitOptions>
+
+    /**
+     * Update one Snapshot_history.
+     * @param {snapshot_historyUpdateArgs} args - Arguments to update one Snapshot_history.
+     * @example
+     * // Update one Snapshot_history
+     * const snapshot_history = await prisma.snapshot_history.update({
+     *   where: {
+     *     // ... provide filter here
+     *   },
+     *   data: {
+     *     // ... provide data here
+     *   }
+     * })
+     * 
+     */
+    update<T extends snapshot_historyUpdateArgs>(args: SelectSubset<T, snapshot_historyUpdateArgs<ExtArgs>>): Prisma__snapshot_historyClient<$Result.GetResult<Prisma.$snapshot_historyPayload<ExtArgs>, T, "update", GlobalOmitOptions>, never, ExtArgs, GlobalOmitOptions>
+
+    /**
+     * Delete zero or more Snapshot_histories.
+     * @param {snapshot_historyDeleteManyArgs} args - Arguments to filter Snapshot_histories to delete.
+     * @example
+     * // Delete a few Snapshot_histories
+     * const { count } = await prisma.snapshot_history.deleteMany({
+     *   where: {
+     *     // ... provide filter here
+     *   }
+     * })
+     * 
+     */
+    deleteMany<T extends snapshot_historyDeleteManyArgs>(args?: SelectSubset<T, snapshot_historyDeleteManyArgs<ExtArgs>>): Prisma.PrismaPromise<BatchPayload>
+
+    /**
+     * Update zero or more Snapshot_histories.
+     * Note, that providing `undefined` is treated as the value not being there.
+     * Read more here: https://pris.ly/d/null-undefined
+     * @param {snapshot_historyUpdateManyArgs} args - Arguments to update one or more rows.
+     * @example
+     * // Update many Snapshot_histories
+     * const snapshot_history = await prisma.snapshot_history.updateMany({
+     *   where: {
+     *     // ... provide filter here
+     *   },
+     *   data: {
+     *     // ... provide data here
+     *   }
+     * })
+     * 
+     */
+    updateMany<T extends snapshot_historyUpdateManyArgs>(args: SelectSubset<T, snapshot_historyUpdateManyArgs<ExtArgs>>): Prisma.PrismaPromise<BatchPayload>
+
+    /**
+     * Update zero or more Snapshot_histories and returns the data updated in the database.
+     * @param {snapshot_historyUpdateManyAndReturnArgs} args - Arguments to update many Snapshot_histories.
+     * @example
+     * // Update many Snapshot_histories
+     * const snapshot_history = await prisma.snapshot_history.updateManyAndReturn({
+     *   where: {
+     *     // ... provide filter here
+     *   },
+     *   data: [
+     *     // ... provide data here
+     *   ]
+     * })
+     * 
+     * // Update zero or more Snapshot_histories and only return the `id`
+     * const snapshot_historyWithIdOnly = await prisma.snapshot_history.updateManyAndReturn({
+     *   select: { id: true },
+     *   where: {
+     *     // ... provide filter here
+     *   },
+     *   data: [
+     *     // ... provide data here
+     *   ]
+     * })
+     * Note, that providing `undefined` is treated as the value not being there.
+     * Read more here: https://pris.ly/d/null-undefined
+     * 
+     */
+    updateManyAndReturn<T extends snapshot_historyUpdateManyAndReturnArgs>(args: SelectSubset<T, snapshot_historyUpdateManyAndReturnArgs<ExtArgs>>): Prisma.PrismaPromise<$Result.GetResult<Prisma.$snapshot_historyPayload<ExtArgs>, T, "updateManyAndReturn", GlobalOmitOptions>>
+
+    /**
+     * Create or update one Snapshot_history.
+     * @param {snapshot_historyUpsertArgs} args - Arguments to update or create a Snapshot_history.
+     * @example
+     * // Update or create a Snapshot_history
+     * const snapshot_history = await prisma.snapshot_history.upsert({
+     *   create: {
+     *     // ... data to create a Snapshot_history
+     *   },
+     *   update: {
+     *     // ... in case it already exists, update
+     *   },
+     *   where: {
+     *     // ... the filter for the Snapshot_history we want to update
+     *   }
+     * })
+     */
+    upsert<T extends snapshot_historyUpsertArgs>(args: SelectSubset<T, snapshot_historyUpsertArgs<ExtArgs>>): Prisma__snapshot_historyClient<$Result.GetResult<Prisma.$snapshot_historyPayload<ExtArgs>, T, "upsert", GlobalOmitOptions>, never, ExtArgs, GlobalOmitOptions>
+
+
+    /**
+     * Count the number of Snapshot_histories.
+     * Note, that providing `undefined` is treated as the value not being there.
+     * Read more here: https://pris.ly/d/null-undefined
+     * @param {snapshot_historyCountArgs} args - Arguments to filter Snapshot_histories to count.
+     * @example
+     * // Count the number of Snapshot_histories
+     * const count = await prisma.snapshot_history.count({
+     *   where: {
+     *     // ... the filter for the Snapshot_histories we want to count
+     *   }
+     * })
+    **/
+    count<T extends snapshot_historyCountArgs>(
+      args?: Subset<T, snapshot_historyCountArgs>,
+    ): Prisma.PrismaPromise<
+      T extends $Utils.Record<'select', any>
+        ? T['select'] extends true
+          ? number
+          : GetScalarType<T['select'], Snapshot_historyCountAggregateOutputType>
+        : number
+    >
+
+    /**
+     * Allows you to perform aggregations operations on a Snapshot_history.
+     * Note, that providing `undefined` is treated as the value not being there.
+     * Read more here: https://pris.ly/d/null-undefined
+     * @param {Snapshot_historyAggregateArgs} args - Select which aggregations you would like to apply and on what fields.
+     * @example
+     * // Ordered by age ascending
+     * // Where email contains prisma.io
+     * // Limited to the 10 users
+     * const aggregations = await prisma.user.aggregate({
+     *   _avg: {
+     *     age: true,
+     *   },
+     *   where: {
+     *     email: {
+     *       contains: "prisma.io",
+     *     },
+     *   },
+     *   orderBy: {
+     *     age: "asc",
+     *   },
+     *   take: 10,
+     * })
+    **/
+    aggregate<T extends Snapshot_historyAggregateArgs>(args: Subset<T, Snapshot_historyAggregateArgs>): Prisma.PrismaPromise<GetSnapshot_historyAggregateType<T>>
+
+    /**
+     * Group by Snapshot_history.
+     * Note, that providing `undefined` is treated as the value not being there.
+     * Read more here: https://pris.ly/d/null-undefined
+     * @param {snapshot_historyGroupByArgs} args - Group by arguments.
+     * @example
+     * // Group by city, order by createdAt, get count
+     * const result = await prisma.user.groupBy({
+     *   by: ['city', 'createdAt'],
+     *   orderBy: {
+     *     createdAt: true
+     *   },
+     *   _count: {
+     *     _all: true
+     *   },
+     * })
+     * 
+    **/
+    groupBy<
+      T extends snapshot_historyGroupByArgs,
+      HasSelectOrTake extends Or<
+        Extends<'skip', Keys<T>>,
+        Extends<'take', Keys<T>>
+      >,
+      OrderByArg extends True extends HasSelectOrTake
+        ? { orderBy: snapshot_historyGroupByArgs['orderBy'] }
+        : { orderBy?: snapshot_historyGroupByArgs['orderBy'] },
+      OrderFields extends ExcludeUnderscoreKeys<Keys<MaybeTupleToUnion<T['orderBy']>>>,
+      ByFields extends MaybeTupleToUnion<T['by']>,
+      ByValid extends Has<ByFields, OrderFields>,
+      HavingFields extends GetHavingFields<T['having']>,
+      HavingValid extends Has<ByFields, HavingFields>,
+      ByEmpty extends T['by'] extends never[] ? True : False,
+      InputErrors extends ByEmpty extends True
+      ? `Error: "by" must not be empty.`
+      : HavingValid extends False
+      ? {
+          [P in HavingFields]: P extends ByFields
+            ? never
+            : P extends string
+            ? `Error: Field "${P}" used in "having" needs to be provided in "by".`
+            : [
+                Error,
+                'Field ',
+                P,
+                ` in "having" needs to be provided in "by"`,
+              ]
+        }[HavingFields]
+      : 'take' extends Keys<T>
+      ? 'orderBy' extends Keys<T>
+        ? ByValid extends True
+          ? {}
+          : {
+              [P in OrderFields]: P extends ByFields
+                ? never
+                : `Error: Field "${P}" in "orderBy" needs to be provided in "by"`
+            }[OrderFields]
+        : 'Error: If you provide "take", you also need to provide "orderBy"'
+      : 'skip' extends Keys<T>
+      ? 'orderBy' extends Keys<T>
+        ? ByValid extends True
+          ? {}
+          : {
+              [P in OrderFields]: P extends ByFields
+                ? never
+                : `Error: Field "${P}" in "orderBy" needs to be provided in "by"`
+            }[OrderFields]
+        : 'Error: If you provide "skip", you also need to provide "orderBy"'
+      : ByValid extends True
+      ? {}
+      : {
+          [P in OrderFields]: P extends ByFields
+            ? never
+            : `Error: Field "${P}" in "orderBy" needs to be provided in "by"`
+        }[OrderFields]
+    >(args: SubsetIntersection<T, snapshot_historyGroupByArgs, OrderByArg> & InputErrors): {} extends InputErrors ? GetSnapshot_historyGroupByPayload<T> : Prisma.PrismaPromise<InputErrors>
+  /**
+   * Fields of the snapshot_history model
+   */
+  readonly fields: snapshot_historyFieldRefs;
+  }
+
+  /**
+   * The delegate class that acts as a "Promise-like" for snapshot_history.
+   * Why is this prefixed with `Prisma__`?
+   * Because we want to prevent naming conflicts as mentioned in
+   * https://github.com/prisma/prisma-client-js/issues/707
+   */
+  export interface Prisma__snapshot_historyClient<T, Null = never, ExtArgs extends $Extensions.InternalArgs = $Extensions.DefaultArgs, GlobalOmitOptions = {}> extends Prisma.PrismaPromise<T> {
+    readonly [Symbol.toStringTag]: "PrismaPromise"
+    portfolio<T extends PortfolioDefaultArgs<ExtArgs> = {}>(args?: Subset<T, PortfolioDefaultArgs<ExtArgs>>): Prisma__PortfolioClient<$Result.GetResult<Prisma.$PortfolioPayload<ExtArgs>, T, "findUniqueOrThrow", GlobalOmitOptions> | Null, Null, ExtArgs, GlobalOmitOptions>
+    /**
+     * Attaches callbacks for the resolution and/or rejection of the Promise.
+     * @param onfulfilled The callback to execute when the Promise is resolved.
+     * @param onrejected The callback to execute when the Promise is rejected.
+     * @returns A Promise for the completion of which ever callback is executed.
+     */
+    then<TResult1 = T, TResult2 = never>(onfulfilled?: ((value: T) => TResult1 | PromiseLike<TResult1>) | undefined | null, onrejected?: ((reason: any) => TResult2 | PromiseLike<TResult2>) | undefined | null): $Utils.JsPromise<TResult1 | TResult2>
+    /**
+     * Attaches a callback for only the rejection of the Promise.
+     * @param onrejected The callback to execute when the Promise is rejected.
+     * @returns A Promise for the completion of the callback.
+     */
+    catch<TResult = never>(onrejected?: ((reason: any) => TResult | PromiseLike<TResult>) | undefined | null): $Utils.JsPromise<T | TResult>
+    /**
+     * Attaches a callback that is invoked when the Promise is settled (fulfilled or rejected). The
+     * resolved value cannot be modified from the callback.
+     * @param onfinally The callback to execute when the Promise is settled (fulfilled or rejected).
+     * @returns A Promise for the completion of the callback.
+     */
+    finally(onfinally?: (() => void) | undefined | null): $Utils.JsPromise<T>
+  }
+
+
+
+
+  /**
+   * Fields of the snapshot_history model
+   */
+  interface snapshot_historyFieldRefs {
+    readonly id: FieldRef<"snapshot_history", 'String'>
+    readonly portfolio_id: FieldRef<"snapshot_history", 'String'>
+    readonly captured_on: FieldRef<"snapshot_history", 'DateTime'>
+    readonly market_value: FieldRef<"snapshot_history", 'Decimal'>
+    readonly cash_balance: FieldRef<"snapshot_history", 'Decimal'>
+    readonly total_return: FieldRef<"snapshot_history", 'Decimal'>
+    readonly realized_pnl: FieldRef<"snapshot_history", 'Decimal'>
+    readonly created_at: FieldRef<"snapshot_history", 'DateTime'>
+  }
+    
+
+  // Custom InputTypes
+  /**
+   * snapshot_history findUnique
+   */
+  export type snapshot_historyFindUniqueArgs<ExtArgs extends $Extensions.InternalArgs = $Extensions.DefaultArgs> = {
+    /**
+     * Select specific fields to fetch from the snapshot_history
+     */
+    select?: snapshot_historySelect<ExtArgs> | null
+    /**
+     * Omit specific fields from the snapshot_history
+     */
+    omit?: snapshot_historyOmit<ExtArgs> | null
+    /**
+     * Choose, which related nodes to fetch as well
+     */
+    include?: snapshot_historyInclude<ExtArgs> | null
+    /**
+     * Filter, which snapshot_history to fetch.
+     */
+    where: snapshot_historyWhereUniqueInput
+  }
+
+  /**
+   * snapshot_history findUniqueOrThrow
+   */
+  export type snapshot_historyFindUniqueOrThrowArgs<ExtArgs extends $Extensions.InternalArgs = $Extensions.DefaultArgs> = {
+    /**
+     * Select specific fields to fetch from the snapshot_history
+     */
+    select?: snapshot_historySelect<ExtArgs> | null
+    /**
+     * Omit specific fields from the snapshot_history
+     */
+    omit?: snapshot_historyOmit<ExtArgs> | null
+    /**
+     * Choose, which related nodes to fetch as well
+     */
+    include?: snapshot_historyInclude<ExtArgs> | null
+    /**
+     * Filter, which snapshot_history to fetch.
+     */
+    where: snapshot_historyWhereUniqueInput
+  }
+
+  /**
+   * snapshot_history findFirst
+   */
+  export type snapshot_historyFindFirstArgs<ExtArgs extends $Extensions.InternalArgs = $Extensions.DefaultArgs> = {
+    /**
+     * Select specific fields to fetch from the snapshot_history
+     */
+    select?: snapshot_historySelect<ExtArgs> | null
+    /**
+     * Omit specific fields from the snapshot_history
+     */
+    omit?: snapshot_historyOmit<ExtArgs> | null
+    /**
+     * Choose, which related nodes to fetch as well
+     */
+    include?: snapshot_historyInclude<ExtArgs> | null
+    /**
+     * Filter, which snapshot_history to fetch.
+     */
+    where?: snapshot_historyWhereInput
+    /**
+     * {@link https://www.prisma.io/docs/concepts/components/prisma-client/sorting Sorting Docs}
+     * 
+     * Determine the order of snapshot_histories to fetch.
+     */
+    orderBy?: snapshot_historyOrderByWithRelationInput | snapshot_historyOrderByWithRelationInput[]
+    /**
+     * {@link https://www.prisma.io/docs/concepts/components/prisma-client/pagination#cursor-based-pagination Cursor Docs}
+     * 
+     * Sets the position for searching for snapshot_histories.
+     */
+    cursor?: snapshot_historyWhereUniqueInput
+    /**
+     * {@link https://www.prisma.io/docs/concepts/components/prisma-client/pagination Pagination Docs}
+     * 
+     * Take `±n` snapshot_histories from the position of the cursor.
+     */
+    take?: number
+    /**
+     * {@link https://www.prisma.io/docs/concepts/components/prisma-client/pagination Pagination Docs}
+     * 
+     * Skip the first `n` snapshot_histories.
+     */
+    skip?: number
+    /**
+     * {@link https://www.prisma.io/docs/concepts/components/prisma-client/distinct Distinct Docs}
+     * 
+     * Filter by unique combinations of snapshot_histories.
+     */
+    distinct?: Snapshot_historyScalarFieldEnum | Snapshot_historyScalarFieldEnum[]
+  }
+
+  /**
+   * snapshot_history findFirstOrThrow
+   */
+  export type snapshot_historyFindFirstOrThrowArgs<ExtArgs extends $Extensions.InternalArgs = $Extensions.DefaultArgs> = {
+    /**
+     * Select specific fields to fetch from the snapshot_history
+     */
+    select?: snapshot_historySelect<ExtArgs> | null
+    /**
+     * Omit specific fields from the snapshot_history
+     */
+    omit?: snapshot_historyOmit<ExtArgs> | null
+    /**
+     * Choose, which related nodes to fetch as well
+     */
+    include?: snapshot_historyInclude<ExtArgs> | null
+    /**
+     * Filter, which snapshot_history to fetch.
+     */
+    where?: snapshot_historyWhereInput
+    /**
+     * {@link https://www.prisma.io/docs/concepts/components/prisma-client/sorting Sorting Docs}
+     * 
+     * Determine the order of snapshot_histories to fetch.
+     */
+    orderBy?: snapshot_historyOrderByWithRelationInput | snapshot_historyOrderByWithRelationInput[]
+    /**
+     * {@link https://www.prisma.io/docs/concepts/components/prisma-client/pagination#cursor-based-pagination Cursor Docs}
+     * 
+     * Sets the position for searching for snapshot_histories.
+     */
+    cursor?: snapshot_historyWhereUniqueInput
+    /**
+     * {@link https://www.prisma.io/docs/concepts/components/prisma-client/pagination Pagination Docs}
+     * 
+     * Take `±n` snapshot_histories from the position of the cursor.
+     */
+    take?: number
+    /**
+     * {@link https://www.prisma.io/docs/concepts/components/prisma-client/pagination Pagination Docs}
+     * 
+     * Skip the first `n` snapshot_histories.
+     */
+    skip?: number
+    /**
+     * {@link https://www.prisma.io/docs/concepts/components/prisma-client/distinct Distinct Docs}
+     * 
+     * Filter by unique combinations of snapshot_histories.
+     */
+    distinct?: Snapshot_historyScalarFieldEnum | Snapshot_historyScalarFieldEnum[]
+  }
+
+  /**
+   * snapshot_history findMany
+   */
+  export type snapshot_historyFindManyArgs<ExtArgs extends $Extensions.InternalArgs = $Extensions.DefaultArgs> = {
+    /**
+     * Select specific fields to fetch from the snapshot_history
+     */
+    select?: snapshot_historySelect<ExtArgs> | null
+    /**
+     * Omit specific fields from the snapshot_history
+     */
+    omit?: snapshot_historyOmit<ExtArgs> | null
+    /**
+     * Choose, which related nodes to fetch as well
+     */
+    include?: snapshot_historyInclude<ExtArgs> | null
+    /**
+     * Filter, which snapshot_histories to fetch.
+     */
+    where?: snapshot_historyWhereInput
+    /**
+     * {@link https://www.prisma.io/docs/concepts/components/prisma-client/sorting Sorting Docs}
+     * 
+     * Determine the order of snapshot_histories to fetch.
+     */
+    orderBy?: snapshot_historyOrderByWithRelationInput | snapshot_historyOrderByWithRelationInput[]
+    /**
+     * {@link https://www.prisma.io/docs/concepts/components/prisma-client/pagination#cursor-based-pagination Cursor Docs}
+     * 
+     * Sets the position for listing snapshot_histories.
+     */
+    cursor?: snapshot_historyWhereUniqueInput
+    /**
+     * {@link https://www.prisma.io/docs/concepts/components/prisma-client/pagination Pagination Docs}
+     * 
+     * Take `±n` snapshot_histories from the position of the cursor.
+     */
+    take?: number
+    /**
+     * {@link https://www.prisma.io/docs/concepts/components/prisma-client/pagination Pagination Docs}
+     * 
+     * Skip the first `n` snapshot_histories.
+     */
+    skip?: number
+    distinct?: Snapshot_historyScalarFieldEnum | Snapshot_historyScalarFieldEnum[]
+  }
+
+  /**
+   * snapshot_history create
+   */
+  export type snapshot_historyCreateArgs<ExtArgs extends $Extensions.InternalArgs = $Extensions.DefaultArgs> = {
+    /**
+     * Select specific fields to fetch from the snapshot_history
+     */
+    select?: snapshot_historySelect<ExtArgs> | null
+    /**
+     * Omit specific fields from the snapshot_history
+     */
+    omit?: snapshot_historyOmit<ExtArgs> | null
+    /**
+     * Choose, which related nodes to fetch as well
+     */
+    include?: snapshot_historyInclude<ExtArgs> | null
+    /**
+     * The data needed to create a snapshot_history.
+     */
+    data: XOR<snapshot_historyCreateInput, snapshot_historyUncheckedCreateInput>
+  }
+
+  /**
+   * snapshot_history createMany
+   */
+  export type snapshot_historyCreateManyArgs<ExtArgs extends $Extensions.InternalArgs = $Extensions.DefaultArgs> = {
+    /**
+     * The data used to create many snapshot_histories.
+     */
+    data: snapshot_historyCreateManyInput | snapshot_historyCreateManyInput[]
+    skipDuplicates?: boolean
+  }
+
+  /**
+   * snapshot_history createManyAndReturn
+   */
+  export type snapshot_historyCreateManyAndReturnArgs<ExtArgs extends $Extensions.InternalArgs = $Extensions.DefaultArgs> = {
+    /**
+     * Select specific fields to fetch from the snapshot_history
+     */
+    select?: snapshot_historySelectCreateManyAndReturn<ExtArgs> | null
+    /**
+     * Omit specific fields from the snapshot_history
+     */
+    omit?: snapshot_historyOmit<ExtArgs> | null
+    /**
+     * The data used to create many snapshot_histories.
+     */
+    data: snapshot_historyCreateManyInput | snapshot_historyCreateManyInput[]
+    skipDuplicates?: boolean
+    /**
+     * Choose, which related nodes to fetch as well
+     */
+    include?: snapshot_historyIncludeCreateManyAndReturn<ExtArgs> | null
+  }
+
+  /**
+   * snapshot_history update
+   */
+  export type snapshot_historyUpdateArgs<ExtArgs extends $Extensions.InternalArgs = $Extensions.DefaultArgs> = {
+    /**
+     * Select specific fields to fetch from the snapshot_history
+     */
+    select?: snapshot_historySelect<ExtArgs> | null
+    /**
+     * Omit specific fields from the snapshot_history
+     */
+    omit?: snapshot_historyOmit<ExtArgs> | null
+    /**
+     * Choose, which related nodes to fetch as well
+     */
+    include?: snapshot_historyInclude<ExtArgs> | null
+    /**
+     * The data needed to update a snapshot_history.
+     */
+    data: XOR<snapshot_historyUpdateInput, snapshot_historyUncheckedUpdateInput>
+    /**
+     * Choose, which snapshot_history to update.
+     */
+    where: snapshot_historyWhereUniqueInput
+  }
+
+  /**
+   * snapshot_history updateMany
+   */
+  export type snapshot_historyUpdateManyArgs<ExtArgs extends $Extensions.InternalArgs = $Extensions.DefaultArgs> = {
+    /**
+     * The data used to update snapshot_histories.
+     */
+    data: XOR<snapshot_historyUpdateManyMutationInput, snapshot_historyUncheckedUpdateManyInput>
+    /**
+     * Filter which snapshot_histories to update
+     */
+    where?: snapshot_historyWhereInput
+    /**
+     * Limit how many snapshot_histories to update.
+     */
+    limit?: number
+  }
+
+  /**
+   * snapshot_history updateManyAndReturn
+   */
+  export type snapshot_historyUpdateManyAndReturnArgs<ExtArgs extends $Extensions.InternalArgs = $Extensions.DefaultArgs> = {
+    /**
+     * Select specific fields to fetch from the snapshot_history
+     */
+    select?: snapshot_historySelectUpdateManyAndReturn<ExtArgs> | null
+    /**
+     * Omit specific fields from the snapshot_history
+     */
+    omit?: snapshot_historyOmit<ExtArgs> | null
+    /**
+     * The data used to update snapshot_histories.
+     */
+    data: XOR<snapshot_historyUpdateManyMutationInput, snapshot_historyUncheckedUpdateManyInput>
+    /**
+     * Filter which snapshot_histories to update
+     */
+    where?: snapshot_historyWhereInput
+    /**
+     * Limit how many snapshot_histories to update.
+     */
+    limit?: number
+    /**
+     * Choose, which related nodes to fetch as well
+     */
+    include?: snapshot_historyIncludeUpdateManyAndReturn<ExtArgs> | null
+  }
+
+  /**
+   * snapshot_history upsert
+   */
+  export type snapshot_historyUpsertArgs<ExtArgs extends $Extensions.InternalArgs = $Extensions.DefaultArgs> = {
+    /**
+     * Select specific fields to fetch from the snapshot_history
+     */
+    select?: snapshot_historySelect<ExtArgs> | null
+    /**
+     * Omit specific fields from the snapshot_history
+     */
+    omit?: snapshot_historyOmit<ExtArgs> | null
+    /**
+     * Choose, which related nodes to fetch as well
+     */
+    include?: snapshot_historyInclude<ExtArgs> | null
+    /**
+     * The filter to search for the snapshot_history to update in case it exists.
+     */
+    where: snapshot_historyWhereUniqueInput
+    /**
+     * In case the snapshot_history found by the `where` argument doesn't exist, create a new snapshot_history with this data.
+     */
+    create: XOR<snapshot_historyCreateInput, snapshot_historyUncheckedCreateInput>
+    /**
+     * In case the snapshot_history was found with the provided `where` argument, update it with this data.
+     */
+    update: XOR<snapshot_historyUpdateInput, snapshot_historyUncheckedUpdateInput>
+  }
+
+  /**
+   * snapshot_history delete
+   */
+  export type snapshot_historyDeleteArgs<ExtArgs extends $Extensions.InternalArgs = $Extensions.DefaultArgs> = {
+    /**
+     * Select specific fields to fetch from the snapshot_history
+     */
+    select?: snapshot_historySelect<ExtArgs> | null
+    /**
+     * Omit specific fields from the snapshot_history
+     */
+    omit?: snapshot_historyOmit<ExtArgs> | null
+    /**
+     * Choose, which related nodes to fetch as well
+     */
+    include?: snapshot_historyInclude<ExtArgs> | null
+    /**
+     * Filter which snapshot_history to delete.
+     */
+    where: snapshot_historyWhereUniqueInput
+  }
+
+  /**
+   * snapshot_history deleteMany
+   */
+  export type snapshot_historyDeleteManyArgs<ExtArgs extends $Extensions.InternalArgs = $Extensions.DefaultArgs> = {
+    /**
+     * Filter which snapshot_histories to delete
+     */
+    where?: snapshot_historyWhereInput
+    /**
+     * Limit how many snapshot_histories to delete.
+     */
+    limit?: number
+  }
+
+  /**
+   * snapshot_history without action
+   */
+  export type snapshot_historyDefaultArgs<ExtArgs extends $Extensions.InternalArgs = $Extensions.DefaultArgs> = {
+    /**
+     * Select specific fields to fetch from the snapshot_history
+     */
+    select?: snapshot_historySelect<ExtArgs> | null
+    /**
+     * Omit specific fields from the snapshot_history
+     */
+    omit?: snapshot_historyOmit<ExtArgs> | null
+    /**
+     * Choose, which related nodes to fetch as well
+     */
+    include?: snapshot_historyInclude<ExtArgs> | null
   }
 
 
@@ -56442,6 +57713,20 @@ export namespace Prisma {
   export type SnapshotsScalarFieldEnum = (typeof SnapshotsScalarFieldEnum)[keyof typeof SnapshotsScalarFieldEnum]
 
 
+  export const Snapshot_historyScalarFieldEnum: {
+    id: 'id',
+    portfolio_id: 'portfolio_id',
+    captured_on: 'captured_on',
+    market_value: 'market_value',
+    cash_balance: 'cash_balance',
+    total_return: 'total_return',
+    realized_pnl: 'realized_pnl',
+    created_at: 'created_at'
+  };
+
+  export type Snapshot_historyScalarFieldEnum = (typeof Snapshot_historyScalarFieldEnum)[keyof typeof Snapshot_historyScalarFieldEnum]
+
+
   export const TransactionScalarFieldEnum: {
     portfolioId: 'portfolioId',
     symbol: 'symbol',
@@ -58946,6 +60231,7 @@ export namespace Prisma {
     import_runs?: Import_runsListRelationFilter
     positions?: PositionListRelationFilter
     snapshot?: XOR<SnapshotsNullableScalarRelationFilter, snapshotsWhereInput> | null
+    snapshot_history?: Snapshot_historyListRelationFilter
     transactions?: TransactionListRelationFilter
   }
 
@@ -58960,6 +60246,7 @@ export namespace Prisma {
     import_runs?: import_runsOrderByRelationAggregateInput
     positions?: PositionOrderByRelationAggregateInput
     snapshot?: snapshotsOrderByWithRelationInput
+    snapshot_history?: snapshot_historyOrderByRelationAggregateInput
     transactions?: TransactionOrderByRelationAggregateInput
   }
 
@@ -58977,6 +60264,7 @@ export namespace Prisma {
     import_runs?: Import_runsListRelationFilter
     positions?: PositionListRelationFilter
     snapshot?: XOR<SnapshotsNullableScalarRelationFilter, snapshotsWhereInput> | null
+    snapshot_history?: Snapshot_historyListRelationFilter
     transactions?: TransactionListRelationFilter
   }, "id">
 
@@ -59246,6 +60534,79 @@ export namespace Prisma {
     realized_pnl?: DecimalNullableWithAggregatesFilter<"snapshots"> | Decimal | DecimalJsLike | number | string | null
     created_at?: DateTimeWithAggregatesFilter<"snapshots"> | Date | string
     updated_at?: DateTimeWithAggregatesFilter<"snapshots"> | Date | string
+  }
+
+  export type snapshot_historyWhereInput = {
+    AND?: snapshot_historyWhereInput | snapshot_historyWhereInput[]
+    OR?: snapshot_historyWhereInput[]
+    NOT?: snapshot_historyWhereInput | snapshot_historyWhereInput[]
+    id?: UuidFilter<"snapshot_history"> | string
+    portfolio_id?: UuidFilter<"snapshot_history"> | string
+    captured_on?: DateTimeFilter<"snapshot_history"> | Date | string
+    market_value?: DecimalNullableFilter<"snapshot_history"> | Decimal | DecimalJsLike | number | string | null
+    cash_balance?: DecimalNullableFilter<"snapshot_history"> | Decimal | DecimalJsLike | number | string | null
+    total_return?: DecimalNullableFilter<"snapshot_history"> | Decimal | DecimalJsLike | number | string | null
+    realized_pnl?: DecimalNullableFilter<"snapshot_history"> | Decimal | DecimalJsLike | number | string | null
+    created_at?: DateTimeFilter<"snapshot_history"> | Date | string
+    portfolio?: XOR<PortfolioScalarRelationFilter, PortfolioWhereInput>
+  }
+
+  export type snapshot_historyOrderByWithRelationInput = {
+    id?: SortOrder
+    portfolio_id?: SortOrder
+    captured_on?: SortOrder
+    market_value?: SortOrderInput | SortOrder
+    cash_balance?: SortOrderInput | SortOrder
+    total_return?: SortOrderInput | SortOrder
+    realized_pnl?: SortOrderInput | SortOrder
+    created_at?: SortOrder
+    portfolio?: PortfolioOrderByWithRelationInput
+  }
+
+  export type snapshot_historyWhereUniqueInput = Prisma.AtLeast<{
+    id?: string
+    portfolio_id_captured_on?: snapshot_historyPortfolio_idCaptured_onCompoundUniqueInput
+    AND?: snapshot_historyWhereInput | snapshot_historyWhereInput[]
+    OR?: snapshot_historyWhereInput[]
+    NOT?: snapshot_historyWhereInput | snapshot_historyWhereInput[]
+    portfolio_id?: UuidFilter<"snapshot_history"> | string
+    captured_on?: DateTimeFilter<"snapshot_history"> | Date | string
+    market_value?: DecimalNullableFilter<"snapshot_history"> | Decimal | DecimalJsLike | number | string | null
+    cash_balance?: DecimalNullableFilter<"snapshot_history"> | Decimal | DecimalJsLike | number | string | null
+    total_return?: DecimalNullableFilter<"snapshot_history"> | Decimal | DecimalJsLike | number | string | null
+    realized_pnl?: DecimalNullableFilter<"snapshot_history"> | Decimal | DecimalJsLike | number | string | null
+    created_at?: DateTimeFilter<"snapshot_history"> | Date | string
+    portfolio?: XOR<PortfolioScalarRelationFilter, PortfolioWhereInput>
+  }, "id" | "portfolio_id_captured_on">
+
+  export type snapshot_historyOrderByWithAggregationInput = {
+    id?: SortOrder
+    portfolio_id?: SortOrder
+    captured_on?: SortOrder
+    market_value?: SortOrderInput | SortOrder
+    cash_balance?: SortOrderInput | SortOrder
+    total_return?: SortOrderInput | SortOrder
+    realized_pnl?: SortOrderInput | SortOrder
+    created_at?: SortOrder
+    _count?: snapshot_historyCountOrderByAggregateInput
+    _avg?: snapshot_historyAvgOrderByAggregateInput
+    _max?: snapshot_historyMaxOrderByAggregateInput
+    _min?: snapshot_historyMinOrderByAggregateInput
+    _sum?: snapshot_historySumOrderByAggregateInput
+  }
+
+  export type snapshot_historyScalarWhereWithAggregatesInput = {
+    AND?: snapshot_historyScalarWhereWithAggregatesInput | snapshot_historyScalarWhereWithAggregatesInput[]
+    OR?: snapshot_historyScalarWhereWithAggregatesInput[]
+    NOT?: snapshot_historyScalarWhereWithAggregatesInput | snapshot_historyScalarWhereWithAggregatesInput[]
+    id?: UuidWithAggregatesFilter<"snapshot_history"> | string
+    portfolio_id?: UuidWithAggregatesFilter<"snapshot_history"> | string
+    captured_on?: DateTimeWithAggregatesFilter<"snapshot_history"> | Date | string
+    market_value?: DecimalNullableWithAggregatesFilter<"snapshot_history"> | Decimal | DecimalJsLike | number | string | null
+    cash_balance?: DecimalNullableWithAggregatesFilter<"snapshot_history"> | Decimal | DecimalJsLike | number | string | null
+    total_return?: DecimalNullableWithAggregatesFilter<"snapshot_history"> | Decimal | DecimalJsLike | number | string | null
+    realized_pnl?: DecimalNullableWithAggregatesFilter<"snapshot_history"> | Decimal | DecimalJsLike | number | string | null
+    created_at?: DateTimeWithAggregatesFilter<"snapshot_history"> | Date | string
   }
 
   export type TransactionWhereInput = {
@@ -62614,6 +63975,7 @@ export namespace Prisma {
     import_runs?: import_runsCreateNestedManyWithoutPortfolioInput
     positions?: PositionCreateNestedManyWithoutPortfolioInput
     snapshot?: snapshotsCreateNestedOneWithoutPortfolioInput
+    snapshot_history?: snapshot_historyCreateNestedManyWithoutPortfolioInput
     transactions?: TransactionCreateNestedManyWithoutPortfolioInput
   }
 
@@ -62628,6 +63990,7 @@ export namespace Prisma {
     import_runs?: import_runsUncheckedCreateNestedManyWithoutPortfolioInput
     positions?: PositionUncheckedCreateNestedManyWithoutPortfolioInput
     snapshot?: snapshotsUncheckedCreateNestedOneWithoutPortfolioInput
+    snapshot_history?: snapshot_historyUncheckedCreateNestedManyWithoutPortfolioInput
     transactions?: TransactionUncheckedCreateNestedManyWithoutPortfolioInput
   }
 
@@ -62642,6 +64005,7 @@ export namespace Prisma {
     import_runs?: import_runsUpdateManyWithoutPortfolioNestedInput
     positions?: PositionUpdateManyWithoutPortfolioNestedInput
     snapshot?: snapshotsUpdateOneWithoutPortfolioNestedInput
+    snapshot_history?: snapshot_historyUpdateManyWithoutPortfolioNestedInput
     transactions?: TransactionUpdateManyWithoutPortfolioNestedInput
   }
 
@@ -62656,6 +64020,7 @@ export namespace Prisma {
     import_runs?: import_runsUncheckedUpdateManyWithoutPortfolioNestedInput
     positions?: PositionUncheckedUpdateManyWithoutPortfolioNestedInput
     snapshot?: snapshotsUncheckedUpdateOneWithoutPortfolioNestedInput
+    snapshot_history?: snapshot_historyUncheckedUpdateManyWithoutPortfolioNestedInput
     transactions?: TransactionUncheckedUpdateManyWithoutPortfolioNestedInput
   }
 
@@ -62943,6 +64308,82 @@ export namespace Prisma {
     realized_pnl?: NullableDecimalFieldUpdateOperationsInput | Decimal | DecimalJsLike | number | string | null
     created_at?: DateTimeFieldUpdateOperationsInput | Date | string
     updated_at?: DateTimeFieldUpdateOperationsInput | Date | string
+  }
+
+  export type snapshot_historyCreateInput = {
+    id?: string
+    captured_on: Date | string
+    market_value?: Decimal | DecimalJsLike | number | string | null
+    cash_balance?: Decimal | DecimalJsLike | number | string | null
+    total_return?: Decimal | DecimalJsLike | number | string | null
+    realized_pnl?: Decimal | DecimalJsLike | number | string | null
+    created_at?: Date | string
+    portfolio: PortfolioCreateNestedOneWithoutSnapshot_historyInput
+  }
+
+  export type snapshot_historyUncheckedCreateInput = {
+    id?: string
+    portfolio_id: string
+    captured_on: Date | string
+    market_value?: Decimal | DecimalJsLike | number | string | null
+    cash_balance?: Decimal | DecimalJsLike | number | string | null
+    total_return?: Decimal | DecimalJsLike | number | string | null
+    realized_pnl?: Decimal | DecimalJsLike | number | string | null
+    created_at?: Date | string
+  }
+
+  export type snapshot_historyUpdateInput = {
+    id?: StringFieldUpdateOperationsInput | string
+    captured_on?: DateTimeFieldUpdateOperationsInput | Date | string
+    market_value?: NullableDecimalFieldUpdateOperationsInput | Decimal | DecimalJsLike | number | string | null
+    cash_balance?: NullableDecimalFieldUpdateOperationsInput | Decimal | DecimalJsLike | number | string | null
+    total_return?: NullableDecimalFieldUpdateOperationsInput | Decimal | DecimalJsLike | number | string | null
+    realized_pnl?: NullableDecimalFieldUpdateOperationsInput | Decimal | DecimalJsLike | number | string | null
+    created_at?: DateTimeFieldUpdateOperationsInput | Date | string
+    portfolio?: PortfolioUpdateOneRequiredWithoutSnapshot_historyNestedInput
+  }
+
+  export type snapshot_historyUncheckedUpdateInput = {
+    id?: StringFieldUpdateOperationsInput | string
+    portfolio_id?: StringFieldUpdateOperationsInput | string
+    captured_on?: DateTimeFieldUpdateOperationsInput | Date | string
+    market_value?: NullableDecimalFieldUpdateOperationsInput | Decimal | DecimalJsLike | number | string | null
+    cash_balance?: NullableDecimalFieldUpdateOperationsInput | Decimal | DecimalJsLike | number | string | null
+    total_return?: NullableDecimalFieldUpdateOperationsInput | Decimal | DecimalJsLike | number | string | null
+    realized_pnl?: NullableDecimalFieldUpdateOperationsInput | Decimal | DecimalJsLike | number | string | null
+    created_at?: DateTimeFieldUpdateOperationsInput | Date | string
+  }
+
+  export type snapshot_historyCreateManyInput = {
+    id?: string
+    portfolio_id: string
+    captured_on: Date | string
+    market_value?: Decimal | DecimalJsLike | number | string | null
+    cash_balance?: Decimal | DecimalJsLike | number | string | null
+    total_return?: Decimal | DecimalJsLike | number | string | null
+    realized_pnl?: Decimal | DecimalJsLike | number | string | null
+    created_at?: Date | string
+  }
+
+  export type snapshot_historyUpdateManyMutationInput = {
+    id?: StringFieldUpdateOperationsInput | string
+    captured_on?: DateTimeFieldUpdateOperationsInput | Date | string
+    market_value?: NullableDecimalFieldUpdateOperationsInput | Decimal | DecimalJsLike | number | string | null
+    cash_balance?: NullableDecimalFieldUpdateOperationsInput | Decimal | DecimalJsLike | number | string | null
+    total_return?: NullableDecimalFieldUpdateOperationsInput | Decimal | DecimalJsLike | number | string | null
+    realized_pnl?: NullableDecimalFieldUpdateOperationsInput | Decimal | DecimalJsLike | number | string | null
+    created_at?: DateTimeFieldUpdateOperationsInput | Date | string
+  }
+
+  export type snapshot_historyUncheckedUpdateManyInput = {
+    id?: StringFieldUpdateOperationsInput | string
+    portfolio_id?: StringFieldUpdateOperationsInput | string
+    captured_on?: DateTimeFieldUpdateOperationsInput | Date | string
+    market_value?: NullableDecimalFieldUpdateOperationsInput | Decimal | DecimalJsLike | number | string | null
+    cash_balance?: NullableDecimalFieldUpdateOperationsInput | Decimal | DecimalJsLike | number | string | null
+    total_return?: NullableDecimalFieldUpdateOperationsInput | Decimal | DecimalJsLike | number | string | null
+    realized_pnl?: NullableDecimalFieldUpdateOperationsInput | Decimal | DecimalJsLike | number | string | null
+    created_at?: DateTimeFieldUpdateOperationsInput | Date | string
   }
 
   export type TransactionCreateInput = {
@@ -65985,6 +67426,12 @@ export namespace Prisma {
     isNot?: snapshotsWhereInput | null
   }
 
+  export type Snapshot_historyListRelationFilter = {
+    every?: snapshot_historyWhereInput
+    some?: snapshot_historyWhereInput
+    none?: snapshot_historyWhereInput
+  }
+
   export type binance_backfill_progressOrderByRelationAggregateInput = {
     _count?: SortOrder
   }
@@ -65994,6 +67441,10 @@ export namespace Prisma {
   }
 
   export type import_runsOrderByRelationAggregateInput = {
+    _count?: SortOrder
+  }
+
+  export type snapshot_historyOrderByRelationAggregateInput = {
     _count?: SortOrder
   }
 
@@ -66191,6 +67642,58 @@ export namespace Prisma {
     market_value?: SortOrder
     cash_balance?: SortOrder
     daily_return?: SortOrder
+    total_return?: SortOrder
+    realized_pnl?: SortOrder
+  }
+
+  export type snapshot_historyPortfolio_idCaptured_onCompoundUniqueInput = {
+    portfolio_id: string
+    captured_on: Date | string
+  }
+
+  export type snapshot_historyCountOrderByAggregateInput = {
+    id?: SortOrder
+    portfolio_id?: SortOrder
+    captured_on?: SortOrder
+    market_value?: SortOrder
+    cash_balance?: SortOrder
+    total_return?: SortOrder
+    realized_pnl?: SortOrder
+    created_at?: SortOrder
+  }
+
+  export type snapshot_historyAvgOrderByAggregateInput = {
+    market_value?: SortOrder
+    cash_balance?: SortOrder
+    total_return?: SortOrder
+    realized_pnl?: SortOrder
+  }
+
+  export type snapshot_historyMaxOrderByAggregateInput = {
+    id?: SortOrder
+    portfolio_id?: SortOrder
+    captured_on?: SortOrder
+    market_value?: SortOrder
+    cash_balance?: SortOrder
+    total_return?: SortOrder
+    realized_pnl?: SortOrder
+    created_at?: SortOrder
+  }
+
+  export type snapshot_historyMinOrderByAggregateInput = {
+    id?: SortOrder
+    portfolio_id?: SortOrder
+    captured_on?: SortOrder
+    market_value?: SortOrder
+    cash_balance?: SortOrder
+    total_return?: SortOrder
+    realized_pnl?: SortOrder
+    created_at?: SortOrder
+  }
+
+  export type snapshot_historySumOrderByAggregateInput = {
+    market_value?: SortOrder
+    cash_balance?: SortOrder
     total_return?: SortOrder
     realized_pnl?: SortOrder
   }
@@ -67846,6 +69349,13 @@ export namespace Prisma {
     connect?: snapshotsWhereUniqueInput
   }
 
+  export type snapshot_historyCreateNestedManyWithoutPortfolioInput = {
+    create?: XOR<snapshot_historyCreateWithoutPortfolioInput, snapshot_historyUncheckedCreateWithoutPortfolioInput> | snapshot_historyCreateWithoutPortfolioInput[] | snapshot_historyUncheckedCreateWithoutPortfolioInput[]
+    connectOrCreate?: snapshot_historyCreateOrConnectWithoutPortfolioInput | snapshot_historyCreateOrConnectWithoutPortfolioInput[]
+    createMany?: snapshot_historyCreateManyPortfolioInputEnvelope
+    connect?: snapshot_historyWhereUniqueInput | snapshot_historyWhereUniqueInput[]
+  }
+
   export type TransactionCreateNestedManyWithoutPortfolioInput = {
     create?: XOR<TransactionCreateWithoutPortfolioInput, TransactionUncheckedCreateWithoutPortfolioInput> | TransactionCreateWithoutPortfolioInput[] | TransactionUncheckedCreateWithoutPortfolioInput[]
     connectOrCreate?: TransactionCreateOrConnectWithoutPortfolioInput | TransactionCreateOrConnectWithoutPortfolioInput[]
@@ -67885,6 +69395,13 @@ export namespace Prisma {
     create?: XOR<snapshotsCreateWithoutPortfolioInput, snapshotsUncheckedCreateWithoutPortfolioInput>
     connectOrCreate?: snapshotsCreateOrConnectWithoutPortfolioInput
     connect?: snapshotsWhereUniqueInput
+  }
+
+  export type snapshot_historyUncheckedCreateNestedManyWithoutPortfolioInput = {
+    create?: XOR<snapshot_historyCreateWithoutPortfolioInput, snapshot_historyUncheckedCreateWithoutPortfolioInput> | snapshot_historyCreateWithoutPortfolioInput[] | snapshot_historyUncheckedCreateWithoutPortfolioInput[]
+    connectOrCreate?: snapshot_historyCreateOrConnectWithoutPortfolioInput | snapshot_historyCreateOrConnectWithoutPortfolioInput[]
+    createMany?: snapshot_historyCreateManyPortfolioInputEnvelope
+    connect?: snapshot_historyWhereUniqueInput | snapshot_historyWhereUniqueInput[]
   }
 
   export type TransactionUncheckedCreateNestedManyWithoutPortfolioInput = {
@@ -67958,6 +69475,20 @@ export namespace Prisma {
     delete?: snapshotsWhereInput | boolean
     connect?: snapshotsWhereUniqueInput
     update?: XOR<XOR<snapshotsUpdateToOneWithWhereWithoutPortfolioInput, snapshotsUpdateWithoutPortfolioInput>, snapshotsUncheckedUpdateWithoutPortfolioInput>
+  }
+
+  export type snapshot_historyUpdateManyWithoutPortfolioNestedInput = {
+    create?: XOR<snapshot_historyCreateWithoutPortfolioInput, snapshot_historyUncheckedCreateWithoutPortfolioInput> | snapshot_historyCreateWithoutPortfolioInput[] | snapshot_historyUncheckedCreateWithoutPortfolioInput[]
+    connectOrCreate?: snapshot_historyCreateOrConnectWithoutPortfolioInput | snapshot_historyCreateOrConnectWithoutPortfolioInput[]
+    upsert?: snapshot_historyUpsertWithWhereUniqueWithoutPortfolioInput | snapshot_historyUpsertWithWhereUniqueWithoutPortfolioInput[]
+    createMany?: snapshot_historyCreateManyPortfolioInputEnvelope
+    set?: snapshot_historyWhereUniqueInput | snapshot_historyWhereUniqueInput[]
+    disconnect?: snapshot_historyWhereUniqueInput | snapshot_historyWhereUniqueInput[]
+    delete?: snapshot_historyWhereUniqueInput | snapshot_historyWhereUniqueInput[]
+    connect?: snapshot_historyWhereUniqueInput | snapshot_historyWhereUniqueInput[]
+    update?: snapshot_historyUpdateWithWhereUniqueWithoutPortfolioInput | snapshot_historyUpdateWithWhereUniqueWithoutPortfolioInput[]
+    updateMany?: snapshot_historyUpdateManyWithWhereWithoutPortfolioInput | snapshot_historyUpdateManyWithWhereWithoutPortfolioInput[]
+    deleteMany?: snapshot_historyScalarWhereInput | snapshot_historyScalarWhereInput[]
   }
 
   export type TransactionUpdateManyWithoutPortfolioNestedInput = {
@@ -68040,6 +69571,20 @@ export namespace Prisma {
     update?: XOR<XOR<snapshotsUpdateToOneWithWhereWithoutPortfolioInput, snapshotsUpdateWithoutPortfolioInput>, snapshotsUncheckedUpdateWithoutPortfolioInput>
   }
 
+  export type snapshot_historyUncheckedUpdateManyWithoutPortfolioNestedInput = {
+    create?: XOR<snapshot_historyCreateWithoutPortfolioInput, snapshot_historyUncheckedCreateWithoutPortfolioInput> | snapshot_historyCreateWithoutPortfolioInput[] | snapshot_historyUncheckedCreateWithoutPortfolioInput[]
+    connectOrCreate?: snapshot_historyCreateOrConnectWithoutPortfolioInput | snapshot_historyCreateOrConnectWithoutPortfolioInput[]
+    upsert?: snapshot_historyUpsertWithWhereUniqueWithoutPortfolioInput | snapshot_historyUpsertWithWhereUniqueWithoutPortfolioInput[]
+    createMany?: snapshot_historyCreateManyPortfolioInputEnvelope
+    set?: snapshot_historyWhereUniqueInput | snapshot_historyWhereUniqueInput[]
+    disconnect?: snapshot_historyWhereUniqueInput | snapshot_historyWhereUniqueInput[]
+    delete?: snapshot_historyWhereUniqueInput | snapshot_historyWhereUniqueInput[]
+    connect?: snapshot_historyWhereUniqueInput | snapshot_historyWhereUniqueInput[]
+    update?: snapshot_historyUpdateWithWhereUniqueWithoutPortfolioInput | snapshot_historyUpdateWithWhereUniqueWithoutPortfolioInput[]
+    updateMany?: snapshot_historyUpdateManyWithWhereWithoutPortfolioInput | snapshot_historyUpdateManyWithWhereWithoutPortfolioInput[]
+    deleteMany?: snapshot_historyScalarWhereInput | snapshot_historyScalarWhereInput[]
+  }
+
   export type TransactionUncheckedUpdateManyWithoutPortfolioNestedInput = {
     create?: XOR<TransactionCreateWithoutPortfolioInput, TransactionUncheckedCreateWithoutPortfolioInput> | TransactionCreateWithoutPortfolioInput[] | TransactionUncheckedCreateWithoutPortfolioInput[]
     connectOrCreate?: TransactionCreateOrConnectWithoutPortfolioInput | TransactionCreateOrConnectWithoutPortfolioInput[]
@@ -68110,6 +69655,20 @@ export namespace Prisma {
     upsert?: PortfolioUpsertWithoutSnapshotInput
     connect?: PortfolioWhereUniqueInput
     update?: XOR<XOR<PortfolioUpdateToOneWithWhereWithoutSnapshotInput, PortfolioUpdateWithoutSnapshotInput>, PortfolioUncheckedUpdateWithoutSnapshotInput>
+  }
+
+  export type PortfolioCreateNestedOneWithoutSnapshot_historyInput = {
+    create?: XOR<PortfolioCreateWithoutSnapshot_historyInput, PortfolioUncheckedCreateWithoutSnapshot_historyInput>
+    connectOrCreate?: PortfolioCreateOrConnectWithoutSnapshot_historyInput
+    connect?: PortfolioWhereUniqueInput
+  }
+
+  export type PortfolioUpdateOneRequiredWithoutSnapshot_historyNestedInput = {
+    create?: XOR<PortfolioCreateWithoutSnapshot_historyInput, PortfolioUncheckedCreateWithoutSnapshot_historyInput>
+    connectOrCreate?: PortfolioCreateOrConnectWithoutSnapshot_historyInput
+    upsert?: PortfolioUpsertWithoutSnapshot_historyInput
+    connect?: PortfolioWhereUniqueInput
+    update?: XOR<XOR<PortfolioUpdateToOneWithWhereWithoutSnapshot_historyInput, PortfolioUpdateWithoutSnapshot_historyInput>, PortfolioUncheckedUpdateWithoutSnapshot_historyInput>
   }
 
   export type AssetSnapshotCreateNestedOneWithoutTransactionsInput = {
@@ -71566,6 +73125,7 @@ export namespace Prisma {
     import_runs?: import_runsCreateNestedManyWithoutPortfolioInput
     positions?: PositionCreateNestedManyWithoutPortfolioInput
     snapshot?: snapshotsCreateNestedOneWithoutPortfolioInput
+    snapshot_history?: snapshot_historyCreateNestedManyWithoutPortfolioInput
     transactions?: TransactionCreateNestedManyWithoutPortfolioInput
   }
 
@@ -71579,6 +73139,7 @@ export namespace Prisma {
     import_runs?: import_runsUncheckedCreateNestedManyWithoutPortfolioInput
     positions?: PositionUncheckedCreateNestedManyWithoutPortfolioInput
     snapshot?: snapshotsUncheckedCreateNestedOneWithoutPortfolioInput
+    snapshot_history?: snapshot_historyUncheckedCreateNestedManyWithoutPortfolioInput
     transactions?: TransactionUncheckedCreateNestedManyWithoutPortfolioInput
   }
 
@@ -71608,6 +73169,7 @@ export namespace Prisma {
     import_runs?: import_runsUpdateManyWithoutPortfolioNestedInput
     positions?: PositionUpdateManyWithoutPortfolioNestedInput
     snapshot?: snapshotsUpdateOneWithoutPortfolioNestedInput
+    snapshot_history?: snapshot_historyUpdateManyWithoutPortfolioNestedInput
     transactions?: TransactionUpdateManyWithoutPortfolioNestedInput
   }
 
@@ -71621,6 +73183,7 @@ export namespace Prisma {
     import_runs?: import_runsUncheckedUpdateManyWithoutPortfolioNestedInput
     positions?: PositionUncheckedUpdateManyWithoutPortfolioNestedInput
     snapshot?: snapshotsUncheckedUpdateOneWithoutPortfolioNestedInput
+    snapshot_history?: snapshot_historyUncheckedUpdateManyWithoutPortfolioNestedInput
     transactions?: TransactionUncheckedUpdateManyWithoutPortfolioNestedInput
   }
 
@@ -71634,6 +73197,7 @@ export namespace Prisma {
     broker_wallet_balances?: broker_wallet_balancesCreateNestedManyWithoutPortfolioInput
     positions?: PositionCreateNestedManyWithoutPortfolioInput
     snapshot?: snapshotsCreateNestedOneWithoutPortfolioInput
+    snapshot_history?: snapshot_historyCreateNestedManyWithoutPortfolioInput
     transactions?: TransactionCreateNestedManyWithoutPortfolioInput
   }
 
@@ -71647,6 +73211,7 @@ export namespace Prisma {
     broker_wallet_balances?: broker_wallet_balancesUncheckedCreateNestedManyWithoutPortfolioInput
     positions?: PositionUncheckedCreateNestedManyWithoutPortfolioInput
     snapshot?: snapshotsUncheckedCreateNestedOneWithoutPortfolioInput
+    snapshot_history?: snapshot_historyUncheckedCreateNestedManyWithoutPortfolioInput
     transactions?: TransactionUncheckedCreateNestedManyWithoutPortfolioInput
   }
 
@@ -71730,6 +73295,7 @@ export namespace Prisma {
     broker_wallet_balances?: broker_wallet_balancesUpdateManyWithoutPortfolioNestedInput
     positions?: PositionUpdateManyWithoutPortfolioNestedInput
     snapshot?: snapshotsUpdateOneWithoutPortfolioNestedInput
+    snapshot_history?: snapshot_historyUpdateManyWithoutPortfolioNestedInput
     transactions?: TransactionUpdateManyWithoutPortfolioNestedInput
   }
 
@@ -71743,6 +73309,7 @@ export namespace Prisma {
     broker_wallet_balances?: broker_wallet_balancesUncheckedUpdateManyWithoutPortfolioNestedInput
     positions?: PositionUncheckedUpdateManyWithoutPortfolioNestedInput
     snapshot?: snapshotsUncheckedUpdateOneWithoutPortfolioNestedInput
+    snapshot_history?: snapshot_historyUncheckedUpdateManyWithoutPortfolioNestedInput
     transactions?: TransactionUncheckedUpdateManyWithoutPortfolioNestedInput
   }
 
@@ -71927,6 +73494,36 @@ export namespace Prisma {
   export type snapshotsCreateOrConnectWithoutPortfolioInput = {
     where: snapshotsWhereUniqueInput
     create: XOR<snapshotsCreateWithoutPortfolioInput, snapshotsUncheckedCreateWithoutPortfolioInput>
+  }
+
+  export type snapshot_historyCreateWithoutPortfolioInput = {
+    id?: string
+    captured_on: Date | string
+    market_value?: Decimal | DecimalJsLike | number | string | null
+    cash_balance?: Decimal | DecimalJsLike | number | string | null
+    total_return?: Decimal | DecimalJsLike | number | string | null
+    realized_pnl?: Decimal | DecimalJsLike | number | string | null
+    created_at?: Date | string
+  }
+
+  export type snapshot_historyUncheckedCreateWithoutPortfolioInput = {
+    id?: string
+    captured_on: Date | string
+    market_value?: Decimal | DecimalJsLike | number | string | null
+    cash_balance?: Decimal | DecimalJsLike | number | string | null
+    total_return?: Decimal | DecimalJsLike | number | string | null
+    realized_pnl?: Decimal | DecimalJsLike | number | string | null
+    created_at?: Date | string
+  }
+
+  export type snapshot_historyCreateOrConnectWithoutPortfolioInput = {
+    where: snapshot_historyWhereUniqueInput
+    create: XOR<snapshot_historyCreateWithoutPortfolioInput, snapshot_historyUncheckedCreateWithoutPortfolioInput>
+  }
+
+  export type snapshot_historyCreateManyPortfolioInputEnvelope = {
+    data: snapshot_historyCreateManyPortfolioInput | snapshot_historyCreateManyPortfolioInput[]
+    skipDuplicates?: boolean
   }
 
   export type TransactionCreateWithoutPortfolioInput = {
@@ -72124,6 +73721,36 @@ export namespace Prisma {
     updated_at?: DateTimeFieldUpdateOperationsInput | Date | string
   }
 
+  export type snapshot_historyUpsertWithWhereUniqueWithoutPortfolioInput = {
+    where: snapshot_historyWhereUniqueInput
+    update: XOR<snapshot_historyUpdateWithoutPortfolioInput, snapshot_historyUncheckedUpdateWithoutPortfolioInput>
+    create: XOR<snapshot_historyCreateWithoutPortfolioInput, snapshot_historyUncheckedCreateWithoutPortfolioInput>
+  }
+
+  export type snapshot_historyUpdateWithWhereUniqueWithoutPortfolioInput = {
+    where: snapshot_historyWhereUniqueInput
+    data: XOR<snapshot_historyUpdateWithoutPortfolioInput, snapshot_historyUncheckedUpdateWithoutPortfolioInput>
+  }
+
+  export type snapshot_historyUpdateManyWithWhereWithoutPortfolioInput = {
+    where: snapshot_historyScalarWhereInput
+    data: XOR<snapshot_historyUpdateManyMutationInput, snapshot_historyUncheckedUpdateManyWithoutPortfolioInput>
+  }
+
+  export type snapshot_historyScalarWhereInput = {
+    AND?: snapshot_historyScalarWhereInput | snapshot_historyScalarWhereInput[]
+    OR?: snapshot_historyScalarWhereInput[]
+    NOT?: snapshot_historyScalarWhereInput | snapshot_historyScalarWhereInput[]
+    id?: UuidFilter<"snapshot_history"> | string
+    portfolio_id?: UuidFilter<"snapshot_history"> | string
+    captured_on?: DateTimeFilter<"snapshot_history"> | Date | string
+    market_value?: DecimalNullableFilter<"snapshot_history"> | Decimal | DecimalJsLike | number | string | null
+    cash_balance?: DecimalNullableFilter<"snapshot_history"> | Decimal | DecimalJsLike | number | string | null
+    total_return?: DecimalNullableFilter<"snapshot_history"> | Decimal | DecimalJsLike | number | string | null
+    realized_pnl?: DecimalNullableFilter<"snapshot_history"> | Decimal | DecimalJsLike | number | string | null
+    created_at?: DateTimeFilter<"snapshot_history"> | Date | string
+  }
+
   export type TransactionUpsertWithWhereUniqueWithoutPortfolioInput = {
     where: TransactionWhereUniqueInput
     update: XOR<TransactionUpdateWithoutPortfolioInput, TransactionUncheckedUpdateWithoutPortfolioInput>
@@ -72197,6 +73824,7 @@ export namespace Prisma {
     broker_wallet_balances?: broker_wallet_balancesCreateNestedManyWithoutPortfolioInput
     import_runs?: import_runsCreateNestedManyWithoutPortfolioInput
     snapshot?: snapshotsCreateNestedOneWithoutPortfolioInput
+    snapshot_history?: snapshot_historyCreateNestedManyWithoutPortfolioInput
     transactions?: TransactionCreateNestedManyWithoutPortfolioInput
   }
 
@@ -72210,6 +73838,7 @@ export namespace Prisma {
     broker_wallet_balances?: broker_wallet_balancesUncheckedCreateNestedManyWithoutPortfolioInput
     import_runs?: import_runsUncheckedCreateNestedManyWithoutPortfolioInput
     snapshot?: snapshotsUncheckedCreateNestedOneWithoutPortfolioInput
+    snapshot_history?: snapshot_historyUncheckedCreateNestedManyWithoutPortfolioInput
     transactions?: TransactionUncheckedCreateNestedManyWithoutPortfolioInput
   }
 
@@ -72292,6 +73921,7 @@ export namespace Prisma {
     broker_wallet_balances?: broker_wallet_balancesUpdateManyWithoutPortfolioNestedInput
     import_runs?: import_runsUpdateManyWithoutPortfolioNestedInput
     snapshot?: snapshotsUpdateOneWithoutPortfolioNestedInput
+    snapshot_history?: snapshot_historyUpdateManyWithoutPortfolioNestedInput
     transactions?: TransactionUpdateManyWithoutPortfolioNestedInput
   }
 
@@ -72305,6 +73935,7 @@ export namespace Prisma {
     broker_wallet_balances?: broker_wallet_balancesUncheckedUpdateManyWithoutPortfolioNestedInput
     import_runs?: import_runsUncheckedUpdateManyWithoutPortfolioNestedInput
     snapshot?: snapshotsUncheckedUpdateOneWithoutPortfolioNestedInput
+    snapshot_history?: snapshot_historyUncheckedUpdateManyWithoutPortfolioNestedInput
     transactions?: TransactionUncheckedUpdateManyWithoutPortfolioNestedInput
   }
 
@@ -72318,6 +73949,7 @@ export namespace Prisma {
     import_runs?: import_runsCreateNestedManyWithoutPortfolioInput
     positions?: PositionCreateNestedManyWithoutPortfolioInput
     snapshot?: snapshotsCreateNestedOneWithoutPortfolioInput
+    snapshot_history?: snapshot_historyCreateNestedManyWithoutPortfolioInput
     transactions?: TransactionCreateNestedManyWithoutPortfolioInput
   }
 
@@ -72331,6 +73963,7 @@ export namespace Prisma {
     import_runs?: import_runsUncheckedCreateNestedManyWithoutPortfolioInput
     positions?: PositionUncheckedCreateNestedManyWithoutPortfolioInput
     snapshot?: snapshotsUncheckedCreateNestedOneWithoutPortfolioInput
+    snapshot_history?: snapshot_historyUncheckedCreateNestedManyWithoutPortfolioInput
     transactions?: TransactionUncheckedCreateNestedManyWithoutPortfolioInput
   }
 
@@ -72360,6 +73993,7 @@ export namespace Prisma {
     import_runs?: import_runsUpdateManyWithoutPortfolioNestedInput
     positions?: PositionUpdateManyWithoutPortfolioNestedInput
     snapshot?: snapshotsUpdateOneWithoutPortfolioNestedInput
+    snapshot_history?: snapshot_historyUpdateManyWithoutPortfolioNestedInput
     transactions?: TransactionUpdateManyWithoutPortfolioNestedInput
   }
 
@@ -72373,6 +74007,7 @@ export namespace Prisma {
     import_runs?: import_runsUncheckedUpdateManyWithoutPortfolioNestedInput
     positions?: PositionUncheckedUpdateManyWithoutPortfolioNestedInput
     snapshot?: snapshotsUncheckedUpdateOneWithoutPortfolioNestedInput
+    snapshot_history?: snapshot_historyUncheckedUpdateManyWithoutPortfolioNestedInput
     transactions?: TransactionUncheckedUpdateManyWithoutPortfolioNestedInput
   }
 
@@ -72386,6 +74021,7 @@ export namespace Prisma {
     broker_wallet_balances?: broker_wallet_balancesCreateNestedManyWithoutPortfolioInput
     import_runs?: import_runsCreateNestedManyWithoutPortfolioInput
     positions?: PositionCreateNestedManyWithoutPortfolioInput
+    snapshot_history?: snapshot_historyCreateNestedManyWithoutPortfolioInput
     transactions?: TransactionCreateNestedManyWithoutPortfolioInput
   }
 
@@ -72399,6 +74035,7 @@ export namespace Prisma {
     broker_wallet_balances?: broker_wallet_balancesUncheckedCreateNestedManyWithoutPortfolioInput
     import_runs?: import_runsUncheckedCreateNestedManyWithoutPortfolioInput
     positions?: PositionUncheckedCreateNestedManyWithoutPortfolioInput
+    snapshot_history?: snapshot_historyUncheckedCreateNestedManyWithoutPortfolioInput
     transactions?: TransactionUncheckedCreateNestedManyWithoutPortfolioInput
   }
 
@@ -72428,6 +74065,7 @@ export namespace Prisma {
     broker_wallet_balances?: broker_wallet_balancesUpdateManyWithoutPortfolioNestedInput
     import_runs?: import_runsUpdateManyWithoutPortfolioNestedInput
     positions?: PositionUpdateManyWithoutPortfolioNestedInput
+    snapshot_history?: snapshot_historyUpdateManyWithoutPortfolioNestedInput
     transactions?: TransactionUpdateManyWithoutPortfolioNestedInput
   }
 
@@ -72441,6 +74079,79 @@ export namespace Prisma {
     broker_wallet_balances?: broker_wallet_balancesUncheckedUpdateManyWithoutPortfolioNestedInput
     import_runs?: import_runsUncheckedUpdateManyWithoutPortfolioNestedInput
     positions?: PositionUncheckedUpdateManyWithoutPortfolioNestedInput
+    snapshot_history?: snapshot_historyUncheckedUpdateManyWithoutPortfolioNestedInput
+    transactions?: TransactionUncheckedUpdateManyWithoutPortfolioNestedInput
+  }
+
+  export type PortfolioCreateWithoutSnapshot_historyInput = {
+    name: string
+    id: string
+    createdAt: Date | string
+    updatedAt: Date | string
+    isArchived?: boolean
+    binance_backfill_progress?: binance_backfill_progressCreateNestedManyWithoutPortfolioInput
+    broker_wallet_balances?: broker_wallet_balancesCreateNestedManyWithoutPortfolioInput
+    import_runs?: import_runsCreateNestedManyWithoutPortfolioInput
+    positions?: PositionCreateNestedManyWithoutPortfolioInput
+    snapshot?: snapshotsCreateNestedOneWithoutPortfolioInput
+    transactions?: TransactionCreateNestedManyWithoutPortfolioInput
+  }
+
+  export type PortfolioUncheckedCreateWithoutSnapshot_historyInput = {
+    name: string
+    id: string
+    createdAt: Date | string
+    updatedAt: Date | string
+    isArchived?: boolean
+    binance_backfill_progress?: binance_backfill_progressUncheckedCreateNestedManyWithoutPortfolioInput
+    broker_wallet_balances?: broker_wallet_balancesUncheckedCreateNestedManyWithoutPortfolioInput
+    import_runs?: import_runsUncheckedCreateNestedManyWithoutPortfolioInput
+    positions?: PositionUncheckedCreateNestedManyWithoutPortfolioInput
+    snapshot?: snapshotsUncheckedCreateNestedOneWithoutPortfolioInput
+    transactions?: TransactionUncheckedCreateNestedManyWithoutPortfolioInput
+  }
+
+  export type PortfolioCreateOrConnectWithoutSnapshot_historyInput = {
+    where: PortfolioWhereUniqueInput
+    create: XOR<PortfolioCreateWithoutSnapshot_historyInput, PortfolioUncheckedCreateWithoutSnapshot_historyInput>
+  }
+
+  export type PortfolioUpsertWithoutSnapshot_historyInput = {
+    update: XOR<PortfolioUpdateWithoutSnapshot_historyInput, PortfolioUncheckedUpdateWithoutSnapshot_historyInput>
+    create: XOR<PortfolioCreateWithoutSnapshot_historyInput, PortfolioUncheckedCreateWithoutSnapshot_historyInput>
+    where?: PortfolioWhereInput
+  }
+
+  export type PortfolioUpdateToOneWithWhereWithoutSnapshot_historyInput = {
+    where?: PortfolioWhereInput
+    data: XOR<PortfolioUpdateWithoutSnapshot_historyInput, PortfolioUncheckedUpdateWithoutSnapshot_historyInput>
+  }
+
+  export type PortfolioUpdateWithoutSnapshot_historyInput = {
+    name?: StringFieldUpdateOperationsInput | string
+    id?: StringFieldUpdateOperationsInput | string
+    createdAt?: DateTimeFieldUpdateOperationsInput | Date | string
+    updatedAt?: DateTimeFieldUpdateOperationsInput | Date | string
+    isArchived?: BoolFieldUpdateOperationsInput | boolean
+    binance_backfill_progress?: binance_backfill_progressUpdateManyWithoutPortfolioNestedInput
+    broker_wallet_balances?: broker_wallet_balancesUpdateManyWithoutPortfolioNestedInput
+    import_runs?: import_runsUpdateManyWithoutPortfolioNestedInput
+    positions?: PositionUpdateManyWithoutPortfolioNestedInput
+    snapshot?: snapshotsUpdateOneWithoutPortfolioNestedInput
+    transactions?: TransactionUpdateManyWithoutPortfolioNestedInput
+  }
+
+  export type PortfolioUncheckedUpdateWithoutSnapshot_historyInput = {
+    name?: StringFieldUpdateOperationsInput | string
+    id?: StringFieldUpdateOperationsInput | string
+    createdAt?: DateTimeFieldUpdateOperationsInput | Date | string
+    updatedAt?: DateTimeFieldUpdateOperationsInput | Date | string
+    isArchived?: BoolFieldUpdateOperationsInput | boolean
+    binance_backfill_progress?: binance_backfill_progressUncheckedUpdateManyWithoutPortfolioNestedInput
+    broker_wallet_balances?: broker_wallet_balancesUncheckedUpdateManyWithoutPortfolioNestedInput
+    import_runs?: import_runsUncheckedUpdateManyWithoutPortfolioNestedInput
+    positions?: PositionUncheckedUpdateManyWithoutPortfolioNestedInput
+    snapshot?: snapshotsUncheckedUpdateOneWithoutPortfolioNestedInput
     transactions?: TransactionUncheckedUpdateManyWithoutPortfolioNestedInput
   }
 
@@ -72537,6 +74248,7 @@ export namespace Prisma {
     import_runs?: import_runsCreateNestedManyWithoutPortfolioInput
     positions?: PositionCreateNestedManyWithoutPortfolioInput
     snapshot?: snapshotsCreateNestedOneWithoutPortfolioInput
+    snapshot_history?: snapshot_historyCreateNestedManyWithoutPortfolioInput
   }
 
   export type PortfolioUncheckedCreateWithoutTransactionsInput = {
@@ -72550,6 +74262,7 @@ export namespace Prisma {
     import_runs?: import_runsUncheckedCreateNestedManyWithoutPortfolioInput
     positions?: PositionUncheckedCreateNestedManyWithoutPortfolioInput
     snapshot?: snapshotsUncheckedCreateNestedOneWithoutPortfolioInput
+    snapshot_history?: snapshot_historyUncheckedCreateNestedManyWithoutPortfolioInput
   }
 
   export type PortfolioCreateOrConnectWithoutTransactionsInput = {
@@ -72732,6 +74445,7 @@ export namespace Prisma {
     import_runs?: import_runsUpdateManyWithoutPortfolioNestedInput
     positions?: PositionUpdateManyWithoutPortfolioNestedInput
     snapshot?: snapshotsUpdateOneWithoutPortfolioNestedInput
+    snapshot_history?: snapshot_historyUpdateManyWithoutPortfolioNestedInput
   }
 
   export type PortfolioUncheckedUpdateWithoutTransactionsInput = {
@@ -72745,6 +74459,7 @@ export namespace Prisma {
     import_runs?: import_runsUncheckedUpdateManyWithoutPortfolioNestedInput
     positions?: PositionUncheckedUpdateManyWithoutPortfolioNestedInput
     snapshot?: snapshotsUncheckedUpdateOneWithoutPortfolioNestedInput
+    snapshot_history?: snapshot_historyUncheckedUpdateManyWithoutPortfolioNestedInput
   }
 
   export type recommendationsUpsertWithoutTransactionsInput = {
@@ -74887,6 +76602,16 @@ export namespace Prisma {
     marginUsd?: Decimal | DecimalJsLike | number | string | null
   }
 
+  export type snapshot_historyCreateManyPortfolioInput = {
+    id?: string
+    captured_on: Date | string
+    market_value?: Decimal | DecimalJsLike | number | string | null
+    cash_balance?: Decimal | DecimalJsLike | number | string | null
+    total_return?: Decimal | DecimalJsLike | number | string | null
+    realized_pnl?: Decimal | DecimalJsLike | number | string | null
+    created_at?: Date | string
+  }
+
   export type TransactionCreateManyPortfolioInput = {
     symbol: string
     assetId?: string | null
@@ -75058,6 +76783,36 @@ export namespace Prisma {
     createdAt?: DateTimeFieldUpdateOperationsInput | Date | string
     updatedAt?: DateTimeFieldUpdateOperationsInput | Date | string
     marginUsd?: NullableDecimalFieldUpdateOperationsInput | Decimal | DecimalJsLike | number | string | null
+  }
+
+  export type snapshot_historyUpdateWithoutPortfolioInput = {
+    id?: StringFieldUpdateOperationsInput | string
+    captured_on?: DateTimeFieldUpdateOperationsInput | Date | string
+    market_value?: NullableDecimalFieldUpdateOperationsInput | Decimal | DecimalJsLike | number | string | null
+    cash_balance?: NullableDecimalFieldUpdateOperationsInput | Decimal | DecimalJsLike | number | string | null
+    total_return?: NullableDecimalFieldUpdateOperationsInput | Decimal | DecimalJsLike | number | string | null
+    realized_pnl?: NullableDecimalFieldUpdateOperationsInput | Decimal | DecimalJsLike | number | string | null
+    created_at?: DateTimeFieldUpdateOperationsInput | Date | string
+  }
+
+  export type snapshot_historyUncheckedUpdateWithoutPortfolioInput = {
+    id?: StringFieldUpdateOperationsInput | string
+    captured_on?: DateTimeFieldUpdateOperationsInput | Date | string
+    market_value?: NullableDecimalFieldUpdateOperationsInput | Decimal | DecimalJsLike | number | string | null
+    cash_balance?: NullableDecimalFieldUpdateOperationsInput | Decimal | DecimalJsLike | number | string | null
+    total_return?: NullableDecimalFieldUpdateOperationsInput | Decimal | DecimalJsLike | number | string | null
+    realized_pnl?: NullableDecimalFieldUpdateOperationsInput | Decimal | DecimalJsLike | number | string | null
+    created_at?: DateTimeFieldUpdateOperationsInput | Date | string
+  }
+
+  export type snapshot_historyUncheckedUpdateManyWithoutPortfolioInput = {
+    id?: StringFieldUpdateOperationsInput | string
+    captured_on?: DateTimeFieldUpdateOperationsInput | Date | string
+    market_value?: NullableDecimalFieldUpdateOperationsInput | Decimal | DecimalJsLike | number | string | null
+    cash_balance?: NullableDecimalFieldUpdateOperationsInput | Decimal | DecimalJsLike | number | string | null
+    total_return?: NullableDecimalFieldUpdateOperationsInput | Decimal | DecimalJsLike | number | string | null
+    realized_pnl?: NullableDecimalFieldUpdateOperationsInput | Decimal | DecimalJsLike | number | string | null
+    created_at?: DateTimeFieldUpdateOperationsInput | Date | string
   }
 
   export type TransactionUpdateWithoutPortfolioInput = {

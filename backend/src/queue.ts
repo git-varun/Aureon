@@ -12,6 +12,7 @@ import { monthlyBriefingTask } from "./jobs/monthlyBriefing";
 import { refreshFundamentalsTask } from "./jobs/refreshFundamentals";
 import { fetchNewsTask } from "./jobs/fetchNews";
 import { seedTrackedUniversesTask } from "./jobs/seedTrackedUniverses";
+import { generateSnapshotHistoryTask } from "./jobs/generateSnapshotHistory";
 import {
   bullmqConnection as connection,
   QUOTES_QUEUE_NAME,
@@ -166,6 +167,19 @@ export async function registerFetchNewsSchedule(): Promise<void> {
   );
 }
 
+// New job (no Python beat_schedule equivalent — nothing in the Python
+// backend ran valuation on a timer either). Daily at 17:00 UTC (22:30 IST):
+// after both equity market close and every other daily job above so each
+// portfolio's snapshot reflects the day's fully-settled prices, and before
+// the next day's 08:00 UTC daily-briefing.
+export async function registerGenerateSnapshotHistorySchedule(): Promise<void> {
+  await scheduledJobsQueue.upsertJobScheduler(
+    "generate-snapshot-history",
+    { pattern: "0 17 * * *", tz: "UTC" },
+    { name: "generateSnapshotHistory" },
+  );
+}
+
 // Job-name -> handler map, not one Worker per job — q_scheduled_jobs is
 // meant to carry every cron-driven job cut over from Celery beat (see
 // migration plan Task 3), so a future job landing here only needs an entry
@@ -187,6 +201,7 @@ const SCHEDULED_JOB_HANDLERS: Record<string, () => Promise<void>> = {
   // run it, instead of the API process running it fire-and-forget in-process
   // and losing it on every restart.
   seedTrackedUniverses: seedTrackedUniversesTask,
+  generateSnapshotHistory: generateSnapshotHistoryTask,
 };
 
 export function startScheduledJobsWorker(): Worker<undefined, void> {
