@@ -519,9 +519,45 @@ export function filterYahooSearchNews(items: YahooSearchNewsItem[], symbol: stri
   return parsed;
 }
 
+/** NSE/BSE-listed symbols only (scope of this fix — other non-US exchanges,
+ * e.g. routing.ts's JP_HK_EUROPE_SUFFIXES, are untested here and left on the
+ * ticker-mode path below). */
+function isNseBseSymbol(symbol: string): boolean {
+  return symbol.endsWith(".NS") || symbol.endsWith(".BO");
+}
+
+/** yf.search(symbol) — ticker-mode search — returns unrelated trending
+ * filler for .NS/.BO symbols instead of anything relevant (confirmed live:
+ * the identical 4-headline filler set came back for RELIANCE.NS, HDFCBANK.NS,
+ * TCS.NS, and INFY.NS alike), even though Yahoo's index does hold real,
+ * correctly relatedTickers-tagged coverage for these companies — it's only
+ * reachable by searching on the company's name instead of its ticker. That
+ * name has to come from Yahoo itself (the same quote() call getQuote already
+ * trusts for this exact symbol) rather than be derived/guessed here — a
+ * guessed name risks searching for, and then (via the exact-ticker
+ * relatedTickers check below) plausibly matching, real news about a
+ * different company entirely. */
+async function resolveCompanyName(symbol: string): Promise<string | null> {
+  const q = await yf.quote(symbol);
+  return q.longName ?? q.shortName ?? null;
+}
+
 export async function getNews(symbol: string): Promise<NormalizedNews[]> {
   try {
-    const result = await yf.search(symbol);
+    let searchQuery = symbol;
+    if (isNseBseSymbol(symbol)) {
+      const companyName = await resolveCompanyName(symbol);
+      // No name on file for this symbol — nothing reliable to search by.
+      // Falling back to the ticker-mode search here would just reproduce
+      // the known-useless filler results, so degrade to "no news" instead.
+      if (companyName === null) return [];
+      searchQuery = companyName;
+    }
+    const result = await yf.search(searchQuery);
+    // Filtering still keys off the real ticker symbol, not the name query —
+    // an article surfaced by a company-name search still has to carry this
+    // exact symbol in relatedTickers (e.g. rejects HDFC Bank ADR articles
+    // tagged "HDB" instead of "HDFCBANK.NS") — no alias/fuzzy matching added.
     return filterYahooSearchNews(result.news ?? [], symbol);
   } catch (e) {
     throw new ProviderError(`Yahoo get_news failed for ${symbol}: ${(e as Error).message}`);
