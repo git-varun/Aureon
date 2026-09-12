@@ -31,10 +31,26 @@ function QualityMetricsBar({ metrics }) {
     );
 }
 
-const IntervalCell = ({ realized, excess }) => (
+// elapsed === false means the window's target date hasn't arrived yet — the
+// backend falls back to today's mark-to-now price for that period, which is
+// identical across every not-yet-elapsed period. Rendered muted with an
+// "unrealized" label so it doesn't read as a distinct, real period return.
+const IntervalCell = ({ realized, excess, elapsed }) => (
     <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: 1, minWidth: 78 }}>
-        <span style={{ fontFamily: 'var(--font-mono)', fontSize: 12.5, fontWeight: 600, color: returnColor(realized) }}>{pct(realized)}</span>
-        {excess != null && (
+        <span
+            style={{
+                fontFamily: 'var(--font-mono)', fontSize: 12.5, fontWeight: 600,
+                color: elapsed === false ? 'var(--ink-40)' : returnColor(realized),
+            }}
+            title={elapsed === false ? "Window hasn't elapsed yet — shows today's unrealized return, not a real period-close figure" : undefined}
+        >
+            {pct(realized)}
+        </span>
+        {elapsed === false ? (
+            <span style={{ fontFamily: 'var(--font-mono)', fontSize: 10, color: 'var(--ink-40)', fontStyle: 'italic' }}>
+                unrealized
+            </span>
+        ) : excess != null && (
             <span style={{ fontFamily: 'var(--font-mono)', fontSize: 10, color: returnColor(excess) }}>
                 {excess >= 0 ? '+' : ''}{pct(excess)} vs mkt
             </span>
@@ -55,9 +71,9 @@ function PerformanceRow({ p, isLast }) {
                 <div style={{ fontSize: 11.5, color: 'var(--ink-40)', fontStyle: 'italic' }}>{p.unavailable_reason || 'unavailable'}</div>
             ) : (
                 <div style={{ display: 'flex', gap: 22 }}>
-                    <IntervalCell realized={p.realized_return_30d} excess={p.excess_return_30d} />
-                    <IntervalCell realized={p.realized_return_90d} excess={p.excess_return_90d} />
-                    <IntervalCell realized={p.realized_return_180d} excess={p.excess_return_180d} />
+                    <IntervalCell realized={p.realized_return_30d} excess={p.excess_return_30d} elapsed={p.elapsed_30d} />
+                    <IntervalCell realized={p.realized_return_90d} excess={p.excess_return_90d} elapsed={p.elapsed_90d} />
+                    <IntervalCell realized={p.realized_return_180d} excess={p.excess_return_180d} elapsed={p.elapsed_180d} />
                 </div>
             )}
         </div>

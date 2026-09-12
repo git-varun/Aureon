@@ -237,6 +237,7 @@ export async function getRecommendationPerformance(): Promise<RecommendationPerf
         perf[`realized_return_${days}d`] = null;
         perf[`benchmark_return_${days}d`] = null;
         perf[`excess_return_${days}d`] = null;
+        perf[`elapsed_${days}d`] = targetDate <= now;
         continue;
       }
 
@@ -248,6 +249,13 @@ export async function getRecommendationPerformance(): Promise<RecommendationPerf
       perf[`realized_return_${days}d`] = round4(realizedReturn);
       perf[`benchmark_return_${days}d`] = round4(benchmarkReturn);
       perf[`excess_return_${days}d`] = round4(excessReturn);
+      // targetDate > now means this window hasn't actually elapsed — the
+      // return above is today's unrealized mark-to-now, not the real
+      // period-close figure. Surfaced so callers don't present it as a
+      // distinct realized 30d/90d/180d number (it's identical across every
+      // not-yet-elapsed period by construction, since pTarget is always
+      // today's price until the window closes).
+      perf[`elapsed_${days}d`] = targetDate <= now;
     }
 
     performanceList.push(perf);
