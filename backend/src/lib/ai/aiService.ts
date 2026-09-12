@@ -583,9 +583,12 @@ export async function submitFeedback(
  * macro_analysis/confidence_score/future_projections/skipped_assets_summary/
  * directives) has no date or model field of its own, so without this the
  * frontend's date and model-attribution reads always come back undefined. */
-export async function getBriefingHistory(limit = 30): Promise<Record<string, unknown>[]> {
+export async function getBriefingHistory(
+  limit = 30,
+  briefingType = "global",
+): Promise<Record<string, unknown>[]> {
   const briefs = await prisma.ai_briefings.findMany({
-    where: { briefing_type: "global" },
+    where: { briefing_type: briefingType },
     orderBy: { created_at: "desc" },
     take: limit,
   });

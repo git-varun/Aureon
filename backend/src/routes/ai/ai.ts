@@ -94,7 +94,8 @@ aiRouter.post("/ai/recommendations/:id/explain", async (req, res, next) => {
 aiRouter.get("/analytics/ai/briefings", async (req, res, next) => {
   try {
     const limit = req.query.limit ? Number(req.query.limit) : 30;
-    res.json(await getBriefingHistory(limit));
+    const briefingType = typeof req.query.type === "string" ? req.query.type : "global";
+    res.json(await getBriefingHistory(limit, briefingType));
   } catch (e) {
     next(e);
   }
