@@ -119,6 +119,93 @@ function BriefingFeedback({ generationId }) {
     );
 }
 
+function DirectiveItem({ d, conflict }) {
+    const [detailOpen, setDetailOpen] = useState(false);
+    const actionColor = ACTION_COLOR[(d.action || '').toUpperCase()] || 'var(--ink-30)';
+    const ns = d.news_sentiment || {};
+
+    return (
+        <div style={{
+            borderRadius: 9, border: '1px solid rgba(255,255,255,0.06)',
+            background: 'rgba(255,255,255,0.02)', padding: '11px 13px',
+        }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap', marginBottom: 6 }}>
+                <span style={{ fontFamily: 'var(--font-mono)', fontSize: 12.5, fontWeight: 700, color: 'var(--ink-00)' }}>
+                    {d.symbol}
+                </span>
+                {d.action && (
+                    <span style={{
+                        fontSize: 10.5, padding: '2px 7px', borderRadius: 5, fontWeight: 600,
+                        color: actionColor,
+                        background: `color-mix(in oklab, ${actionColor} 12%, transparent)`,
+                        border: `1px solid color-mix(in oklab, ${actionColor} 30%, transparent)`,
+                    }}>
+                        {d.action}
+                    </span>
+                )}
+                {d.conviction_level != null && (
+                    <span style={{ fontFamily: 'var(--font-mono)', fontSize: 11, color: 'var(--ink-40)' }}>
+                        Conviction {d.conviction_level}/5
+                    </span>
+                )}
+                <div style={{ flex: 1 }} />
+                {conflict && (
+                    <span style={{
+                        fontSize: 10.5, padding: '2px 7px', borderRadius: 5, fontWeight: 600,
+                        color: 'var(--crimson-500)', background: 'rgba(201,82,82,0.10)',
+                        border: '1px solid rgba(201,82,82,0.28)',
+                    }} title={`Rule engine recommends ${conflict.recommendation_state}, AI directive says ${d.action}`}>
+                        ⚠ Rule engine: {conflict.recommendation_state}
+                    </span>
+                )}
+            </div>
+
+            {d.the_why && (
+                <p style={{ margin: '0 0 6px', fontSize: 12.5, color: 'var(--ink-10)', lineHeight: 1.55 }}>
+                    {d.the_why}
+                </p>
+            )}
+
+            <div style={{ display: 'flex', gap: 14, flexWrap: 'wrap', fontSize: 11.5, color: 'var(--ink-30)' }}>
+                {d.position_sizing && <span>{d.position_sizing}</span>}
+                {d.financial_impact && <span>{d.financial_impact}</span>}
+            </div>
+
+            {(d.time_horizon || d.risk_reward_ratio || d.technical_analysis || d.fundamental_analysis || ns.impact_summary) && (
+                <>
+                    <button
+                        onClick={() => setDetailOpen(v => !v)}
+                        style={{
+                            display: 'inline-flex', alignItems: 'center', gap: 4,
+                            marginTop: 8, padding: 0, border: 'none', background: 'none',
+                            cursor: 'pointer', color: 'var(--ink-40)', fontSize: 11,
+                        }}
+                    >
+                        <svg
+                            width="10" height="10" viewBox="0 0 24 24" fill="none"
+                            stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"
+                            style={{ transform: detailOpen ? 'rotate(180deg)' : 'none', transition: 'transform 200ms' }}
+                        >
+                            <polyline points="6 9 12 15 18 9" />
+                        </svg>
+                        {detailOpen ? 'Less detail' : 'More detail'}
+                    </button>
+                    {detailOpen && (
+                        <div style={{ marginTop: 8, display: 'grid', gap: 5, fontSize: 11.5, color: 'var(--ink-30)', lineHeight: 1.5 }}>
+                            {d.time_horizon && <div><span style={{ color: 'var(--ink-40)' }}>Horizon:</span> {d.time_horizon}{d.risk_reward_ratio ? ` · R:R ${d.risk_reward_ratio}` : ''}</div>}
+                            {d.technical_analysis && <div><span style={{ color: 'var(--ink-40)' }}>Technical:</span> {d.technical_analysis}</div>}
+                            {d.fundamental_analysis && <div><span style={{ color: 'var(--ink-40)' }}>Fundamental:</span> {d.fundamental_analysis}</div>}
+                            {ns.impact_summary && (
+                                <div><span style={{ color: 'var(--ink-40)' }}>News ({ns.bias}{ns.confidence != null ? `, ${ns.confidence}%` : ''}):</span> {ns.impact_summary}</div>
+                            )}
+                        </div>
+                    )}
+                </>
+            )}
+        </div>
+    );
+}
+
 const RISK_TONE = {
     LOW: { color: 'var(--ink-30)', bg: 'rgba(255,255,255,0.05)', border: 'rgba(255,255,255,0.12)' },
     MEDIUM: { color: 'var(--aurum-100)', bg: 'rgba(201,168,106,0.10)', border: 'rgba(201,168,106,0.28)' },
@@ -126,7 +213,7 @@ const RISK_TONE = {
     EXTREME: { color: 'var(--crimson-500)', bg: 'rgba(201,82,82,0.16)', border: 'rgba(201,82,82,0.40)' },
 };
 
-function BriefingCard({ b, expanded, onToggle }) {
+function BriefingCard({ b, expanded, onToggle, recBySymbol }) {
     // The AI prompt schema returns the trend/risk read here under
     // future_projections, not top-level short_term_trend/recommended_action
     // (those fields don't exist in the response) — reading the wrong fields
@@ -151,9 +238,13 @@ function BriefingCard({ b, expanded, onToggle }) {
     const confPct = confidence != null ? Math.round(confidence * 100) : null;
     const isExpanded = expanded === b.id;
 
+    const directives = Array.isArray(b.directives) ? b.directives : [];
+
     const sections = [];
     if (summary) sections.push({ label: 'Summary', value: summary });
     if (keyCatalyst) sections.push({ label: 'Key catalyst', value: keyCatalyst });
+
+    const hasExpandableContent = sections.length > 0 || directives.length > 0;
 
     return (
         <div className="layer-1" style={{ borderRadius: 12, overflow: 'hidden', border: '1px solid rgba(255,255,255,0.06)' }}>
@@ -209,7 +300,7 @@ function BriefingCard({ b, expanded, onToggle }) {
                 )}
 
                 {/* Expand toggle */}
-                {sections.length > 0 && (
+                {hasExpandableContent && (
                     <button
                         onClick={() => onToggle(b.id)}
                         style={{
@@ -234,7 +325,7 @@ function BriefingCard({ b, expanded, onToggle }) {
             </div>
 
             {/* Expanded sections */}
-            {isExpanded && sections.length > 0 && (
+            {isExpanded && hasExpandableContent && (
                 <div style={{
                     borderTop: '1px solid rgba(255,255,255,0.06)',
                     padding: '14px 20px',
@@ -253,6 +344,26 @@ function BriefingCard({ b, expanded, onToggle }) {
                             <span style={{ fontSize: 12.5, color: 'var(--ink-20)', lineHeight: 1.55 }}>{value}</span>
                         </div>
                     ))}
+
+                    {directives.length > 0 && (
+                        <div style={{ display: 'grid', gap: 8, marginTop: sections.length > 0 ? 4 : 0 }}>
+                            <span style={{ fontSize: 11, color: 'var(--ink-40)' }}>
+                                Per-symbol directives ({directives.length})
+                            </span>
+                            {directives.map((d, i) => (
+                                <DirectiveItem
+                                    key={`${d.symbol}-${i}`}
+                                    d={d}
+                                    conflict={
+                                        recBySymbol?.[d.symbol] &&
+                                        recBySymbol[d.symbol].recommendation_state?.toUpperCase() !== (d.action || '').toUpperCase()
+                                            ? recBySymbol[d.symbol]
+                                            : null
+                                    }
+                                />
+                            ))}
+                        </div>
+                    )}
                 </div>
             )}
             <div style={{ padding: '0 20px 15px' }}>
@@ -276,6 +387,7 @@ export default function AIBriefings({ tabState, onRetry }) {
     // closed mid-flight) from disabling the button forever.
     const [running, setRunning] = useState(() => isPendingFresh());
     const [expanded, setExpanded] = useState(null);
+    const [activeRecs, setActiveRecs] = useState([]);
 
     useEffect(() => {
         let cancelled = false;
@@ -285,6 +397,24 @@ export default function AIBriefings({ tabState, onRetry }) {
             .finally(() => { if (!cancelled) setLoading(false); });
         return () => { cancelled = true; };
     }, []);
+
+    // Cross-reference directives[] against active recommendations from the
+    // rule engine (by symbol) — fetched separately since useAureonData()
+    // fetches recommendations only to gate its own loading/error state and
+    // doesn't expose the list.
+    useEffect(() => {
+        let cancelled = false;
+        apiService.listRecommendations('active')
+            .then((data) => { if (!cancelled) setActiveRecs(Array.isArray(data) ? data : []); })
+            .catch(() => { if (!cancelled) setActiveRecs([]); });
+        return () => { cancelled = true; };
+    }, []);
+
+    const recBySymbol = (() => {
+        const map = {};
+        activeRecs.forEach((r) => { if (r.symbol) map[r.symbol] = r; });
+        return map;
+    })();
 
     // Polls for a pending run inherited from sessionStorage (i.e. started by
     // a since-unmounted instance of this component) so this instance
@@ -474,6 +604,7 @@ export default function AIBriefings({ tabState, onRetry }) {
                             b={b}
                             expanded={expanded}
                             onToggle={handleToggle}
+                            recBySymbol={recBySymbol}
                         />
                     ))}
                 </div>
