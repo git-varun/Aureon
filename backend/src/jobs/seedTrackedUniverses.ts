@@ -5,8 +5,13 @@ import { ingestQuote } from "./ingestQuote";
 import { ensureTrackedAsset, saveQuote } from "../lib/jobs/ingestionRepo";
 import { getTopMarketCapCoins, SYMBOL_TO_COINGECKO_ID } from "../lib/marketProviders/coingecko";
 import { wrapJobExecution, skipIfDisabled } from "../lib/jobs/wrapJobExecution";
+import { logJobStart } from "../lib/jobs/config";
+import { prisma } from "../prisma";
+import type { Prisma } from "../generated/prisma";
 import type { NormalizedQuote } from "../lib/marketProviders/types";
 import { logger } from "../lib/logger";
+
+const JOB_NAME = "seed_tracked_universes";
 
 interface UniverseResult {
   symbols: number;
@@ -15,12 +20,64 @@ interface UniverseResult {
   history_rows: number;
 }
 
+// Checkpoint granularity is per-universe (the job's existing 5 equity
+// groups + crypto_top100 phase structure), not per-symbol — each phase
+// finishes in seconds to a few minutes post fix (c)'s pacing removal, so
+// per-symbol resumability would be finer-grained than this manual,
+// infrequent job needs. State lives directly on the job_logs row this run
+// is writing to (resultSummary), the same shape wrapJobExecution's
+// logJobEnd would write on a normal completion — no new table.
+//
+// A prior run only counts as resumable if it's within RESUME_WINDOW_MS: this
+// is a rare/manual bulk-seed job, so an interruption from days ago likely
+// means the market data it already wrote is stale anyway — better to redo
+// it than trust it.
+const RESUME_WINDOW_MS = 24 * 60 * 60 * 1000;
+
+// A RUNNING row younger than this might be a genuinely concurrent run (two
+// workers briefly overlapping, or a fast re-dispatch) rather than an
+// abandoned one — resuming from it would let both runs skip phases neither
+// actually finished. sweepStaleRunningJobs' own threshold is 2h, so a real
+// crash's row is always well past this floor by the time a retry checks.
+const MIN_ABANDONED_MS = 60 * 1000;
+
+/** Finds the most recent *other* RUNNING run of this job — still-open from
+ * a crashed worker (2h stale-sweep threshold, well beyond MIN_ABANDONED_MS,
+ * means it's always still RUNNING when a retry lands within this window) —
+ * and returns whatever phases it had already checkpointed. Deliberately
+ * excludes FAILED: sweepStaleRunningJobs never clears resultSummary when it
+ * closes out a stale row, so a FAILED row can carry a checkpoint too, but a
+ * FAILED status means something closed the run out deliberately (a real
+ * provider error, a bug) — resuming past that would silently skip a phase
+ * that never actually succeeded. A prior SUCCESS run is not resumed from
+ * either — a fresh manual trigger after a clean completion means the user
+ * wants a fresh seed, not a skip-everything no-op. */
+async function loadCheckpoint(excludeLogId: number): Promise<Record<string, UniverseResult>> {
+  const now = Date.now();
+  const prev = await prisma.jobLog.findFirst({
+    where: {
+      jobName: JOB_NAME,
+      id: { not: excludeLogId },
+      status: "RUNNING",
+      startedAt: { gte: new Date(now - RESUME_WINDOW_MS), lte: new Date(now - MIN_ABANDONED_MS) },
+    },
+    orderBy: { startedAt: "desc" },
+  });
+  return (prev?.resultSummary as Record<string, UniverseResult> | null) ?? {};
+}
+
+async function persistProgress(logId: number, results: Record<string, UniverseResult>): Promise<void> {
+  await prisma.jobLog.update({ where: { id: logId }, data: { resultSummary: results as unknown as Prisma.InputJsonValue } });
+}
+
 /** Port of IndexUniverseSeedService.seed_equity_universes — walks each
  * SEED_UNIVERSES list, creates/tracks the Asset, quotes it, and backfills
- * history. */
-async function seedEquityUniverses(): Promise<Record<string, UniverseResult>> {
-  const results: Record<string, UniverseResult> = {};
+ * history. Mutates `results` in place, persisting it after each universe
+ * completes so a mid-run crash resumes instead of restarting. */
+async function seedEquityUniverses(logId: number, results: Record<string, UniverseResult>): Promise<void> {
   for (const [universeName, symbols] of Object.entries(SEED_UNIVERSES)) {
+    if (results[universeName]) continue; // already checkpointed by a prior interrupted run
+
     let quoted = 0;
     let failed = 0;
     let historyRows = 0;
@@ -38,8 +95,8 @@ async function seedEquityUniverses(): Promise<Record<string, UniverseResult>> {
     }
     results[universeName] = { symbols: symbols.length, quoted, failed, history_rows: historyRows };
     logger.info({ job: "seed_tracked_universes", universeName, ...results[universeName] }, "universe seeded");
+    await persistProgress(logId, results);
   }
-  return results;
 }
 
 // Known stablecoin CoinGecko ids among the live top-100-by-market-cap set —
@@ -71,7 +128,9 @@ function cryptoSymbolAndClass(coin: { id: string; symbol: string }): [string, st
  * 21s inter-coin sleep was calibrated for a CoinGecko budget this code path
  * never spends. The one budgeted CoinGecko call is getTopMarketCapCoins
  * above, already guarded by its own checkBudget. */
-async function seedCryptoTop100(limit = 100): Promise<UniverseResult> {
+async function seedCryptoTop100(logId: number, results: Record<string, UniverseResult>, limit = 100): Promise<void> {
+  if (results.crypto_top100) return; // already checkpointed by a prior interrupted run
+
   const coins = await getTopMarketCapCoins(limit);
 
   let quoted = 0;
@@ -100,15 +159,22 @@ async function seedCryptoTop100(limit = 100): Promise<UniverseResult> {
     historyRows += await backfillHistory(s.assetId, s.symbol, "coingecko");
   }
 
-  const result: UniverseResult = { symbols: coins.length, quoted, failed, history_rows: historyRows };
-  logger.info({ job: "seed_tracked_universes", universeName: "crypto_top100", ...result }, "universe seeded");
-  return result;
+  results.crypto_top100 = { symbols: coins.length, quoted, failed, history_rows: historyRows };
+  logger.info({ job: "seed_tracked_universes", universeName: "crypto_top100", ...results.crypto_top100 }, "universe seeded");
+  await persistProgress(logId, results);
 }
 
-/** Port of IndexUniverseSeedService.seed_tracked_universes. */
-async function seedTrackedUniverses(): Promise<Record<string, UniverseResult>> {
-  const results = await seedEquityUniverses();
-  results.crypto_top100 = await seedCryptoTop100();
+/** Port of IndexUniverseSeedService.seed_tracked_universes. `logId` is
+ * always resolved (see seedTrackedUniversesTask below) so checkpointing can
+ * read/write the right job_logs row regardless of which dispatch path
+ * called this task. */
+async function seedTrackedUniverses(logId: number): Promise<Record<string, UniverseResult>> {
+  const results = await loadCheckpoint(logId);
+  if (Object.keys(results).length > 0) {
+    logger.info({ job: "seed_tracked_universes", resuming: Object.keys(results) }, "resuming from checkpoint");
+  }
+  await seedEquityUniverses(logId, results);
+  await seedCryptoTop100(logId, results);
   logger.info({ job: "seed_tracked_universes", results }, "completed");
   return results;
 }
@@ -117,8 +183,14 @@ async function seedTrackedUniverses(): Promise<Record<string, UniverseResult>> {
  * @shared_task decorator pair). Rare/manual "Run Now" job — enabled=False by
  * default (see jobDefaults.ts), no BullMQ repeatable schedule registered
  * anywhere — one-time (or occasional) bulk operation, unlike every other
- * JobConfig entry. */
+ * JobConfig entry.
+ *
+ * logId is resolved here (not left to wrapJobExecution's own null-handling)
+ * so seedTrackedUniverses can checkpoint against the same row wrapJobExecution
+ * is tracking — the BullMQ-dispatched path (queue.ts's SCHEDULED_JOB_HANDLERS)
+ * calls this with no logId at all, same as every other queued job. */
 export async function seedTrackedUniversesTask(logId: number | null = null): Promise<void> {
-  if (await skipIfDisabled("seed_tracked_universes", logId)) return;
-  await wrapJobExecution("seed_tracked_universes", logId, seedTrackedUniverses);
+  if (await skipIfDisabled(JOB_NAME, logId)) return;
+  const resolvedLogId = logId ?? (await logJobStart(JOB_NAME)).id;
+  await wrapJobExecution(JOB_NAME, resolvedLogId, () => seedTrackedUniverses(resolvedLogId));
 }
