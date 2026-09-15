@@ -441,6 +441,32 @@ export async function executeCompletion(
   return { responseText, generationId };
 }
 
+/** Wraps executeCompletion for jsonMode callers: models occasionally emit
+ * syntactically invalid JSON (e.g. a dropped quote on a key) even with
+ * responseMimeType: "application/json" set. One retry clears this in
+ * practice; if the second attempt also fails to parse, surface it as a
+ * ProviderError (bad provider output) rather than a raw SyntaxError. */
+async function executeCompletionJson(
+  prompt: string,
+  featureName: string,
+  userId: string | null,
+  contextPayload: Record<string, unknown> | null,
+  retrievalMetadata: Record<string, unknown> | null,
+): Promise<{ parsed: Record<string, unknown>; generationId: string }> {
+  for (let attempt = 1; attempt <= 2; attempt++) {
+    const { responseText, generationId } = await executeCompletion(prompt, featureName, userId, contextPayload, retrievalMetadata, true);
+    try {
+      return { parsed: parseJsonLoose(responseText) as Record<string, unknown>, generationId };
+    } catch (err) {
+      logger.warn({ operation: "ai_completion_json", featureName, attempt, err }, "AI response was not valid JSON");
+      if (attempt === 2) {
+        throw new ProviderError(`AI provider returned malformed JSON for ${featureName} after retry`);
+      }
+    }
+  }
+  throw new ProviderError(`AI provider returned malformed JSON for ${featureName} after retry`);
+}
+
 // ── High-level AI actions ───────────────────────────────────────────────────
 
 /** Port of generate_briefing. */
@@ -456,9 +482,7 @@ export async function generateBriefing(briefingType: string, userId: string | nu
   const payload = { context_length: context.length };
   const meta = { symbols: [], context_type: "global" };
 
-  const { responseText: rawResponse, generationId } = await executeCompletion(prompt, briefingType, userId, payload, meta, true);
-
-  const parsed = parseJsonLoose(rawResponse) as Record<string, unknown>;
+  const { parsed, generationId } = await executeCompletionJson(prompt, briefingType, userId, payload, meta);
 
   // Attach generation_id so the frontend can submit feedback against this
   // exact ai_generations row; persisted in content so it survives into
@@ -519,16 +543,7 @@ export async function explainRecommendation(recommendationId: string, userId: st
   const payload = { recommendation_id: recommendationId };
   const meta = { target_id: recommendationId };
 
-  const { responseText: rawResponse, generationId } = await executeCompletion(
-    prompt,
-    "recommendation_explanation",
-    userId,
-    payload,
-    meta,
-    true,
-  );
-
-  const parsed = parseJsonLoose(rawResponse) as Record<string, unknown>;
+  const { parsed, generationId } = await executeCompletionJson(prompt, "recommendation_explanation", userId, payload, meta);
   parsed.generation_id = generationId;
 
   const rulesMatched = (parsed.rules_matched ?? {}) as Prisma.InputJsonValue;
@@ -638,9 +653,7 @@ export async function getSingleAssetTake(symbolRaw: string, userId: string | nul
   }
 
   const prompt = SINGLE_ASSET_TAKE_PROMPT(symbol, context);
-  const { responseText, generationId } = await executeCompletion(prompt, "single", userId, null, null, true);
-
-  const parsed = parseJsonLoose(responseText) as Record<string, unknown>;
+  const { parsed, generationId } = await executeCompletionJson(prompt, "single", userId, null, null);
   parsed.generation_id = generationId;
   return parsed;
 }
